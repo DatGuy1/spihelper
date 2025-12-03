@@ -39,7 +39,7 @@ export const spiHelperTopViewHTML = `
   </ul>
   <input type="button" id="spiHelper_GenerateForm" name="spiHelper_GenerateForm" value="Continue" />
 </div>
-`
+`;
 
 export const spiHelperActionViewHTML = `
 <div id="spiHelper_actionViewDiv">
@@ -195,4 +195,4 @@ export const spiHelperActionViewHTML = `
   <br>
   <input type="button" id="spiHelper_performActions" value="Done" />
 </div>
-`
+`;

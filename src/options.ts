@@ -1,8 +1,8 @@
 // Validator type system
-import type {ScriptSettings} from "./types/spi.ts";
-import type {WatchOption} from "./types/api.ts";
-import {spiHelperSettings} from "./constants/settings.ts";
-import type {ApiParseParams} from "types-mediawiki-api";
+import type { ScriptSettings } from './types/spi.ts';
+import type { WatchOption } from './types/api.ts';
+import { spiHelperSettings } from './constants/settings.ts';
+import type { ApiParseParams } from 'types-mediawiki-api';
 
 type Validator<T> = (value: unknown) => value is T;
 
@@ -14,8 +14,8 @@ type SettingValidator<K extends keyof ScriptSettings> = {
 // Reusable validators
 const validators = {
   watchOption: (value: unknown): value is WatchOption => {
-    return typeof value === 'string' &&
-      ['preferences', 'watch', 'nochange', 'unwatch'].includes(value);
+    return typeof value === 'string'
+      && ['preferences', 'watch', 'nochange', 'unwatch'].includes(value);
   },
 
   boolean: (value: unknown): value is boolean => {
@@ -28,7 +28,7 @@ const validators = {
 
   string: (value: unknown): value is string => {
     return typeof value === 'string';
-  }
+  },
 };
 
 // Setting validators configuration
@@ -38,27 +38,27 @@ const settingValidators: {
   watchCase: { validate: validators.watchOption },
   watchCaseExpiry: {
     validate: validators.string,
-    customValidate: spiHelperValidateDate
+    customValidate: spiHelperValidateDate,
   },
   watchArchive: { validate: validators.watchOption },
   watchArchiveExpiry: {
     validate: validators.string,
-    customValidate: spiHelperValidateDate
+    customValidate: spiHelperValidateDate,
   },
   watchTaggedUser: { validate: validators.watchOption },
   watchTaggedUserExpiry: {
     validate: validators.string,
-    customValidate: spiHelperValidateDate
+    customValidate: spiHelperValidateDate,
   },
   watchNewCats: { validate: validators.watchOption },
   watchNewCatsExpiry: {
     validate: validators.string,
-    customValidate: spiHelperValidateDate
+    customValidate: spiHelperValidateDate,
   },
   watchBlockedUser: { validate: validators.boolean },
   watchBlockedUserExpiry: {
     validate: validators.string,
-    customValidate: spiHelperValidateDate
+    customValidate: spiHelperValidateDate,
   },
   clerk: { validate: validators.boolean },
   log: { validate: validators.boolean },
@@ -68,7 +68,7 @@ const settingValidators: {
   useCheckuserblockAccount: { validate: validators.boolean },
   displayIPv6As64: { validate: validators.boolean },
   debugForceCheckuserState: { validate: validators.nullableBoolean },
-  debugForceAdminState: { validate: validators.nullableBoolean }
+  debugForceAdminState: { validate: validators.nullableBoolean },
 };
 
 /**
@@ -76,7 +76,7 @@ const settingValidators: {
  */
 export async function applyCustomSettings(
   customOpts: Record<string, unknown>,
-  settings: ScriptSettings = spiHelperSettings
+  settings: ScriptSettings = spiHelperSettings,
 ): Promise<void> {
   for (const [key, value] of Object.entries(customOpts)) {
     // Check if key exists in settings
@@ -111,20 +111,19 @@ export async function applyCustomSettings(
 /**
  * Returns true if the date provided is a valid date for strtotime in PHP (determined by using the time parser function and a parse API call)
  */
-async function spiHelperValidateDate (dateInStringFormat: string) {
+async function spiHelperValidateDate(dateInStringFormat: string) {
   // Is this really the best way to do this? It's pretty funny
-  const response = await spiHelperParseWikitext('{{#time:r|' + dateInStringFormat + '}}')
-  return !response.includes('Error: Invalid time.')
+  const response = await spiHelperParseWikitext('{{#time:r|' + dateInStringFormat + '}}');
+  return !response.includes('Error: Invalid time.');
 }
-
 
 /**
  * Parse given text as wikitext without it needing to be currently saved onwiki.
  *
  */
-async function spiHelperParseWikitext (wikitext: string) {
+async function spiHelperParseWikitext(wikitext: string) {
   // For enwiki only for now
-  const api = new mw.Api()
+  const api = new mw.Api();
   const request: ApiParseParams = {
     action: 'parse',
     prop: 'text',
@@ -132,33 +131,34 @@ async function spiHelperParseWikitext (wikitext: string) {
     wrapoutputclass: '',
     disablelimitreport: true,
     disableeditsection: true,
-    contentmodel: 'wikitext'
+    contentmodel: 'wikitext',
   };
   try {
     const response = await api.get(request);
-    return response.parse.text['*']
-  } catch {
-    return ''
+    return response.parse.text['*'];
+  }
+  catch {
+    return '';
   }
 }
-
 
 /**
  * Checks for the existence of Special:MyPage/spihelper-options.js, and if it exists,
  * loads the settings from that page.
  */
-export async function spiHelperLoadSettings () {
+export async function spiHelperLoadSettings() {
   // Dynamically load a user's settings
   try {
     let spiHelperCustomOpts;
-    await mw.loader.getScript('/w/index.php?title=Special:MyPage/spihelper-options.js&action=raw&ctype=text/javascript')
+    await mw.loader.getScript('/w/index.php?title=Special:MyPage/spihelper-options.js&action=raw&ctype=text/javascript');
     // I have no idea if this is any good
     if (typeof spiHelperCustomOpts !== 'undefined') {
       await applyCustomSettings(spiHelperCustomOpts);
     }
-  } catch (error) {
-    mw.log.error('Error retrieving your spihelper-options.js')
+  }
+  catch (error) {
+    mw.log.error('Error retrieving your spihelper-options.js');
     // More detailed error in the console
-    console.error('Error getting local spihelper-options.js: ' + error)
+    console.error('Error getting local spihelper-options.js: ' + error);
   }
 }

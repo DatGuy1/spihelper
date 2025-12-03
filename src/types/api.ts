@@ -1,12 +1,12 @@
-type ProtectionType = "edit" | "move" | "create";
+type ProtectionType = 'edit' | 'move' | 'create';
 
 export interface SectionResult {
-    tocLevel: number;
-    hLevel: number;
-    line: string;
-    number: string;
-    index: string;
-    anchor: string;
+  tocLevel: number;
+  hLevel: number;
+  line: string;
+  number: string;
+  index: string;
+  anchor: string;
 }
 
 export interface Protection {
@@ -19,13 +19,13 @@ export interface PendingChanges {
   stable_revid: number;
   level: number;
   level_text: string;
-  protection_level: "autoconfirmed" | "none";
+  protection_level: 'autoconfirmed' | 'none';
   protection_expiry: string;
 }
 
 export interface NewPendingChanges {
-  level: "autoconfirmed" | "none" | "";
+  level: 'autoconfirmed' | 'none' | '';
   expiry?: string;
 }
 
-export type WatchOption = "preferences" | "watch" | "nochange" | "unwatch";
+export type WatchOption = 'preferences' | 'watch' | 'nochange' | 'unwatch';

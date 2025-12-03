@@ -11,33 +11,36 @@
  * @return {Boolean} True on success, false on failure.
  */
 export function displayMessage(message: Element | string, className?: string): boolean {
-    if (!arguments.length || message === '' || message === null) {
-        $('#display-message').empty().hide();
-        return true; // Emptying and hiding message is intended behaviour, return true
-    } else {
-        // We special-case skin structures provided by the software. Skins that
-        // choose to abandon or significantly modify our formatting can just define
-        // a mw-js-message div to start with.
-        let $messageDiv = $('#display-message');
-        if (!$messageDiv.length) {
-            // noinspection CssUnresolvedCustomProperty
-            $messageDiv = $('<div id="display-message" style="margin:1em;padding:0.5em 2.5%;border:solid 1px var(--border-color-interactive, #ddd);background-color:var(--background-color-interactive, #fcfcfc);font-size: 0.8em"></div>');
-            if (mw.util.$content.length) {
-                mw.util.$content.prepend($messageDiv);
-            } else {
-                return false;
-            }
-        }
-        if (className) {
-            $messageDiv.prop('class', 'display-message-' + className);
-        }
-        if (typeof message === 'object') {
-            $messageDiv.empty();
-            $messageDiv.append(message);
-        } else {
-            $messageDiv.html(message);
-        }
-        $messageDiv.slideDown();
-        return true;
+  if (!arguments.length || message === '' || message === null) {
+    $('#display-message').empty().hide();
+    return true; // Emptying and hiding message is intended behaviour, return true
+  }
+  else {
+    // We special-case skin structures provided by the software. Skins that
+    // choose to abandon or significantly modify our formatting can just define
+    // a mw-js-message div to start with.
+    let $messageDiv = $('#display-message');
+    if (!$messageDiv.length) {
+      // noinspection CssUnresolvedCustomProperty
+      $messageDiv = $('<div id="display-message" style="margin:1em;padding:0.5em 2.5%;border:solid 1px var(--border-color-interactive, #ddd);background-color:var(--background-color-interactive, #fcfcfc);font-size: 0.8em"></div>');
+      if (mw.util.$content.length) {
+        mw.util.$content.prepend($messageDiv);
+      }
+      else {
+        return false;
+      }
     }
+    if (className) {
+      $messageDiv.prop('class', 'display-message-' + className);
+    }
+    if (typeof message === 'object') {
+      $messageDiv.empty();
+      $messageDiv.append(message);
+    }
+    else {
+      $messageDiv.html(message);
+    }
+    $messageDiv.slideDown();
+    return true;
+  }
 }
