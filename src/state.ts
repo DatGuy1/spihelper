@@ -12,7 +12,11 @@ export class CaseState {
 
   private _text: string | null = null;
 
-  constructor(sections: SectionEntry[] = [], selectedSection: SectionEntry | null = null, archiveNotice: ParsedArchiveNotice | null = null) {
+  constructor(
+    sections: SectionEntry[] = [],
+    selectedSection: SectionEntry | null = null,
+    archiveNotice: ParsedArchiveNotice | null = null,
+  ) {
     this.sections = sections;
     this.selectedSection = selectedSection;
     this.archiveNotice = archiveNotice;

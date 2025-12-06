@@ -10,7 +10,9 @@ import { spiHelperSettings } from './options.ts';
  *
  * @return {Promise<ParsedArchiveNotice>} Parsed archivenotice
  */
-export async function spiHelperParseArchiveNotice(page: string): Promise<ParsedArchiveNotice | null> {
+export async function spiHelperParseArchiveNotice(
+  page: string,
+): Promise<ParsedArchiveNotice | null> {
   const pagetext = await spiHelperGetPageText(page, false);
   const match = spiHelperArchiveNoticeRegex.exec(pagetext);
   if (match === null || !match[1]) {

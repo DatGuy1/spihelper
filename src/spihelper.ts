@@ -4,12 +4,13 @@ import { CaseState } from './state.ts';
 import { spiHelperInitTopLevel } from './init.ts';
 import { spiHelperIsCheckuser, spiHelperIsClerk } from './role.ts';
 
-// DatGuy's rewrote of GeneralNotability's rewrite of Tim's SPI helper script
-// With additional contributions from 0xDeadbeef, Dreamy Jazz, L235, Tamzin, TheresNoTime, and Xiplus
+// DatGuy's rewrite of GeneralNotability's rewrite of Tim's SPI helper script
+// With additional contributions from 0xDeadbeef, Dreamy Jazz,
+// L235, Tamzin, TheresNoTime, and Xiplus
 
 importStylesheet('User:DatGuy/spihelper.css');
 
-mw.loader.using(['mediawiki.api', 'mediawiki.util', 'mediawiki.user'], async function () {
+mw.loader.using(['mediawiki.api', 'mediawiki.util', 'mediawiki.user'], async () => {
   if (!mw.config.get('wgPageName').includes('Wikipedia:Sockpuppet_investigations/')) {
     return;
   }

@@ -25,4 +25,22 @@ export default defineConfig([
     semi: true,
     jsx: true,
   }),
+  {
+    rules: {
+      'block-scoped-var': 'error',
+      'camelcase': ['error', { properties: 'always' }],
+      'eol-last': 'error',
+      'max-len': ['warn', {
+        code: 100,
+        tabWidth: 4,
+        ignorePattern: '^[\\s]*(//|<!--) (es|style)lint-.+',
+        ignoreUrls: true,
+        ignoreComments: false,
+        ignoreRegExpLiterals: true,
+        ignoreStrings: true,
+        ignoreTemplateLiterals: true,
+      }],
+      'prefer-arrow-callback': 'error',
+    },
+  },
 ]);

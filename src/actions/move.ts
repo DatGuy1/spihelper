@@ -3,7 +3,8 @@ import { ParsedArchiveNotice, type SectionEntry } from '../types/spi.ts';
 import {
   spiHelperConfigurePendingChanges, spiHelperDeletePage,
   spiHelperEditPage, spiHelperGetPageRev, spiHelperGetPageText,
-  spiHelperGetProtectionInformation, spiHelperGetSiteRestrictionInformation, spiHelperGetSPIBacklinks,
+  spiHelperGetProtectionInformation, spiHelperGetSiteRestrictionInformation,
+  spiHelperGetSPIBacklinks,
   spiHelperGetStabilisationSettings, spiHelperMovePage, spiHelperProtectPage,
   spiHelperUndeletePage,
 } from '../api.ts';
@@ -90,9 +91,9 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
     const oldPageNameProtection = await spiHelperGetProtectionInformation(oldPageName);
     const newPageNameProtection = await spiHelperGetProtectionInformation(context.pageName);
     const newProtectionValues: Protection[] = [];
-    const siteProtectionInformation = await spiHelperGetSiteRestrictionInformation();
+    const siteRestrictions = await spiHelperGetSiteRestrictionInformation();
     // First find if both the old page and new page had the same protection type enabled
-    siteProtectionInformation.types.forEach((type: string) => {
+    siteRestrictions.types.forEach((type: string) => {
       const oldPageNameEntry = oldPageNameProtection.find((dict) => {
         return dict.type === type;
       });
@@ -107,8 +108,8 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
         else if (newPageNameEntry.expiry < oldPageNameEntry.expiry) {
           expiry = oldPageNameEntry.expiry;
         }
-        const oldPageNameEntryLevelIndex = siteProtectionInformation.levels.indexOf(oldPageNameEntry.level);
-        const newPageNameEntryLevelIndex = siteProtectionInformation.levels.indexOf(newPageNameEntry.level);
+        const oldPageNameEntryLevelIndex = siteRestrictions.levels.indexOf(oldPageNameEntry.level);
+        const newPageNameEntryLevelIndex = siteRestrictions.levels.indexOf(newPageNameEntry.level);
         let level: string;
         if (oldPageNameEntryLevelIndex === -1 || newPageNameEntryLevelIndex === -1) {
           console.error('Invalid protection information provided from API');
@@ -133,43 +134,48 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
       }
     });
     // Now handle pending changes protection
-    const oldPageNameStabilisation = await spiHelperGetStabilisationSettings(oldPageName);
-    const newPageNameStabilisation = await spiHelperGetStabilisationSettings(context.pageName);
+    const oldPageStabilisation = await spiHelperGetStabilisationSettings(oldPageName);
+    const newPageStabilisation = await spiHelperGetStabilisationSettings(context.pageName);
     let newStabilisationSettings: NewPendingChanges = { level: '' };
-    if (oldPageNameStabilisation && newPageNameStabilisation) {
+    if (oldPageStabilisation && newPageStabilisation) {
       // Pending changes is used on both pages
-      if (newPageNameStabilisation.protection_expiry === 'infinity' || oldPageNameStabilisation.protection_expiry === 'infinity' || newPageNameStabilisation.protection_expiry === 'infinite' || oldPageNameStabilisation.protection_expiry === 'infinite') {
+      if (
+        newPageStabilisation.protection_expiry.startsWith('infinit')
+        || oldPageStabilisation.protection_expiry.startsWith('infinit')
+      ) {
         newStabilisationSettings.expiry = 'infinite';
       }
-      else if (newPageNameStabilisation.protection_expiry < oldPageNameStabilisation.protection_expiry) {
-        newStabilisationSettings.expiry = oldPageNameStabilisation.protection_expiry;
+      else if (newPageStabilisation.protection_expiry < oldPageStabilisation.protection_expiry) {
+        newStabilisationSettings.expiry = oldPageStabilisation.protection_expiry;
       }
       else {
-        newStabilisationSettings.expiry = newPageNameStabilisation.protection_expiry;
+        newStabilisationSettings.expiry = newPageStabilisation.protection_expiry;
       }
-      const oldPageNameEntryLevelIndex = siteProtectionInformation.levels.indexOf(oldPageNameStabilisation.protection_level);
-      const newPageNameEntryLevelIndex = siteProtectionInformation.levels.indexOf(newPageNameStabilisation.protection_level);
+      const oldPageNameEntryLevelIndex = siteRestrictions.levels
+        .indexOf(oldPageStabilisation.protection_level);
+      const newPageNameEntryLevelIndex = siteRestrictions.levels
+        .indexOf(newPageStabilisation.protection_level);
       if (oldPageNameEntryLevelIndex === -1 || newPageNameEntryLevelIndex === -1) {
         console.error('Invalid protection information provided from API');
         return;
       }
       else if (oldPageNameEntryLevelIndex > newPageNameEntryLevelIndex) {
-        newStabilisationSettings.level = oldPageNameStabilisation.protection_level;
+        newStabilisationSettings.level = oldPageStabilisation.protection_level;
       }
       else if (oldPageNameEntryLevelIndex <= newPageNameEntryLevelIndex) {
-        newStabilisationSettings.level = newPageNameStabilisation.protection_level;
+        newStabilisationSettings.level = newPageStabilisation.protection_level;
       }
     }
-    else if (oldPageNameStabilisation) {
+    else if (oldPageStabilisation) {
       newStabilisationSettings = {
-        level: oldPageNameStabilisation.protection_level,
-        expiry: oldPageNameStabilisation.protection_expiry,
+        level: oldPageStabilisation.protection_level,
+        expiry: oldPageStabilisation.protection_expiry,
       };
     }
-    else if (newPageNameStabilisation) {
+    else if (newPageStabilisation) {
       newStabilisationSettings = {
-        level: newPageNameStabilisation.protection_level,
-        expiry: newPageNameStabilisation.protection_expiry,
+        level: newPageStabilisation.protection_level,
+        expiry: newPageStabilisation.protection_expiry,
       };
     }
     // Ignore warnings on the move, we're going to get one since we're stomping an existing page
@@ -181,8 +187,10 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
       await spiHelperEditPage(oldArchiveName, '#REDIRECT [[' + context.archiveName + ']]', 'Redirecting old archive to new archive',
         false, spiHelperSettings.watchArchive, spiHelperSettings.watchArchiveExpiry);
     }
-    // Now to protect both the oldPageName and newPageName with the protection settings in newProtectionDict, unless it is empty (i.e. no protection needed)
-    // Also apply any pending changes needed (i.e. if newStabilisationSettings has a non-empty protection_level)
+    // Now to protect both the oldPageName and newPageName with the protection
+    // settings in newProtectionDict, unless it is empty (i.e. no protection needed)
+    // Also apply any pending changes needed
+    // (when newStabilisationSettings has a non-empty protection_level)
     if (newProtectionValues.length !== 0) {
       await spiHelperProtectPage(context.pageName, newProtectionValues);
       await spiHelperProtectPage(oldPageName, newProtectionValues);
@@ -209,7 +217,7 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
 /**
  * Move or merge a specific section of a case into a different case
  *
- * @param mergeTarget The username portion of the case this section should be merged into (pre-normalized)
+ * @param mergeTarget The username portion of the case this section should be merged into
  * @param section The section of this case that should be moved/merged
  */
 export async function spiHelperMoveCaseSection(mergeTarget: string, section: SectionEntry) {
@@ -228,11 +236,18 @@ export async function spiHelperMoveCaseSection(mergeTarget: string, section: Sec
   targetPageText += '\n' + sectionText;
 
   // Intentionally not async - doesn't matter when this edit finishes
-  void spiHelperEditPage(newPageName, targetPageText, 'Moving case section from [[' + spiHelperGetInterwikiPrefix() + context.pageName + ']], see page history for attribution',
-    false, spiHelperSettings.watchCase, spiHelperSettings.watchCaseExpiry);
+  void spiHelperEditPage(
+    newPageName, targetPageText,
+    'Moving case section from [[' + spiHelperGetInterwikiPrefix() + context.pageName + ']], see page history for attribution',
+    false, spiHelperSettings.watchCase, spiHelperSettings.watchCaseExpiry,
+  );
   // Blank the section we moved
-  await spiHelperEditPage(context.pageName, '', 'Moving case section to [[' + spiHelperGetInterwikiPrefix() + newPageName + ']]',
-    false, spiHelperSettings.watchCase, spiHelperSettings.watchCaseExpiry, context.startingRevId, section.id);
+  await spiHelperEditPage(
+    context.pageName, '',
+    'Moving case section to [[' + spiHelperGetInterwikiPrefix() + newPageName + ']]',
+    false, spiHelperSettings.watchCase, spiHelperSettings.watchCaseExpiry,
+    context.startingRevId, section.id,
+  );
   // Update to the latest revision ID
   context.startingRevId = await spiHelperGetPageRev(context.pageName);
 }
@@ -244,7 +259,9 @@ export async function spiHelperMoveCaseSection(mergeTarget: string, section: Sec
  * @param {string} oldCasePage Title of the previous case page
  * @param archiveNotice Archive notice for the new page
  */
-async function spiHelperPostRenameCleanup(oldCasePage: string, archiveNotice: ParsedArchiveNotice): Promise<void> {
+async function spiHelperPostRenameCleanup(
+  oldCasePage: string, archiveNotice: ParsedArchiveNotice,
+): Promise<void> {
   archiveNotice.username = context.caseName;
   const replacementArchiveNotice = archiveNotice.generateWikitext();
   const oldCaseName = oldCasePage.replace(/Wikipedia:Sockpuppet investigations\//g, '');
@@ -255,7 +272,11 @@ async function spiHelperPostRenameCleanup(oldCasePage: string, archiveNotice: Pa
   let currentPageToCheck = null;
   while (pagesToCheck.length !== 0) {
     currentPageToCheck = pagesToCheck.pop();
-    if (!currentPageToCheck || currentPageToCheck === context.pageName || currentPageToCheck === oldCasePage) {
+    if (
+      !currentPageToCheck
+      || currentPageToCheck === context.pageName
+      || currentPageToCheck === oldCasePage
+    ) {
       continue;
     }
     pagesChecked.push(currentPageToCheck);

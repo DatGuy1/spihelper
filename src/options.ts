@@ -62,7 +62,7 @@ const settingValidators: {
   },
   clerk: { validate: validators.boolean },
   log: { validate: validators.boolean },
-  reversed_log: { validate: validators.boolean },
+  reversedLog: { validate: validators.boolean },
   iUnderstandSectionMoves: { validate: validators.boolean },
   tickArchiveWhenCaseClosed: { validate: validators.boolean },
   useCheckuserblockAccount: { validate: validators.boolean },
@@ -90,7 +90,7 @@ export const spiHelperSettings: ScriptSettings = {
   // Log all actions to Special:MyPage/spihelper_log
   log: false,
   // Reverse said log, so that the newest actions are at the top.
-  reversed_log: false,
+  reversedLog: false,
   // Enable the "move section" button
   iUnderstandSectionMoves: false,
   // Automatically tick the "Archive case" option if the case is closed
@@ -144,7 +144,8 @@ export async function applyCustomSettings(
 }
 
 /**
- * Returns true if the date provided is a valid date for strtotime in PHP (determined by using the time parser function and a parse API call)
+ * Returns true if the date provided is a valid date for strtotime in PHP,
+ * determined by using the time parser function and a parse API call
  */
 async function spiHelperValidateDate(dateInStringFormat: string) {
   // Is this really the best way to do this? It's pretty funny

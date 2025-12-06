@@ -47,7 +47,10 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
       // A running concern with the SPI archives is whether they exceed the post-expand
       // include size. Calculate what percent of that size the archive will be if we
       // add the current page to it - if >1, we need to archive the archive
-      const postExpandPercent = (await spiHelperGetPostExpandSize(context.pageName, section.id) + await spiHelperGetPostExpandSize(context.archiveName)) / spiHelperGetMaxPostExpandSize();
+      const postExpandPercent = (
+        await spiHelperGetPostExpandSize(context.pageName, section.id)
+        + await spiHelperGetPostExpandSize(context.archiveName)
+      ) / spiHelperGetMaxPostExpandSize();
       if (postExpandPercent >= 1) {
         // We'd overflow the archive, so move it and then archive the current page
         // Find the first empty archive page
@@ -56,10 +59,14 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
           archiveId++;
         }
         const newArchiveName = context.archiveName + '/' + archiveId;
-        await spiHelperMovePage(context.archiveName, newArchiveName, 'Moving archive to avoid exceeding post expand size limit', false, false);
+        await spiHelperMovePage(
+          context.archiveName, newArchiveName,
+          'Moving archive to avoid exceeding post expand size limit', false, false)
+        ;
         await spiHelperEditPage(context.archiveName, '', 'Removing redirect', false, 'nochange');
       }
-      // Need an await here - if we have multiple sections archiving we don't want to stomp on each other
+      // Need an await here.
+      // If we have multiple sections archiving we don't want to stomp on each other
       await spiHelperArchiveCaseSection(section);
       // need to re-fetch caseSections since the section numbering probably just changed,
       // also move back our index to before this iteration
@@ -77,7 +84,7 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
 export async function spiHelperArchiveCaseSection(section: SectionEntry): Promise<void> {
   let sectionText = await section.getText();
   sectionText = sectionText.replace(spiHelperCaseStatusRegex, '');
-  const newArchiveText = sectionText.substring(sectionText.search(spiHelperSectionRegex));
+  const newArchiveText = sectionText.slice(sectionText.search(spiHelperSectionRegex));
   let archiveText = await spiHelperGetPageText(context.archiveName, true);
 
   const $statusLine = $('<li>');

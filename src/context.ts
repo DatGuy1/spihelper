@@ -32,9 +32,24 @@ export class SpiPageContext {
     return this._text;
   }
 
-  async edit(opts: { newText: string; summary: string; createonly?: boolean; watch: WatchOption; watchExpiry?: string; baseRevId?: number; sectionId?: number | null }): Promise<boolean> {
+  async edit(opts: {
+    newText: string;
+    summary: string;
+    createonly?: boolean;
+    watch: WatchOption;
+    watchExpiry?: string;
+    baseRevId?: number;
+    sectionId?: number | null;
+  }): Promise<boolean> {
     return spiHelperEditPage(
-      this.pageName, opts.newText, opts.summary, opts.createonly ?? false, opts.watch, opts.watchExpiry, opts.baseRevId, opts.sectionId,
+      this.pageName,
+      opts.newText,
+      opts.summary,
+      opts.createonly ?? false,
+      opts.watch,
+      opts.watchExpiry,
+      opts.baseRevId,
+      opts.sectionId,
     );
   }
 }

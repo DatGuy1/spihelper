@@ -16,14 +16,22 @@ import { context } from '../context.ts';
  * @param {boolean} cuBlock Whether to use the {{checkuserblock}} template family
  * @param {boolean} cuBlockOnly Whether to use just {{checkuserblock}} without an additional summary
  * @param {boolean} overrideExisting Whether any existing blocks should be overriden
- * @param {boolean} blankTalk Whether the user's talk page should be blanked before adding the block template
+ * @param {boolean} blankTalk Whether the user's talk page should be
+ * blanked before adding the block template
  * @param {string} sockmaster Username of the sockmaster
  * @return {Promise<boolean>} Whether the block succeeded
  */
-export async function spiHelperBlockUser(blockEntry: BlockEntry, cuBlock: boolean, cuBlockOnly: boolean, overrideExisting: boolean, blankTalk: boolean, sockmaster: string): Promise<boolean> {
+export async function spiHelperBlockUser(
+  blockEntry: BlockEntry, cuBlock: boolean,
+  cuBlockOnly: boolean, overrideExisting: boolean,
+  blankTalk: boolean, sockmaster: string,
+): Promise<boolean> {
   const blockSettings = await spiHelperGetUserBlockSettings(blockEntry.username);
   const blockReason = blockSettings?.reason;
-  if (!spiHelperIsCheckuser() && overrideExisting && blockReason && spiHelperCUBlockRegex.exec(blockReason)) {
+  if (
+    !spiHelperIsCheckuser() && overrideExisting
+    && blockReason && spiHelperCUBlockRegex.exec(blockReason)
+  ) {
     // If you're not a checkuser, we've asked to overwrite existing blocks, and the block
     // target has a CU block on them, check whether that was intended
     if (!confirm('User ' + blockEntry.username + ' appears to be CheckUser-blocked, are you SURE you want to re-block them?\n'
@@ -88,7 +96,8 @@ export async function spiHelperBlockUser(blockEntry: BlockEntry, cuBlock: boolea
     else {
       newText = '== Blocked for sockpuppetry ==\n';
     }
-    const isCheckUserBlockAccount = spiHelperIsCheckuser() && cuBlock && spiHelperSettings.useCheckuserblockAccount;
+    const isCheckUserBlockAccount = spiHelperIsCheckuser() && cuBlock
+      && spiHelperSettings.useCheckuserblockAccount;
     if (isCheckUserBlockAccount) {
       newText += '{{checkuserblock-account|sig=~~~~';
     }

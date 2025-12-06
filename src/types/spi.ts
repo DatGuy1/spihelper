@@ -89,7 +89,7 @@ export class ParsedArchiveNotice {
 export interface GlobalUser {
   name: string;
   locked: boolean;
-  exists_locally: boolean;
+  existsLocally: boolean;
 }
 
 export interface ScriptSettings {
@@ -105,7 +105,7 @@ export interface ScriptSettings {
   watchBlockedUserExpiry: string;
   clerk: boolean;
   log: boolean;
-  reversed_log: boolean;
+  reversedLog: boolean;
   iUnderstandSectionMoves: boolean;
   tickArchiveWhenCaseClosed: boolean;
   useCheckuserblockAccount: boolean;

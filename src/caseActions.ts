@@ -244,20 +244,28 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
         const username = spiHelperUsersForLinks[linkKey][i] as string;
         generatedURL += (i === 0 ? '' : URLentry.userQueryStringSeparator);
         if (URLentry.multipleUserQueryStringKeys) {
-          generatedURL += URLentry.userQueryStringKey + '=' + URLentry.userQueryStringWrapper + encodeURIComponent(username) + URLentry.userQueryStringWrapper;
+          generatedURL += URLentry.userQueryStringKey + '=' + URLentry.userQueryStringWrapper
+            + encodeURIComponent(username) + URLentry.userQueryStringWrapper;
         }
         else {
-          generatedURL += URLentry.userQueryStringWrapper + encodeURIComponent(username) + URLentry.userQueryStringWrapper;
+          generatedURL += URLentry.userQueryStringWrapper
+            + encodeURIComponent(username) + URLentry.userQueryStringWrapper;
         }
       }
       generatedURL += (URLentry.appendToQueryString === '' ? '' : '&') + URLentry.appendToQueryString;
       const $statusLine = $('<li>').appendTo($linkViewList);
       const $statusLineLink = $('<a>').appendTo($statusLine);
-      $statusLineLink.attr('href', generatedURL).attr('target', '_blank').attr('rel', 'noopener noreferrer').text(spiHelperLinkViewURLFormats[linkKey].name);
+      $statusLineLink
+        .attr('href', generatedURL)
+        .attr('target', '_blank')
+        .attr('rel', 'noopener noreferrer')
+        .text(spiHelperLinkViewURLFormats[linkKey].name);
     }
   }
 
-  let targetText = await (state.selectedSection ? state.selectedSection.getText() : state.getText());
+  let targetText = await (state.selectedSection
+    ? state.selectedSection.getText()
+    : state.getText());
   const startText = targetText;
   if (targetText && !context.isArchive) {
     const caseStatusResult = spiHelperCaseStatusRegex.exec(targetText);
@@ -389,13 +397,17 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
     if (spiHelperIsAdmin()) {
       // Block, then tag
       blockingPromises = spiHelperBlocks.map(async (blockEntry) => {
-        const blockSuccess = await spiHelperBlockUser(blockEntry, cuBlock, cuBlockOnly, overrideExisting, blankTalk, sockmaster);
+        const blockSuccess = await spiHelperBlockUser(
+          blockEntry, cuBlock, cuBlockOnly, overrideExisting, blankTalk, sockmaster,
+        );
         if (!blockSuccess) return;
 
         loggingArrays.blocked.push('{{noping|' + blockEntry.username + '}}');
         const tagEntry = spiHelperTags.find(tag => tag.username === blockEntry.username);
         if (tagEntry) {
-          const tagSuccess = await spiHelperTagUser(tagEntry, tagNonLocalAccounts, sockmaster, altmaster);
+          const tagSuccess = await spiHelperTagUser(
+            tagEntry, tagNonLocalAccounts, sockmaster, altmaster,
+          );
           if (tagSuccess) {
             loggingArrays.tagged.push('{{noping|' + tagEntry.username + '}}');
           }
@@ -406,7 +418,9 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
       if (tagEntry.blocking) {
         return;
       }
-      const tagSuccess = await spiHelperTagUser(tagEntry, tagNonLocalAccounts, sockmaster, altmaster);
+      const tagSuccess = await spiHelperTagUser(
+        tagEntry, tagNonLocalAccounts, sockmaster, altmaster,
+      );
       if (tagSuccess) {
         loggingArrays.tagged.push('{{noping|' + tagEntry.username + '}}');
       }
@@ -598,9 +612,17 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
     editSummary = 'Saving page';
   }
 
-  // Make all the requested edits (synchronous since we might make more changes to the page), unless the page is an archive (as there should be no edits made)
+  // Make all the requested edits (synchronous since we might make more changes to the page),
+  // unless the page is an archive (as there should be no edits made)
   if (!context.isArchive && targetText !== startText) {
-    const editResult = await context.edit({ newText: targetText, summary: editSummary, watch: spiHelperSettings.watchCase, watchExpiry: spiHelperSettings.watchCaseExpiry, baseRevId: context.startingRevId, sectionId: state.selectedSection?.id });
+    const editResult = await context.edit({
+      newText: targetText,
+      summary: editSummary,
+      watch: spiHelperSettings.watchCase,
+      watchExpiry: spiHelperSettings.watchCaseExpiry,
+      baseRevId: context.startingRevId,
+      sectionId: state.selectedSection?.id,
+    });
     if (!editResult) {
       // Page edit failed (probably an edit conflict), dump the comment if we had one
       if (comment && comment !== '*') {

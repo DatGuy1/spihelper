@@ -164,7 +164,7 @@ export async function spiHelperGenerateForm(state: CaseState): Promise<void> {
     // Generate the case action options
     spiHelperGenerateSelect($('#spiHelper_CaseStatus', $actionView), selectOpts);
     // Add the onclick handler to the drop-down
-    $('#spiHelper_CaseStatus', $actionView).on('change', function (e) {
+    $('#spiHelper_CaseStatus', $actionView).on('change', (e) => {
       spiHelperCaseStatusUpdated($(e.target));
     });
 
@@ -193,7 +193,8 @@ export async function spiHelperGenerateForm(state: CaseState): Promise<void> {
   if (spiHelperActionsSelected.Archive) {
     $('#spiHelper_archiveView', $actionView).show();
   }
-  // Only give the option to comment if we selected a specific section, and we are not running on an archive subpage
+  // Only give the option to comment if we selected a specific section,
+  // and we are not running on an archive subpage
   if (state.selectedSection && spiHelperActionsSelected.Note && !context.isArchive) {
     // generate the note prefixes
     const spiHelperNoteTemplates: SelectOption[] = [
@@ -212,18 +213,18 @@ export async function spiHelperGenerateForm(state: CaseState): Promise<void> {
 
     // Wire up the select boxes
     spiHelperGenerateSelect($('#spiHelper_noteSelect', $actionView), spiHelperNoteTemplates);
-    $('#spiHelper_noteSelect', $actionView).on('change', function (e) {
+    $('#spiHelper_noteSelect', $actionView).on('change', (e) => {
       spiHelperInsertNote($(e.target));
     });
     spiHelperGenerateSelect($('#spiHelper_adminSelect', $actionView), spiHelperAdminTemplates);
-    $('#spiHelper_adminSelect', $actionView).on('change', function (e) {
+    $('#spiHelper_adminSelect', $actionView).on('change', (e) => {
       spiHelperInsertTextFromSelect($(e.target));
     });
     spiHelperGenerateSelect($('#spiHelper_cuSelect', $actionView), spiHelperCUTemplates);
-    $('#spiHelper_cuSelect', $actionView).on('change', function (e) {
+    $('#spiHelper_cuSelect', $actionView).on('change', (e) => {
       spiHelperInsertTextFromSelect($(e.target));
     });
-    $('#spiHelper_previewLink', $actionView).on('click', function () {
+    $('#spiHelper_previewLink', $actionView).on('click', () => {
       spiHelperPreviewText();
     });
     $('#spiHelper_commentView', $actionView).show();
@@ -290,42 +291,44 @@ export async function spiHelperGenerateForm(state: CaseState): Promise<void> {
         $('#spiHelper_blockTagHeader', $actionView).text('Tagging socks');
       }
       // Wire up the "select all" options
-      $('#spiHelper_block_doblock', $actionView).on('click', function (e) {
+      $('#spiHelper_block_doblock', $actionView).on('click', (e) => {
         spiHelperSetAllTableColumnOpts($(e.target), state.numBlockUsers);
       });
-      $('#spiHelper_block_acb', $actionView).on('click', function (e) {
+      $('#spiHelper_block_acb', $actionView).on('click', (e) => {
         spiHelperSetAllTableColumnOpts($(e.target), state.numBlockUsers);
       });
-      $('#spiHelper_block_ab', $actionView).on('click', function (e) {
+      $('#spiHelper_block_ab', $actionView).on('click', (e) => {
         spiHelperSetAllTableColumnOpts($(e.target), state.numBlockUsers);
       });
-      $('#spiHelper_block_tp', $actionView).on('click', function (e) {
+      $('#spiHelper_block_tp', $actionView).on('click', (e) => {
         spiHelperSetAllTableColumnOpts($(e.target), state.numBlockUsers);
       });
-      $('#spiHelper_block_email', $actionView).on('click', function (e) {
+      $('#spiHelper_block_email', $actionView).on('click', (e) => {
         spiHelperSetAllTableColumnOpts($(e.target), state.numBlockUsers);
       });
-      $('#spiHelper_block_lock', $actionView).on('click', function (e) {
+      $('#spiHelper_block_lock', $actionView).on('click', (e) => {
         spiHelperSetAllTableColumnOpts($(e.target), state.numBlockUsers);
       });
-      $('#spiHelper_block_lock', $actionView).on('click', function (e) {
+      $('#spiHelper_block_lock', $actionView).on('click', (e) => {
         spiHelperSetAllTableColumnOpts($(e.target), state.numBlockUsers);
       });
       spiHelperGenerateSelect($('#spiHelper_block_tag', $actionView), spiHelperTagOptions);
-      $('#spiHelper_block_tag', $actionView).on('change', function (e) {
+      $('#spiHelper_block_tag', $actionView).on('change', (e) => {
         spiHelperSetAllTableColumnOpts($(e.target), state.numBlockUsers);
       });
       spiHelperGenerateSelect($('#spiHelper_block_tag_altmaster', $actionView), spiHelperAltMasterTagOptions);
-      $('#spiHelper_block_tag_altmaster', $actionView).on('change', function (e) {
+      $('#spiHelper_block_tag_altmaster', $actionView).on('change', (e) => {
         spiHelperSetAllTableColumnOpts($(e.target), state.numBlockUsers);
       });
-      $('#spiHelper_block_lock', $actionView).on('click', function (e) {
+      $('#spiHelper_block_lock', $actionView).on('click', (e) => {
         spiHelperSetAllTableColumnOpts($(e.target), state.numBlockUsers);
       });
 
       const rowPromises = allSocks.map((sock, i) => {
         if (!sock) return null;
-        return spiHelperGenerateBlockTableLine(sock, likelySocks.includes(sock), i + 1, state.archiveNotice);
+        return spiHelperGenerateBlockTableLine(
+          sock, likelySocks.includes(sock), i + 1, state.archiveNotice,
+        );
       });
 
       const $table = $('#spiHelper_blockTable', $actionView);
@@ -340,22 +343,22 @@ export async function spiHelperGenerateForm(state: CaseState): Promise<void> {
     }
     if (spiHelperActionsSelected.Link) {
       // Wire up the "select all" options
-      $('#spiHelper_link_editorInteractionAnalyser', $actionView).on('click', function (e) {
+      $('#spiHelper_link_editorInteractionAnalyser', $actionView).on('click', (e) => {
         spiHelperSetAllTableColumnOpts($(e.target), state.numLinkUsers);
       });
-      $('#spiHelper_link_interactionTimeline', $actionView).on('click', function (e) {
+      $('#spiHelper_link_interactionTimeline', $actionView).on('click', (e) => {
         spiHelperSetAllTableColumnOpts($(e.target), state.numLinkUsers);
       });
-      $('#spiHelper_link_timecardSPITools', $actionView).on('click', function (e) {
+      $('#spiHelper_link_timecardSPITools', $actionView).on('click', (e) => {
         spiHelperSetAllTableColumnOpts($(e.target), state.numLinkUsers);
       });
-      $('#spiHelper_link_consolidatedTimelineSPITools', $actionView).on('click', function (e) {
+      $('#spiHelper_link_consolidatedTimelineSPITools', $actionView).on('click', (e) => {
         spiHelperSetAllTableColumnOpts($(e.target), state.numLinkUsers);
       });
-      $('#spiHelper_link_pagesSPITools', $actionView).on('click', function (e) {
+      $('#spiHelper_link_pagesSPITools', $actionView).on('click', (e) => {
         spiHelperSetAllTableColumnOpts($(e.target), state.numLinkUsers);
       });
-      $('#spiHelper_link_checkUserWikiSearch', $actionView).on('click', function (e) {
+      $('#spiHelper_link_checkUserWikiSearch', $actionView).on('click', (e) => {
         spiHelperSetAllTableColumnOpts($(e.target), state.numLinkUsers);
       });
 
@@ -406,12 +409,17 @@ function spiHelperInsertTextFromSelect(source: JQuery<HTMLElement>, pos: number 
     return;
   }
   if (pos === null && (selectionStart || selectionStart === 0)) {
-    $textBox.val(startText.substring(0, selectionStart) + newText + startText.substring(selectionEnd, startText.length));
+    $textBox.val(
+      startText.slice(0, selectionStart)
+      + newText + startText.slice(selectionEnd, startText.length),
+    );
     $textBox.prop('selectionStart', selectionStart + newText.length);
     $textBox.prop('selectionEnd', selectionEnd + newText.length);
   }
   else if (pos !== null) {
-    $textBox.val(startText.substring(0, pos) + source.val() + startText.substring(pos, startText.length));
+    $textBox.val(
+      startText.slice(0, pos) + source.val() + startText.slice(pos, startText.length),
+    );
     $textBox.prop('selectionStart', selectionStart + newText.length);
     $textBox.prop('selectionEnd', selectionEnd + newText.length);
   }
@@ -469,7 +477,12 @@ async function spiHelperAddBlankUserLine(tableType: TableType, state: CaseState)
  * @param {number} id Index of this line in the block table
  * @param archiveNotice Archive notice, used to determine whether to default notalk
  */
-async function spiHelperGenerateBlockTableLine(name: string, defaultblock: boolean, id: number, archiveNotice: ParsedArchiveNotice | null) {
+async function spiHelperGenerateBlockTableLine(
+  name: string,
+  defaultblock: boolean,
+  id: number,
+  archiveNotice: ParsedArchiveNotice | null,
+) {
   let currentBlock = null;
   if (name) {
     currentBlock = await spiHelperGetUserBlockSettings(name);
@@ -526,14 +539,16 @@ async function spiHelperGenerateBlockTableLine(name: string, defaultblock: boole
   const $altmasterBox = $('<select>').attr('id', 'spiHelper_block_tag_altmaster' + id).val(name);
   $('<td>').append($altmasterBox).appendTo($row);
   // Global lock (disabled for IPs since they can't be locked)
-  $('<td>').append($('<input>').attr('type', 'checkbox').attr('id', 'spiHelper_block_lock' + id)
+  $('<td>').append($('<input>').attr('type', 'checkbox')
+    .attr('id', 'spiHelper_block_lock' + id)
     .prop('disabled', mw.util.isIPAddress(name, true))).appendTo($row);
 
   // Generate the select entries
   spiHelperGenerateSelect($blockTagBox, spiHelperTagOptions);
   spiHelperGenerateSelect($altmasterBox, spiHelperAltMasterTagOptions);
 
-  // Add onlistener events to update the global lock checkbox if the username is changed between an IP address and username
+  // Add onlistener events to update the global lock checkbox if
+  // the username is changed between an IP address and username
   $('#spiHelper_block_username' + id).on('change', (event) => {
     const newValue = (event.target as HTMLInputElement).value;
     $('#spiHelper_block_lock' + id).prop('disabled', mw.util.isIPAddress(newValue, true));

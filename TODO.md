@@ -19,6 +19,7 @@ function mustQuery<T extends HTMLElement = HTMLElement>(selector: string): JQuer
 - Instead of removing spiHelperTopViewHTML to replace with spiHelperActionViewHTML all the time, keep it as hidden. Avoids regenerating the layout every time.
 - Look into making it prettier via animations and whatnot
 - Choose if we want to redefine context (status quo) or freeze it. Probably the latter. move.ts L62
+- Change spiHelperWikiBlockUser to opt with object
 
 Generic:
 - Don't keep big HTML blocks as raw template strings

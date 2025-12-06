@@ -16,20 +16,20 @@ export async function spiHelperLog(logString: string): Promise<void> {
 
   let logPageText = await spiHelperGetPageText('User:' + mw.config.get('wgUserName') + '/spihelper_log', false);
   if (!logPageText.match(dateHeaderRe)) {
-    if (spiHelperSettings.reversed_log) {
+    if (spiHelperSettings.reversedLog) {
       const firstHeaderMatch = logPageText.match(dateHeaderReWithAnyDate);
       if (firstHeaderMatch && firstHeaderMatch.index) {
-        logPageText = logPageText.substring(0, firstHeaderMatch.index) + '== ' + dateString + ' ==\n' + logPageText.substring(firstHeaderMatch.index);
+        logPageText = logPageText.slice(0, firstHeaderMatch.index) + '== ' + dateString + ' ==\n' + logPageText.slice(firstHeaderMatch.index);
       }
     }
     else {
       logPageText += '\n== ' + dateString + ' ==';
     }
   }
-  if (spiHelperSettings.reversed_log) {
+  if (spiHelperSettings.reversedLog) {
     const firstHeaderMatch = logPageText.match(dateHeaderReWithAnyDate);
     if (firstHeaderMatch && firstHeaderMatch.index) {
-      logPageText = logPageText.substring(0, firstHeaderMatch.index + firstHeaderMatch[0].length) + '\n' + logString + logPageText.substring(firstHeaderMatch.index + firstHeaderMatch[0].length);
+      logPageText = logPageText.slice(0, firstHeaderMatch.index + firstHeaderMatch[0].length) + '\n' + logString + logPageText.slice(firstHeaderMatch.index + firstHeaderMatch[0].length);
     }
   }
   else {

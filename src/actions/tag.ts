@@ -12,19 +12,22 @@ import { context } from '../context.ts';
  * @param {string} altmaster The username of the alternate master to tag for
  * @return {Promise<boolean>} Whether the tag was successfully applied
  */
-export async function spiHelperTagUser(tagEntry: TagEntry, tagNonLocalAccounts: boolean, sockmaster: string, altmaster: string): Promise<boolean> {
+export async function spiHelperTagUser(
+  tagEntry: TagEntry, tagNonLocalAccounts: boolean, sockmaster: string, altmaster: string,
+): Promise<boolean> {
   if (mw.util.isIPAddress(tagEntry.username, true)) {
     return false; // do not support tagging IPs
   }
   const userInfo = await spiHelperGetGlobalUser(tagEntry.username);
-  if (!userInfo || !userInfo.exists_locally) {
+  if (!userInfo || !userInfo.existsLocally) {
     // Skip, don't tag accounts that don't exist
     const $statusLine = $('<li>').appendTo($('#spiHelper_status', document));
     $statusLine.addClass('spihelper-errortext').html('<b>The account ' + tagEntry.username + ' does not exist and so has not been tagged.</b>');
     return false;
   }
-  if (!tagNonLocalAccounts && !userInfo.exists_locally) {
-    // Skip as the account does not exist locally and the "tag accounts that don't exist locally" setting is unchecked.
+  if (!tagNonLocalAccounts && !userInfo.existsLocally) {
+    // Skip as the account does not exist locally and the
+    // "tag accounts that don't exist locally" setting is unchecked.
     return false;
   }
 
@@ -57,7 +60,8 @@ export async function spiHelperTagUser(tagEntry: TagEntry, tagNonLocalAccounts: 
       tag = tagEntry.tag;
   }
 
-  const isNotBlocked = !userInfo.exists_locally || !(await spiHelperGetUserBlockSettings(tagEntry.username));
+  const blockSettings = await spiHelperGetUserBlockSettings(tagEntry.username);
+  const isNotBlocked = !userInfo.existsLocally || !blockSettings;
 
   if (isMaster) {
     // Not doing SPI or LTA fields for now - those auto-detect right

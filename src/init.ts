@@ -51,10 +51,10 @@ export async function spiHelperInitTopLevel(state: CaseState) {
   $('#spiHelper_blockLabel', $topView).text(spiHelperIsAdmin() ? 'Block/tag socks' : 'Tag socks');
 
   // Wire up a couple of onclick handlers
-  $('#spiHelper_Move', $topView).on('click', function () {
+  $('#spiHelper_Move', $topView).on('click', () => {
     spiHelperUpdateArchive();
   });
-  $('#spiHelper_Archive', $topView).on('click', function () {
+  $('#spiHelper_Archive', $topView).on('click', () => {
     spiHelperUpdateMove();
   });
 
@@ -181,10 +181,10 @@ async function spiHelperSetCheckboxesBySection(state: CaseState) {
       spiDisableCheckbox($archiveBox);
       const caseActionBtn = $('#spiHelper_CaseStatus', $topView) as JQuery<HTMLInputElement>;
       const closeActionBtn = $('#spiHelper_Close', $topView) as JQuery<HTMLInputElement>;
-      caseActionBtn.on('change', function (event) {
+      caseActionBtn.on('change', (event) => {
         closeActionBtn.prop('disabled', event.target.checked);
       });
-      closeActionBtn.on('change', function (event) {
+      closeActionBtn.on('change', (event) => {
         caseActionBtn.prop('disabled', event.target.checked);
       });
     }

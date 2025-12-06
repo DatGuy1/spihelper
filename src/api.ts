@@ -26,7 +26,8 @@ import { spiHelperAdvert } from './constants/settings.ts';
  * Get a user's current block settings
  *
  * @param {string} user Username
- * @return {Promise<BlockEntry>} Current block settings for the user, or null if the user is not blocked
+ * @return {Promise<BlockEntry>} Current block settings for the user, or null
+ * if the user is not blocked
  */
 export async function spiHelperGetUserBlockSettings(user: string): Promise<BlockEntry | null> {
   // Should probably make this find the strictest block what with the addition of multiblocks
@@ -88,7 +89,7 @@ export async function spiHelperGetGlobalUser(user: string): Promise<GlobalUser |
     const globalUserData = response.query.globalallusers[0];
     return {
       name: globalUserData.name,
-      exists_locally: 'existslocally' in globalUserData,
+      existsLocally: 'existslocally' in globalUserData,
       locked: 'locked' in globalUserData,
     };
   }
@@ -219,14 +220,17 @@ export async function spiHelperRenderText(title: string, text: string): Promise<
  *
  * @return An array of section objects, each section is a separate investigation
  */
-export async function spiHelperGetInvestigationSectionIDs(pageName: string): Promise<SectionEntry[]> {
+export async function spiHelperGetInvestigationSectionIDs(
+  pageName: string,
+): Promise<SectionEntry[]> {
   // Uses the parse API to get page sections, then find the investigation
   // sections (should all be level-3 headers)
 
   // Since this only affects the local page, no need to call spiHelper_getAPI()
   const request: ApiParseParams = {
     action: 'parse',
-    // @ts-expect-error -- latest MediaWiki deprecated 'section'. Remove me at next types-mediawiki release
+    // @ts-expect-error - Latest MediaWiki deprecated 'section'
+    // Remove me at next types-mediawiki release
     prop: 'tocdata',
     page: pageName,
   };
@@ -273,7 +277,9 @@ export async function spiHelperGetSPIBacklinks(casePageName: string) {
  * Get the page protection level for an SPI page.
  * Used to keep the protection level after a history merge
  */
-export async function spiHelperGetProtectionInformation(casePageName: string): Promise<Protection[]> {
+export async function spiHelperGetProtectionInformation(
+  casePageName: string,
+): Promise<Protection[]> {
   // Only looking for enwiki protection information
   const api = spiHelperGetAPI();
   const request: ApiQueryInfoParams = {
@@ -294,16 +300,19 @@ export async function spiHelperGetProtectionInformation(casePageName: string): P
 }
 
 /**
- * Gets stabilisation settings information for a page. If no pending changes exists then it returns false.
+ * Gets stabilisation settings information for a page.
+ * If no pending changes exists then it returns false.
  */
-export async function spiHelperGetStabilisationSettings(casePageName: string): Promise<PendingChanges | null> {
+export async function spiHelperGetStabilisationSettings(
+  pageName: string,
+): Promise<PendingChanges | null> {
   // Only looking for enwiki stabilisation information
   const api = spiHelperGetAPI();
   const request: ApiQueryFlaggedParams = {
     action: 'query',
     format: 'json',
     prop: 'flagged',
-    titles: casePageName,
+    titles: pageName,
   };
   try {
     const response = await api.get(request);
@@ -320,12 +329,12 @@ export async function spiHelperGetStabilisationSettings(casePageName: string): P
   }
 }
 
-export async function spiHelperProtectPage(casePageName: string, protections: Protection[]) {
-  const activeOpKey = 'protect_' + casePageName;
+export async function spiHelperProtectPage(pageName: string, protections: Protection[]) {
+  const activeOpKey = 'protect_' + pageName;
   startOp(activeOpKey);
 
   const $statusLine = $('<li>').appendTo($('#spiHelper_status', document));
-  const $link = $('<a>').attr('href', mw.util.getUrl(casePageName)).attr('title', casePageName).text(casePageName);
+  const $link = $('<a>').attr('href', mw.util.getUrl(pageName)).attr('title', pageName).text(pageName);
   $statusLine.html('Protecting ' + $link.prop('outerHTML'));
 
   const api = spiHelperGetAPI();
@@ -344,7 +353,7 @@ export async function spiHelperProtectPage(casePageName: string, protections: Pr
     const request: ApiProtectParams = {
       action: 'protect',
       format: 'json',
-      title: casePageName,
+      title: pageName,
       protections: protectLevel,
       expiry: expiryInfo,
       reason: 'Restoring protection after history merge',
@@ -354,12 +363,16 @@ export async function spiHelperProtectPage(casePageName: string, protections: Pr
     finishOp(activeOpKey, OpState.Success);
   }
   catch (error) {
-    $statusLine.addClass('spihelper-errortext').html('<b>Failed to protect ' + $link.prop('outerHTML') + '</b>: ' + error);
+    $statusLine
+      .addClass('spihelper-errortext')
+      .html('<b>Failed to protect ' + $link.prop('outerHTML') + '</b>: ' + error);
     finishOp(activeOpKey, OpState.Failed);
   }
 }
 
-export async function spiHelperConfigurePendingChanges(casePageName: string, protection: NewPendingChanges) {
+export async function spiHelperConfigurePendingChanges(
+  casePageName: string, protection: NewPendingChanges,
+) {
   if (protection.level === '') {
     return;
   }
@@ -409,7 +422,7 @@ export async function spiHelperGetSiteRestrictionInformation() {
  * @param {string} user Username to block
  * @param {string} duration Duration of the block
  * @param {string} reason Reason to log for the block
- * @param {boolean} reblock Whether to reblock - if false, nothing will happen if the target user is already blocked
+ * @param {boolean} reblock Whether to override block if target user is already blocked
  * @param {boolean} anononly For IPs, whether this is an anonymous-only block (alternative is
  *                           that logged-in users with the IP are also blocked)
  * @param {boolean} accountcreation Whether to permit the user to create new accounts
@@ -422,8 +435,12 @@ export async function spiHelperGetSiteRestrictionInformation() {
 
  * @return {Promise<boolean>} True if the block suceeded, false if not
  */
-export async function spiHelperWikiBlockUser(user: string, duration: string, reason: string, reblock: boolean, anononly: boolean, accountcreation: boolean,
-  autoblock: boolean, talkpage: boolean, email: boolean, watchBlockedUser: boolean, watchExpiry: string): Promise<boolean> {
+export async function spiHelperWikiBlockUser(
+  user: string, duration: string, reason: string, reblock: boolean,
+  anononly: boolean, accountcreation: boolean, autoblock: boolean,
+  talkpage: boolean, email: boolean,
+  watchBlockedUser: boolean, watchExpiry: string,
+): Promise<boolean> {
   const activeOpKey = 'block_' + user;
   startOp(activeOpKey);
 
@@ -497,10 +514,14 @@ export async function spiHelperPurgePage(title: string): Promise<void> {
  * @param {string} sourcePage Title of the source page (page we're moving)
  * @param {string} destPage Title of the destination page (page we're moving to)
  * @param {string} summary Edit summary to use for the move
- * @param {boolean} ignoreWarnings Whether to ignore warnings on move (used to force-move one page over another)
+ * @param {boolean} ignoreWarnings Whether to ignore warnings on move
+ * (used to force-move one page over another)
  * @param moveSubpages Whether to move the subpages of the source page as well
  */
-export async function spiHelperMovePage(sourcePage: string, destPage: string, summary: string, ignoreWarnings: boolean, moveSubpages: boolean = true) {
+export async function spiHelperMovePage(
+  sourcePage: string, destPage: string, summary: string,
+  ignoreWarnings: boolean, moveSubpages: boolean = true,
+) {
   const activeOpKey = 'move_' + sourcePage + '_' + destPage;
   startOp(activeOpKey);
 
@@ -550,7 +571,10 @@ export async function spiHelperMovePage(sourcePage: string, destPage: string, su
  *
  * @return {Promise<boolean>} Whether the edit was successful
  */
-export async function spiHelperEditPage(title: string, newtext: string, summary: string, createonly: boolean, watch: WatchOption, watchExpiry?: string, baseRevId?: number, sectionId?: number | null): Promise<boolean> {
+export async function spiHelperEditPage(
+  title: string, newtext: string, summary: string, createonly: boolean,
+  watch: WatchOption, watchExpiry?: string, baseRevId?: number, sectionId?: number | null,
+): Promise<boolean> {
   let activeOpKey = 'edit_' + title;
   if (sectionId) {
     activeOpKey += '_' + sectionId;
@@ -604,7 +628,9 @@ export async function spiHelperEditPage(title: string, newtext: string, summary:
  *
  * @return {Promise<string>} The text of the page, '' if the page does not exist.
  */
-export async function spiHelperGetPageText(title: string, show: boolean, sectionId?: number | null): Promise<string> {
+export async function spiHelperGetPageText(
+  title: string, show: boolean, sectionId?: number | null,
+): Promise<string> {
   const $statusLine = $('<li>');
   if (show) {
     // Actually display the statusLine
@@ -654,7 +680,9 @@ export async function spiHelperGetPageText(title: string, show: boolean, section
  *
  * @return {Promise<number>} Post-expand include size of the given page/page section
  */
-export async function spiHelperGetPostExpandSize(title: string, sectionId?: number): Promise<number> {
+export async function spiHelperGetPostExpandSize(
+  title: string, sectionId?: number,
+): Promise<number> {
   // Synchronous method to get a page's post-expand include size given its title
   const finalTitle = spiHelperStripXWikiPrefix(title);
 
