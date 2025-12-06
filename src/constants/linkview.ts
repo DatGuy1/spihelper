@@ -1,0 +1,58 @@
+import { context } from '../context.ts';
+
+export const spiHelperLinkViewURLFormats = {
+  editorInteractionAnalyser: {
+    baseurl: 'https://sigma.toolforge.org/editorinteract.py',
+    appendToQueryString: '',
+    userQueryStringKey: 'users',
+    userQueryStringSeparator: '&',
+    userQueryStringWrapper: '',
+    multipleUserQueryStringKeys: true,
+    name: 'Editor Interaction Anaylser',
+  },
+  interactionTimeline: {
+    baseurl: 'https://interaction-timeline.toolforge.org/',
+    appendToQueryString: 'wiki=enwiki',
+    userQueryStringKey: 'user',
+    userQueryStringSeparator: '&',
+    userQueryStringWrapper: '',
+    multipleUserQueryStringKeys: true,
+    name: 'Interaction Timeline',
+  },
+  timecardSPITools: {
+    baseurl: 'https://spi-tools.toolforge.org/spi/timecard/' + context.caseName,
+    appendToQueryString: '',
+    userQueryStringKey: 'users',
+    userQueryStringSeparator: '&',
+    userQueryStringWrapper: '',
+    multipleUserQueryStringKeys: true,
+    name: 'Timecard comparisons',
+  },
+  consolidatedTimelineSPITools: {
+    baseurl: 'https://spi-tools.toolforge.org/spi/timecard/' + context.caseName,
+    appendToQueryString: '',
+    userQueryStringKey: 'users',
+    userQueryStringSeparator: '&',
+    userQueryStringWrapper: '',
+    multipleUserQueryStringKeys: true,
+    name: 'Consolidated Timeline (requires login)',
+  },
+  pagesSPITools: {
+    baseurl: 'https://spi-tools.toolforge.org/spi/timeline/' + context.caseName,
+    appendToQueryString: '',
+    userQueryStringKey: 'users',
+    userQueryStringSeparator: '&',
+    userQueryStringWrapper: '',
+    multipleUserQueryStringKeys: true,
+    name: 'SPI Tools Pages (requires login)',
+  },
+  checkUserWikiSearch: {
+    baseurl: 'https://checkuser.wikimedia.org/w/index.php',
+    appendToQueryString: 'ns0=1',
+    userQueryStringKey: 'search',
+    userQueryStringSeparator: ' OR ',
+    userQueryStringWrapper: '"',
+    multipleUserQueryStringKeys: false,
+    name: 'Checkuser wiki search',
+  },
+};

@@ -33,3 +33,22 @@ export const spiHelperAdminTemplates: SelectOption[] = [
   { label: 'Diffs needed', selected: false, value: '{{DiffsNeeded|moreinfo}}' },
   { label: 'Locks requested', selected: false, value: '{{GlobalLocksRequested}}' },
 ];
+
+/** List of possible selections for tagging a user in the block/tag interface
+ */
+export const spiHelperTagOptions: SelectOption[] = [
+  { label: 'None', selected: true, value: '' },
+  { label: 'Suspected sock', value: 'blocked', selected: false },
+  { label: 'Proven sock', value: 'proven', selected: false },
+  { label: 'CU confirmed sock', value: 'confirmed', selected: false },
+  { label: 'Blocked master', value: 'master', selected: false },
+  { label: 'CU confirmed master', value: 'sockmasterchecked', selected: false },
+  { label: '3X banned master', value: 'bannedmaster', selected: false },
+];
+
+/** List of possible selections for tagging a user's altmaster in the block/tag interface */
+export const spiHelperAltMasterTagOptions: SelectOption[] = [
+  { label: 'None', selected: true, value: '' },
+  { label: 'Suspected alt master', value: 'suspected', selected: false },
+  { label: 'Proven alt master', value: 'proven', selected: false },
+];

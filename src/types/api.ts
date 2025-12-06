@@ -2,7 +2,7 @@ type ProtectionType = 'edit' | 'move' | 'create';
 
 export interface SectionResult {
   tocLevel: number;
-  hLevel: number;
+  hLevel: string;
   line: string;
   number: string;
   index: string;

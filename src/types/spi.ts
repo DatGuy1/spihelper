@@ -1,4 +1,11 @@
 import type { WatchOption } from './api.ts';
+import { spiHelperGetPageText } from '../api.ts';
+import { context } from '../context.ts';
+
+export enum TableType {
+  Block = 'block',
+  Link = 'link',
+}
 
 export interface SelectOption {
   label: string; // Text to display in the drop-down
@@ -25,11 +32,58 @@ export interface TagEntry {
   blocking: boolean; // Whether this account is also marked for block
 }
 
-export interface ParsedArchiveNotice {
-  username: string; // Case username
-  xwiki: boolean; // Crosswiki flag
-  deny: boolean; // Deny flag
-  notalk: boolean; // Notalk flag
+export class SectionEntry {
+  private _text: string | null = null;
+
+  constructor(public readonly id: number, public readonly name: string) {
+  }
+
+  async getText() {
+    if (this._text !== null) return this._text;
+    this._text = await spiHelperGetPageText(context.pageName, false, this.id);
+    return this._text;
+  }
+}
+
+export class ParsedArchiveNotice {
+  username: string;
+  xwiki: boolean;
+  deny: boolean;
+  notalk: boolean;
+  moot: boolean;
+
+  constructor(
+    username: string = context.caseName,
+    xwiki: boolean = false,
+    deny: boolean = false,
+    notalk: boolean = false,
+    moot: boolean = false,
+  ) {
+    this.username = username;
+    this.xwiki = xwiki;
+    this.deny = deny;
+    this.notalk = notalk;
+    this.moot = moot;
+  }
+
+  generateWikitext() {
+    let notice = '{{SPI archive notice|1=' + this.username;
+    if (this.xwiki) {
+      notice += '|crosswiki=yes';
+    }
+    if (this.deny) {
+      notice += '|deny=yes';
+    }
+    if (this.notalk) {
+      notice += '|notalk=yes';
+    }
+    if (this.moot) {
+      notice += '|moot=yes';
+    }
+    notice += '}}';
+
+    return notice;
+  }
 }
 
 export interface GlobalUser {
@@ -58,4 +112,15 @@ export interface ScriptSettings {
   displayIPv6As64: boolean;
   debugForceCheckuserState: boolean | null;
   debugForceAdminState: boolean | null;
+}
+
+export interface CaseActions {
+  Status: boolean;
+  Block: boolean;
+  Link: boolean;
+  Note: boolean;
+  Close: boolean;
+  Rename: boolean;
+  Archive: boolean;
+  SpiMgmt: boolean;
 }

@@ -1,8 +1,8 @@
 // Validator type system
 import type { ScriptSettings } from './types/spi.ts';
 import type { WatchOption } from './types/api.ts';
-import { spiHelperSettings } from './constants/settings.ts';
 import type { ApiParseParams } from 'types-mediawiki-api';
+import { spiHelperGetAPI } from './api.ts';
 
 type Validator<T> = (value: unknown) => value is T;
 
@@ -71,12 +71,47 @@ const settingValidators: {
   debugForceAdminState: { validate: validators.nullableBoolean },
 };
 
+export const spiHelperSettings: ScriptSettings = {
+  // Choices are 'watch' (unconditionally add to watchlist), 'preferences'
+  // (follow default preferences), 'nochange' (don't change the watchlist
+  // status of the page), and 'unwatch' (unconditionally remove)
+  watchCase: 'preferences',
+  watchCaseExpiry: 'indefinite',
+  watchArchive: 'nochange',
+  watchArchiveExpiry: 'indefinite',
+  watchTaggedUser: 'preferences',
+  watchTaggedUserExpiry: 'indefinite',
+  watchNewCats: 'nochange',
+  watchNewCatsExpiry: 'indefinite',
+  watchBlockedUser: true,
+  watchBlockedUserExpiry: 'indefinite',
+  // Lets people disable clerk options if they're not a clerk
+  clerk: true,
+  // Log all actions to Special:MyPage/spihelper_log
+  log: false,
+  // Reverse said log, so that the newest actions are at the top.
+  reversed_log: false,
+  // Enable the "move section" button
+  iUnderstandSectionMoves: false,
+  // Automatically tick the "Archive case" option if the case is closed
+  tickArchiveWhenCaseClosed: true,
+  // Use checkuserblock-account when CU blocking. False when not a CU, by default true when a CU
+  useCheckuserblockAccount: false,
+  // Default IPv6 listings to /64 in the block/tag socks menu
+  displayIPv6As64: true,
+  // These are for debugging to view as other roles. If you're picking apart the code and
+  // decide to set these (especially the CU option), it is YOUR responsibility to make sure
+  // you don't do something that violates policy
+  debugForceCheckuserState: null,
+  debugForceAdminState: null,
+};
+
 /**
  * Validates and applies custom options to settings
  */
 export async function applyCustomSettings(
   customOpts: Record<string, unknown>,
-  settings: ScriptSettings = spiHelperSettings,
+  settings: ScriptSettings,
 ): Promise<void> {
   for (const [key, value] of Object.entries(customOpts)) {
     // Check if key exists in settings
@@ -123,7 +158,7 @@ async function spiHelperValidateDate(dateInStringFormat: string) {
  */
 async function spiHelperParseWikitext(wikitext: string) {
   // For enwiki only for now
-  const api = new mw.Api();
+  const api = spiHelperGetAPI();
   const request: ApiParseParams = {
     action: 'parse',
     prop: 'text',
@@ -142,18 +177,22 @@ async function spiHelperParseWikitext(wikitext: string) {
   }
 }
 
+declare global {
+  let spiHelperCustomOpts: Record<string, unknown>;
+}
+
 /**
  * Checks for the existence of Special:MyPage/spihelper-options.js, and if it exists,
  * loads the settings from that page.
  */
 export async function spiHelperLoadSettings() {
   // Dynamically load a user's settings
+  const settings = spiHelperSettings;
   try {
-    let spiHelperCustomOpts;
     await mw.loader.getScript('/w/index.php?title=Special:MyPage/spihelper-options.js&action=raw&ctype=text/javascript');
     // I have no idea if this is any good
     if (typeof spiHelperCustomOpts !== 'undefined') {
-      await applyCustomSettings(spiHelperCustomOpts);
+      await applyCustomSettings(spiHelperCustomOpts, settings);
     }
   }
   catch (error) {
@@ -161,4 +200,5 @@ export async function spiHelperLoadSettings() {
     // More detailed error in the console
     console.error('Error getting local spihelper-options.js: ' + error);
   }
+  return settings;
 }

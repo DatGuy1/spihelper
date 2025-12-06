@@ -2,11 +2,11 @@ export const spiHelperTopViewHTML = `
 <div id="spiHelper_topViewDiv">
   <h3>Handling SPI case</h3>
   <select id="spiHelper_sectionSelect"></select>
-  <h4 id="spiHelper_warning" class="spihelper-errortext" hidden></h4>
+  <h4 id="spiHelper_warning" class="spihelper-errortext"></h4>
   <ul>
     <li id="spiHelper_actionLine"  class="spiHelper_singleCaseOnly spiHelper_notOnArchive">
-      <input type="checkbox" name="spiHelper_Case_Action" id="spiHelper_Case_Action" />
-      <label for="spiHelper_Case_Action">Change case status</label>
+      <input type="checkbox" name="spiHelper_CaseStatus" id="spiHelper_CaseStatus" />
+      <label for="spiHelper_CaseStatus">Change case status</label>
     </li>
     <li id="spiHelper_spiMgmtLine"  class="spiHelper_allCasesOnly spiHelper_notOnArchive">
       <input type="checkbox" id="spiHelper_SpiMgmt" />
@@ -14,7 +14,7 @@ export const spiHelperTopViewHTML = `
     </li>
     <li id="spiHelper_blockLine" class="spiHelper_adminClerkClass">
       <input type="checkbox" name="spiHelper_BlockTag" id="spiHelper_BlockTag" />
-      <label for="spiHelper_BlockTag">Block/tag socks</label>
+      <label for="spiHelper_BlockTag" id="spiHelper_blockLabel">Block/tag socks</label>
     </li>
     <li id="spiHelper_userInfoLine" class="spiHelper_singleCaseOnly">
       <input type="checkbox" name="spiHelper_userInfo" id="spiHelper_userInfo" />
@@ -48,8 +48,8 @@ export const spiHelperActionViewHTML = `
   <h3>Handling SPI case</h3>
   <div id="spiHelper_actionView">
     <h4>Changing case status</h4>
-    <label for="spiHelper_CaseAction">New status:</label>
-    <select id="spiHelper_CaseAction"></select>
+    <label for="spiHelper_CaseStatus">New status:</label>
+    <select id="spiHelper_CaseStatus"></select>
   </div>
   <div id="spiHelper_spiMgmtView">
     <h4>Changing SPI settings</h4>
@@ -66,13 +66,18 @@ export const spiHelperActionViewHTML = `
         <input type="checkbox" id="spiHelper_spiMgmt_notalk" />
         <label for="spiHelper_spiMgmt_notalk">Socks should have talk page and email access revoked due to past abuse</label>
       </li>
+      <li>
+        <input type="checkbox" id="spiHelper_spiMgmt_moot" />
+        <label for="spiHelper_spiMgmt_moot">Blocked socks should not be reported unnecessarily</label>
+      </li>
     </ul>
   </div>
   <div id="spiHelper_sockLinksView">
     <h4 id="spiHelper_sockLinksHeader">Useful links for socks</h4>
-    <table id="spiHelper_userInfoTable" style="border-collapse:collapse;">
+    <table id="spiHelper_userInfoTable" class="spiHelper_table" style="border-collapse:collapse;">
+      <thead>
       <tr>
-        <th>Username</th>
+        <th style="width: 10%">Username</th>
         <th><span title="Editor interaction analyser" class="rt-commentedText spihelper-hovertext">Interaction analyser</span></th>
         <th><span title="Interaction timeline" class="rt-commentedText spihelper-hovertext">Interaction timeline</span></th>
         <th><span title="Timecard comparison - SPI tools" class="rt-commentedText spihelper-hovertext">Timecard</span></th>
@@ -80,6 +85,8 @@ export const spiHelperActionViewHTML = `
         <th class="spiHelper_adminClass"><span title="Pages - SPI tools (login needed)" class="rt-commentedText spihelper-hovertext">Pages</span></th>
         <th class="spiHelper_cuClass"><span title="CheckUser wiki search" class="rt-commentedText spihelper-hovertext">CU wiki</span></th>
       </tr>
+      </thead>
+      <tbody>
       <tr style="border-bottom:2px solid black">
         <td style="text-align:center;">(All users)</td>
         <td style="text-align:center;"><input type="checkbox" id="spiHelper_link_editorInteractionAnalyser"/></td>
@@ -89,8 +96,9 @@ export const spiHelperActionViewHTML = `
         <td style="text-align:center;" class="spiHelper_adminClass"><input type="checkbox" id="spiHelper_link_pagesSPITools"/></td>
         <td style="text-align:center;" class="spiHelper_adminClass"><input type="checkbox" id="spiHelper_link_checkUserWikiSearch"/></td>
       </tr>
+      </tbody>
     </table>
-    <span><input type="button" id="AddSockBlock" value="Add Row"/></span>
+    <span><input type="button" id="AddSockLink" value="Add Row"/></span>
   </div>
   <div id="spiHelper_blockTagView">
     <h4 id="spiHelper_blockTagHeader">Blocking and tagging socks</h4>
@@ -134,7 +142,8 @@ export const spiHelperActionViewHTML = `
         <label for="spiHelper_hidelocknames">Hide usernames when requesting global locks.</label>
       </li>
     </ul>
-    <table id="spiHelper_blockTable" style="border-collapse:collapse;">
+    <table id="spiHelper_blockTable" class="spiHelper_table" style="border-collapse:collapse;">
+      <thead>
       <tr>
         <th>Username</th>
         <th class="spiHelper_adminClass"><span title="Block user" class="rt-commentedText spihelper-hovertext">Blk?</span></th>
@@ -147,6 +156,8 @@ export const spiHelperActionViewHTML = `
         <th><span title="Tag the user with a suspected alternate master" class="rt-commentedText spihelper-hovertext">Alt Master</span></th>
         <th><span title="Request a global lock at Meta:SRG" class="rt-commentedText spihelper-hovertext">Req Lock?</span></th>
       </tr>
+      </thead>
+      <tbody>
       <tr style="border-bottom:2px solid black">
         <td style="text-align:center;">(All users)</td>
         <td class="spiHelper_adminClass"><input type="checkbox" id="spiHelper_block_doblock"/></td>
@@ -160,8 +171,9 @@ export const spiHelperActionViewHTML = `
   
         <td><input type="checkbox" name="spiHelper_block_lock_all" id="spiHelper_block_lock"/></td>
       </tr>
+      </tbody>
     </table>
-    <span><input type="button" id="AddSockLink" value="Add Row"/></span>
+    <span><input type="button" id="AddSockBlock" value="Add Row"/></span>
   </div>
   <div id="spiHelper_closeView">
     <h4>Marking case as closed</h4>
