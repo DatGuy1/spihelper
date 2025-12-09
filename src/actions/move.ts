@@ -94,12 +94,8 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
     const siteRestrictions = await spiHelperGetSiteRestrictionInformation();
     // First find if both the old page and new page had the same protection type enabled
     siteRestrictions.types.forEach((type: string) => {
-      const oldPageNameEntry = oldPageNameProtection.find((dict) => {
-        return dict.type === type;
-      });
-      const newPageNameEntry = newPageNameProtection.find((dict) => {
-        return dict.type === type;
-      });
+      const oldPageNameEntry = oldPageNameProtection.find(dict => dict.type === type);
+      const newPageNameEntry = newPageNameProtection.find(dict => dict.type === type);
       if (oldPageNameEntry && newPageNameEntry) {
         let expiry = newPageNameEntry.expiry;
         if (newPageNameEntry.expiry === 'infinity' || oldPageNameEntry.expiry === 'infinity' || newPageNameEntry.expiry === 'infinite' || oldPageNameEntry.expiry === 'infinite') {
@@ -281,15 +277,15 @@ async function spiHelperPostRenameCleanup(
     }
     pagesChecked.push(currentPageToCheck);
     const backlinks = await spiHelperGetSPIBacklinks(currentPageToCheck);
-    for (let i = 0; i < backlinks.length; i++) {
-      const archiveNotice = await spiHelperParseArchiveNotice(backlinks[i].title);
+    for (const backlink of backlinks) {
+      const archiveNotice = await spiHelperParseArchiveNotice(backlink.title);
       if (!archiveNotice) {
         continue;
       }
       if (archiveNotice.username === currentPageToCheck.replace(/Wikipedia:Sockpuppet investigations\//g, '')) {
-        void spiHelperEditPage(backlinks[i].title, replacementArchiveNotice, 'Updating case following page move', false, spiHelperSettings.watchCase, spiHelperSettings.watchCaseExpiry);
-        if (pagesChecked.indexOf(backlinks[i].title) !== -1) {
-          pagesToCheck.push(backlinks[i]);
+        void spiHelperEditPage(backlink.title, replacementArchiveNotice, 'Updating case following page move', false, spiHelperSettings.watchCase, spiHelperSettings.watchCaseExpiry);
+        if (pagesChecked.indexOf(backlink.title) !== -1) {
+          pagesToCheck.push(backlink.title);
         }
       }
     }

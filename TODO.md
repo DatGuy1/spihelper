@@ -1,4 +1,3 @@
-- Use proper API typing
 - Use helper like below:
 function mustQuery<T extends HTMLElement = HTMLElement>(selector: string): JQuery<T> {
   const $el = $(selector);
@@ -21,6 +20,7 @@ function mustQuery<T extends HTMLElement = HTMLElement>(selector: string): JQuer
 - Mention moving categories from spihelper move/merge full case
 - Add mw.track()?
 - In caseActions.ts, instead of fetching the HTML values, save our changes ourselves through on('change'). Probably in state.
+- Migrate to formatversion 2
 
 Generic:
 - Don't keep big HTML blocks as raw template strings

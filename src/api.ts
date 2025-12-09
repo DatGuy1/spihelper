@@ -17,7 +17,16 @@ import type {
   CentralAuthApiQueryGlobalAllUsersParams,
 } from 'types-mediawiki-api';
 import { type BlockEntry, type GlobalUser, SectionEntry } from './types/spi.ts';
-import type { NewPendingChanges, PendingChanges, Protection, SectionResult, WatchOption } from './types/api.ts';
+import type {
+  BacklinksResponse,
+  BlocksResponse, FlaggedResponse, GlobalAllUseresResponse, InfoResponse,
+  NewPendingChanges,
+  ParseResponse,
+  PendingChanges,
+  Protection, Restrictions, RevisionsResponse,
+  SectionResult, SiteInfoResponse,
+  WatchOption,
+} from './types/api.ts';
 import { spiHelperStripXWikiPrefix } from './utils.ts';
 import { finishOp, OpState, startOp } from './operations.ts';
 import { spiHelperAdvert } from './constants/settings.ts';
@@ -41,21 +50,22 @@ export async function spiHelperGetUserBlockSettings(user: string): Promise<Block
     bkprop: ['user', 'reason', 'flags', 'expiry'],
   };
   try {
-    const response = await api.get(request);
-    if (response.query.blocks.length === 0) {
+    const response = await api.get(request) as BlocksResponse;
+    const [firstBlock] = response.query.blocks;
+    if (!firstBlock) {
       // If the length is 0, then the user isn't blocked
       return null;
     }
 
     return {
       username: user,
-      duration: response.query.blocks[0].expiry,
-      acb: ('nocreate' in response.query.blocks[0] || 'anononly' in response.query.blocks[0]),
-      ab: 'autoblock' in response.query.blocks[0],
-      ntp: !('allowusertalk' in response.query.blocks[0]),
-      nem: 'noemail' in response.query.blocks[0],
+      duration: firstBlock.expiry,
+      acb: (firstBlock.nocreate || firstBlock.anononly),
+      ab: firstBlock.autoblock,
+      ntp: !(firstBlock.allowusertalk),
+      nem: firstBlock.noemail,
       tpn: '',
-      reason: response.query.blocks[0].reason,
+      reason: firstBlock.reason,
     };
   }
   catch {
@@ -80,13 +90,13 @@ export async function spiHelperGetGlobalUser(user: string): Promise<GlobalUser |
     aguprop: ['lockinfo', 'existslocally'],
   };
   try {
-    const response = await api.get(request);
-    if (response.query.globalallusers.length === 0) {
-      // If the length is 0, then we couldn't find the global user
+    const response = await api.get(request) as GlobalAllUseresResponse;
+    const [globalUserData] = response.query.globalallusers;
+
+    if (!globalUserData) {
+      // We couldn't find the global user
       return null;
     }
-
-    const globalUserData = response.query.globalallusers[0];
     return {
       name: globalUserData.name,
       existsLocally: 'existslocally' in globalUserData,
@@ -95,35 +105,6 @@ export async function spiHelperGetGlobalUser(user: string): Promise<GlobalUser |
   }
   catch {
     return null;
-  }
-}
-
-/**
- * Get a page's latest revision ID - useful for preventing edit conflicts
- *
- * @param {string} title Title of the page
- * @return {Promise<number>} Latest revision of a page, 0 if it doesn't exist
- */
-export async function spiHelperGetPageRev(title: string): Promise<number> {
-  const finalTitle = spiHelperStripXWikiPrefix(title);
-  const request: ApiQueryRevisionsParams = {
-    action: 'query',
-    prop: 'revisions',
-    rvslots: 'main',
-    indexpageids: true,
-    titles: finalTitle,
-  };
-
-  try {
-    const response = await spiHelperGetAPI(title).get(request);
-    const pageid = response.query.pageids[0];
-    if (pageid === '-1') {
-      return 0;
-    }
-    return response.query.pages[pageid].revisions[0].revid;
-  }
-  catch {
-    return 0;
   }
 }
 
@@ -206,7 +187,7 @@ export async function spiHelperRenderText(title: string, text: string): Promise<
   };
 
   try {
-    const response = await spiHelperGetAPI(title).get(request);
+    const response = await spiHelperGetAPI(title).get(request) as ParseResponse<'text'>;
     return response.parse.text['*'];
   }
   catch (error) {
@@ -235,7 +216,7 @@ export async function spiHelperGetInvestigationSectionIDs(
     page: pageName,
   };
   const api = spiHelperGetAPI();
-  const response = await api.get(request);
+  const response = await api.get(request) as ParseResponse<'toc'>;
   const dateSections: SectionEntry[] = [];
   for (let i = 0; i < response.parse.tocdata.sections.length; i++) {
     // TODO: also check for presence of spi case status
@@ -263,9 +244,11 @@ export async function spiHelperGetSPIBacklinks(casePageName: string) {
     blfilterredir: 'nonredirects',
   };
   try {
-    const response = await api.get(request);
-    return response.query.backlinks.filter((dictEntry: { title: string }) => {
-      return dictEntry.title.startsWith('Wikipedia:Sockpuppet investigations/') && !dictEntry.title.startsWith('Wikipedia:Sockpuppet investigations/SPI/') && !dictEntry.title.match('Wikipedia:Sockpuppet investigations/.*/Archive.*');
+    const response = await api.get(request) as BacklinksResponse;
+    return response.query.backlinks.filter((dictEntry) => {
+      return dictEntry.title.startsWith('Wikipedia:Sockpuppet investigations/')
+        && !dictEntry.title.startsWith('Wikipedia:Sockpuppet investigations/SPI/')
+        && !dictEntry.title.match('Wikipedia:Sockpuppet investigations/.*/Archive.*');
     });
   }
   catch {
@@ -288,11 +271,12 @@ export async function spiHelperGetProtectionInformation(
     prop: 'info',
     titles: casePageName,
     inprop: 'protection',
+    formatversion: '2',
   };
   try {
-    const response = await api.get(request);
-    const page = Object.values(response.query.pages)[0] as { protection: Protection[] };
-    return page.protection;
+    const response = await api.get(request) as InfoResponse;
+    const [page] = response.query.pages;
+    return page?.protection ?? [];
   }
   catch {
     return [];
@@ -313,16 +297,12 @@ export async function spiHelperGetStabilisationSettings(
     format: 'json',
     prop: 'flagged',
     titles: pageName,
+    formatversion: '2',
   };
   try {
-    const response = await api.get(request);
-    const entry = Object.values(response.query.pages)[0] as { flagged: PendingChanges };
-    if ('flagged' in entry) {
-      return entry.flagged;
-    }
-    else {
-      return null;
-    }
+    const response = await api.get(request) as FlaggedResponse;
+    const [page] = response.query.pages;
+    return page?.flagged ?? null;
   }
   catch {
     return null;
@@ -398,7 +378,7 @@ export async function spiHelperConfigurePendingChanges(
   }
 }
 
-export async function spiHelperGetSiteRestrictionInformation() {
+export async function spiHelperGetSiteRestrictionInformation(): Promise<Restrictions> {
   // For enwiki only as this is it's only use case
   const api = spiHelperGetAPI();
   const request: ApiQuerySiteinfoParams = {
@@ -408,11 +388,16 @@ export async function spiHelperGetSiteRestrictionInformation() {
     siprop: 'restrictions',
   };
   try {
-    const response = await api.get(request);
+    const response = await api.get(request) as SiteInfoResponse;
     return response.query.restrictions;
   }
   catch {
-    return [];
+    return {
+      types: [],
+      levels: [],
+      cascadinglevels: [],
+      semiprotectedlevels: [],
+    };
   }
 }
 
@@ -647,8 +632,8 @@ export async function spiHelperGetPageText(
     prop: 'revisions',
     rvprop: 'content',
     rvslots: 'main',
-    indexpageids: true,
     titles: finalTitle,
+    formatversion: '2',
   };
 
   if (sectionId) {
@@ -656,19 +641,58 @@ export async function spiHelperGetPageText(
   }
 
   try {
-    const response = await spiHelperGetAPI(title).get(request);
-    const pageid = response.query.pageids[0];
-
-    if (pageid === '-1') {
+    const response = await spiHelperGetAPI(title).get(request) as RevisionsResponse<'content'>;
+    const targetPage = response.query.pages[0];
+    if (!targetPage || 'missing' in targetPage) {
       $statusLine.html('Page ' + $link.html() + ' does not exist');
       return '';
     }
+    const latestRevision = targetPage.revisions[0];
+    if (!latestRevision) {
+      return '';
+    }
     $statusLine.html('Got ' + $link.html());
-    return response.query.pages[pageid].revisions[0].slots.main['*'];
+    return latestRevision.slots.main.content;
   }
   catch (error) {
     $statusLine.addClass('spihelper-errortext').html('<b>Failed to get ' + $link.html() + '</b>: ' + error);
     return '';
+  }
+}
+
+/**
+ * Get a page's latest revision ID - useful for preventing edit conflicts
+ *
+ * @param {string} title Title of the page
+ * @return {Promise<number>} Latest revision of a page, 0 if it doesn't exist
+ */
+export async function spiHelperGetPageRev(title: string): Promise<number> {
+  const finalTitle = spiHelperStripXWikiPrefix(title);
+  const request: ApiQueryRevisionsParams = {
+    action: 'query',
+    prop: 'revisions',
+    rvslots: 'main',
+    rvprop: ['ids'],
+    titles: finalTitle,
+    formatversion: '2',
+  };
+
+  try {
+    const response = await spiHelperGetAPI(title).get(request) as RevisionsResponse<'ids'>;
+    const targetPage = response.query.pages[0];
+    if (!targetPage || 'missing' in targetPage) {
+      // Check if page is missing
+      return 0;
+    }
+    const latestRevision = targetPage.revisions[0];
+    if (!latestRevision) {
+      // Another sanity check, in case it's revision-deleted or something
+      return 0;
+    }
+    return latestRevision.revid;
+  }
+  catch {
+    return 0;
   }
 }
 
@@ -683,7 +707,6 @@ export async function spiHelperGetPageText(
 export async function spiHelperGetPostExpandSize(
   title: string, sectionId?: number,
 ): Promise<number> {
-  // Synchronous method to get a page's post-expand include size given its title
   const finalTitle = spiHelperStripXWikiPrefix(title);
 
   const request: ApiParseParams = {
@@ -696,18 +719,10 @@ export async function spiHelperGetPostExpandSize(
   }
   const api = spiHelperGetAPI(title);
   try {
-    const response = await api.get(request);
+    const response = await api.get(request) as ParseResponse<'limit'>;
 
-    // The page might not exist, so we need to handle that smartly - only get the parse
-    // if the page actually parsed
-    if ('parse' in response) {
-      // Iterate over all properties to find the PEIS
-      for (let i = 0; i < response.parse.limitreportdata.length; i++) {
-        if (response.parse.limitreportdata[i].name === 'limitreport-postexpandincludesize') {
-          return response.parse.limitreportdata[i][0];
-        }
-      }
-    }
+    // The page might not exist, so we need to handle that smartly
+    return Number(response.parse?.limitreportdata.find(item => item.name === 'limitreport-postexpandincludesize')?.['0'] ?? 0);
   }
   catch {
     // Something's gone wrong, just return 0
