@@ -1,10 +1,7 @@
 import { spiHelperGenerateForm, updateForRole } from './ui/ui.ts';
 import { spiHelperTopViewHTML } from './html.ts';
 import { type CaseState, refreshSections } from './state.ts';
-import {
-  spiHelperAddArchiveNotice,
-  spiHelperParseArchiveNotice,
-} from './archivenotice.ts';
+import { spiHelperAddArchiveNotice, spiHelperParseArchiveNotice } from './archivenotice.ts';
 import { context } from './context.ts';
 import { spiHelperGetPageText } from './api.ts';
 import { spiHelperSettings } from './options.ts';
@@ -45,7 +42,6 @@ export async function spiHelperInitTopLevel(state: CaseState) {
     }
   }
 
-  // TODO: I don't like this entire section
   // Next, modify what's displayed
   // Set the block selection label based on whether the user is an admin
   $('#spiHelper_blockLabel', $topView).text(spiHelperIsAdmin() ? 'Block/tag socks' : 'Tag socks');
@@ -68,7 +64,7 @@ export async function spiHelperInitTopLevel(state: CaseState) {
   for (const section of state.sections) {
     $('<option>').val(section.id).text(section.name).appendTo($sectionSelect);
   }
-  // All-sections selector...deliberately at the bottom, the default should be the first section
+  // All-sections selector... deliberately at the bottom, the default should be the first section
   $('<option>').val('all').text('All Sections').appendTo($sectionSelect);
 
   // Only show options suitable for the archive subpage when running on the archives
@@ -79,7 +75,6 @@ export async function spiHelperInitTopLevel(state: CaseState) {
   await spiHelperSetCheckboxesBySection(state);
 
   $('#spiHelper_GenerateForm', $topView).one('click', () => {
-    console.log(state);
     spiHelperGenerateForm(state);
   });
   messageDisplay.show();
@@ -99,14 +94,17 @@ async function spiHelperSetCheckboxesBySection(state: CaseState) {
     console.error('Failed to find #spiHelper_sectionSelect element');
     return;
   }
-  if (selectedValue !== 'all') {
+  if (selectedValue === 'all') {
+    state.selectedSection = { type: 'all' };
+  }
+  else {
     const selectedIndex = Number($sectionSelect.prop('selectedIndex'));
     const selectedSection = state.sections[selectedIndex];
     if (!selectedSection) {
       console.error('Failed to find section for selected index ' + selectedIndex);
       return;
     }
-    state.selectedSection = selectedSection;
+    state.selectedSection = { type: 'specific', section: selectedSection };
   }
 
   const $warningText = $('#spiHelper_warning', $topView);
@@ -130,7 +128,7 @@ async function spiHelperSetCheckboxesBySection(state: CaseState) {
   });
 
   // all cases selection
-  if (state.selectedSection === null) {
+  if (state.selectedSection.type === 'all') {
     // Hide inputs that aren't relevant in the case view
     $('.spiHelper_singleCaseOnly', $topView).hide();
     // Show inputs only visible in all-case mode
@@ -141,7 +139,7 @@ async function spiHelperSetCheckboxesBySection(state: CaseState) {
     $moveBox.prop('disabled', false);
   }
   else {
-    const sectionText = await state.selectedSection.getText();
+    const sectionText = await state.selectedSection.section.getText();
     if (!spiHelperSectionRegex.test(sectionText)) {
       // Nothing to do here.
       return;
@@ -158,7 +156,7 @@ async function spiHelperSetCheckboxesBySection(state: CaseState) {
       caseStatus = result[1];
     }
     else if (!context.isArchive) {
-      $warningText.append($('<b>').text(`Can't find case status in ${state.selectedSection.name}!`));
+      $warningText.append($('<b>').text(`Can't find case status in ${state.selectedSection.section.name}!`));
       $warningText.show();
     }
 

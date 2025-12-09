@@ -16,7 +16,7 @@ export function spiHelperGetCommentTextValue(): string {
 /**
  * Removes the interwiki prefix from a page title
  *
- * @param {*} title Page name including interwiki prefix
+ * @param title Page name including interwiki prefix
  * @return {string} Just the page name
  */
 export function spiHelperStripXWikiPrefix(title: string): string {

@@ -22,7 +22,7 @@ export const spiHelperTopViewHTML = `
     </li>
     <li id="spiHelper_commentLine" class="spiHelper_singleCaseOnly spiHelper_notOnArchive">
       <input type="checkbox" name="spiHelper_Comment" id="spiHelper_Comment" />
-      <label for="spiHelper_Comment">Note/comment</label>
+      <label for="spiHelper_Comment">Comment</label>
     </li>
     <li id="spiHelper_closeLine" class="spiHelper_adminClerkClass spiHelper_singleCaseOnly spiHelper_notOnArchive">
       <input type="checkbox" name="spiHelper_Close" id="spiHelper_Close" />

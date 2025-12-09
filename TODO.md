@@ -1,7 +1,3 @@
-- Create helper function for logging with a parameter for errors
-- Determine whether we also want to skip tagging temporary accounts
-- Determine which async calls should be awaited and which can be let to run
-- Remove redundant JSDoc
 - Use proper API typing
 - Use helper like below:
 function mustQuery<T extends HTMLElement = HTMLElement>(selector: string): JQuery<T> {
@@ -11,18 +7,41 @@ function mustQuery<T extends HTMLElement = HTMLElement>(selector: string): JQuer
   }
   return $el as JQuery<T>;
 }
-- Decide whether I want sectionId to be a number or a string
 - Merge spiHelperGetPageRev into spiHelperGetPageText?
-- Replace options.ts with OOJS
+- Replace options.ts with OOJS/Codex
 - Instead of constantly refetching page and section content, on a save check if there's an edit we didn't make and if so confirm() we want to proceed
 - Make switching layouts smoother
 - Instead of removing spiHelperTopViewHTML to replace with spiHelperActionViewHTML all the time, keep it as hidden. Avoids regenerating the layout every time.
 - Look into making it prettier via animations and whatnot
 - Choose if we want to redefine context (status quo) or freeze it. Probably the latter. move.ts L62
 - Change spiHelperWikiBlockUser to opt with object
+- Split HTML building into views.ts or views/foo.ts
+- Remove \<b> from spihelper-errortext and move it to CSS
+- Remove the (clerk only) messages
+- Mention moving categories from spihelper move/merge full case
+- Add mw.track()?
+- In caseActions.ts, instead of fetching the HTML values, save our changes ourselves through on('change'). Probably in state.
 
 Generic:
 - Don't keep big HTML blocks as raw template strings
 - Implement Dbeef's updater
 - Implement unit tests?
 - Make practical test gauntlet on testwiki
+
+
+All sections selection not working
+
+Required tests:
+- Single:
+  - Archive case
+  - One click archive case
+  - Close case
+- Combined:
+  - Change case status
+  - Block/tag socks
+  - Sock links
+  - Comment
+- Edge cases:
+  - Moving from/to protected page
+  - Archive that overflows max expand size
+  - Nonexistant archivenotice

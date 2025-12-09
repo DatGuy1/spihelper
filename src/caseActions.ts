@@ -1,10 +1,5 @@
 import { finishOp, OpState, startOp } from './operations.ts';
-import {
-  spiHelperEditPage,
-  spiHelperGetPageRev,
-  spiHelperGetPageText,
-  spiHelperPurgePage,
-} from './api.ts';
+import { spiHelperEditPage, spiHelperGetPageRev, spiHelperGetPageText, spiHelperPurgePage } from './api.ts';
 import { context } from './context.ts';
 import {
   spiHelperAdminSectionWithPrecedingNewlinesRegex,
@@ -17,13 +12,19 @@ import { spiHelperLog } from './log.ts';
 import { messageDisplay } from './ui/messageDisplay.ts';
 import { type CaseState, refreshSections } from './state.ts';
 import { spiHelperGetInterwikiPrefix, spiHelperNormalizeUsername } from './utils.ts';
-import { type BlockEntry, type CaseActions, ParsedArchiveNotice, type TagEntry } from './types/spi.ts';
+import {
+  type BlockEntry,
+  type CaseActions,
+  ParsedArchiveNotice,
+  type TagEntry,
+} from './types/spi.ts';
 import { spiHelperIsAdmin, spiHelperIsCheckuser, spiHelperIsClerk } from './role.ts';
 import { spiHelperMoveCase, spiHelperMoveCaseSection } from './actions/move.ts';
-import { spiHelperLinkViewURLFormats } from './constants/linkview.ts';
 import { spiHelperTagUser } from './actions/tag.ts';
 import { spiHelperBlockUser } from './actions/block.ts';
 import { spiHelperArchiveCase, spiHelperArchiveCaseSection } from './actions/archive.ts';
+import { spiHelperGenerateLinksTable } from './actions/link.ts';
+import { fetchValue } from './ui/utils.ts';
 
 /**
  * Archives everything on the page that's eligible for archiving
@@ -70,13 +71,18 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
   const overrideExisting: boolean = $('#spiHelper_override', $actionView).prop('checked');
   const hideLockNames: boolean = $('#spiHelper_hidelocknames', $actionView).prop('checked');
 
+  if (!state.selectedSection) {
+    state.selectedSection = { type: 'all' };
+  }
+
   if (actionsSelected.Status) {
-    const caseActionValue = $('#spiHelper_CaseStatus', $actionView).val();
-    if (!caseActionValue) {
-      console.error('Failed to find #spiHelper_CaseStatus element');
+    try {
+      newCaseStatus = fetchValue('#spiHelper_CaseStatus', $actionView);
+    }
+    catch (e) {
+      console.error(e);
       return;
     }
-    newCaseStatus = caseActionValue.toString();
   }
   if (actionsSelected.SpiMgmt) {
     state.archiveNotice = new ParsedArchiveNotice(
@@ -87,13 +93,13 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
       $('#spiHelper_spiMgmt_moot', $actionView).prop('checked'),
     );
   }
-  if (state.selectedSection && !context.isArchive) {
-    const commentTextValue = $('#spiHelper_CommentText', $actionView).val();
-    if (!commentTextValue) {
-      console.error('Failed to find #spiHelper_CommentText element');
-      return;
+  if (state.selectedSection.type === 'specific' && !context.isArchive) {
+    try {
+      comment = fetchValue('#spiHelper_CommentText', $actionView);
     }
-    comment = commentTextValue.toString();
+    catch (e) {
+      console.error(e);
+    }
   }
 
   /** Requested blocks */
@@ -114,13 +120,15 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
     const masterNotice = $('#spiHelper_blocknoticemaster', $actionView).prop('checked');
     const sockNotice = $('#spiHelper_blocknoticesocks', $actionView).prop('checked');
     for (let i = 1; i <= state.numBlockUsers; i++) {
-      const usernameValue = $('#spiHelper_block_username' + i, $actionView).val();
-      if (!usernameValue) {
-        // Skip blank usernames, empty string is falsey
-        console.error('Failed to find #spiHelper_block_username element for user #' + i);
-        continue;
+      let usernameValue;
+      try {
+        usernameValue = fetchValue('#spiHelper_block_username' + i, $actionView);
       }
-      const username = spiHelperNormalizeUsername(usernameValue.toString());
+      catch (e) {
+        console.error(e + 'for user #' + i);
+        return;
+      }
+      const username = spiHelperNormalizeUsername(usernameValue);
       const tag = $('#spiHelper_block_tag' + i, $actionView).val()?.toString() ?? '';
       const doBlock = $('#spiHelper_block_doblock' + i, $actionView).prop('checked');
 
@@ -170,12 +178,11 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
     actionsSelected.Close = $('#spiHelper_CloseCase', $actionView).prop('checked');
   }
   if (actionsSelected.Rename) {
-    const moveTargetVal = $('#spiHelper_moveTarget', $actionView).val();
-    if (moveTargetVal) {
-      renameTarget = spiHelperNormalizeUsername(moveTargetVal.toString());
+    try {
+      renameTarget = spiHelperNormalizeUsername(fetchValue('#spiHelper_moveTarget', $actionView));
     }
-    else {
-      console.error('Failed to find #spiHelper_moveTarget element');
+    catch (e) {
+      console.error(e);
     }
   }
   if (actionsSelected.Archive) {
@@ -188,8 +195,8 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
 
   let editSummary = '';
   let logMessage = '* [[' + context.pageName + ']]';
-  if (state.selectedSection) {
-    logMessage += ' (section ' + state.selectedSection.name + ')';
+  if (state.selectedSection.type === 'specific') {
+    logMessage += ' (section ' + state.selectedSection.section.name + ')';
   }
   else {
     logMessage += ' (full case)';
@@ -197,74 +204,11 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
   logMessage += ' ~~~~~';
 
   if (actionsSelected.Link) {
-    $('#linkViewResults', document).show();
-    const spiHelperUsersForLinks: {
-      editorInteractionAnalyser: string[];
-      interactionTimeline: string[];
-      timecardSPITools: string[];
-      consolidatedTimelineSPITools: string[];
-      pagesSPITools: string[];
-      checkUserWikiSearch: string[];
-    } = {
-      editorInteractionAnalyser: [],
-      interactionTimeline: [],
-      timecardSPITools: [],
-      consolidatedTimelineSPITools: [],
-      pagesSPITools: [],
-      checkUserWikiSearch: [],
-    };
-
-    for (let i = 1; i <= state.numLinkUsers; i++) {
-      const usernameValue = $('#spiHelper_link_username' + i, $actionView).val();
-      if (!usernameValue) {
-        // Skip blank usernames, empty string is falsey
-        console.error('Failed to find #spiHelper_link_username element for user #' + i);
-        continue;
-      }
-      const username = spiHelperNormalizeUsername(usernameValue.toString());
-      if (!username) {
-        // Skip blank usernames
-        continue;
-      }
-      if ($('#spiHelper_link_editorInteractionAnalyser' + i, $actionView).prop('checked')) spiHelperUsersForLinks.editorInteractionAnalyser.push(username);
-      if ($('#spiHelper_link_interactionTimeline' + i, $actionView).prop('checked')) spiHelperUsersForLinks.interactionTimeline.push(username);
-      if ($('#spiHelper_link_timecardSPITools' + i, $actionView).prop('checked')) spiHelperUsersForLinks.timecardSPITools.push(username);
-      if ($('#spiHelper_link_consolidatedTimelineSPITools' + i, $actionView).prop('checked')) spiHelperUsersForLinks.consolidatedTimelineSPITools.push(username);
-      if ($('#spiHelper_link_pagesSPITools' + i, $actionView).prop('checked')) spiHelperUsersForLinks.pagesSPITools.push(username);
-      if ($('#spiHelper_link_checkUserWikiSearch' + i, $actionView).prop('checked')) spiHelperUsersForLinks.checkUserWikiSearch.push(username);
-    }
-
-    const $linkViewList = $('#linkViewResultsList', document);
-    for (const linkType in spiHelperUsersForLinks) {
-      const linkKey = linkType as keyof typeof spiHelperUsersForLinks;
-      if (spiHelperUsersForLinks[linkKey].length === 0) continue;
-      const URLentry = spiHelperLinkViewURLFormats[linkKey];
-      let generatedURL = URLentry.baseurl + '?' + (URLentry.multipleUserQueryStringKeys ? '' : URLentry.userQueryStringKey + '=');
-      for (let i = 0; i < spiHelperUsersForLinks[linkKey].length; i++) {
-        const username = spiHelperUsersForLinks[linkKey][i] as string;
-        generatedURL += (i === 0 ? '' : URLentry.userQueryStringSeparator);
-        if (URLentry.multipleUserQueryStringKeys) {
-          generatedURL += URLentry.userQueryStringKey + '=' + URLentry.userQueryStringWrapper
-            + encodeURIComponent(username) + URLentry.userQueryStringWrapper;
-        }
-        else {
-          generatedURL += URLentry.userQueryStringWrapper
-            + encodeURIComponent(username) + URLentry.userQueryStringWrapper;
-        }
-      }
-      generatedURL += (URLentry.appendToQueryString === '' ? '' : '&') + URLentry.appendToQueryString;
-      const $statusLine = $('<li>').appendTo($linkViewList);
-      const $statusLineLink = $('<a>').appendTo($statusLine);
-      $statusLineLink
-        .attr('href', generatedURL)
-        .attr('target', '_blank')
-        .attr('rel', 'noopener noreferrer')
-        .text(spiHelperLinkViewURLFormats[linkKey].name);
-    }
+    spiHelperGenerateLinksTable(state.numLinkUsers, $actionView);
   }
 
-  let targetText = await (state.selectedSection
-    ? state.selectedSection.getText()
+  let targetText = await ((state.selectedSection.type === 'specific')
+    ? state.selectedSection.section.getText()
     : state.getText());
   const startText = targetText;
   if (targetText && !context.isArchive) {
@@ -561,7 +505,7 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
       }
     }
   }
-  if (state.selectedSection && comment && comment !== '*' && !context.isArchive) {
+  if (state.selectedSection.type === 'specific' && comment && comment !== '*' && !context.isArchive) {
     if (!targetText.includes('\n----')) {
       targetText.replace('<!--- All comments go ABOVE this line, please. -->', '');
       targetText.replace('<!-- All comments go ABOVE this line, please. -->', '');
@@ -600,7 +544,7 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
     }
     logMessage += '\n** closed case';
   }
-  if (state.selectedSection && !context.isArchive) {
+  if (state.selectedSection.type === 'specific' && !context.isArchive) {
     const caseStatusResult = spiHelperCaseStatusRegex.exec(targetText);
     if (caseStatusResult !== null && caseStatusResult[0]) {
       targetText = targetText.replace(caseStatusResult[0], '{{SPI case status|' + newCaseStatus + '}}');
@@ -615,13 +559,16 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
   // Make all the requested edits (synchronous since we might make more changes to the page),
   // unless the page is an archive (as there should be no edits made)
   if (!context.isArchive && targetText !== startText) {
+    const sectionId = state.selectedSection.type === 'all'
+      ? null
+      : state.selectedSection.section.id;
     const editResult = await context.edit({
       newText: targetText,
       summary: editSummary,
       watch: spiHelperSettings.watchCase,
       watchExpiry: spiHelperSettings.watchCaseExpiry,
       baseRevId: context.startingRevId,
-      sectionId: state.selectedSection?.id,
+      sectionId: sectionId,
     });
     if (!editResult) {
       // Page edit failed (probably an edit conflict), dump the comment if we had one
@@ -637,30 +584,37 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
   context.startingRevId = await spiHelperGetPageRev(context.pageName);
   if (actionsSelected.Archive) {
     // Archive the case
-    if (state.selectedSection === null) {
-      // Archive the whole case
-      logMessage += '\n** Archived case';
-      await spiHelperArchiveCase(state);
-    }
-    else {
-      // Just archive the selected section
-      logMessage += '\n** Archived section';
-      await spiHelperArchiveCaseSection(state.selectedSection);
+    switch (state.selectedSection.type) {
+      case 'all': {
+        logMessage += '\n** Archived case';
+        await spiHelperArchiveCase(state);
+        break;
+      }
+      case 'specific': {
+        // Just archive the selected section
+        logMessage += '\n** Archived section';
+        await spiHelperArchiveCaseSection(state.selectedSection.section);
+        break;
+      }
     }
   }
   else if (actionsSelected.Rename && renameTarget) {
-    if (state.selectedSection === null) {
-      if (!state.archiveNotice) {
-        state.archiveNotice = new ParsedArchiveNotice();
+    switch (state.selectedSection.type) {
+      case 'all': {
+        if (!state.archiveNotice) {
+          state.archiveNotice = new ParsedArchiveNotice();
+        }
+        // Option 1: we selected "All cases," this is a whole-case move/merge
+        logMessage += '\n** moved/merged case to ' + renameTarget;
+        await spiHelperMoveCase(renameTarget, state.archiveNotice);
+        break;
       }
-      // Option 1: we selected "All cases," this is a whole-case move/merge
-      logMessage += '\n** moved/merged case to ' + renameTarget;
-      await spiHelperMoveCase(renameTarget, state.archiveNotice);
-    }
-    else {
-      // Option 2: this is a single-section case move or merge
-      logMessage += '\n** moved section to ' + renameTarget;
-      await spiHelperMoveCaseSection(renameTarget, state.selectedSection);
+      case 'specific': {
+        // Option 2: this is a single-section case move or merge
+        logMessage += '\n** moved section to ' + renameTarget;
+        await spiHelperMoveCaseSection(renameTarget, state.selectedSection.section);
+        break;
+      }
     }
   }
   if (spiHelperSettings.log) {

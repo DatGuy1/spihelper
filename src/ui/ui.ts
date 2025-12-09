@@ -9,7 +9,7 @@ import { spiHelperGetCommentTextValue, spiHelperNormalizeUsername } from '../uti
 import { spiHelperSettings } from '../options.ts';
 import { spiHelperInitTopLevel } from '../init.ts';
 import { messageDisplay } from './messageDisplay.ts';
-import { spiHelperSetAllTableColumnOpts } from './utils.ts';
+import { getSockEntries, spiHelperGenerateSelect, spiHelperSetAllTableColumnOpts } from './utils.ts';
 import {
   spiHelperAdminTemplates,
   spiHelperAltMasterTagOptions,
@@ -17,7 +17,12 @@ import {
   spiHelperTagOptions,
 } from '../constants/spi.ts';
 import { spiHelperPerformActions } from '../caseActions.ts';
-import { type CaseActions, ParsedArchiveNotice, type SelectOption, TableType } from '../types/spi.ts';
+import {
+  type CaseActions,
+  ParsedArchiveNotice,
+  type SelectOption,
+  TableType,
+} from '../types/spi.ts';
 
 /**
  * Update the view for the roles of the person running the script
@@ -66,7 +71,19 @@ export async function spiHelperGenerateForm(state: CaseState): Promise<void> {
   spiHelperActionsSelected.Rename = $('#spiHelper_Move', $topView).prop('checked');
   spiHelperActionsSelected.Archive = $('#spiHelper_Archive', $topView).prop('checked');
   spiHelperActionsSelected.SpiMgmt = $('#spiHelper_SpiMgmt', $topView).prop('checked');
-  const pageText = await state.selectedSection?.getText() || '';
+
+  if (state.selectedSection === null) {
+    state.selectedSection = { type: 'all' };
+  }
+  let pageText = '';
+  switch (state.selectedSection.type) {
+    case 'all':
+      pageText = await context.getText();
+      break;
+    case 'specific':
+      pageText = await state.selectedSection.section.getText();
+      break;
+  }
   // If none of the actions are checked, hide the form
   if (Object.values(spiHelperActionsSelected).every(action => !action)) {
     messageDisplay.hide();
@@ -172,17 +189,18 @@ export async function spiHelperGenerateForm(state: CaseState): Promise<void> {
   }
 
   if (spiHelperActionsSelected.SpiMgmt) {
-    if (state.archiveNotice) {
-      const $xwikiBox = $('#spiHelper_spiMgmt_crosswiki', $actionView);
-      const $denyBox = $('#spiHelper_spiMgmt_deny', $actionView);
-      const $notalkBox = $('#spiHelper_spiMgmt_notalk', $actionView);
-      const $mootBox = $('#spiHelper_spiMgmt_moot', $actionView);
-
-      $xwikiBox.prop('checked', state.archiveNotice.xwiki);
-      $denyBox.prop('checked', state.archiveNotice.deny);
-      $notalkBox.prop('checked', state.archiveNotice.notalk);
-      $mootBox.prop('checked', state.archiveNotice.moot);
+    if (!state.archiveNotice) {
+      state.archiveNotice = new ParsedArchiveNotice();
     }
+    const $xwikiBox = $('#spiHelper_spiMgmt_crosswiki', $actionView);
+    const $denyBox = $('#spiHelper_spiMgmt_deny', $actionView);
+    const $notalkBox = $('#spiHelper_spiMgmt_notalk', $actionView);
+    const $mootBox = $('#spiHelper_spiMgmt_moot', $actionView);
+
+    $xwikiBox.prop('checked', state.archiveNotice.xwiki);
+    $denyBox.prop('checked', state.archiveNotice.deny);
+    $notalkBox.prop('checked', state.archiveNotice.notalk);
+    $mootBox.prop('checked', state.archiveNotice.moot);
 
     $('#spiHelper_spiMgmtView', $actionView).show();
   }
@@ -230,8 +248,8 @@ export async function spiHelperGenerateForm(state: CaseState): Promise<void> {
     $('#spiHelper_commentView', $actionView).show();
   }
   if (spiHelperActionsSelected.Rename) {
-    if (state.selectedSection) {
-      $('#spiHelper_moveHeader', $actionView).text('Move section "' + state.selectedSection.name + '"');
+    if (state.selectedSection.type === 'specific') {
+      $('#spiHelper_moveHeader', $actionView).text('Move section "' + state.selectedSection.section.name + '"');
     }
     else {
       $('#spiHelper_moveHeader', $actionView).text('Move/merge full case');
@@ -245,8 +263,7 @@ export async function spiHelperGenerateForm(state: CaseState): Promise<void> {
     const possibleIPs: string[] = [];
     likelyUsers.push(context.caseName);
 
-    const searchOrigin = state.selectedSection ? $(`a[href$="section=${state.selectedSection.id}"]`).parentsUntil(':has(hr)').last().nextUntil('hr') : $(document);
-    const sockList = searchOrigin.find('.cuEntry').find('a:first');
+    const sockList = getSockEntries(state);
     for (const entryElement of sockList) {
       const username = spiHelperNormalizeUsername($(entryElement).text());
       const isIP = mw.util.isIPAddress(username, true);
@@ -372,24 +389,6 @@ export async function spiHelperGenerateForm(state: CaseState): Promise<void> {
   $('#spiHelper_performActions', $actionView).one('click', () => {
     spiHelperPerformActions(spiHelperActionsSelected, state);
   });
-}
-
-/**
- * Generate a select input, optionally with an onChange call
- *
- * @param $element JQuery element of the input
- * @param {SelectOption[]} options Array of options objects
- */
-function spiHelperGenerateSelect($element: JQuery, options: SelectOption[]) {
-  // Add the dates to the selector
-  for (const selectOption of options) {
-    $('<option>')
-      .val(selectOption.value)
-      .prop('selected', selectOption.selected)
-      .text(selectOption.label)
-      .prop('disabled', selectOption.disabled)
-      .appendTo($element);
-  }
 }
 
 /**

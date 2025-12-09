@@ -1,6 +1,6 @@
 // Validator type system
 import type { ScriptSettings } from './types/spi.ts';
-import type { WatchOption } from './types/api.ts';
+import type { ParseResponse, WatchOption } from './types/api.ts';
 import type { ApiParseParams } from 'types-mediawiki-api';
 import { spiHelperGetAPI } from './api.ts';
 
@@ -170,7 +170,7 @@ async function spiHelperParseWikitext(wikitext: string) {
     contentmodel: 'wikitext',
   };
   try {
-    const response = await api.get(request);
+    const response = await api.get(request) as ParseResponse<'text'>;
     return response.parse.text['*'];
   }
   catch {

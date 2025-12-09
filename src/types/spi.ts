@@ -2,6 +2,8 @@ import type { WatchOption } from './api.ts';
 import { spiHelperGetPageText } from '../api.ts';
 import { context } from '../context.ts';
 
+export type SectionSelection = | { type: 'all' } | { type: 'specific'; section: SectionEntry };
+
 export enum TableType {
   Block = 'block',
   Link = 'link',

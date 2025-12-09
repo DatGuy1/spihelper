@@ -15,6 +15,7 @@ import { context } from '../context.ts';
 export async function spiHelperTagUser(
   tagEntry: TagEntry, tagNonLocalAccounts: boolean, sockmaster: string, altmaster: string,
 ): Promise<boolean> {
+  // We currently allow TAs to be tagged, but can disable it with mw.util.isTemporaryUser if we want
   if (mw.util.isIPAddress(tagEntry.username, true)) {
     return false; // do not support tagging IPs
   }

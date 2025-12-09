@@ -1,11 +1,11 @@
 // src/state.ts
 import { context } from './context';
 import { spiHelperGetInvestigationSectionIDs, spiHelperGetPageText } from './api';
-import { type ParsedArchiveNotice, SectionEntry } from './types/spi.ts';
+import { type ParsedArchiveNotice, SectionEntry, type SectionSelection } from './types/spi.ts';
 
 export class CaseState {
   sections: SectionEntry[];
-  selectedSection: SectionEntry | null;
+  selectedSection: SectionSelection | null;
   archiveNotice: ParsedArchiveNotice | null;
   numLinkUsers: number;
   numBlockUsers: number;
@@ -18,7 +18,12 @@ export class CaseState {
     archiveNotice: ParsedArchiveNotice | null = null,
   ) {
     this.sections = sections;
-    this.selectedSection = selectedSection;
+    if (selectedSection) {
+      this.selectedSection = { type: 'specific', section: selectedSection };
+    }
+    else {
+      this.selectedSection = null;
+    }
     this.archiveNotice = archiveNotice;
     this.numLinkUsers = 0;
     this.numBlockUsers = 0;
