@@ -1,4 +1,3 @@
-- Replace options.ts with OOJS/Codex
 - Instead of constantly refetching page and section content, on a save check if there's an edit we didn't make and if so confirm() we want to proceed
 - Make switching layouts smoother
 - Instead of removing spiHelperTopViewHTML to replace with spiHelperActionViewHTML all the time, keep it as hidden. Avoids regenerating the layout every time.
@@ -13,9 +12,7 @@
 - In caseActions.ts, instead of fetching the HTML values, save our changes ourselves through on('change'). Probably in state.
 - Migrate to formatversion 2
 - Standardise HTML and CSS naming
-- Support migrating from previous options to the new ones
-- Actually save settings
-- Add 'load defaults' button
+- Move 'clerk note: originally filed under this user' to 'clerk, CU, and patrolling admin comments'
 
 Generic:
 - Don't keep big HTML blocks as raw template strings

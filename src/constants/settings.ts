@@ -1,35 +1,49 @@
 // User-configurable settings, these are the defaults but will be updated by
 // spiHelperLoadSettings()
 
-// Valid options for spiHelperSettings. Prevents invalid setting options
-// being specified in the spioptions user subpage.
-// This method only works options with discrete possible values. Settings without
-// discrete possible values are checked for in spiHelperLoadSettings().
-export const spiHelperValidSettings: Record<string, unknown[]> = {
-  watchCase: ['preferences', 'watch', 'nochange', 'unwatch'],
-  watchArchive: ['preferences', 'watch', 'nochange', 'unwatch'],
-  watchTaggedUser: ['preferences', 'watch', 'nochange', 'unwatch'],
-  watchNewCats: ['preferences', 'watch', 'nochange', 'unwatch'],
-  watchBlockedUser: [true, false],
-  clerk: [true, false],
-  log: [true, false],
-  reversedLog: [true, false],
-  iUnderstandSectionMoves: [true, false],
-  tickArchiveWhenCaseClosed: [true, false],
-  useCheckuserblockAccount: [true, false],
-  debugForceCheckuserState: [null, true, false],
-  debugForceAdminState: [null, true, false],
-};
+import { spiHelperIsCheckuser } from '../role.ts';
+import type { ScriptSettings } from '../options/types.ts';
 
-// These user settings must be a valid date as defined by MediaWiki API.
-// This is checked for in spiHelperValidateDate() via spiHelperLoadSettings()
-export const spiHelperSettingsNeedingValidDate = [
-  'watchCaseExpiry',
-  'watchArchiveExpiry',
-  'watchTaggedUserExpiry',
-  'watchNewCatsExpiry',
-  'watchBlockedUserExpiry',
-];
+export const spiHelperDefaultSettings: ScriptSettings = {
+  watch: {
+    case: 'preferences',
+    archive: 'nochange',
+    tagged: 'preferences',
+    categories: 'nochange',
+    blocked: true,
+  },
+  expiry: {
+    case: 'indefinite',
+    archive: 'indefinite',
+    tagged: 'indefinite',
+    categories: 'indefinite',
+    blocked: 'indefinite',
+  },
+  // Log all actions to Special:MyPage/spihelper_log
+  log: {
+    enabled: false,
+    reversed: false,
+    page: 'spihelper_log',
+  },
+  // Lets people disable clerk options if they're not a clerk
+  clerk: true,
+  // Enable the "move section" button
+  iUnderstandSectionMoves: false,
+  // Automatically tick the "Archive case" option if the case is closed
+  tickArchiveWhenCaseClosed: true,
+  // Use checkuserblock-account when CU blocking. False when not a CU, by default true when a CU
+  useCheckuserblockAccount: spiHelperIsCheckuser(false),
+  // Default IPv6 listings to /64 in the block/tag socks menu
+  displayIPv6As64: true,
+  // These are for debugging to view as other roles. If you're picking apart the code and
+  // decide to set these (especially the CU option), it is YOUR responsibility to make sure
+  // you don't do something that violates policy
+  debug: {
+    enabled: false,
+    forceCheckuser: false,
+    forceAdmin: false,
+  },
+};
 
 // Advert to append to the edit summary of edits
 export const spiHelperAdvert: string = ' (using [[:w:en:WP:SPIH|spihelper.js]])';

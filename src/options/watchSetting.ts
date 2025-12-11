@@ -5,21 +5,25 @@ export const WatchSettingComponent: ComponentOptions = {
   props: {
     modelValue: { type: String, required: true },
     label: { type: String, required: true },
+    resetTrigger: { type: Number, default: 0 }, // Watch for reset signal
   },
   data() {
     return {
-      watchSetting: this.modelValue,
+      internalValue: this.modelValue,
       watchOptions: WatchOptionsSelect,
       messages: { error: 'Watch option is invalid' },
     };
   },
   computed: {
     status() {
-      return WatchOptions.includes(this.watchSetting) ? 'default' : 'error';
+      return WatchOptions.includes(this.internalValue) ? 'default' : 'error';
     },
   },
   watch: {
-    watchSetting(newValue) {
+    resetTrigger() {
+      this.internalValue = this.modelValue;
+    },
+    internalValue(newValue) {
       this.$emit('update:modelValue', newValue);
     },
   },
@@ -28,7 +32,7 @@ export const WatchSettingComponent: ComponentOptions = {
       <template #label>{{ this.label }}</template>
       <cdx-select
           :menu-items="watchOptions"
-          v-model:selected="watchSetting"
+          v-model:selected="internalValue"
       />
     </cdx-field>
   `,

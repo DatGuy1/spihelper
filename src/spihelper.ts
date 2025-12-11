@@ -1,12 +1,12 @@
-import { spiHelperSettings } from './options.ts';
 import { spiHelperOneClickArchive } from './caseActions.ts';
 import { CaseState } from './state.ts';
 import { spiHelperInitTopLevel } from './init.ts';
-import { spiHelperIsCheckuser, spiHelperIsClerk } from './role.ts';
+import { spiHelperIsClerk } from './role.ts';
 import { OptionsComponent } from './options/modal.ts';
 import { WatchSettingComponent } from './options/watchSetting.ts';
 import { ExpirySettingComponent } from './options/expirySetting.ts';
 import { LogPageSettingComponent } from './options/logPageSetting.ts';
+import { loadOptions, migrateOptions, saveOptions, spiHelperSettings } from './options.ts';
 
 // DatGuy's rewrite of GeneralNotability's rewrite of Tim's SPI helper script
 // With additional contributions from 0xDeadbeef, Dreamy Jazz,
@@ -19,8 +19,15 @@ mw.loader.using(['mediawiki.api', 'mediawiki.util', 'mediawiki.user'], async () 
     return;
   }
 
-  spiHelperSettings.useCheckuserblockAccount = spiHelperIsCheckuser();
   const caseState = new CaseState();
+  const loadedOptions = loadOptions();
+  if (loadedOptions) {
+    Object.assign(spiHelperSettings, loadedOptions);
+  }
+  else {
+    await migrateOptions();
+    await saveOptions();
+  }
 
   const initLink = mw.util.addPortletLink('p-cactions', '#', 'SPI-Beta', 'ca-spiHelper');
   // The skin didn't have a p-cactions menu so the menu addition failed. Exit early.
@@ -39,6 +46,7 @@ mw.loader.using(['mediawiki.api', 'mediawiki.util', 'mediawiki.user'], async () 
       const Codex = require('@wikimedia/codex');
 
       OptionsComponent.mounted = function () {
+        this.onMounted();
         settingsLink.addEventListener('click', this.openDialog);
       };
       OptionsComponent.unmounted = function () {
@@ -54,6 +62,8 @@ mw.loader.using(['mediawiki.api', 'mediawiki.util', 'mediawiki.user'], async () 
         .component('cdx-toggle-switch', Codex.CdxToggleSwitch)
         .component('cdx-accordion', Codex.CdxAccordion)
         .component('cdx-text-input', Codex.CdxTextInput)
+        .component('cdx-icon', Codex.CdxIcon)
+        .component('cdx-message', Codex.CdxMessage)
         .component('watch-setting', WatchSettingComponent)
         .component('expiry-setting', ExpirySettingComponent)
         .component('logpage-setting', LogPageSettingComponent)

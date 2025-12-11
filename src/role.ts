@@ -6,11 +6,11 @@
  */
 import { spiHelperSettings } from './options.ts';
 
-export function spiHelperIsCheckuser(): boolean {
-  if (spiHelperSettings.debugForceCheckuserState !== null) {
-    return spiHelperSettings.debugForceCheckuserState;
+export function spiHelperIsCheckuser(allowDebug: boolean = true): boolean {
+  if (allowDebug && spiHelperSettings.debug.enabled) {
+    return spiHelperSettings.debug.forceCheckuser;
   }
-  return mw.config.get('wgUserGroups')?.includes('sysop') ?? false;
+  return mw.config.get('wgUserGroups')?.includes('checkuser') ?? false;
 }
 
 /**
@@ -31,8 +31,8 @@ export function spiHelperIsClerk(): boolean {
  * @return {boolean} Whether the current user is an admin
  */
 export function spiHelperIsAdmin(): boolean {
-  if (spiHelperSettings.debugForceAdminState !== null) {
-    return spiHelperSettings.debugForceAdminState;
+  if (spiHelperSettings.debug.forceAdmin) {
+    return spiHelperSettings.debug.forceAdmin;
   }
   return mw.config.get('wgUserGroups')?.includes('sysop') ?? false;
 }

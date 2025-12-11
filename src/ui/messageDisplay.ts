@@ -18,9 +18,11 @@ export class MessageDisplay {
         fontSize: '0.8em',
         display: 'none',
       });
-      if (mw.util.$content.length) {
-        mw.util.$content.prepend(this.$container);
-      }
+      mw.loader.using('mediawiki.util').then(() => {
+        if (mw.util.$content.length) {
+          mw.util.$content.prepend(this.$container);
+        }
+      });
     }
   }
 

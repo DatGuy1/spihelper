@@ -1,4 +1,3 @@
-import type { WatchOption } from './api.ts';
 import { spiHelperGetPageText } from '../api.ts';
 import { context } from '../context.ts';
 
@@ -89,35 +88,6 @@ export interface GlobalUser {
   name: string;
   locked: boolean;
   existsLocally: boolean;
-}
-
-export interface ScriptSettings {
-  watch: {
-    case: WatchOption;
-    archive: WatchOption;
-    tagged: WatchOption;
-    categories: WatchOption;
-    blocked: boolean;
-  };
-  expiry: {
-    case: string;
-    archive: string;
-    tagged: string;
-    categories: string;
-    blocked: string;
-  };
-  clerk: boolean;
-  log: {
-    enabled: boolean;
-    reversed: boolean;
-    page: string;
-  };
-  iUnderstandSectionMoves: boolean;
-  tickArchiveWhenCaseClosed: boolean;
-  useCheckuserblockAccount: boolean;
-  displayIPv6As64: boolean;
-  debugForceCheckuserState: boolean | null;
-  debugForceAdminState: boolean | null;
 }
 
 export interface CaseActions {
