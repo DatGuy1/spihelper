@@ -1,12 +1,3 @@
-- Use helper like below:
-function mustQuery<T extends HTMLElement = HTMLElement>(selector: string): JQuery<T> {
-  const $el = $(selector);
-  if ($el.length === 0) {
-  throw new Error(`Element not found: ${selector}`);
-  }
-  return $el as JQuery<T>;
-}
-- Merge spiHelperGetPageRev into spiHelperGetPageText?
 - Replace options.ts with OOJS/Codex
 - Instead of constantly refetching page and section content, on a save check if there's an edit we didn't make and if so confirm() we want to proceed
 - Make switching layouts smoother
@@ -21,6 +12,10 @@ function mustQuery<T extends HTMLElement = HTMLElement>(selector: string): JQuer
 - Add mw.track()?
 - In caseActions.ts, instead of fetching the HTML values, save our changes ourselves through on('change'). Probably in state.
 - Migrate to formatversion 2
+- Standardise HTML and CSS naming
+- Support migrating from previous options to the new ones
+- Actually save settings
+- Add 'load defaults' button
 
 Generic:
 - Don't keep big HTML blocks as raw template strings

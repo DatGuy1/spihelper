@@ -731,6 +731,31 @@ export async function spiHelperGetPostExpandSize(
   return 0;
 }
 
+/**
+ * Parse given text as wikitext without it needing to be currently saved onwiki.
+ *
+ */
+export async function spiHelperParseWikitext(wikitext: string) {
+  // For enwiki only for now
+  const api = spiHelperGetAPI();
+  const request: ApiParseParams = {
+    action: 'parse',
+    prop: 'text',
+    text: wikitext,
+    wrapoutputclass: '',
+    disablelimitreport: true,
+    disableeditsection: true,
+    contentmodel: 'wikitext',
+  };
+  try {
+    const response = await api.get(request) as ParseResponse<'text'>;
+    return response.parse.text['*'];
+  }
+  catch {
+    return '';
+  }
+}
+
 // @ts-expect-error Ignore __VERSION__ not existing error because Bun should replace it on compile
 const userAgent = 'MediaWiki-JS/' + mw.config.get('wgVersion') + ' spihelper/' + __VERSION__;
 const APIs = {

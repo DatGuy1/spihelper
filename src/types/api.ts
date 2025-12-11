@@ -162,3 +162,13 @@ export interface SiteInfoResponse {
     restrictions: Restrictions;
   };
 }
+
+export type RelativeExpiry = string & { __type: 'RelativeExpiry' };
+export type AbsoluteExpiry = string & { __type: 'AbsoluteExpiry' };
+export type NoExpiry = 'infinite' | 'indefinite' | 'infinity' | 'never';
+
+// The full MediaWiki expiry type
+export type Expiry
+  = | RelativeExpiry // "5 months", "2 weeks", "36 hours", etc.
+    | AbsoluteExpiry // "2014-09-18T12:34:56Z"
+    | NoExpiry;

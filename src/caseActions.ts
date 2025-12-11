@@ -391,7 +391,7 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
         if (!catText) {
           await spiHelperEditPage(catName, '{{sockpuppet category}}',
             'Creating sockpuppet category per [[' + interwikiPrefix + context.pageName + ']]',
-            true, spiHelperSettings.watchNewCats, spiHelperSettings.watchNewCatsExpiry);
+            true, spiHelperSettings.watch.categories, spiHelperSettings.expiry.categories);
           needsPurge = true;
         }
       }
@@ -401,7 +401,7 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
         if (!catText) {
           await spiHelperEditPage(catName, '{{sockpuppet category}}',
             'Creating sockpuppet category per [[' + interwikiPrefix + context.pageName + ']]',
-            true, spiHelperSettings.watchNewCats, spiHelperSettings.watchNewCatsExpiry);
+            true, spiHelperSettings.watch.categories, spiHelperSettings.expiry.categories);
           needsPurge = true;
         }
       }
@@ -411,7 +411,7 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
         if (!catText) {
           await spiHelperEditPage(catName, '{{sockpuppet category}}',
             'Creating sockpuppet category per [[' + interwikiPrefix + context.pageName + ']]',
-            true, spiHelperSettings.watchNewCats, spiHelperSettings.watchNewCatsExpiry);
+            true, spiHelperSettings.watch.categories, spiHelperSettings.expiry.categories);
           needsPurge = true;
         }
       }
@@ -421,7 +421,7 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
         if (!catText) {
           await spiHelperEditPage(catName, '{{sockpuppet category}}',
             'Creating sockpuppet category per [[' + interwikiPrefix + context.pageName + ']]',
-            true, spiHelperSettings.watchNewCats, spiHelperSettings.watchNewCatsExpiry);
+            true, spiHelperSettings.watch.categories, spiHelperSettings.expiry.categories);
           needsPurge = true;
         }
       }
@@ -565,8 +565,8 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
     const editResult = await context.edit({
       newText: targetText,
       summary: editSummary,
-      watch: spiHelperSettings.watchCase,
-      watchExpiry: spiHelperSettings.watchCaseExpiry,
+      watch: spiHelperSettings.watch.case,
+      watchExpiry: spiHelperSettings.expiry.case,
       baseRevId: context.startingRevId,
       sectionId: sectionId,
     });

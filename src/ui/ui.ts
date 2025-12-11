@@ -21,7 +21,7 @@ import {
   type CaseActions,
   ParsedArchiveNotice,
   type SelectOption,
-  TableType,
+  type TableType,
 } from '../types/spi.ts';
 
 /**
@@ -99,10 +99,10 @@ export async function spiHelperGenerateForm(state: CaseState): Promise<void> {
 
   // FIXME: change 'block' and 'link' to enum
   $('#AddSockBlock', $actionView).on('click', async () => {
-    await spiHelperAddBlankUserLine(TableType.Block, state);
+    await spiHelperAddBlankUserLine('block', state);
   });
   $('#AddSockLink', $actionView).on('click', async () => {
-    await spiHelperAddBlankUserLine(TableType.Link, state);
+    await spiHelperAddBlankUserLine('link', state);
   });
 
   // Wire up the action view
@@ -454,12 +454,12 @@ function spiHelperInsertNote(source: JQuery<HTMLElement>) {
  */
 async function spiHelperAddBlankUserLine(tableType: TableType, state: CaseState) {
   switch (tableType) {
-    case TableType.Block: {
+    case 'block': {
       const $row = await spiHelperGenerateBlockTableLine('', true, ++state.numBlockUsers, state.archiveNotice);
       $('#spiHelper_blockTable', document).append($row);
       break;
     }
-    case TableType.Link: {
+    case 'link': {
       spiHelperGenerateLinksTableLine('', ++state.numLinkUsers);
       break;
     }

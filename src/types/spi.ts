@@ -4,10 +4,7 @@ import { context } from '../context.ts';
 
 export type SectionSelection = | { type: 'all' } | { type: 'specific'; section: SectionEntry };
 
-export enum TableType {
-  Block = 'block',
-  Link = 'link',
-}
+export type TableType = 'block' | 'link';
 
 export interface SelectOption {
   label: string; // Text to display in the drop-down
@@ -95,19 +92,26 @@ export interface GlobalUser {
 }
 
 export interface ScriptSettings {
-  watchCase: WatchOption;
-  watchCaseExpiry: string;
-  watchArchive: WatchOption;
-  watchArchiveExpiry: string;
-  watchTaggedUser: WatchOption;
-  watchTaggedUserExpiry: string;
-  watchNewCats: WatchOption;
-  watchNewCatsExpiry: string;
-  watchBlockedUser: boolean;
-  watchBlockedUserExpiry: string;
+  watch: {
+    case: WatchOption;
+    archive: WatchOption;
+    tagged: WatchOption;
+    categories: WatchOption;
+    blocked: boolean;
+  };
+  expiry: {
+    case: string;
+    archive: string;
+    tagged: string;
+    categories: string;
+    blocked: string;
+  };
   clerk: boolean;
-  log: boolean;
-  reversedLog: boolean;
+  log: {
+    enabled: boolean;
+    reversed: boolean;
+    page: string;
+  };
   iUnderstandSectionMoves: boolean;
   tickArchiveWhenCaseClosed: boolean;
   useCheckuserblockAccount: boolean;

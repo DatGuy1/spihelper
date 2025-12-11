@@ -16,7 +16,7 @@ export async function spiHelperLog(logString: string): Promise<void> {
 
   let logPageText = await spiHelperGetPageText('User:' + mw.config.get('wgUserName') + '/spihelper_log', false);
   if (!logPageText.match(dateHeaderRe)) {
-    if (spiHelperSettings.reversedLog) {
+    if (spiHelperSettings.log.reversed) {
       const firstHeaderMatch = logPageText.match(dateHeaderReWithAnyDate);
       if (firstHeaderMatch && firstHeaderMatch.index) {
         logPageText = logPageText.slice(0, firstHeaderMatch.index) + '== ' + dateString + ' ==\n' + logPageText.slice(firstHeaderMatch.index);
@@ -26,7 +26,7 @@ export async function spiHelperLog(logString: string): Promise<void> {
       logPageText += '\n== ' + dateString + ' ==';
     }
   }
-  if (spiHelperSettings.reversedLog) {
+  if (spiHelperSettings.log.reversed) {
     const firstHeaderMatch = logPageText.match(dateHeaderReWithAnyDate);
     if (firstHeaderMatch && firstHeaderMatch.index) {
       logPageText = logPageText.slice(0, firstHeaderMatch.index + firstHeaderMatch[0].length) + '\n' + logString + logPageText.slice(firstHeaderMatch.index + firstHeaderMatch[0].length);

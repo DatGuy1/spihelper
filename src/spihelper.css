@@ -15,9 +15,11 @@
     font-size: 0.8em;
 }
 
+/*
 .spihelper-widthlimit {
     width: 10vw;
 }
+*/
 
 .spiHelper_notOnArchive {
     display: none;
@@ -33,4 +35,8 @@
 
 .spiHelper_table {
     width: 100%;
+}
+
+.spiHelper-setting {
+    padding: 12px;
 }

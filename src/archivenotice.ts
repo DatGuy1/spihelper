@@ -67,5 +67,5 @@ export async function spiHelperAddArchiveNotice($warningText: JQuery<HTMLElement
   if (pageText.indexOf('__TOC__') === -1) {
     pageText = '<noinclude>__TOC__</noinclude>\n' + pageText;
   }
-  await spiHelperEditPage(context.pageName, pageText, 'Adding archive notice', false, spiHelperSettings.watchCase, spiHelperSettings.watchCaseExpiry);
+  await spiHelperEditPage(context.pageName, pageText, 'Adding archive notice', false, spiHelperSettings.watch.case, spiHelperSettings.expiry.case);
 }

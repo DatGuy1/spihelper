@@ -3,6 +3,10 @@ import { spiHelperOneClickArchive } from './caseActions.ts';
 import { CaseState } from './state.ts';
 import { spiHelperInitTopLevel } from './init.ts';
 import { spiHelperIsCheckuser, spiHelperIsClerk } from './role.ts';
+import { OptionsComponent } from './options/modal.ts';
+import { WatchSettingComponent } from './options/watchSetting.ts';
+import { ExpirySettingComponent } from './options/expirySetting.ts';
+import { LogPageSettingComponent } from './options/logPageSetting.ts';
 
 // DatGuy's rewrite of GeneralNotability's rewrite of Tim's SPI helper script
 // With additional contributions from 0xDeadbeef, Dreamy Jazz,
@@ -15,7 +19,6 @@ mw.loader.using(['mediawiki.api', 'mediawiki.util', 'mediawiki.user'], async () 
     return;
   }
 
-  // const settings = await spiHelperLoadSettings();
   spiHelperSettings.useCheckuserblockAccount = spiHelperIsCheckuser();
   const caseState = new CaseState();
 
@@ -28,6 +31,36 @@ mw.loader.using(['mediawiki.api', 'mediawiki.util', 'mediawiki.user'], async () 
     e.preventDefault();
     return spiHelperInitTopLevel(caseState);
   });
+
+  const settingsLink = mw.util.addPortletLink('p-cactions', '#', 'SPI-Beta-Options', 'ca-spiHelperOpts');
+  if (settingsLink) {
+    mw.loader.using('@wikimedia/codex').then((require) => {
+      const Vue = require('vue');
+      const Codex = require('@wikimedia/codex');
+
+      OptionsComponent.mounted = function () {
+        settingsLink.addEventListener('click', this.openDialog);
+      };
+      OptionsComponent.unmounted = function () {
+        settingsLink.removeEventListener('click', this.openDialog);
+      };
+
+      const mountPoint = document.body.appendChild(document.createElement('div'));
+      Vue.createMwApp(OptionsComponent)
+        .component('cdx-button', Codex.CdxButton)
+        .component('cdx-dialog', Codex.CdxDialog)
+        .component('cdx-field', Codex.CdxField)
+        .component('cdx-select', Codex.CdxSelect)
+        .component('cdx-toggle-switch', Codex.CdxToggleSwitch)
+        .component('cdx-accordion', Codex.CdxAccordion)
+        .component('cdx-text-input', Codex.CdxTextInput)
+        .component('watch-setting', WatchSettingComponent)
+        .component('expiry-setting', ExpirySettingComponent)
+        .component('logpage-setting', LogPageSettingComponent)
+        .mount(mountPoint);
+    });
+  }
+
   if (mw.config.get('wgCategories').includes('SPI cases awaiting archive') && spiHelperIsClerk()) {
     const oneClickArchiveLink = mw.util.addPortletLink('p-cactions', '#', 'SPI-Beta-Archive', 'ca-spiHelperArchive');
     if (oneClickArchiveLink) {

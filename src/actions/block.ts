@@ -66,8 +66,8 @@ export async function spiHelperBlockUser(
     (isIP ? false : blockEntry.ab),
     blockEntry.ntp,
     blockEntry.nem,
-    spiHelperSettings.watchBlockedUser,
-    spiHelperSettings.watchBlockedUserExpiry);
+    spiHelperSettings.watch.blocked,
+    spiHelperSettings.expiry.blocked);
   if (!blockSuccess) {
     // Don't add a block notice if we failed to block
     if (blockEntry.tpn) {

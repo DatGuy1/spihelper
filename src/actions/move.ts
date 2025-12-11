@@ -83,7 +83,7 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
       sourceArchiveText = sourceArchiveText.replace(/^\n*/, '');
       targetArchiveText += '\n' + sourceArchiveText;
       await spiHelperEditPage(context.archiveName, targetArchiveText, 'Copying archives from [[' + spiHelperGetInterwikiPrefix() + oldArchiveName + ']], see page history for attribution',
-        false, spiHelperSettings.watchArchive, spiHelperSettings.watchArchiveExpiry);
+        false, spiHelperSettings.watch.archive, spiHelperSettings.expiry.archive);
       await spiHelperDeletePage(oldArchiveName, 'Deleting copied archive');
       archivesCopied = true;
     }
@@ -181,7 +181,7 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
     if (archivesCopied) {
       // Create a redirect
       await spiHelperEditPage(oldArchiveName, '#REDIRECT [[' + context.archiveName + ']]', 'Redirecting old archive to new archive',
-        false, spiHelperSettings.watchArchive, spiHelperSettings.watchArchiveExpiry);
+        false, spiHelperSettings.watch.archive, spiHelperSettings.expiry.archive);
     }
     // Now to protect both the oldPageName and newPageName with the protection
     // settings in newProtectionDict, unless it is empty (i.e. no protection needed)
@@ -235,13 +235,13 @@ export async function spiHelperMoveCaseSection(mergeTarget: string, section: Sec
   void spiHelperEditPage(
     newPageName, targetPageText,
     'Moving case section from [[' + spiHelperGetInterwikiPrefix() + context.pageName + ']], see page history for attribution',
-    false, spiHelperSettings.watchCase, spiHelperSettings.watchCaseExpiry,
+    false, spiHelperSettings.watch.case, spiHelperSettings.expiry.case,
   );
   // Blank the section we moved
   await spiHelperEditPage(
     context.pageName, '',
     'Moving case section to [[' + spiHelperGetInterwikiPrefix() + newPageName + ']]',
-    false, spiHelperSettings.watchCase, spiHelperSettings.watchCaseExpiry,
+    false, spiHelperSettings.watch.case, spiHelperSettings.expiry.case,
     context.startingRevId, section.id,
   );
   // Update to the latest revision ID
@@ -283,7 +283,7 @@ async function spiHelperPostRenameCleanup(
         continue;
       }
       if (archiveNotice.username === currentPageToCheck.replace(/Wikipedia:Sockpuppet investigations\//g, '')) {
-        void spiHelperEditPage(backlink.title, replacementArchiveNotice, 'Updating case following page move', false, spiHelperSettings.watchCase, spiHelperSettings.watchCaseExpiry);
+        void spiHelperEditPage(backlink.title, replacementArchiveNotice, 'Updating case following page move', false, spiHelperSettings.watch.case, spiHelperSettings.expiry.case);
         if (pagesChecked.indexOf(backlink.title) !== -1) {
           pagesToCheck.push(backlink.title);
         }
@@ -292,7 +292,7 @@ async function spiHelperPostRenameCleanup(
   }
 
   // The old case should just be the archivenotice template and point to the new case
-  await spiHelperEditPage(oldCasePage, replacementArchiveNotice, 'Updating case following page move', false, spiHelperSettings.watchCase, spiHelperSettings.watchCaseExpiry);
+  await spiHelperEditPage(oldCasePage, replacementArchiveNotice, 'Updating case following page move', false, spiHelperSettings.watch.case, spiHelperSettings.expiry.case);
 
   // The new case's archivenotice should be updated with the new name
   let newPageText = await context.getText(false, true);
@@ -309,7 +309,7 @@ async function spiHelperPostRenameCleanup(
   const newMasterRe = new RegExp(newMasterReString, 'sm');
   newPageText = newPageText.replace(newMasterRe, '$1\n$2');
 
-  await context.edit({ newText: newPageText, summary: 'Updating case following page move', watch: spiHelperSettings.watchCase, watchExpiry: spiHelperSettings.watchCaseExpiry });
+  await context.edit({ newText: newPageText, summary: 'Updating case following page move', watch: spiHelperSettings.watch.case, watchExpiry: spiHelperSettings.expiry.case });
   // Update to the latest revision ID
   await context.refreshRevId();
 }
@@ -328,7 +328,7 @@ async function spiHelperPostMergeCleanup(originalText: string): Promise<void> {
   newText = originalText + '\n' + newText;
 
   // Write the updated case
-  await context.edit({ newText: newText, summary: 'Re-adding previous cases following merge', watch: spiHelperSettings.watchCase, watchExpiry: spiHelperSettings.watchCaseExpiry });
+  await context.edit({ newText: newText, summary: 'Re-adding previous cases following merge', watch: spiHelperSettings.watch.case, watchExpiry: spiHelperSettings.expiry.case });
   // Update to the latest revision ID
   await context.refreshRevId();
 }

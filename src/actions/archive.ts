@@ -106,7 +106,7 @@ export async function spiHelperArchiveCaseSection(section: SectionEntry): Promis
   const archiveSuccess = await spiHelperEditPage(
     context.archiveName, archiveText,
     'Archiving case section from [[' + spiHelperGetInterwikiPrefix() + context.pageName + ']]',
-    false, spiHelperSettings.watchArchive, spiHelperSettings.watchArchiveExpiry,
+    false, spiHelperSettings.watch.archive, spiHelperSettings.expiry.archive,
   );
 
   if (!archiveSuccess) {
@@ -116,7 +116,7 @@ export async function spiHelperArchiveCaseSection(section: SectionEntry): Promis
   }
 
   // Blank the section we archived
-  await context.edit({ newText: '', summary: 'Archiving case section to [[' + spiHelperGetInterwikiPrefix() + context.archiveName + ']]', watch: spiHelperSettings.watchCase, watchExpiry: spiHelperSettings.watchCaseExpiry, baseRevId: context.startingRevId, sectionId: section.id });
+  await context.edit({ newText: '', summary: 'Archiving case section to [[' + spiHelperGetInterwikiPrefix() + context.archiveName + ']]', watch: spiHelperSettings.watch.case, watchExpiry: spiHelperSettings.expiry.case, baseRevId: context.startingRevId, sectionId: section.id });
   // Update to the latest revision ID
   context.startingRevId = await spiHelperGetPageRev(context.pageName);
 }

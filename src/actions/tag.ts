@@ -95,6 +95,6 @@ export async function spiHelperTagUser(
 }}`;
   }
   await spiHelperEditPage('User:' + tagEntry.username, tagText, 'Adding sockpuppetry tag per [[' + spiHelperGetInterwikiPrefix() + context.pageName + ']]',
-    false, spiHelperSettings.watchTaggedUser, spiHelperSettings.watchTaggedUserExpiry);
+    false, spiHelperSettings.watch.tagged, spiHelperSettings.expiry.tagged);
   return true;
 }
