@@ -220,10 +220,10 @@ export async function spiHelperMoveCaseSection(mergeTarget: string, section: Sec
   const newPageName = context.pageName.replace(context.caseName, mergeTarget);
   let targetPageText = await spiHelperGetPageText(newPageName, false);
   let sectionText = await section.getText();
-  // SOCK_SECTION_RE_WITH_NEWLINE cleans up extraneous whitespace at the top of the section
-  // Have to do this transform before concatenating with targetPageText so that the
-  // "originally filed" goes in the correct section
-  sectionText = sectionText.replace(spiHelperSockSectionWithNewlineRegex, '====Suspected sockpuppets====' + '\n* {{checkuser|1=' + context.caseName + '}} ({{clerknote}} originally filed under this user)\n');
+  sectionText = sectionText.replace(
+    /\n*----(?!(\n|.)*----)/,
+    '\n* {{clerknote}} originally filed under [[Wikipedia:Sockpuppet investigations/' + context.caseName + ']]. ~~~~\n----',
+  );
 
   if (targetPageText === '') {
     // Preload the split mergeTarget with the SPI templates if it's empty
