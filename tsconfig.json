@@ -25,6 +25,7 @@
     "noUnusedParameters": true,
     "noPropertyAccessFromIndexSignature": false,
 
-    "types": ["@types/bun", "types-mediawiki"]
-  }
+    "types": ["@types/bun", "types-mediawiki"],
+  },
+  "exclude": ["node_modules", "dist"]
 }

@@ -18,7 +18,8 @@
   },
   "scripts": {
     "build": "bun run ./build.ts",
-    "dev": "bun run ./dev.ts"
+    "dev": "bun run ./dev.ts",
+    "check": "tsc --noEmit && eslint . --max-warnings=0"
   },
   "peerDependencies": {
     "typescript": "^5"
