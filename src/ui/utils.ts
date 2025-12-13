@@ -47,41 +47,39 @@ export function spiHelperGenerateSelect($element: JQuery, options: SelectOption[
 /**
  * Updates whether the 'archive' checkbox is enabled
  */
-export function spiHelperUpdateArchive() {
+export function spiHelperUpdateArchive($moveCb: JQuery<HTMLElement>) {
   // Archive should only be an option if close is checked or disabled (disabled meaning that
   // the case is closed) and rename is not checked
   const $archiveCb = $('#spiHelper_Archive', document);
   const $closeCb = $('#spiHelper_Close', document);
-  const $moveCb = $('#spiHelper_Move', document);
 
-  const shouldDisable = (!$closeCb.prop('checked') && !$closeCb.prop('disabled')) || $moveCb.prop('checked');
-  $archiveCb.prop('disabled', shouldDisable);
-
-  if (shouldDisable) {
-    $archiveCb.prop('checked', false);
-  }
+  const shouldEnable = ($closeCb.prop('checked') || $closeCb.prop('disabled')) && !$moveCb.prop('checked');
+  spiSetCheckboxEnabled($archiveCb, shouldEnable);
 }
 
 /**
  * Updates whether the 'move' checkbox is enabled
  */
-export function spiHelperUpdateMove() {
+export function spiHelperUpdateMove($archiveCb: JQuery<HTMLElement>) {
   // Rename is mutually exclusive with archive
-  const $archiveCb = $('#spiHelper_Archive', document);
   const $moveCb = $('#spiHelper_Move', document);
 
-  $moveCb.prop('disabled', $archiveCb.prop('checked'));
-  if ($moveCb.prop('disabled')) {
-    $moveCb.prop('checked', false);
-  }
+  const shouldDisable = $archiveCb.prop('checked');
+  spiSetCheckboxEnabled($moveCb, !shouldDisable);
 }
 
 /**
- * Disables and unchecks a checkbox
+ * If the enable parameter is true, set 'disabled' to false.
+ * If the enable parameter is false, set 'disabled' to true and uncheck the checkbox.
  */
-export function spiDisableCheckbox($checkbox: JQuery<HTMLElement>) {
-  $checkbox.prop('checked', false);
-  $checkbox.prop('disabled', true);
+export function spiSetCheckboxEnabled($checkbox: JQuery<HTMLElement>, enable: boolean) {
+  if (enable) {
+    $checkbox.prop('disabled', false);
+  }
+  else {
+    $checkbox.prop('disabled', true);
+    $checkbox.prop('checked', false);
+  }
 }
 
 export function getSockEntries(state: CaseState) {

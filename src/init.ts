@@ -13,7 +13,7 @@ import {
 } from './constants/regex.ts';
 import { spiHelperIsAdmin } from './role.ts';
 import { messageDisplay } from './ui/messageDisplay.ts';
-import { spiDisableCheckbox, spiHelperUpdateArchive, spiHelperUpdateMove } from './ui/utils.ts';
+import { spiHelperUpdateArchive, spiHelperUpdateMove, spiSetCheckboxEnabled } from './ui/utils.ts';
 import { ParsedArchiveNotice } from './types/spi.ts';
 
 /**
@@ -47,11 +47,11 @@ export async function spiHelperInitTopLevel(state: CaseState) {
   $('#spiHelper_blockLabel', $topView).text(spiHelperIsAdmin() ? 'Block/tag socks' : 'Tag socks');
 
   // Wire up a couple of onclick handlers
-  $('#spiHelper_Move', $topView).on('click', () => {
-    spiHelperUpdateArchive();
+  $('#spiHelper_Move', $topView).on('click', function () {
+    spiHelperUpdateArchive($(this));
   });
-  $('#spiHelper_Archive', $topView).on('click', () => {
-    spiHelperUpdateMove();
+  $('#spiHelper_Archive', $topView).on('click', function () {
+    spiHelperUpdateMove($(this));
   });
 
   // Generate the section selector
@@ -134,7 +134,7 @@ async function spiHelperSetCheckboxesBySection(state: CaseState) {
     // Show inputs only visible in all-case mode
     $('.spiHelper_allCasesOnly', $topView).show();
     // Fix the move label
-    $('#spiHelper_moveLabel', $topView).text('Move/merge full case (Clerk only)');
+    $('#spiHelper_moveLabel', $topView).text('Move/merge full case');
     // enable the move box
     $moveBox.prop('disabled', false);
   }
@@ -162,21 +162,17 @@ async function spiHelperSetCheckboxesBySection(state: CaseState) {
 
     // Disable the section move setting if you haven't opted into it
     if (!spiHelperSettings.iUnderstandSectionMoves) {
-      spiDisableCheckbox($moveBox);
+      spiSetCheckboxEnabled($moveBox, false);
     }
 
     const isClosed = spiHelperCaseClosedRegex.test(caseStatus);
     if (isClosed) {
-      $archiveBox.prop('disabled', true);
-      if (spiHelperSettings.tickArchiveWhenCaseClosed) {
-        $archiveBox.prop('checked', true);
-      }
-      else {
-        $archiveBox.prop('checked', false);
-      }
+      $closeBox.prop('disabled', true);
+      $closeBox.prop('checked', true);
+      $archiveBox.prop('checked', spiHelperSettings.tickArchiveWhenCaseClosed);
     }
     else {
-      spiDisableCheckbox($archiveBox);
+      spiSetCheckboxEnabled($archiveBox, false);
       const caseActionBtn = $('#spiHelper_CaseStatus', $topView) as JQuery<HTMLInputElement>;
       const closeActionBtn = $('#spiHelper_Close', $topView) as JQuery<HTMLInputElement>;
       caseActionBtn.on('change', (event) => {
