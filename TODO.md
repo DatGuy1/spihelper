@@ -5,7 +5,6 @@
   - Look into making it prettier via animations and whatnot
   - Merge 'close' into 'change status'
 - Choose if we want to redefine context (status quo) or freeze it. Probably the latter. move.ts L62
-- Change spiHelperWikiBlockUser to opt with object
 - Split HTML building into views.ts or views/foo.ts
 - Remove \<b> from spihelper-errortext and move it to CSS
 - Modify the (clerk only) messages to only add (clerk only) if not clerk

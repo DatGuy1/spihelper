@@ -404,34 +404,45 @@ export async function spiHelperGetSiteRestrictionInformation(): Promise<Restrict
 /**
  * Blocks a user.
  *
- * @param {string} user Username to block
- * @param {string} duration Duration of the block
- * @param {string} reason Reason to log for the block
- * @param {boolean} reblock Whether to override block if target user is already blocked
- * @param {boolean} anononly For IPs, whether this is an anonymous-only block (alternative is
+ * @param opts.user Username to block
+ * @param opts.duration Duration of the block
+ * @param opts.reason Reason to log for the block
+ * @param opts.reblock Whether to override block if target user is already blocked
+ * @param opts.anononly For IPs, whether this is an anonymous-only block (alternative is
  *                           that logged-in users with the IP are also blocked)
- * @param {boolean} accountcreation Whether to permit the user to create new accounts
- * @param {boolean} autoblock Whether to apply an autoblock to the user's IP
- * @param {boolean} talkpage Whether to revoke talkpage access
- * @param {boolean} email Whether to block email
- * @param {boolean} watchBlockedUser Watchlist setting for whether to watch the newly-blocked user
- * @param {string} watchExpiry Duration to watch the blocked user, if unset
+ * @param opts.accountcreation Whether to permit the user to create new accounts
+ * @param opts.autoblock Whether to apply an autoblock to the user's IP
+ * @param opts.talkpage Whether to revoke talkpage access
+ * @param opts.email Whether to block email
+ * @param opts.watchBlockedUser Watchlist setting for whether to watch the newly-blocked user
+ * @param opts.watchExpiry Duration to watch the blocked user, if unset
  *                             defaults to 'indefinite'
 
  * @return {Promise<boolean>} True if the block suceeded, false if not
  */
-export async function spiHelperWikiBlockUser(
-  user: string, duration: string, reason: string, reblock: boolean,
-  anononly: boolean, accountcreation: boolean, autoblock: boolean,
-  talkpage: boolean, email: boolean,
-  watchBlockedUser: boolean, watchExpiry: string,
-): Promise<boolean> {
+export async function spiHelperWikiBlockUser(opts: {
+  user: string; duration: string; reason: string; reblock: boolean;
+  anononly: boolean; accountcreation: boolean; autoblock: boolean;
+  talkpage: boolean; email: boolean;
+  watchBlockedUser: boolean; watchExpiry: string;
+}): Promise<boolean> {
+  const {
+    user,
+    duration,
+    reason,
+    reblock,
+    anononly,
+    accountcreation,
+    autoblock,
+    talkpage,
+    email,
+    watchBlockedUser,
+    watchExpiry = 'indefinite',
+  } = opts;
+
   const activeOpKey = 'block_' + user;
   startOp(activeOpKey);
 
-  if (!watchExpiry) {
-    watchExpiry = 'indefinite';
-  }
   const userPage = 'User:' + user;
   const $statusLine = $('<li>').appendTo($('#spiHelper_status', document));
   const $link = $('<a>').attr('href', mw.util.getUrl(userPage)).attr('title', userPage).text(user);

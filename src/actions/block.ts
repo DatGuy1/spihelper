@@ -56,18 +56,19 @@ export async function spiHelperBlockUser(
     blockSummary = '{{rangeblock|1= ' + blockSummary
       + (blockEntry.acb ? '' : '|create=yes') + '}}';
   }
-  const blockSuccess = await spiHelperWikiBlockUser(
-    blockEntry.username,
-    blockEntry.duration,
-    blockSummary,
-    overrideExisting,
-    (isIP ? blockEntry.ab : false),
-    blockEntry.acb,
-    (isIP ? false : blockEntry.ab),
-    blockEntry.ntp,
-    blockEntry.nem,
-    spiHelperSettings.watch.blocked,
-    spiHelperSettings.expiry.blocked);
+  const blockSuccess = await spiHelperWikiBlockUser({
+    user: blockEntry.username,
+    duration: blockEntry.duration,
+    reason: blockSummary,
+    reblock: overrideExisting,
+    anononly: (isIP ? blockEntry.ab : false),
+    accountcreation: blockEntry.acb,
+    autoblock: (isIP ? false : blockEntry.ab),
+    talkpage: blockEntry.ntp,
+    email: blockEntry.nem,
+    watchBlockedUser: spiHelperSettings.watch.blocked,
+    watchExpiry: spiHelperSettings.expiry.blocked,
+  });
   if (!blockSuccess) {
     // Don't add a block notice if we failed to block
     if (blockEntry.tpn) {
