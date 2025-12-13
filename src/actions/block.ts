@@ -6,7 +6,7 @@ import { spiHelperCUBlockRegex } from '../constants/regex.ts';
 import { spiHelperSettings } from '../options.ts';
 import type { BlockEntry } from '../types/spi.ts';
 import { spiHelperIsCheckuser } from '../role.ts';
-import { spiHelperGetInterwikiPrefix, spiHelperNormalizeUsername } from '../utils.ts';
+import { spiHelperNormalizeUsername } from '../utils.ts';
 import { context } from '../context.ts';
 
 /**
@@ -42,7 +42,7 @@ export async function spiHelperBlockUser(
   }
   const isIP = mw.util.isIPAddress(blockEntry.username, true);
   const isIPRange = isIP && !mw.util.isIPAddress(blockEntry.username, false);
-  let blockSummary = 'Abusing [[WP:SOCK|multiple accounts]]: Please see: [[' + spiHelperGetInterwikiPrefix() + context.pageName + ']]';
+  let blockSummary = 'Abusing [[WP:SOCK|multiple accounts]]: Please see: [[' + context.prefixedName + ']]';
   if (spiHelperIsCheckuser() && cuBlock) {
     const cublockTemplate = isIP ? ('{{checkuserblock}}') : ('{{checkuserblock-account}}');
     if (cuBlockOnly) {
@@ -132,7 +132,7 @@ export async function spiHelperBlockUser(
     // Hardcode the watch setting to 'nochange' since we will have either
     // watched or not watched based on the _boolean_ watchBlockedUser
     await spiHelperEditPage('User talk:' + blockEntry.username,
-      newText, 'Adding sockpuppetry block notice per [[' + spiHelperGetInterwikiPrefix() + context.pageName + ']]', false, 'nochange');
+      newText, 'Adding sockpuppetry block notice per [[' + context.prefixedName + ']]', false, 'nochange');
   }
 
   return true;

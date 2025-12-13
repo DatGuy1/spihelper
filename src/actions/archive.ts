@@ -105,7 +105,7 @@ export async function spiHelperArchiveCaseSection(section: SectionEntry): Promis
   archiveText += '\n' + newArchiveText;
   const archiveSuccess = await spiHelperEditPage(
     context.archiveName, archiveText,
-    'Archiving case section from [[' + spiHelperGetInterwikiPrefix() + context.pageName + ']]',
+    'Archiving case section from [[' + context.prefixedName + ']]',
     false, spiHelperSettings.watch.archive, spiHelperSettings.expiry.archive,
   );
 

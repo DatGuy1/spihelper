@@ -11,7 +11,7 @@ import { spiHelperSettings } from './options.ts';
 import { spiHelperLog } from './log.ts';
 import { messageDisplay } from './ui/messageDisplay.ts';
 import { type CaseState, refreshSections } from './state.ts';
-import { spiHelperGetInterwikiPrefix, spiHelperNormalizeUsername } from './utils.ts';
+import { spiHelperNormalizeUsername } from './utils.ts';
 import {
   type BlockEntry,
   type CaseActions,
@@ -383,14 +383,13 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
       const checkAltSuspectedCat = altmaster !== '' ? spiHelperTags.some(tagEntry => tagEntry.altmasterTag !== '' && tagEntry.altmasterTag === 'suspected') : false;
       const checkAltConfirmedCat = altmaster !== '' ? spiHelperTags.some(tagEntry => tagEntry.altmasterTag !== '' && tagEntry.altmasterTag === 'proven') || spiHelperTags.some(tagEntry => tagEntry.altmasterTag !== '' && tagEntry.altmasterTag === 'confirmed') : false;
 
-      const interwikiPrefix = spiHelperGetInterwikiPrefix();
       if (checkAltConfirmedCat) {
         const catName = 'Category:Wikipedia sockpuppets of ' + altmaster;
         const catText = await spiHelperGetPageText(catName, false);
         // Empty text means the page doesn't exist - create it
         if (!catText) {
           await spiHelperEditPage(catName, '{{sockpuppet category}}',
-            'Creating sockpuppet category per [[' + interwikiPrefix + context.pageName + ']]',
+            'Creating sockpuppet category per [[' + context.prefixedName + ']]',
             true, spiHelperSettings.watch.categories, spiHelperSettings.expiry.categories);
           needsPurge = true;
         }
@@ -400,7 +399,7 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
         const catText = await spiHelperGetPageText(catName, false);
         if (!catText) {
           await spiHelperEditPage(catName, '{{sockpuppet category}}',
-            'Creating sockpuppet category per [[' + interwikiPrefix + context.pageName + ']]',
+            'Creating sockpuppet category per [[' + context.prefixedName + ']]',
             true, spiHelperSettings.watch.categories, spiHelperSettings.expiry.categories);
           needsPurge = true;
         }
@@ -410,7 +409,7 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
         const catText = await spiHelperGetPageText(catName, false);
         if (!catText) {
           await spiHelperEditPage(catName, '{{sockpuppet category}}',
-            'Creating sockpuppet category per [[' + interwikiPrefix + context.pageName + ']]',
+            'Creating sockpuppet category per [[' + context.prefixedName + ']]',
             true, spiHelperSettings.watch.categories, spiHelperSettings.expiry.categories);
           needsPurge = true;
         }
@@ -420,7 +419,7 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
         const catText = await spiHelperGetPageText(catName, false);
         if (!catText) {
           await spiHelperEditPage(catName, '{{sockpuppet category}}',
-            'Creating sockpuppet category per [[' + interwikiPrefix + context.pageName + ']]',
+            'Creating sockpuppet category per [[' + context.prefixedName + ']]',
             true, spiHelperSettings.watch.categories, spiHelperSettings.expiry.categories);
           needsPurge = true;
         }
@@ -484,7 +483,7 @@ export async function spiHelperPerformActions(actionsSelected: CaseActions, stat
         let message = '=== Global lock for ' + heading + ' ===';
         message += '\n{{status}}';
         message += '\n' + lockTemplate;
-        message += '\n' + (usePlural ? 'Sockpuppets' : 'Sockpuppet') + ' found in enwiki sockpuppet investigation, see [[' + spiHelperGetInterwikiPrefix() + context.pageName + ']]. ' + lockComment + ' ~~~~';
+        message += '\n' + (usePlural ? 'Sockpuppets' : 'Sockpuppet') + ' found in enwiki sockpuppet investigation, see [[' + context.prefixedName + ']]. ' + lockComment + ' ~~~~';
 
         // Write lock request to [[meta:Steward requests/Global]]
         let srgText = await spiHelperGetPageText('meta:Steward requests/Global', false);

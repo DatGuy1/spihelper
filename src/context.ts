@@ -1,9 +1,12 @@
 import { spiHelperEditPage, spiHelperGetPageRev, spiHelperGetPageText } from './api.ts';
 import type { WatchOption } from './types/api.ts';
+import { spiHelperGetInterwikiPrefix } from './utils.ts';
 
 export class SpiPageContext {
   // Name of the SPI page in wiki title form, "Wikipedia:Sockpuppet investigations/Foo"
   readonly pageName: string;
+  // Full name including interwiki prefix, "w:Wikipedia:Sockpuppet investigations/Foo"
+  readonly prefixedName: string;
   // Only the username part of the case, "Foo"
   readonly caseName: string;
   readonly archiveName: string;
@@ -13,19 +16,26 @@ export class SpiPageContext {
 
   _text: string | null = null;
 
-  constructor(pageName: string) {
+  constructor(pageName: string, currentPage: boolean = false) {
     this.pageName = pageName;
+    this.prefixedName = spiHelperGetInterwikiPrefix() + pageName;
     this.isArchive = /Wikipedia:Sockpuppet investigations\/.+\/Archive/.test(pageName);
     this.caseName = extractCaseName(pageName, this.isArchive);
     this.archiveName = pageName + '/Archive';
-    this.startingRevId = mw.config.get('wgCurRevisionId');
+    if (currentPage) {
+      this.startingRevId = mw.config.get('wgCurRevisionId');
+    }
+    else {
+      this.startingRevId = 0;
+    }
   }
 
   async refreshRevId() {
     this.startingRevId = await spiHelperGetPageRev(this.pageName);
   }
 
-  async getText(purge: boolean = false, show: boolean = false): Promise<string> {
+  async getText(opts: { purge?: boolean; show?: boolean } = {}): Promise<string> {
+    const { purge = false, show = false } = opts;
     if (purge || this._text === null) {
       this._text = await spiHelperGetPageText(this.pageName, show);
     }
@@ -59,11 +69,11 @@ function extractCaseName(pageName: string, isArchive: boolean): string {
   return isArchive ? base.replace(/\/Archive.*/, '') : base;
 }
 
-const rawPageName = mw.config.get('wgPageName') ?? '';
-const pageName = rawPageName.replaceAll(/_/g, ' ');
-
-export let context: SpiPageContext = new SpiPageContext(pageName);
-
-export function setContext(pageName: string) {
-  context = new SpiPageContext(pageName);
+function cleanPageName(pageName: string): string {
+  return pageName.replaceAll(/_/g, ' ');
 }
+
+const rawPageName = mw.config.get('wgPageName') ?? '';
+const pageName = cleanPageName(rawPageName);
+
+export const context: SpiPageContext = new SpiPageContext(pageName, true);

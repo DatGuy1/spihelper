@@ -1,6 +1,5 @@
 import type { TagEntry } from '../types/spi.ts';
 import { spiHelperSettings } from '../options.ts';
-import { spiHelperGetInterwikiPrefix } from '../utils.ts';
 import { spiHelperEditPage, spiHelperGetGlobalUser, spiHelperGetUserBlockSettings } from '../api.ts';
 import { context } from '../context.ts';
 
@@ -94,7 +93,7 @@ export async function spiHelperTagUser(
 | altmaster-status = ${altmasterTag}
 }}`;
   }
-  await spiHelperEditPage('User:' + tagEntry.username, tagText, 'Adding sockpuppetry tag per [[' + spiHelperGetInterwikiPrefix() + context.pageName + ']]',
+  await spiHelperEditPage('User:' + tagEntry.username, tagText, 'Adding sockpuppetry tag per [[' + context.prefixedName + ']]',
     false, spiHelperSettings.watch.tagged, spiHelperSettings.expiry.tagged);
   return true;
 }
