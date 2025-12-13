@@ -13,8 +13,7 @@ import {
   spiHelperPriorCasesRegex,
   spiHelperSockSectionWithNewlineRegex,
 } from '../constants/regex.ts';
-import { context, setContext } from '../context.ts';
-import { spiHelperGetInterwikiPrefix } from '../utils.ts';
+import { context, SpiPageContext } from '../context.ts';
 import { spiHelperIsAdmin } from '../role.ts';
 import type { NewPendingChanges, Protection } from '../types/api.ts';
 import { spiHelperParseArchiveNotice } from '../archivenotice.ts';
@@ -30,8 +29,10 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
   // Move or merge an entire case
   // Normalize: change underscores to spaces
   // target = target
-  const newPageName = context.pageName.replace(context.caseName, target);
-  const targetPageText = await spiHelperGetPageText(newPageName, false);
+  const oldContext = context;
+  const newContext = new SpiPageContext(context.pageName.replace(context.caseName, target));
+
+  const targetPageText = await newContext.getText();
   if (targetPageText) {
     if (spiHelperIsAdmin()) {
       const proceed = confirm('Target page exists, do you want to histmerge the cases?');
@@ -52,24 +53,20 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
       return;
     }
   }
-  const oldPageName = context.pageName;
-  if (newPageName === oldPageName) {
+  if (newContext.pageName === oldContext.pageName) {
     $('<li>')
       .append($('<div>').addClass('spihelper-errortext')
         .append($('<b>').text('Target page is the current page, aborting merge.')))
       .appendTo($('#spiHelper_status', document));
     return;
   }
-  // TODO: Do I even want to change the context?
-  // Housekeeping to update all the var names following the rename
-  const oldArchiveName = context.archiveName;
-  setContext(target);
+
   let archivesCopied = false;
   if (targetPageText) {
     // There's already a page there, we're going to merge
     // First, check if there's an archive; if so, copy its text over
-    let sourceArchiveText = await spiHelperGetPageText(oldArchiveName, false);
-    let targetArchiveText = await spiHelperGetPageText(context.archiveName, false);
+    let sourceArchiveText = await spiHelperGetPageText(oldContext.archiveName, false);
+    let targetArchiveText = await spiHelperGetPageText(newContext.archiveName, false);
     if (sourceArchiveText && targetArchiveText) {
       $('<li>')
         .append($('<div>').text('Archive detected on both source and target cases, manually copying archive.'))
@@ -82,14 +79,14 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
       // Strip leading newlines
       sourceArchiveText = sourceArchiveText.replace(/^\n*/, '');
       targetArchiveText += '\n' + sourceArchiveText;
-      await spiHelperEditPage(context.archiveName, targetArchiveText, 'Copying archives from [[' + spiHelperGetInterwikiPrefix() + oldArchiveName + ']], see page history for attribution',
+      await spiHelperEditPage(newContext.archiveName, targetArchiveText, 'Copying archives from [[' + oldContext.prefixedName + ']], see page history for attribution',
         false, spiHelperSettings.watch.archive, spiHelperSettings.expiry.archive);
-      await spiHelperDeletePage(oldArchiveName, 'Deleting copied archive');
+      await spiHelperDeletePage(oldContext.archiveName, 'Deleting copied archive');
       archivesCopied = true;
     }
     // Now get existing protection levels on the target and existing page.
-    const oldPageNameProtection = await spiHelperGetProtectionInformation(oldPageName);
-    const newPageNameProtection = await spiHelperGetProtectionInformation(context.pageName);
+    const oldPageNameProtection = await spiHelperGetProtectionInformation(oldContext.pageName);
+    const newPageNameProtection = await spiHelperGetProtectionInformation(newContext.pageName);
     const newProtectionValues: Protection[] = [];
     const siteRestrictions = await spiHelperGetSiteRestrictionInformation();
     // First find if both the old page and new page had the same protection type enabled
@@ -130,8 +127,8 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
       }
     });
     // Now handle pending changes protection
-    const oldPageStabilisation = await spiHelperGetStabilisationSettings(oldPageName);
-    const newPageStabilisation = await spiHelperGetStabilisationSettings(context.pageName);
+    const oldPageStabilisation = await spiHelperGetStabilisationSettings(oldContext.pageName);
+    const newPageStabilisation = await spiHelperGetStabilisationSettings(newContext.pageName);
     let newStabilisationSettings: NewPendingChanges = { level: '' };
     if (oldPageStabilisation && newPageStabilisation) {
       // Pending changes is used on both pages
@@ -175,12 +172,12 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
       };
     }
     // Ignore warnings on the move, we're going to get one since we're stomping an existing page
-    await spiHelperDeletePage(context.pageName, 'Deleting as part of case merge');
-    await spiHelperMovePage(oldPageName, context.pageName, 'Merging case to [[' + spiHelperGetInterwikiPrefix() + context.pageName + ']]', true);
-    await spiHelperUndeletePage(context.pageName, 'Restoring page history after merge');
+    await spiHelperDeletePage(oldContext.pageName, 'Deleting as part of case merge');
+    await spiHelperMovePage(oldContext.pageName, newContext.pageName, 'Merging case to [[' + newContext.prefixedName + ']]', true);
+    await spiHelperUndeletePage(newContext.pageName, 'Restoring page history after merge');
     if (archivesCopied) {
       // Create a redirect
-      await spiHelperEditPage(oldArchiveName, '#REDIRECT [[' + context.archiveName + ']]', 'Redirecting old archive to new archive',
+      await spiHelperEditPage(oldContext.archiveName, '#REDIRECT [[' + newContext.archiveName + ']]', 'Redirecting old archive to new archive',
         false, spiHelperSettings.watch.archive, spiHelperSettings.expiry.archive);
     }
     // Now to protect both the oldPageName and newPageName with the protection
@@ -188,19 +185,18 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
     // Also apply any pending changes needed
     // (when newStabilisationSettings has a non-empty protection_level)
     if (newProtectionValues.length !== 0) {
-      await spiHelperProtectPage(context.pageName, newProtectionValues);
-      await spiHelperProtectPage(oldPageName, newProtectionValues);
+      await spiHelperProtectPage(newContext.pageName, newProtectionValues);
+      await spiHelperProtectPage(oldContext.pageName, newProtectionValues);
     }
     if (newStabilisationSettings.level !== '') {
-      await spiHelperConfigurePendingChanges(context.pageName, newStabilisationSettings);
-      await spiHelperConfigurePendingChanges(oldPageName, newStabilisationSettings);
+      await spiHelperConfigurePendingChanges(newContext.pageName, newStabilisationSettings);
+      await spiHelperConfigurePendingChanges(oldContext.pageName, newStabilisationSettings);
     }
   }
   else {
-    await spiHelperMovePage(oldPageName, context.pageName, 'Moving case to [[' + spiHelperGetInterwikiPrefix() + context.pageName + ']]', false);
+    await spiHelperMovePage(oldContext.pageName, newContext.pageName, 'Moving case to [[' + newContext.prefixedName + ']]', false);
   }
-  context.startingRevId = await spiHelperGetPageRev(context.pageName);
-  await spiHelperPostRenameCleanup(oldPageName, archiveNotice);
+  await spiHelperPostRenameCleanup(oldContext.pageName, archiveNotice);
   if (targetPageText) {
     // If there was a page there before, also need to do post-merge cleanup
     await spiHelperPostMergeCleanup(targetPageText);
@@ -217,8 +213,8 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
  * @param section The section of this case that should be moved/merged
  */
 export async function spiHelperMoveCaseSection(mergeTarget: string, section: SectionEntry) {
-  const newPageName = context.pageName.replace(context.caseName, mergeTarget);
-  let targetPageText = await spiHelperGetPageText(newPageName, false);
+  const newContext = new SpiPageContext(context.pageName.replace(context.caseName, mergeTarget));
+  let targetPageText = await newContext.getText();
   let sectionText = await section.getText();
   sectionText = sectionText.replace(
     /\n*----(?!(\n|.)*----)/,
@@ -232,18 +228,23 @@ export async function spiHelperMoveCaseSection(mergeTarget: string, section: Sec
   targetPageText += '\n' + sectionText;
 
   // Intentionally not async - doesn't matter when this edit finishes
-  void spiHelperEditPage(
-    newPageName, targetPageText,
-    'Moving case section from [[' + spiHelperGetInterwikiPrefix() + context.pageName + ']], see page history for attribution',
-    false, spiHelperSettings.watch.case, spiHelperSettings.expiry.case,
-  );
+  void newContext.edit({
+    newText: targetPageText,
+    summary: 'Moving case section from [[' + context.prefixedName + ']], see page history for attribution',
+    createonly: false,
+    watch: spiHelperSettings.watch.case,
+    watchExpiry: spiHelperSettings.expiry.case,
+  });
   // Blank the section we moved
-  await spiHelperEditPage(
-    context.pageName, '',
-    'Moving case section to [[' + spiHelperGetInterwikiPrefix() + newPageName + ']]',
-    false, spiHelperSettings.watch.case, spiHelperSettings.expiry.case,
-    context.startingRevId, section.id,
-  );
+  await context.edit({
+    newText: '',
+    summary: 'Moving case section to [[' + newContext.prefixedName + ']]',
+    createonly: false,
+    watch: spiHelperSettings.watch.case,
+    watchExpiry: spiHelperSettings.expiry.case,
+    baseRevId: context.startingRevId,
+    sectionId: section.id,
+  });
   // Update to the latest revision ID
   context.startingRevId = await spiHelperGetPageRev(context.pageName);
 }
@@ -295,7 +296,7 @@ async function spiHelperPostRenameCleanup(
   await spiHelperEditPage(oldCasePage, replacementArchiveNotice, 'Updating case following page move', false, spiHelperSettings.watch.case, spiHelperSettings.expiry.case);
 
   // The new case's archivenotice should be updated with the new name
-  let newPageText = await context.getText(false, true);
+  let newPageText = await context.getText({ show: true });
   newPageText = newPageText.replace(spiHelperArchiveNoticeRegex, '{{SPI archive notice|1=' + context.caseName + '$2}}');
   // We also want to add the previous master to the sock list
   // We use SOCK_SECTION_RE_WITH_NEWLINE to clean up any extraneous whitespace
@@ -320,7 +321,7 @@ async function spiHelperPostRenameCleanup(
  * @param {string} originalText Text of the page pre-merge
  */
 async function spiHelperPostMergeCleanup(originalText: string): Promise<void> {
-  let newText = await context.getText(true);
+  let newText = await context.getText({ purge: true });
   // Remove the SPI header templates from the page
   newText = newText.replace(/\n*<noinclude>__TOC__.*\n/ig, '');
   newText = newText.replace(spiHelperArchiveNoticeRegex, '');

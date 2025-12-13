@@ -4,7 +4,6 @@
   - Instead of removing spiHelperTopViewHTML to replace with spiHelperActionViewHTML all the time, keep it as hidden. Avoids regenerating the layout every time.
   - Look into making it prettier via animations and whatnot
   - Merge 'close' into 'change status'
-- Choose if we want to redefine context (status quo) or freeze it. Probably the latter. move.ts L62
 - Split HTML building into views.ts or views/foo.ts
 - Remove \<b> from spihelper-errortext and move it to CSS
 - Modify the (clerk only) messages to only add (clerk only) if not clerk
