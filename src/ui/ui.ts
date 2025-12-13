@@ -42,6 +42,9 @@ export function updateForRole(view: JQuery<HTMLElement>) {
   if (!(spiHelperIsAdmin() || spiHelperIsClerk())) {
     $('.spiHelper_adminClerkClass', view).hide();
   }
+  else {
+    $('.spiHelper_nonAdminClerkClass', view).hide();
+  }
 }
 
 /** Map of top-level actions the user has selected */

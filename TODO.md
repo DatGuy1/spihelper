@@ -4,15 +4,14 @@
   - Instead of removing spiHelperTopViewHTML to replace with spiHelperActionViewHTML all the time, keep it as hidden. Avoids regenerating the layout every time.
   - Look into making it prettier via animations and whatnot
   - Merge 'close' into 'change status'
-- Split HTML building into views.ts or views/foo.ts
 - Remove \<b> from spihelper-errortext and move it to CSS
-- Modify the (clerk only) messages to only add (clerk only) if not clerk
 - Add mw.track()?
 - In caseActions.ts, instead of fetching the HTML values, save our changes ourselves through on('change'). Probably in state.
   - What did I even mean by this?
 - Standardise HTML and CSS naming
 
 Generic:
+- Split HTML building into views.ts or views/foo.ts
 - Don't keep big HTML blocks as raw template strings
 - Implement Dbeef's updater
 - Implement unit tests?

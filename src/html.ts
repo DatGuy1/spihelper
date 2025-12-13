@@ -30,11 +30,11 @@ export const spiHelperTopViewHTML = `
     </li>
     <li id="spiHelper_moveLine" class="spiHelper_clerkClass spiHelper_notOnArchive">
       <input type="checkbox" name="spiHelper_Move" id="spiHelper_Move" />
-      <label for="spiHelper_Move" id="spiHelper_moveLabel">Move/merge full case (Clerk only)</label>
+      <label for="spiHelper_Move" id="spiHelper_moveLabel">Move/merge full case<span class="spiHelper_nonAdminClerkClass"> (clerk only)</span></label>
     </li>
     <li id="spiHelper_archiveLine" class="spiHelper_clerkClass spiHelper_notOnArchive">
       <input type="checkbox" name="spiHelper_Archive" id="spiHelper_Archive"/>
-      <label for="spiHelper_Archive">Archive case (Clerk only)</label>
+      <label for="spiHelper_Archive">Archive case<span class="spiHelper_nonAdminClerkClass"> (clerk only)</span></label>
     </li>
   </ul>
   <input type="button" id="spiHelper_GenerateForm" name="spiHelper_GenerateForm" value="Continue" />
