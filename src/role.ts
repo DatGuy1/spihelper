@@ -31,7 +31,7 @@ export function spiHelperIsClerk(): boolean {
  * @return {boolean} Whether the current user is an admin
  */
 export function spiHelperIsAdmin(): boolean {
-  if (spiHelperSettings.debug.forceAdmin) {
+  if (spiHelperSettings.debug.enabled) {
     return spiHelperSettings.debug.forceAdmin;
   }
   return mw.config.get('wgUserGroups')?.includes('sysop') ?? false;

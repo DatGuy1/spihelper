@@ -94,14 +94,15 @@ export const OptionsComponent: ComponentOptions = {
         <cdx-toggle-switch v-model="spiHelperSettings.debug.enabled" :align-switch="true">
           Enabled
         </cdx-toggle-switch>
-        <div v-if="spiHelperSettings.debug.enabled">
+        <cdx-field v-if="spiHelperSettings.debug.enabled">
+          <template #description>These will override your roles. For example, if you are an administrator and force admin is unchecked, spiHelper will not consider you as an admninistrator.</template>
           <cdx-toggle-switch v-model="spiHelperSettings.debug.forceCheckuser" :align-switch="true">
             Force CheckUser state
           </cdx-toggle-switch>
           <cdx-toggle-switch v-model="spiHelperSettings.debug.forceAdmin" :align-switch="true">
             Force Admin state
           </cdx-toggle-switch>
-        </div>
+        </cdx-field>
       </cdx-accordion>
       <div class="spiHelper-setting">
         <cdx-toggle-switch v-model="spiHelperSettings.clerk" :align-switch="true">Clerk</cdx-toggle-switch>
