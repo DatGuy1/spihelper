@@ -1,15 +1,25 @@
-// noinspection HtmlUnknownTag, VueUnrecognizedSlot
-
-import type { ComponentOptions } from 'vue';
+import { defineComponent } from 'vue';
 import { cdxIconWatchlist, cdxIconClock, cdxIconCode, cdxIconJournal, cdxIconReload } from '@wikimedia/codex-icons';
 import { saveOptions, spiHelperSettings } from '../options.ts';
 import { spiHelperDefaultSettings } from '../constants/settings.ts';
 
-// I would like to be able to defineComponent()
-// but bun bundles vue-runtime into the build
-// noinspection JSUnusedGlobalSymbols
-export const OptionsComponent: ComponentOptions = {
-  data: function () {
+interface Data {
+  open: boolean;
+  showExtra: boolean;
+  showExtraMessage: boolean;
+  _showExtraHandler: ((e: KeyboardEvent) => void) | null;
+  logPrefix: string;
+  cdxIconWatchlist: typeof cdxIconWatchlist;
+  cdxIconClock: typeof cdxIconClock;
+  cdxIconCode: typeof cdxIconCode;
+  cdxIconJournal: typeof cdxIconJournal;
+  cdxIconReload: typeof cdxIconReload;
+  spiHelperSettings: typeof spiHelperSettings;
+  resetTrigger: number;
+}
+
+export const OptionsComponent = defineComponent({
+  data: function (): Data {
     const username = mw.config.get('wgUserName') || '';
     const logPrefix = `User:${username}/`;
     return {
@@ -28,10 +38,10 @@ export const OptionsComponent: ComponentOptions = {
     };
   },
   computed: {
-    logPage() {
+    logPage(): string {
       return `${mw.config.get('wgServer')}/wiki/User:${mw.config.get('wgUserName')}/${this.spiHelperSettings.log.page}`;
     },
-    isCheckUser() {
+    isCheckUser(): boolean {
       const { debug } = this.spiHelperSettings;
       const isCU = mw.config.get('wgUserGroups')?.includes('checkuser') || false;
 
@@ -39,7 +49,6 @@ export const OptionsComponent: ComponentOptions = {
     },
   },
   template: `
-    <!--suppress ALL -->
     <cdx-dialog v-model:open="open" title="spiHelper Options"
                 close-button-label="Close" id="spiHelper-opts-dialog"
                 @update:open="onDialogUpdate">
@@ -78,7 +87,7 @@ export const OptionsComponent: ComponentOptions = {
           <template #description>Log all actions to your userspace</template>
         </cdx-toggle-switch>
         <div v-if="spiHelperSettings.log.enabled">
-          <logpage-setting v-model="spiHelperSettings.log.page" :prefix="logPrefix"/>
+          <log-page-setting v-model="spiHelperSettings.log.page" :prefix="logPrefix"/>
           <br>
           <cdx-toggle-switch v-model="spiHelperSettings.log.reversed">
             Reverse log
@@ -133,7 +142,7 @@ export const OptionsComponent: ComponentOptions = {
   methods: {
     openDialog() {
       this.open = true;
-      if (!this.showExtra) {
+      if (!this.showExtra && this._showExtraHandler) {
         window.addEventListener('keydown', this._showExtraHandler);
       }
     },
@@ -170,9 +179,11 @@ export const OptionsComponent: ComponentOptions = {
         if (buffer === target) {
           this.showExtra = true;
           this.showExtraMessage = true;
-          window.removeEventListener('keydown', this._showExtraHandler);
+          if (this._showExtraHandler) {
+            window.removeEventListener('keydown', this._showExtraHandler);
+          }
         }
       };
     },
   },
-};
+});

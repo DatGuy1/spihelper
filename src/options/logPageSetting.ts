@@ -1,6 +1,6 @@
-import type { ComponentOptions } from 'vue';
+import { defineComponent } from 'vue';
 
-export const LogPageSettingComponent: ComponentOptions = {
+export const LogPageSettingComponent = defineComponent({
   props: {
     modelValue: { type: String, required: true },
     prefix: { type: String, required: true },
@@ -46,4 +46,4 @@ export const LogPageSettingComponent: ComponentOptions = {
       <template #description>Page in your userspace to log to</template>
     </cdx-field>
   `,
-};
+});

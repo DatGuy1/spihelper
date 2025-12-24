@@ -9,6 +9,9 @@
 - In caseActions.ts, instead of fetching the HTML values, save our changes ourselves through on('change'). Probably in state.
   - What did I even mean by this?
 - Standardise HTML and CSS naming
+- Automatically parse comment tab for new names and add them to block and link lists
+- Save whether pinned/unpinned in settings
+- Maybe make the lines for block/link table be a cdx-lookup which is bound to listusers? 
 
 Generic:
 - Split HTML building into views.ts or views/foo.ts

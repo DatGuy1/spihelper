@@ -1,7 +1,7 @@
-import type { ComponentOptions } from 'vue';
+import { defineComponent } from 'vue';
 import { parseExpiry } from './utils.ts';
 
-export const ExpirySettingComponent: ComponentOptions = {
+export const ExpirySettingComponent = defineComponent({
   props: {
     modelValue: { type: String, required: true },
     label: { type: String, required: true },
@@ -48,4 +48,4 @@ export const ExpirySettingComponent: ComponentOptions = {
       <cdx-text-input v-model="internalValue"/>
     </cdx-field>
   `,
-};
+});

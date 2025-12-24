@@ -2,15 +2,17 @@
 import { watch } from 'fs';
 import { resolve } from 'path';
 import { codename, version } from './package.json';
+import { defineComponentPlugin } from './plugin.ts';
 
 async function build() {
   log('Building...');
   const result = await Bun.build({
-    entrypoints: ['src/spihelper.ts'],
+    entrypoints: ['src/spihelper.ts', 'src/spihelper.css'],
     outdir: './dist',
     minify: false, // Don't minify in dev mode for easier debugging
     sourcemap: 'external',
     target: 'browser',
+    plugins: [defineComponentPlugin],
     format: 'iife',
     define: {
       __CODENAME__: JSON.stringify(codename),
@@ -39,15 +41,14 @@ const server = Bun.serve({
     const filePath = resolve('./dist' + url.pathname);
 
     const file = Bun.file(filePath);
+    const contentType = url.pathname.endsWith('.js') ? 'application/javascript' : url.pathname.endsWith('.css') ? 'text/css' : 'text/plain';
 
     return new Response(file, {
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, OPTIONS',
         'Access-Control-Allow-Headers': '*',
-        'Content-Type': url.pathname.endsWith('.js')
-          ? 'application/javascript'
-          : 'text/plain',
+        'Content-Type': contentType,
       },
     });
   },
@@ -60,10 +61,10 @@ log('Watching for changes...');
 const watcher = watch(
   './src',
   { recursive: true },
-  async (_event, filename) => {
-    if (filename?.endsWith('.ts')) {
+  (_event, filename) => {
+    if (filename?.endsWith('.ts') || filename?.endsWith('.css')) {
       log(`${filename} changed, rebuilding...`);
-      await build();
+      void build();
     }
   },
 );

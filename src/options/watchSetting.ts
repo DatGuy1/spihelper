@@ -1,7 +1,7 @@
-import type { ComponentOptions } from 'vue';
+import { defineComponent } from 'vue';
 import { WatchOptions, WatchOptionsSelect } from '../types/vue.ts';
 
-export const WatchSettingComponent: ComponentOptions = {
+export const WatchSettingComponent = defineComponent({
   props: {
     modelValue: { type: String, required: true },
     label: { type: String, required: true },
@@ -36,4 +36,4 @@ export const WatchSettingComponent: ComponentOptions = {
       />
     </cdx-field>
   `,
-};
+});
