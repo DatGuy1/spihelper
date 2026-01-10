@@ -44,8 +44,12 @@ mw.loader.using(['vue', '@wikimedia/codex', 'mediawiki.api', 'mediawiki.util', '
   const Codex = require('@wikimedia/codex');
 
   // @ts-expect-error Ignore __MODE__ not existing error because Bun should replace it on compile
-  if (__MODE__ === 'dev') {
+  if (__MODE__ === 'live') {
     mw.loader.load('http://127.0.0.1:8080/spihelper.css', 'text/css');
+  }
+  // @ts-expect-error See above
+  else if (__MODE__ === 'dev') {
+    importStylesheet('User:DatGuy/spihelper.dev.css');
   }
   else {
     importStylesheet('User:DatGuy/spihelper.css');

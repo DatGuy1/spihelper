@@ -16,7 +16,7 @@ async function build() {
     define: {
       __CODENAME__: JSON.stringify(codename),
       __VERSION__: JSON.stringify(version),
-      __MODE__: '"dev"',
+      __MODE__: '"live"',
     },
     banner: `// v${version} "${codename}"`,
   });
