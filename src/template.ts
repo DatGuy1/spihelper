@@ -47,7 +47,7 @@ export function fetchTemplateArguments(template: Template): string[] {
     result.push(positional);
   }
   for (const [key, value] of Object.entries(template.params)) {
-    if (!Number.isNaN(key)) {
+    if (!Number.isNaN(Number(key))) {
       result.push(value);
     }
   }
