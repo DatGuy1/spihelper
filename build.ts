@@ -4,11 +4,12 @@ import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
 const branch = process.env.GITHUB_REF_NAME; // "main" or "develop"
+const buildRef = `refs/heads/build/${branch}`;
 const mode = branch === 'main' ? 'production' : 'dev';
 
 const versionBanner = `v${version} "${codename}"`;
 
-const usyncTemplateJs = `{{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|refs=${process.env.GITHUB_REF}|path=dist/spihelper.js}}`;
+const usyncTemplateJs = `{{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|refs=${buildRef}|path=spihelper.js}}`;
 await Bun.build({
   entrypoints: ['src/spihelper.ts', 'src/spihelper.css'],
   outdir: './dist',
@@ -27,7 +28,7 @@ await Bun.build({
 
 // Prepend CSS banner manually since Bun doesn't
 const cssPath = join('dist', 'spihelper.css');
-const bannerCSS = `/* {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=${process.env.GITHUB_REF}|path=dist/spihelper.css}} */\n/* ${versionBanner} */\n`;
+const bannerCSS = `/* {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=${buildRef}|path=spihelper.css}} */\n/* ${versionBanner} */\n`;
 
 const cssContent = readFileSync(cssPath, 'utf-8');
 writeFileSync(cssPath, bannerCSS + cssContent, 'utf-8');
