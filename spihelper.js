@@ -1,4 +1,4 @@
-// {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|refs=refs/heads/develop|path=spihelper.js}}
+// {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|refs=refs/heads/build/develop|path=spihelper.js}}
 // v3.0.0-beta.1 "A Whole New World"
 (() => {
 
