@@ -104,6 +104,12 @@ export const TopViewComponent = defineComponent({
       }
       return true;
     },
+    selectedSection() {
+      return this.state.selectedSection;
+    },
+    archiveNotice() {
+      return this.state.archiveNotice;
+    },
   },
   template: `
     <div id="spiHelper-topView-Card" v-if="open">
@@ -236,7 +242,7 @@ export const TopViewComponent = defineComponent({
         void saveOptions();
       }
     },
-    async 'state.selectedSection'(selection: SectionSelection | null) {
+    async selectedSection(selection: SectionSelection | null) {
       if (!selection) {
         return;
       }
@@ -247,7 +253,7 @@ export const TopViewComponent = defineComponent({
       );
       this.massAddSockRows(allRows);
     },
-    'state.archiveNotice'(newNotice: ParsedArchiveNotice | null) {
+    archiveNotice(newNotice: ParsedArchiveNotice | null) {
       this.caseActions.management.data.flags = getManagementFlagsFromArchiveNotice(newNotice);
     },
     // Disable actions when changing section

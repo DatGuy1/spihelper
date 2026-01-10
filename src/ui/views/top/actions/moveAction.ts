@@ -31,11 +31,11 @@ export const MoveActionComponent = defineComponent({
   `,
   computed: {
     allowSectionMoves(): boolean {
-      return this.selection?.type === 'all'
+      return this.selectionType === 'all'
         || (this.isSectionMove && spiHelperSettings.iUnderstandSectionMoves);
     },
     isSectionMove(): boolean {
-      return this.selection?.type === 'specific';
+      return this.selectionType === 'specific';
     },
     moveTitle(): string {
       if (!this.selection) {
@@ -49,9 +49,12 @@ export const MoveActionComponent = defineComponent({
     disabled(): boolean {
       return this.archiveEnabled || (this.isSectionMove && !this.allowSectionMoves);
     },
+    selectionType() {
+      return this.selection?.type ?? null;
+    },
   },
   watch: {
-    'selection.type': {
+    selectionType: {
       handler(newType: 'all' | 'specific' | null) {
         if (newType === 'specific') {
           if (!this.allowSectionMoves) {
@@ -61,7 +64,7 @@ export const MoveActionComponent = defineComponent({
       },
       immediate: true,
     },
-    'archiveEnabled': {
+    archiveEnabled: {
       handler(enabled: boolean) {
         if (enabled) {
           this.$emit('update:enabled', false);
