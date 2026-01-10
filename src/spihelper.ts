@@ -117,9 +117,9 @@ mw.loader.using(['vue', '@wikimedia/codex', 'mediawiki.api', 'mediawiki.util', '
       .mount(mountPoint);
   }
 
-  const modalMountPoint = document.body.appendChild(document.createElement('div'));
   const settingsLink = mw.util.addPortletLink('p-cactions', '#', 'SPI-Beta-Options', 'ca-spiHelperOpts', 'Modify spiHelper settings');
   if (settingsLink) {
+    const mountPoint = document.body.appendChild(document.createElement('div'));
     Vue.createMwApp(OptionsComponent, { openButton: settingsLink })
       .component('cdx-button', Codex.CdxButton)
       .component('cdx-dialog', Codex.CdxDialog)
@@ -134,12 +134,13 @@ mw.loader.using(['vue', '@wikimedia/codex', 'mediawiki.api', 'mediawiki.util', '
       .component('expiry-setting', ExpirySettingComponent)
       .component('expiry-input', ExpiryInputComponent)
       .component('log-page-setting', LogPageSettingComponent)
-      .mount(modalMountPoint);
+      .mount(mountPoint);
   }
 
   if (mw.config.get('wgCategories').includes('SPI cases awaiting archive') && spiHelperIsClerk()) {
     const oneClickArchiveLink = mw.util.addPortletLink('p-cactions', '#', 'SPI-Beta-Archive', 'ca-spiHelperArchive', 'Run one click archival');
     if (oneClickArchiveLink) {
+      const mountPoint = document.body.appendChild(document.createElement('div'));
       Vue.createMwApp(
         OneClickArchivalComponent,
         {
@@ -149,7 +150,7 @@ mw.loader.using(['vue', '@wikimedia/codex', 'mediawiki.api', 'mediawiki.util', '
       )
         .component('cdx-dialog', Codex.CdxDialog)
         .component('cdx-message', Codex.CdxMessage)
-        .mount(modalMountPoint);
+        .mount(mountPoint);
     }
   }
 
