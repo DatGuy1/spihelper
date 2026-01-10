@@ -23,7 +23,8 @@ await Bun.build({
     __VERSION__: JSON.stringify(version),
     __MODE__: `"${mode}"`,
   },
-  banner: '// ' + usyncTemplateJs + '\n// ' + versionBanner,
+  banner: '// ' + usyncTemplateJs + '\n// ' + versionBanner + '\n// <nowiki>',
+  footer: '// </nowiki>',
 });
 
 // Prepend CSS banner manually since Bun doesn't
