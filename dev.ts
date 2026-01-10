@@ -1,4 +1,3 @@
-// build.ts
 import { watch } from 'fs';
 import { resolve } from 'path';
 import { codename, version } from './package.json';
@@ -19,7 +18,7 @@ async function build() {
       __VERSION__: JSON.stringify(version),
       __MODE__: '"dev"',
     },
-    banner: `// {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper}}\n// v${version} "${codename}"`,
+    banner: `// v${version} "${codename}"`,
   });
 
   if (!result.success) {
