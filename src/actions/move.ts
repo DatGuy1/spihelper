@@ -1,11 +1,17 @@
-import { spiHelperSettings } from '../options.ts';
-import { ParsedArchiveNotice, type SectionEntry } from '../types/spi.ts';
+import { spiHelperSettings } from '../options';
+import { ParsedArchiveNotice } from '../types/spi.ts';
 import {
-  spiHelperConfigurePendingChanges, spiHelperDeletePage,
-  spiHelperEditPage, spiHelperGetPageRev, spiHelperGetPageText,
-  spiHelperGetProtectionInformation, spiHelperGetSiteRestrictionInformation,
+  spiHelperConfigurePendingChanges,
+  spiHelperDeletePage,
+  spiHelperEditPage,
+  spiHelperGetPageRev,
+  spiHelperGetPageText,
+  spiHelperGetProtectionInformation,
   spiHelperGetSPIBacklinks,
-  spiHelperGetStabilisationSettings, spiHelperMovePage, spiHelperProtectPage,
+  spiHelperGetSiteRestrictionInformation,
+  spiHelperGetStabilisationSettings,
+  spiHelperMovePage,
+  spiHelperProtectPage,
   spiHelperUndeletePage,
 } from '../api.ts';
 import {
@@ -13,10 +19,109 @@ import {
   spiHelperPriorCasesRegex,
   spiHelperSockSectionWithNewlineRegex,
 } from '../constants/regex.ts';
-import { context, SpiPageContext } from '../context.ts';
+import { SpiPageContext, context } from '../context.ts';
 import { spiHelperIsAdmin } from '../role.ts';
-import type { NewPendingChanges, Protection } from '../types/api.ts';
+import type { NewPendingChanges, Protection, Restrictions } from '../types/api.ts';
 import { spiHelperParseArchiveNotice } from '../archivenotice.ts';
+import { type SectionEntry, loadSectionText } from '../state.ts';
+import { VueMessage } from '../ui/messages.ts';
+import { isAbsoluteExpiry } from '../utils.ts';
+
+async function getNewProtection(
+  oldTitle: string, newTitle: string, siteRestrictions: Restrictions,
+) {
+  const oldPageNameProtection = await spiHelperGetProtectionInformation(oldTitle);
+  const newPageNameProtection = await spiHelperGetProtectionInformation(newTitle);
+  const newProtectionValues: Protection[] = [];
+  // First find if both the old page and new page had the same protection type enabled
+  siteRestrictions.types.forEach((type: string) => {
+    const oldPageNameEntry = oldPageNameProtection.find(dict => dict.type === type);
+    const newPageNameEntry = newPageNameProtection.find(dict => dict.type === type);
+    if (oldPageNameEntry && newPageNameEntry) {
+      let expiry = newPageNameEntry.expiry;
+      if (isAbsoluteExpiry(newPageNameEntry.expiry) || isAbsoluteExpiry(oldPageNameEntry.expiry)) {
+        expiry = 'infinite';
+      }
+      else if (newPageNameEntry.expiry < oldPageNameEntry.expiry) {
+        expiry = oldPageNameEntry.expiry;
+      }
+      const oldPageNameEntryLevelIndex = siteRestrictions.levels.indexOf(oldPageNameEntry.level);
+      const newPageNameEntryLevelIndex = siteRestrictions.levels.indexOf(newPageNameEntry.level);
+      let level: string;
+      if (oldPageNameEntryLevelIndex === -1 || newPageNameEntryLevelIndex === -1) {
+        console.error('Invalid protection information provided from API');
+        return;
+      }
+      else if (oldPageNameEntryLevelIndex > newPageNameEntryLevelIndex) {
+        level = oldPageNameEntry.level;
+      }
+      else if (oldPageNameEntryLevelIndex <= newPageNameEntryLevelIndex) {
+        level = newPageNameEntry.level;
+      }
+      else {
+        return;
+      }
+      newProtectionValues.push({ type: oldPageNameEntry.type, expiry: expiry, level: level });
+    }
+    else if (oldPageNameEntry) {
+      newProtectionValues.push(oldPageNameEntry);
+    }
+    else if (newPageNameEntry) {
+      newProtectionValues.push(newPageNameEntry);
+    }
+  });
+  return newProtectionValues;
+}
+
+async function getNewPendingChanges(
+  oldTitle: string, newTitle: string, siteRestrictions: Restrictions,
+) {
+  const oldPageStabilisation = await spiHelperGetStabilisationSettings(oldTitle);
+  const newPageStabilisation = await spiHelperGetStabilisationSettings(newTitle);
+  let newStabilisationSettings: NewPendingChanges = { level: '' };
+  if (oldPageStabilisation && newPageStabilisation) {
+    // Pending changes is used on both pages
+    if (
+      isAbsoluteExpiry(oldPageStabilisation.protection_expiry)
+      || isAbsoluteExpiry(newPageStabilisation.protection_expiry)
+    ) {
+      newStabilisationSettings.expiry = 'infinite';
+    }
+    else if (newPageStabilisation.protection_expiry < oldPageStabilisation.protection_expiry) {
+      newStabilisationSettings.expiry = oldPageStabilisation.protection_expiry;
+    }
+    else {
+      newStabilisationSettings.expiry = newPageStabilisation.protection_expiry;
+    }
+    const oldPageNameEntryLevelIndex = siteRestrictions.levels
+      .indexOf(oldPageStabilisation.protection_level);
+    const newPageNameEntryLevelIndex = siteRestrictions.levels
+      .indexOf(newPageStabilisation.protection_level);
+    if (oldPageNameEntryLevelIndex === -1 || newPageNameEntryLevelIndex === -1) {
+      console.error('Invalid protection information provided from API');
+      return newStabilisationSettings;
+    }
+    else if (oldPageNameEntryLevelIndex > newPageNameEntryLevelIndex) {
+      newStabilisationSettings.level = oldPageStabilisation.protection_level;
+    }
+    else if (oldPageNameEntryLevelIndex <= newPageNameEntryLevelIndex) {
+      newStabilisationSettings.level = newPageStabilisation.protection_level;
+    }
+  }
+  else if (oldPageStabilisation) {
+    newStabilisationSettings = {
+      level: oldPageStabilisation.protection_level,
+      expiry: oldPageStabilisation.protection_expiry,
+    };
+  }
+  else if (newPageStabilisation) {
+    newStabilisationSettings = {
+      level: newPageStabilisation.protection_level,
+      expiry: newPageStabilisation.protection_expiry,
+    };
+  }
+  return newStabilisationSettings;
+}
 
 /**
  * Move or merge the selected case into a different case
@@ -37,27 +142,20 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
     if (spiHelperIsAdmin()) {
       const proceed = confirm('Target page exists, do you want to histmerge the cases?');
       if (!proceed) {
-        // Build out the error line
-        $('<li>')
-          .append($('<div>').addClass('spihelper-errortext')
-            .append($('<b>').text('Aborted merge.')))
-          .appendTo($('#spiHelper_status', document));
+        new VueMessage({ type: 'warning', content: 'Aborted merge' }).show();
         return;
       }
     }
     else {
-      $('<li>')
-        .append($('<div>').addClass('spihelper-errortext')
-          .append($('<b>').text('Target page exists and you are not an admin, aborting merge.')))
-        .appendTo($('#spiHelper_status', document));
+      new VueMessage({
+        type: 'warning',
+        content: 'Target page exists and you are not an admin, aborting merge',
+      }).show();
       return;
     }
   }
   if (newContext.pageName === oldContext.pageName) {
-    $('<li>')
-      .append($('<div>').addClass('spihelper-errortext')
-        .append($('<b>').text('Target page is the current page, aborting merge.')))
-      .appendTo($('#spiHelper_status', document));
+    new VueMessage({ type: 'error', content: 'Target page is the current page, aborting merge' }).show();
     return;
   }
 
@@ -68,9 +166,10 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
     let sourceArchiveText = await spiHelperGetPageText(oldContext.archiveName, false);
     let targetArchiveText = await spiHelperGetPageText(newContext.archiveName, false);
     if (sourceArchiveText && targetArchiveText) {
-      $('<li>')
-        .append($('<div>').text('Archive detected on both source and target cases, manually copying archive.'))
-        .appendTo($('#spiHelper_status', document));
+      new VueMessage({
+        type: 'notice',
+        content: 'Archive detected on both source and target cases, manually copying archive.',
+      }).show();
 
       // Normalize the source archive text
       sourceArchiveText = sourceArchiveText.replace(/^\s*__TOC__\s*$\n/gm, '');
@@ -79,122 +178,66 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
       // Strip leading newlines
       sourceArchiveText = sourceArchiveText.replace(/^\n*/, '');
       targetArchiveText += '\n' + sourceArchiveText;
-      await spiHelperEditPage(newContext.archiveName, targetArchiveText, 'Copying archives from [[' + oldContext.prefixedName + ']], see page history for attribution',
-        false, spiHelperSettings.watch.archive, spiHelperSettings.expiry.archive);
+      await spiHelperEditPage({
+        title: newContext.archiveName,
+        newText: targetArchiveText,
+        summary: `Copying archives from [[${oldContext.prefixedName}]], see page history for attribution`,
+        createonly: false,
+        watch: spiHelperSettings.watch.archive,
+        watchExpiry: spiHelperSettings.expiry.archive,
+      });
       await spiHelperDeletePage(oldContext.archiveName, 'Deleting copied archive');
       archivesCopied = true;
     }
-    // Now get existing protection levels on the target and existing page.
-    const oldPageNameProtection = await spiHelperGetProtectionInformation(oldContext.pageName);
-    const newPageNameProtection = await spiHelperGetProtectionInformation(newContext.pageName);
-    const newProtectionValues: Protection[] = [];
     const siteRestrictions = await spiHelperGetSiteRestrictionInformation();
-    // First find if both the old page and new page had the same protection type enabled
-    siteRestrictions.types.forEach((type: string) => {
-      const oldPageNameEntry = oldPageNameProtection.find(dict => dict.type === type);
-      const newPageNameEntry = newPageNameProtection.find(dict => dict.type === type);
-      if (oldPageNameEntry && newPageNameEntry) {
-        let expiry = newPageNameEntry.expiry;
-        if (newPageNameEntry.expiry === 'infinity' || oldPageNameEntry.expiry === 'infinity' || newPageNameEntry.expiry === 'infinite' || oldPageNameEntry.expiry === 'infinite') {
-          expiry = 'infinite';
-        }
-        else if (newPageNameEntry.expiry < oldPageNameEntry.expiry) {
-          expiry = oldPageNameEntry.expiry;
-        }
-        const oldPageNameEntryLevelIndex = siteRestrictions.levels.indexOf(oldPageNameEntry.level);
-        const newPageNameEntryLevelIndex = siteRestrictions.levels.indexOf(newPageNameEntry.level);
-        let level: string;
-        if (oldPageNameEntryLevelIndex === -1 || newPageNameEntryLevelIndex === -1) {
-          console.error('Invalid protection information provided from API');
-          return;
-        }
-        else if (oldPageNameEntryLevelIndex > newPageNameEntryLevelIndex) {
-          level = oldPageNameEntry.level;
-        }
-        else if (oldPageNameEntryLevelIndex <= newPageNameEntryLevelIndex) {
-          level = newPageNameEntry.level;
-        }
-        else {
-          return;
-        }
-        newProtectionValues.push({ type: oldPageNameEntry.type, expiry: expiry, level: level });
-      }
-      else if (oldPageNameEntry) {
-        newProtectionValues.push(oldPageNameEntry);
-      }
-      else if (newPageNameEntry) {
-        newProtectionValues.push(newPageNameEntry);
-      }
-    });
+    // Now get existing protection levels on the target and existing page.
+    const newProtection = await getNewProtection(
+      oldContext.pageName, newContext.pageName, siteRestrictions,
+    );
     // Now handle pending changes protection
-    const oldPageStabilisation = await spiHelperGetStabilisationSettings(oldContext.pageName);
-    const newPageStabilisation = await spiHelperGetStabilisationSettings(newContext.pageName);
-    let newStabilisationSettings: NewPendingChanges = { level: '' };
-    if (oldPageStabilisation && newPageStabilisation) {
-      // Pending changes is used on both pages
-      if (
-        newPageStabilisation.protection_expiry.startsWith('infinit')
-        || oldPageStabilisation.protection_expiry.startsWith('infinit')
-      ) {
-        newStabilisationSettings.expiry = 'infinite';
-      }
-      else if (newPageStabilisation.protection_expiry < oldPageStabilisation.protection_expiry) {
-        newStabilisationSettings.expiry = oldPageStabilisation.protection_expiry;
-      }
-      else {
-        newStabilisationSettings.expiry = newPageStabilisation.protection_expiry;
-      }
-      const oldPageNameEntryLevelIndex = siteRestrictions.levels
-        .indexOf(oldPageStabilisation.protection_level);
-      const newPageNameEntryLevelIndex = siteRestrictions.levels
-        .indexOf(newPageStabilisation.protection_level);
-      if (oldPageNameEntryLevelIndex === -1 || newPageNameEntryLevelIndex === -1) {
-        console.error('Invalid protection information provided from API');
-        return;
-      }
-      else if (oldPageNameEntryLevelIndex > newPageNameEntryLevelIndex) {
-        newStabilisationSettings.level = oldPageStabilisation.protection_level;
-      }
-      else if (oldPageNameEntryLevelIndex <= newPageNameEntryLevelIndex) {
-        newStabilisationSettings.level = newPageStabilisation.protection_level;
-      }
-    }
-    else if (oldPageStabilisation) {
-      newStabilisationSettings = {
-        level: oldPageStabilisation.protection_level,
-        expiry: oldPageStabilisation.protection_expiry,
-      };
-    }
-    else if (newPageStabilisation) {
-      newStabilisationSettings = {
-        level: newPageStabilisation.protection_level,
-        expiry: newPageStabilisation.protection_expiry,
-      };
-    }
+    const newPendingChanges = await getNewPendingChanges(
+      oldContext.pageName, newContext.pageName, siteRestrictions,
+    );
     // Ignore warnings on the move, we're going to get one since we're stomping an existing page
     await spiHelperDeletePage(oldContext.pageName, 'Deleting as part of case merge');
-    await spiHelperMovePage(oldContext.pageName, newContext.pageName, 'Merging case to [[' + newContext.prefixedName + ']]', true);
+    await spiHelperMovePage({
+      sourcePage: oldContext.pageName,
+      destPage: newContext.pageName,
+      summary: `Merging case to [[${newContext.prefixedName}]]`,
+      ignoreWarnings: true,
+    });
     await spiHelperUndeletePage(newContext.pageName, 'Restoring page history after merge');
     if (archivesCopied) {
       // Create a redirect
-      await spiHelperEditPage(oldContext.archiveName, '#REDIRECT [[' + newContext.archiveName + ']]', 'Redirecting old archive to new archive',
-        false, spiHelperSettings.watch.archive, spiHelperSettings.expiry.archive);
+      await spiHelperEditPage({
+        title: oldContext.archiveName,
+        newText: `#REDIRECT [[${newContext.archiveName}]]`,
+        summary: 'Redirecting old archive to new archive',
+        createonly: false,
+        watch: spiHelperSettings.watch.archive,
+        watchExpiry: spiHelperSettings.expiry.archive,
+      });
     }
     // Now to protect both the oldPageName and newPageName with the protection
     // settings in newProtectionDict, unless it is empty (i.e. no protection needed)
-    // Also apply any pending changes needed
-    // (when newStabilisationSettings has a non-empty protection_level)
-    if (newProtectionValues.length !== 0) {
-      await spiHelperProtectPage(newContext.pageName, newProtectionValues);
-      await spiHelperProtectPage(oldContext.pageName, newProtectionValues);
+    // Also apply any pending changes needed when
+    // newStabilisationSettings has a non-empty protection_level
+    if (newProtection.length !== 0) {
+      await spiHelperProtectPage(newContext.pageName, newProtection);
+      await spiHelperProtectPage(oldContext.pageName, newProtection);
     }
-    if (newStabilisationSettings.level !== '') {
-      await spiHelperConfigurePendingChanges(newContext.pageName, newStabilisationSettings);
-      await spiHelperConfigurePendingChanges(oldContext.pageName, newStabilisationSettings);
+    if (newPendingChanges.level !== '') {
+      await spiHelperConfigurePendingChanges(newContext.pageName, newPendingChanges);
+      await spiHelperConfigurePendingChanges(oldContext.pageName, newPendingChanges);
     }
   }
   else {
-    await spiHelperMovePage(oldContext.pageName, newContext.pageName, 'Moving case to [[' + newContext.prefixedName + ']]', false);
+    await spiHelperMovePage({
+      sourcePage: oldContext.pageName,
+      destPage: newContext.pageName,
+      summary: `Moving case to [[${newContext.prefixedName}]]`,
+      ignoreWarnings: false,
+    });
   }
   await spiHelperPostRenameCleanup(oldContext.pageName, archiveNotice);
   if (targetPageText) {
@@ -202,7 +245,10 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
     await spiHelperPostMergeCleanup(targetPageText);
   }
   if (archivesCopied) {
-    alert('Archives were merged during the case move, please reorder the archive sections');
+    new VueMessage({
+      type: 'notice',
+      content: 'Archives were merged during the case move, please reorder the archive sections',
+    }).show();
   }
 }
 
@@ -215,7 +261,7 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
 export async function spiHelperMoveCaseSection(mergeTarget: string, section: SectionEntry) {
   const newContext = new SpiPageContext(context.pageName.replace(context.caseName, mergeTarget));
   let targetPageText = await newContext.getText();
-  let sectionText = await section.getText();
+  let sectionText = await loadSectionText(section) ?? '';
   sectionText = sectionText.replace(
     /\n*----(?!(\n|.)*----)/,
     '\n* {{clerknote}} originally filed under [[Wikipedia:Sockpuppet investigations/' + context.caseName + ']]. ~~~~\n----',
@@ -284,7 +330,13 @@ async function spiHelperPostRenameCleanup(
         continue;
       }
       if (archiveNotice.username === currentPageToCheck.replace(/Wikipedia:Sockpuppet investigations\//g, '')) {
-        void spiHelperEditPage(backlink.title, replacementArchiveNotice, 'Updating case following page move', false, spiHelperSettings.watch.case, spiHelperSettings.expiry.case);
+        void spiHelperEditPage({
+          title: backlink.title,
+          newText: replacementArchiveNotice,
+          summary: 'Updating case following page move',
+          watch: spiHelperSettings.watch.case,
+          watchExpiry: spiHelperSettings.expiry.case,
+        });
         if (pagesChecked.indexOf(backlink.title) !== -1) {
           pagesToCheck.push(backlink.title);
         }
@@ -293,7 +345,13 @@ async function spiHelperPostRenameCleanup(
   }
 
   // The old case should just be the archivenotice template and point to the new case
-  await spiHelperEditPage(oldCasePage, replacementArchiveNotice, 'Updating case following page move', false, spiHelperSettings.watch.case, spiHelperSettings.expiry.case);
+  await spiHelperEditPage({
+    title: oldCasePage,
+    newText: replacementArchiveNotice,
+    summary: 'Updating case following page move',
+    watch: spiHelperSettings.watch.case,
+    watchExpiry: spiHelperSettings.expiry.case,
+  });
 
   // The new case's archivenotice should be updated with the new name
   let newPageText = await context.getText({ show: true });
@@ -310,7 +368,12 @@ async function spiHelperPostRenameCleanup(
   const newMasterRe = new RegExp(newMasterReString, 'sm');
   newPageText = newPageText.replace(newMasterRe, '$1\n$2');
 
-  await context.edit({ newText: newPageText, summary: 'Updating case following page move', watch: spiHelperSettings.watch.case, watchExpiry: spiHelperSettings.expiry.case });
+  await context.edit({
+    newText: newPageText,
+    summary: 'Updating case following page move',
+    watch: spiHelperSettings.watch.case,
+    watchExpiry: spiHelperSettings.expiry.case,
+  });
   // Update to the latest revision ID
   await context.refreshRevId();
 }
@@ -329,7 +392,12 @@ async function spiHelperPostMergeCleanup(originalText: string): Promise<void> {
   newText = originalText + '\n' + newText;
 
   // Write the updated case
-  await context.edit({ newText: newText, summary: 'Re-adding previous cases following merge', watch: spiHelperSettings.watch.case, watchExpiry: spiHelperSettings.expiry.case });
+  await context.edit({
+    newText: newText,
+    summary: 'Re-adding previous cases following merge',
+    watch: spiHelperSettings.watch.case,
+    watchExpiry: spiHelperSettings.expiry.case,
+  });
   // Update to the latest revision ID
   await context.refreshRevId();
 }

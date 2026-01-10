@@ -1,8 +1,8 @@
 // Validator type system
-import { spiHelperIsCheckuser } from './role.ts';
-import { spiHelperGetAPI } from './api.ts';
-import type { ScriptSettings } from './options/types.ts';
-import { migrateSettings } from './options/migration.ts';
+import { spiHelperIsCheckuser } from '../role.ts';
+import { spiHelperGetAPI } from '../api.ts';
+import type { ScriptSettings } from './types.ts';
+import { migrateSettings } from './migration.ts';
 
 export const spiHelperSettings: ScriptSettings = {
   // Choices are 'watch' (unconditionally add to watchlist), 'preferences'
@@ -38,6 +38,14 @@ export const spiHelperSettings: ScriptSettings = {
   useCheckuserblockAccount: spiHelperIsCheckuser(false),
   // Default IPv6 listings to /64 in the block/tag socks menu
   displayIPv6As64: true,
+  // Whether to lookup usernames and pages while writing in the menu
+  useLookup: true,
+  interface: {
+    // Should we pin the top view to the top, or make it sticky
+    pinned: true,
+    // Whether to use the button layout (true) or the accordion layout (false)
+    buttonLayout: true,
+  },
   // These are for debugging to view as other roles. If you're picking apart the code and
   // decide to set these (especially the CU option), it is YOUR responsibility to make sure
   // you don't do something that violates policy
@@ -57,7 +65,7 @@ export function saveOptions() {
 export function loadOptions(): Record<string, unknown> | null {
   const rawData = mw.user.options.get(saveKey);
   try {
-    return rawData ? JSON.parse(rawData) : null;
+    return rawData ? JSON.parse(rawData) as Record<string, unknown> : null;
   }
   catch (e) {
     console.warn('Failed to parse saved options', e);
@@ -70,13 +78,13 @@ declare let spiHelperCustomOpts: Record<string, unknown>;
 export async function migrateOptions() {
   try {
     await mw.loader.getScript('/w/index.php?title=Special:MyPage/spihelper-options.js&action=raw&ctype=text/javascript');
-    if (typeof spiHelperCustomOpts !== 'undefined') {
+    if (spiHelperCustomOpts !== undefined) {
       await migrateSettings(spiHelperCustomOpts);
     }
   }
   catch (error) {
-    mw.log.error('Error retrieving your spihelper-options.js');
+    mw.notify('Error retrieving your spihelper-options.js', { type: 'error' });
     // More detailed error in the console
-    console.error('Error getting local spihelper-options.js: ' + error);
+    console.error('Error getting local spihelper-options.js: ', error);
   }
 }

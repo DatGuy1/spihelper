@@ -1,5 +1,5 @@
 import { spiHelperValidateDate } from './utils.ts';
-import { spiHelperSettings } from '../options.ts';
+import { spiHelperSettings } from './options.ts';
 
 interface MigrationRule {
   oldPath: string;

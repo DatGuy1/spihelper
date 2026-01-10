@@ -1,5 +1,5 @@
 import { defineComponent } from 'vue';
-import { WatchOptions, WatchOptionsSelect } from '../types/vue.ts';
+import { WatchOptions, WatchOptionsSelect } from '../../../types/vue.ts';
 
 export const WatchSettingComponent = defineComponent({
   props: {

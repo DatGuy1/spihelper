@@ -20,3 +20,5 @@ export const spiHelperSectionRegex = /^(?:===[^=]*===|=====[^=]*=====)\s*$/m;
 // regex to remove hidden characters from form inputs - they mess up some things,
 // especially mw.util.isIP
 export const spiHelperHiddenCharNormRegex = /\u200E/g;
+
+export const spiHelperSignatureRegex = /(?<!~)~~~~(?!~)/;

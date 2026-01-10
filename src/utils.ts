@@ -1,17 +1,5 @@
-import { spiHelperHiddenCharNormRegex } from './constants/regex.ts';
-
-/**
- * Grab the value of #spiHelper_CommentText in a safe manner
- */
-export function spiHelperGetCommentTextValue(): string {
-  const commentTextValue = $('#spiHelper_CommentText', document).val();
-  if (typeof commentTextValue !== 'string') {
-    console.error('spiHelperGetCommentTextValue: Comment text is not a string!');
-    return '';
-  }
-
-  return commentTextValue;
-}
+import { spiHelperHiddenCharNormRegex, spiHelperSignatureRegex } from './constants/regex.ts';
+import type { AbsoluteExpiry, Expiry, NoExpiry, RelativeExpiry } from './types/api.ts';
 
 /**
  * Removes the interwiki prefix from a page title
@@ -20,7 +8,6 @@ export function spiHelperGetCommentTextValue(): string {
  * @return {string} Just the page name
  */
 export function spiHelperStripXWikiPrefix(title: string): string {
-  // TODO: This only works with single-colon names, make it more robust
   if (title.startsWith('m:') || title.startsWith('meta:')) {
     return title.slice(title.indexOf(':') + 1);
   }
@@ -141,4 +128,46 @@ export function spiHelperNormalizeUsername(username: string): string {
     username = new mw.Title(username).getMainText();
   }
   return username;
+}
+
+export function isAbsoluteExpiry(value: string): value is AbsoluteExpiry {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value);
+}
+
+export function isNoExpiry(value: string): value is NoExpiry {
+  return mw.util.isInfinity(value);
+}
+
+const RELATIVE_UNITS = [
+  'second', 'seconds',
+  'minute', 'minutes',
+  'hour', 'hours',
+  'day', 'days',
+  'week', 'weeks',
+  'month', 'months',
+  'year', 'years',
+];
+
+const RELATIVE_REGEX = new RegExp(
+  `^(\\d+(?:\\.\\d+)?)\\s+(${RELATIVE_UNITS.join('|')})$`, 'i',
+);
+
+export function isRelativeExpiry(value: string): value is RelativeExpiry {
+  return RELATIVE_REGEX.test(value);
+}
+
+export function parseExpiry(value: string): Expiry | null {
+  if (isNoExpiry(value)) return value;
+  if (isAbsoluteExpiry(value)) return value;
+  if (isRelativeExpiry(value)) return value;
+  return null;
+}
+
+export function isNonRegisteredAccount(username: string) {
+  return mw.util.isIPAddress(username, true) || mw.util.isTemporaryUser(username);
+}
+
+export function addSignature(text: string): string {
+  const withSignature = spiHelperSignatureRegex.test(text);
+  return withSignature ? text : text.trimEnd() + ' ~~~~';
 }

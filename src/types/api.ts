@@ -63,6 +63,23 @@ export interface ParseResponse<T extends keyof ParseDataMap> {
   parse: ParseDataMap[T];
 }
 
+export interface BlockEntry {
+  // Username to block
+  username: string;
+  // Duration of block
+  duration: string;
+  // Account creation blocked
+  acb: boolean;
+  // Autoblock enabled / logged-in IP block
+  abao: boolean;
+  // Talk page access blocked
+  ntp: boolean;
+  // Email access blocked
+  nem: boolean;
+  // Block reason
+  reason: string;
+}
+
 export interface BlocksResponse {
   query: {
     blocks: Array<{
@@ -81,7 +98,21 @@ export interface BlocksResponse {
   };
 }
 
-export interface GlobalAllUseresResponse {
+export interface CategoriesResponse {
+  query: {
+    pages: Array<{
+      pageid: number;
+      ns: number;
+      title: string;
+      categories: Array<{
+        ns: number;
+        title: string;
+      }>;
+    }>;
+  };
+}
+
+export interface GlobalAllUsersResponse {
   query: {
     globalallusers: Array<{
       id: number;
@@ -90,6 +121,39 @@ export interface GlobalAllUseresResponse {
       locked?: string;
     }>;
   };
+}
+
+export interface AllUsersResponse {
+  query: {
+    allusers: Array<AllUser>;
+  };
+}
+
+export interface AllUser {
+  userid: number;
+  name: string;
+  attachedlocal?: {
+    CentralAuth: boolean;
+    local: boolean;
+  };
+  blockid?: number;
+  blockexpiry?: string;
+  blocknocreate?: boolean;
+  blockanononly?: boolean;
+  blockemail?: boolean;
+  blockowntalk?: boolean;
+}
+
+export interface AllPagesResponse {
+  query: {
+    allpages: Array<AllPage>;
+  };
+}
+
+export interface AllPage {
+  pageid: number;
+  ns: number;
+  title: string;
 }
 
 interface RevisionsResponseIDs {

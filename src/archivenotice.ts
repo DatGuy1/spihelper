@@ -1,71 +1,84 @@
 import { ParsedArchiveNotice } from './types/spi.ts';
 import { spiHelperEditPage, spiHelperGetPageText } from './api.ts';
-import { spiHelperArchiveNoticeRegex, spiHelperPriorCasesRegex } from './constants/regex.ts';
+import { spiHelperPriorCasesRegex } from './constants/regex.ts';
 import { context } from './context.ts';
-import { spiHelperSettings } from './options.ts';
+import { spiHelperSettings } from './options';
+import { CaseState, loadCaseText } from './state.ts';
+import { parseTemplates } from './template.ts';
 
 /**
  * Parse key features from an archivenotice
  * @param {string} page Page to parse
- *
+ * @param state State used in case we're fetching the page
  * @return {Promise<ParsedArchiveNotice>} Parsed archivenotice
  */
 export async function spiHelperParseArchiveNotice(
   page: string,
+  state?: CaseState,
 ): Promise<ParsedArchiveNotice | null> {
-  const pagetext = await spiHelperGetPageText(page, false);
-  const match = spiHelperArchiveNoticeRegex.exec(pagetext);
-  if (match === null || !match[1]) {
+  let pageText: string;
+  if (page === context.pageName && state) {
+    pageText = await loadCaseText(state);
+  }
+  else {
+    pageText = await spiHelperGetPageText(page, false);
+  }
+  const templates = parseTemplates(pageText);
+  const archiveNoticeTemplate = templates.find(tl => /SPI\s*archive notice/i.exec(tl.name));
+  if (!archiveNoticeTemplate) {
     console.error('Missing archive notice');
     return null;
   }
-  const username = match[1];
-  let deny = false;
-  let xwiki = false;
-  let notalk = false;
-  let moot = false;
-  if (match[2]) {
-    for (const entry of match[2].split('|')) {
-      if (!entry) {
-        // split in such a way that it's just a pipe
-        continue;
-      }
-      const [key, val] = entry.split('=');
-      if (!key || !val) {
-        console.error('Malformed archivenotice parameter ' + entry);
-        continue;
-      }
-      if (val.toLowerCase() !== 'yes') {
-        // Only care if the value is 'yes'
-        continue;
-      }
-      if (key.toLowerCase() === 'deny') {
-        deny = true;
-      }
-      else if (key.toLowerCase() === 'crosswiki') {
-        xwiki = true;
-      }
-      else if (key.toLowerCase() === 'notalk') {
-        notalk = true;
-      }
-      else if (key.toLowerCase() === 'moot') {
-        moot = true;
-      }
+  const username = archiveNoticeTemplate.positional[0] || archiveNoticeTemplate.params['1'];
+  if (!username) {
+    console.error('Invalid archive notice: Username missing');
+    return null;
+  }
+  const flags = { deny: false, crosswiki: false, notalk: false, moot: false };
+
+  for (const [key, val] of Object.entries(archiveNoticeTemplate.params)) {
+    if (key === '1') {
+      continue;
+    }
+    if (val !== 'yes') {
+      console.warn('Malformed archivenotice parameter', key, '=', val);
+      continue;
+    }
+
+    if (key in flags) {
+      flags[key as keyof typeof flags] = true;
+    }
+    else {
+      console.warn('Unrecognised archivenotice parameter', key, '=', val);
     }
   }
-  return new ParsedArchiveNotice(username, deny, xwiki, notalk, moot);
+
+  return new ParsedArchiveNotice({ username: username, ...flags });
 }
 
-export async function spiHelperAddArchiveNotice($warningText: JQuery<HTMLElement>) {
-  $warningText.append($('<b>').text('Can\'t find archivenotice template! Automatically adding the archive notice to the page.'));
-  const newArchiveNotice = new ParsedArchiveNotice(context.caseName);
-  let pageText = await spiHelperGetPageText(context.pageName, false);
+export async function spiHelperAddArchiveNotice(state: CaseState) {
+  let pageText = await loadCaseText(state);
   if (spiHelperPriorCasesRegex.exec(pageText) === null) {
     pageText = '{{SPIpriorcases}}\n' + pageText;
   }
-  pageText = newArchiveNotice.generateWikitext() + '\n' + pageText;
-  if (pageText.indexOf('__TOC__') === -1) {
-    pageText = '<noinclude>__TOC__</noinclude>\n' + pageText;
+  const archiveNotice = state.archiveNotice
+    ?? new ParsedArchiveNotice({ username: context.caseName });
+  const archiveNoticeText = archiveNotice.generateWikitext();
+  const tocMatch = pageText.match(/(<noinclude>)?__TOC__(<\/noinclude>)?/);
+  if (tocMatch) {
+    // Insert after existing TOC
+    const tocEnd = tocMatch.index! + tocMatch[0].length;
+    pageText = pageText.slice(0, tocEnd) + '\n' + archiveNoticeText + pageText.slice(tocEnd);
   }
-  await spiHelperEditPage(context.pageName, pageText, 'Adding archive notice', false, spiHelperSettings.watch.case, spiHelperSettings.expiry.case);
+  else {
+    // Add TOC and archive notice at the top
+    pageText = '<noinclude>__TOC__</noinclude>\n' + archiveNoticeText + pageText;
+  }
+  await spiHelperEditPage({
+    title: context.pageName,
+    newText: pageText,
+    summary: 'Adding archive notice',
+    watch: spiHelperSettings.watch.case,
+    watchExpiry: spiHelperSettings.expiry.case,
+  });
 }

@@ -1,58 +1,107 @@
 import { context } from '../context.ts';
 
-export const spiHelperLinkViewURLFormats = {
+interface LinkFormatCollection {
+  editorInteractionAnalyser: LinkFormat;
+  interactionTimeline: LinkFormat;
+  checkUserWikiSearch: LinkFormat;
+  SPITools: {
+    timecard: LinkFormat;
+    consolidatedTimeline: LinkFormat;
+    pages: LinkFormat;
+  };
+  sandals: {
+    timecard: LinkFormat;
+    consolidatedTimeline: LinkFormat;
+    pages: LinkFormat;
+    summaries: LinkFormat;
+  };
+}
+
+export interface LinkFormat {
+  baseUrl: URL;
+  startingParams?: URLSearchParams;
+  userQueryStringKey: string;
+  userQueryStringSeparator: string;
+  userQueryStringWrapper: string;
+  // Whether we repeat userQueryStringKey for every new user. I.e. &users=user1&users=user2
+  multipleUserQueryStringKeys: boolean;
+}
+
+export const spiHelperLinkViewURLFormats: LinkFormatCollection = {
   editorInteractionAnalyser: {
-    baseurl: 'https://sigma.toolforge.org/editorinteract.py',
-    appendToQueryString: '',
+    baseUrl: new URL('https://sigma.toolforge.org/editorinteract.py'),
     userQueryStringKey: 'users',
     userQueryStringSeparator: '&',
     userQueryStringWrapper: '',
     multipleUserQueryStringKeys: true,
-    name: 'Editor Interaction Anaylser',
   },
   interactionTimeline: {
-    baseurl: 'https://interaction-timeline.toolforge.org/',
-    appendToQueryString: 'wiki=enwiki',
+    baseUrl: new URL('https://interaction-timeline.toolforge.org'),
+    startingParams: new URLSearchParams('wiki=enwiki'),
     userQueryStringKey: 'user',
     userQueryStringSeparator: '&',
     userQueryStringWrapper: '',
     multipleUserQueryStringKeys: true,
-    name: 'Interaction Timeline',
   },
-  timecardSPITools: {
-    baseurl: 'https://spi-tools.toolforge.org/spi/timecard/' + context.caseName,
-    appendToQueryString: '',
-    userQueryStringKey: 'users',
-    userQueryStringSeparator: '&',
-    userQueryStringWrapper: '',
-    multipleUserQueryStringKeys: true,
-    name: 'Timecard comparisons',
+  SPITools: {
+    timecard: {
+      baseUrl: new URL('https://spi-tools.toolforge.org/spi/timecard/' + context.caseName),
+      userQueryStringKey: 'users',
+      userQueryStringSeparator: '&',
+      userQueryStringWrapper: '',
+      multipleUserQueryStringKeys: true,
+    },
+    consolidatedTimeline: {
+      baseUrl: new URL('https://spi-tools.toolforge.org/spi/timeline/' + context.caseName),
+      userQueryStringKey: 'users',
+      userQueryStringSeparator: '&',
+      userQueryStringWrapper: '',
+      multipleUserQueryStringKeys: true,
+    },
+    pages: {
+      baseUrl: new URL('https://spi-tools.toolforge.org/spi/pages/' + context.caseName),
+      userQueryStringKey: 'users',
+      userQueryStringSeparator: '&',
+      userQueryStringWrapper: '',
+      multipleUserQueryStringKeys: true,
+    },
   },
-  consolidatedTimelineSPITools: {
-    baseurl: 'https://spi-tools.toolforge.org/spi/timecard/' + context.caseName,
-    appendToQueryString: '',
-    userQueryStringKey: 'users',
-    userQueryStringSeparator: '&',
-    userQueryStringWrapper: '',
-    multipleUserQueryStringKeys: true,
-    name: 'Consolidated Timeline (requires login)',
-  },
-  pagesSPITools: {
-    baseurl: 'https://spi-tools.toolforge.org/spi/timeline/' + context.caseName,
-    appendToQueryString: '',
-    userQueryStringKey: 'users',
-    userQueryStringSeparator: '&',
-    userQueryStringWrapper: '',
-    multipleUserQueryStringKeys: true,
-    name: 'SPI Tools Pages (requires login)',
+  sandals: {
+    timecard: {
+      baseUrl: new URL('https://sandals.toolforge.org/timecard'),
+      userQueryStringKey: 'users',
+      userQueryStringSeparator: '|',
+      userQueryStringWrapper: '',
+      multipleUserQueryStringKeys: false,
+    },
+    consolidatedTimeline: {
+      baseUrl: new URL('https://sandals.toolforge.org/timeline'),
+      userQueryStringKey: 'users',
+      userQueryStringSeparator: '|',
+      userQueryStringWrapper: '',
+      multipleUserQueryStringKeys: false,
+    },
+    pages: {
+      baseUrl: new URL('https://sandals.toolforge.org/pages'),
+      userQueryStringKey: 'users',
+      userQueryStringSeparator: '|',
+      userQueryStringWrapper: '',
+      multipleUserQueryStringKeys: false,
+    },
+    summaries: {
+      baseUrl: new URL('https://sandals.toolforge.org/summaries'),
+      userQueryStringKey: 'users',
+      userQueryStringSeparator: '|',
+      userQueryStringWrapper: '',
+      multipleUserQueryStringKeys: false,
+    },
   },
   checkUserWikiSearch: {
-    baseurl: 'https://checkuser.wikimedia.org/w/index.php',
-    appendToQueryString: 'ns0=1',
+    baseUrl: new URL('https://checkuser.wikimedia.org/w/index.php'),
+    startingParams: new URLSearchParams('ns0=1'),
     userQueryStringKey: 'search',
     userQueryStringSeparator: ' OR ',
     userQueryStringWrapper: '"',
     multipleUserQueryStringKeys: false,
-    name: 'Checkuser wiki search',
   },
 };

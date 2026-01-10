@@ -1,10 +1,12 @@
-import { defineComponent } from 'vue';
-import { cdxIconWatchlist, cdxIconClock, cdxIconCode, cdxIconJournal, cdxIconReload } from '@wikimedia/codex-icons';
-import { saveOptions, spiHelperSettings } from '../options.ts';
-import { spiHelperDefaultSettings } from '../constants/settings.ts';
+import { type PropType, defineComponent } from 'vue';
+import { cdxIconClock, cdxIconCode, cdxIconJournal, cdxIconReload, cdxIconWatchlist } from '@wikimedia/codex-icons';
+import { saveOptions, spiHelperSettings } from '../../../options';
+import { spiHelperDefaultSettings } from '../../../constants/settings.ts';
+import { getFullLogPage } from '../../../options/utils.ts';
 
 interface Data {
   open: boolean;
+  _openHandler: ((e: Event) => void) | null;
   showExtra: boolean;
   showExtraMessage: boolean;
   _showExtraHandler: ((e: KeyboardEvent) => void) | null;
@@ -19,11 +21,15 @@ interface Data {
 }
 
 export const OptionsComponent = defineComponent({
+  props: {
+    openButton: { type: Object as PropType<HTMLElement>, required: true },
+  },
   data: function (): Data {
     const username = mw.config.get('wgUserName') || '';
     const logPrefix = `User:${username}/`;
     return {
       open: false,
+      _openHandler: null,
       showExtra: spiHelperSettings.debug.enabled || spiHelperSettings.iUnderstandSectionMoves,
       showExtraMessage: false,
       _showExtraHandler: null,
@@ -39,7 +45,7 @@ export const OptionsComponent = defineComponent({
   },
   computed: {
     logPage(): string {
-      return `${mw.config.get('wgServer')}/wiki/User:${mw.config.get('wgUserName')}/${this.spiHelperSettings.log.page}`;
+      return `${mw.config.get('wgServer')}/wiki/${getFullLogPage(spiHelperSettings.log.page)}`;
     },
     isCheckUser(): boolean {
       const { debug } = this.spiHelperSettings;
@@ -50,21 +56,20 @@ export const OptionsComponent = defineComponent({
   },
   template: `
     <cdx-dialog v-model:open="open" title="spiHelper Options"
-                close-button-label="Close" id="spiHelper-opts-dialog"
-                @update:open="onDialogUpdate">
+                close-button-label="Close" id="spiHelper-opts-dialog">
       <p>Configure your spiHelper options</p>
       <cdx-message v-if="showExtraMessage" type="success" :fade-in="true" :auto-dismiss="true" :display-time="3000">
         I trust that you understand section moves
       </cdx-message>
       <cdx-accordion :action-icon="cdxIconWatchlist" :action-always-visible="true">
         <template #title>Watch</template>
-        <watch-setting label="Cases" v-model="spiHelperSettings.watch.case" :reset-trigger="resetTrigger"/>
-        <watch-setting label="Archives" v-model="spiHelperSettings.watch.archive" :reset-trigger="resetTrigger"/>
-        <watch-setting label="Tagged Users" v-model="spiHelperSettings.watch.tagged" :reset-trigger="resetTrigger"/>
-        <watch-setting label="Categories" v-model="spiHelperSettings.watch.categories" :reset-trigger="resetTrigger"/>
+        <watch-setting label="Cases" v-model="spiHelperSettings.watch.case" :reset-trigger="resetTrigger" />
+        <watch-setting label="Archives" v-model="spiHelperSettings.watch.archive" :reset-trigger="resetTrigger" />
+        <watch-setting label="Tagged Users" v-model="spiHelperSettings.watch.tagged" :reset-trigger="resetTrigger" />
+        <watch-setting label="Categories" v-model="spiHelperSettings.watch.categories" :reset-trigger="resetTrigger" />
         <cdx-field>
           <template #label>Blocked Users</template>
-          <cdx-toggle-switch v-model="spiHelperSettings.watch.blocked"/>
+          <cdx-toggle-switch v-model="spiHelperSettings.watch.blocked" />
           <template #help-text>Due to API limitations, only a toggle is available</template>
         </cdx-field>
       </cdx-accordion>
@@ -74,11 +79,13 @@ export const OptionsComponent = defineComponent({
           Expiry values may be relative (e.g. 5 months or 2 weeks) or absolute (e.g. 2014-09-18T12:34:56Z). For no
           expiry, use infinite, indefinite, infinity or never.
         </p>
-        <expiry-setting label="Cases" v-model="spiHelperSettings.expiry.case" :reset-trigger="resetTrigger"/>
-        <expiry-setting label="Archives" v-model="spiHelperSettings.expiry.archive" :reset-trigger="resetTrigger"/>
-        <expiry-setting label="Tagged Users" v-model="spiHelperSettings.expiry.tagged" :reset-trigger="resetTrigger"/>
-        <expiry-setting label="Categories" v-model="spiHelperSettings.expiry.categories" :reset-trigger="resetTrigger"/>
-        <expiry-setting label="Blocked Users" v-model="spiHelperSettings.expiry.blocked" :reset-trigger="resetTrigger"/>
+        <expiry-setting label="Cases" v-model="spiHelperSettings.expiry.case" :reset-trigger="resetTrigger" />
+        <expiry-setting label="Archives" v-model="spiHelperSettings.expiry.archive" :reset-trigger="resetTrigger" />
+        <expiry-setting label="Tagged Users" v-model="spiHelperSettings.expiry.tagged" :reset-trigger="resetTrigger" />
+        <expiry-setting label="Categories" v-model="spiHelperSettings.expiry.categories"
+                        :reset-trigger="resetTrigger" />
+        <expiry-setting label="Blocked Users" v-model="spiHelperSettings.expiry.blocked"
+                        :reset-trigger="resetTrigger" />
       </cdx-accordion>
       <cdx-accordion :action-icon="cdxIconJournal" :action-always-visible="true">
         <template #title>Log</template>
@@ -87,7 +94,7 @@ export const OptionsComponent = defineComponent({
           <template #description>Log all actions to your userspace</template>
         </cdx-toggle-switch>
         <div v-if="spiHelperSettings.log.enabled">
-          <log-page-setting v-model="spiHelperSettings.log.page" :prefix="logPrefix"/>
+          <log-page-setting v-model="spiHelperSettings.log.page" :prefix="logPrefix" />
           <br>
           <cdx-toggle-switch v-model="spiHelperSettings.log.reversed">
             Reverse log
@@ -104,7 +111,9 @@ export const OptionsComponent = defineComponent({
           Enabled
         </cdx-toggle-switch>
         <cdx-field v-if="spiHelperSettings.debug.enabled">
-          <template #description>These will override your roles. For example, if you are an administrator and force admin is unchecked, spiHelper will not consider you as an admninistrator.</template>
+          <template #description>These will override your roles. For example, if you are an administrator and force
+            admin is unchecked, spiHelper will not consider you as an admninistrator.
+          </template>
           <cdx-toggle-switch v-model="spiHelperSettings.debug.forceCheckuser" :align-switch="true">
             Force CheckUser state
           </cdx-toggle-switch>
@@ -126,6 +135,10 @@ export const OptionsComponent = defineComponent({
         <cdx-toggle-switch v-if="isCheckUser" v-model="spiHelperSettings.useCheckuserblockAccount" :align-switch="true">
           <span v-pre>Use {{<a href="//en.wikipedia.org/wiki/Template:Checkuserblock-account">checkuserblock-account</a>}} when CU blocking</span>
         </cdx-toggle-switch>
+        <cdx-toggle-switch v-model="spiHelperSettings.useLookup" :align-switch="true">
+          Use lookups
+          <template #description>Use the API to suggest autocompletions</template>
+        </cdx-toggle-switch>
         <div v-if="showExtra">
           <cdx-toggle-switch v-model="spiHelperSettings.iUnderstandSectionMoves" :align-switch="true">
             I understand section moves
@@ -134,18 +147,12 @@ export const OptionsComponent = defineComponent({
         <br>
         <cdx-button @click="loadDefaults">
           Load defaults
-          <cdx-icon :icon="cdxIconReload"/>
+          <cdx-icon :icon="cdxIconReload" />
         </cdx-button>
       </div>
     </cdx-dialog>
   `,
   methods: {
-    openDialog() {
-      this.open = true;
-      if (!this.showExtra && this._showExtraHandler) {
-        window.addEventListener('keydown', this._showExtraHandler);
-      }
-    },
     loadDefaults() {
       // Create a deep copy and replace the reactive reference
       this.spiHelperSettings = JSON.parse(JSON.stringify(spiHelperDefaultSettings));
@@ -153,37 +160,61 @@ export const OptionsComponent = defineComponent({
       Object.assign(spiHelperSettings, spiHelperDefaultSettings);
       this.resetTrigger++;
     },
-    onDialogUpdate(open: boolean) {
-      if (!open) {
+  },
+  watch: {
+    open(newVal: boolean) {
+      if (newVal) {
+        if (!this.showExtra && this._showExtraHandler) {
+          window.addEventListener('keydown', this._showExtraHandler);
+        }
+      }
+      else {
         void saveOptions();
         if (this._showExtraHandler) {
           window.removeEventListener('keydown', this._showExtraHandler);
         }
       }
     },
-    onMounted() {
-      // https://discord.com/channels/1373700739951624272/1447651346508415110/1447681331634110575
-      // "SPIhelper won't let you do merges until you learn how to merge.
-      // if you figure out how to make SPIhelper let you merge,
-      // you are allowed to merge." -asilvering
-      const target = 'COMPRENDO';
-      let buffer = '';
+  },
+  mounted() {
+    this._openHandler = () => {
+      this.open = true;
+    };
+    this.openButton.addEventListener('click', this._openHandler);
 
-      this._showExtraHandler = (e: KeyboardEvent) => {
-        if (e.key.length !== 1) return;
+    // https://discord.com/channels/1373700739951624272/1447651346508415110/1447681331634110575
+    // "SPIhelper won't let you do merges until you learn how to merge.
+    // if you figure out how to make SPIhelper let you merge,
+    // you are allowed to merge." -asilvering
+    //! Use the Konami code to unlock section moves
+    const konami = [
+      'ArrowUp', 'ArrowUp',
+      'ArrowDown', 'ArrowDown',
+      'ArrowLeft', 'ArrowRight',
+      'ArrowLeft', 'ArrowRight',
+    ];
+    let i = 0;
 
-        buffer += e.key.toUpperCase();
-        if (buffer.length > target.length) {
-          buffer = buffer.slice(-target.length);
-        }
-        if (buffer === target) {
+    this._showExtraHandler = (e: KeyboardEvent) => {
+      if (e.key === konami[i]) {
+        i++;
+        if (i === konami.length) {
           this.showExtra = true;
           this.showExtraMessage = true;
           if (this._showExtraHandler) {
             window.removeEventListener('keydown', this._showExtraHandler);
           }
+          i = 0;
         }
-      };
-    },
+      }
+      else {
+        i = 0;
+      }
+    };
+  },
+  beforeUnmount() {
+    if (this._openHandler) {
+      this.openButton.removeEventListener('click', this._openHandler);
+    }
   },
 });

@@ -2,7 +2,7 @@
 import { watch } from 'fs';
 import { resolve } from 'path';
 import { codename, version } from './package.json';
-import { defineComponentPlugin } from './plugin.ts';
+import { VueImportPlugin } from './plugin.ts';
 
 async function build() {
   log('Building...');
@@ -12,18 +12,19 @@ async function build() {
     minify: false, // Don't minify in dev mode for easier debugging
     sourcemap: 'external',
     target: 'browser',
-    plugins: [defineComponentPlugin],
+    plugins: [VueImportPlugin],
     format: 'iife',
     define: {
       __CODENAME__: JSON.stringify(codename),
       __VERSION__: JSON.stringify(version),
+      __MODE__: '"dev"',
     },
-    banner: `/* v${version} "${codename}" */`,
+    banner: `// {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper}}\n// v${version} "${codename}"`,
   });
 
   if (!result.success) {
-    console.error('Build failed');
-    result.logs.forEach(log => console.error(log));
+    log('Build failed');
+    result.logs.forEach(message => log(message.message));
   }
   else {
     log('Build complete!');

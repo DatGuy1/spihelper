@@ -1,42 +1,223 @@
-.spihelper-errortext {
-    color: red;
-    font-weight: bold;
-}
-
 .spihelper-hovertext {
-    border-bottom: 1px dotted;
-}
-
-.spihelper-previewbox {
-    margin: 1em;
-    padding: 0.5em 2.5%;
-    border: solid 1px #ddd;
-    background-color: #fafafa;
-    font-size: 0.8em;
-}
-
-/*
-.spihelper-widthlimit {
-    width: 10vw;
-}
-*/
-
-.spiHelper_notOnArchive {
-    display: none;
-}
-
-#spiHelper_userInfoTable th {
-    padding: 0 2px;
-}
-
-#spiHelper_actionViewDiv > div {
-    display: none;
-}
-
-.spiHelper_table {
-    width: 100%;
+    text-decoration: underline dotted;
+    text-underline-offset: 1px;
+    cursor: var(--cursor-help, help);
 }
 
 .spiHelper-setting {
     padding: 12px;
+}
+
+#spiHelper-topView-Card {
+    background-color: var(--background-color-base, #fff);
+    border: 1px solid var(--border-color-base, #a2a9b1);
+    border-radius: 2px;
+    padding: 12px;
+}
+
+#spiHelper-topView-Action {
+    display: flex;
+    align-items: flex-start;
+    flex-direction: column;
+}
+
+#spiHelper-vue-mount-point.unpinned {
+    position: sticky;
+    top: 60px;
+    z-index: 5;
+}
+
+#spiHelper-vue-mount-point.unpinned #spiHelper-topView-Card {
+    position: absolute;
+    width: 97.35%;
+}
+
+#spiHelper-topView-Header {
+    position: relative;
+
+    .header-buttons {
+        top: 0;
+        right: 0;
+        position: absolute;
+    }
+}
+
+#spiHelper-topView-Accordion .cdx-accordion {
+    overflow: visible;
+}
+
+#buttonRow {
+    display: flex;
+    /* border-bottom: 1px solid var(--color-base--subtle); */
+    padding-bottom: 2px;
+}
+
+#messageRow {
+    width: 100%;
+}
+
+#messageRow:has(> *) {
+    padding-top: 20px;
+}
+
+#contentRow {
+    margin-top: 1em;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+#contentRow > div {
+    display: flex;
+    gap: 0.75em;
+    flex-direction: column;
+}
+
+#contentRow > div.is-visible ~ div.is-visible {
+    border-top: 1px solid var(--color-base--subtle);
+    padding-top: 16px;
+}
+
+#contentRow > div:not(.is-visible) {
+    display: none;
+}
+
+.enableSwitch {
+    align-self: baseline;
+}
+
+.spiHelper-blockoptions-group {
+    margin-bottom: 12px;
+}
+
+#spiHelper-topView-Accordion .enableSwitch:not(:only-child) {
+    margin-bottom: 0.75em;
+}
+
+.spiHelper-submitForm {
+    margin-top: 12px;
+
+    .cdx-text-input {
+        max-width: 80px;
+    }
+
+    .cdx-button:not(:only-child) {
+        margin-top: 12px;
+    }
+}
+
+.spiHelper-sockTable {
+    thead tr:first-child th {
+        vertical-align: bottom;
+    }
+
+    tbody td, .setAllRow th  {
+        vertical-align: middle;
+    }
+
+    .header-content {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+
+        .header-content-buttons {
+            display: flex;
+            gap: 8px;
+
+            .cdx-message {
+                align-items: center;
+
+                .cdx-message__content {
+                    margin-left: 4px;
+                }
+            }
+        }
+    }
+
+    th.selectHeader {
+        width: 200px;
+    }
+
+    th.checkboxHeader {
+        padding: 12px 8px;
+    }
+
+    .cdx-select-vue {
+        width: 100%;
+    }
+
+    .cdx-select-vue__handle {
+        word-break: keep-all;
+        min-width: 110px;
+    }
+
+    div.tagOptions {
+        min-width: 130px;
+    }
+
+    thead tr.blockSettingsRow th {
+        padding: 6px 4px;
+        font-size: 0.75rem;
+        white-space: nowrap;
+    }
+
+    .cdx-checkbox {
+        margin: 0 auto;
+        width: min-content;
+        left: 1px;
+    }
+
+    td:has(.cdx-checkbox), .setAllRow th:has(.cdx-checkbox) {
+        padding: 4px;
+        width: 55px;
+    }
+
+    .cdx-text-input {
+        min-width: 50px;
+    }
+
+    .cdx-field__help-text {
+        display: none;
+    }
+
+    .user-lookup {
+        min-width: 150px;
+    }
+
+    th.selectTagOptions {
+        font-weight: normal;
+    }
+
+    .setAllRow > th {
+        border-bottom-color: var(--color-emphasized, #101418) !important;
+    }
+
+    .spihelper-expiry-input {
+        min-width: 90px;
+    }
+}
+
+.spiHelper-sockTable.linkTable {
+    thead {
+        text-wrap: nowrap;
+    }
+}
+
+#spiHelper-PreviewBox {
+    min-height: 26px;
+
+    .cdx-button {
+        position: absolute;
+        right: 8px;
+        top: 8px;
+    }
+
+    #htmlPreview {
+        word-wrap: break-word;
+        width: 100%;
+        padding-right: 40px;
+        box-sizing: border-box
+    }
 }

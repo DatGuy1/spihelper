@@ -25,6 +25,11 @@ export interface ScriptSettings {
   tickArchiveWhenCaseClosed: boolean;
   useCheckuserblockAccount: boolean;
   displayIPv6As64: boolean;
+  useLookup: boolean;
+  interface: {
+    pinned: boolean;
+    buttonLayout: boolean;
+  };
   debug: {
     enabled: boolean;
     forceCheckuser: boolean;

@@ -1,5 +1,6 @@
-import { spiHelperSettings } from './options.ts';
-import { spiHelperEditPage, spiHelperGetPageText } from './api.ts';
+import { spiHelperSettings } from '../options';
+import { spiHelperEditPage, spiHelperGetPageText } from '../api.ts';
+import { getFullLogPage } from '../options/utils.ts';
 
 /**
  * Logs SPI actions to userspace a la Twinkle's CSD/prod/etc. logs
@@ -14,7 +15,8 @@ export async function spiHelperLog(logString: string): Promise<void> {
   const dateHeaderRe = new RegExp(dateHeader, 'i');
   const dateHeaderReWithAnyDate = /==.*?==/i;
 
-  let logPageText = await spiHelperGetPageText('User:' + mw.config.get('wgUserName') + '/spihelper_log', false);
+  const logPage = getFullLogPage(spiHelperSettings.log.page);
+  let logPageText = await spiHelperGetPageText(logPage, false);
   if (!logPageText.match(dateHeaderRe)) {
     if (spiHelperSettings.log.reversed) {
       const firstHeaderMatch = logPageText.match(dateHeaderReWithAnyDate);
@@ -35,5 +37,11 @@ export async function spiHelperLog(logString: string): Promise<void> {
   else {
     logPageText += '\n' + logString;
   }
-  await spiHelperEditPage('User:' + mw.config.get('wgUserName') + '/spihelper_log', logPageText, 'Logging spihelper edits', false, 'nochange');
+  await spiHelperEditPage({
+    title: logPage,
+    newText: logPageText,
+    summary: 'Logging spihelper edits',
+    createonly: false,
+    watch: 'nochange',
+  });
 }

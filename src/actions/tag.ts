@@ -1,99 +1,173 @@
-import type { TagEntry } from '../types/spi.ts';
-import { spiHelperSettings } from '../options.ts';
-import { spiHelperEditPage, spiHelperGetGlobalUser, spiHelperGetUserBlockSettings } from '../api.ts';
+import type { SockRow } from '../types/spi.ts';
+import { spiHelperSettings } from '../options';
+import {
+  spiHelperEditPage,
+  spiHelperGetGlobalUser,
+  spiHelperGetPageText,
+} from '../api.ts';
 import { context } from '../context.ts';
+import { isNonRegisteredAccount } from '../utils.ts';
+import { VueMessage } from '../ui/messages.ts';
+
+function createCategoryPage(title: string) {
+  return spiHelperEditPage({
+    title,
+    newText: '{{sockpuppet category}}',
+    summary: `Creating sockpuppet category per [[${context.prefixedName}]]`,
+    createonly: true,
+    watch: spiHelperSettings.watch.categories,
+    watchExpiry: spiHelperSettings.expiry.categories,
+  });
+}
 
 /**
  * Given a tag entry, runs the required logic and tags the user
- * @param {TagEntry} tagEntry Tag entry to run the logic for
- * @param {boolean} tagNonLocalAccounts Whether to tag accounts that don't exist locally
- * @param {string} sockmaster The username of the sockmaster to tag for
- * @param {string} altmaster The username of the alternate master to tag for
+ * @param {SockRow} opts.sock Sock to run the logic for
+ * @param {boolean} opts.tagNonLocalAccounts Whether to tag accounts that don't exist locally
+ * @param {string} opts.sockmaster The username of the sockmaster to tag for
+ * @param {string} opts.altmaster The username of the alternate master to tag for
  * @return {Promise<boolean>} Whether the tag was successfully applied
  */
-export async function spiHelperTagUser(
-  tagEntry: TagEntry, tagNonLocalAccounts: boolean, sockmaster: string, altmaster: string,
-): Promise<boolean> {
-  // We currently allow TAs to be tagged, but can disable it with mw.util.isTemporaryUser if we want
-  if (mw.util.isIPAddress(tagEntry.username, true)) {
+export async function spiHelperTagUser(opts: {
+  sock: SockRow;
+  tagNonLocalAccounts: boolean;
+  master: string;
+  altmaster: string;
+  blocked: boolean;
+}): Promise<boolean> {
+  const { sock, tagNonLocalAccounts, master, altmaster, blocked } = opts;
+  if (isNonRegisteredAccount(sock.username)) {
     return false; // do not support tagging IPs
   }
-  const userInfo = await spiHelperGetGlobalUser(tagEntry.username);
-  if (!userInfo || !userInfo.existsLocally) {
+  const userInfo = await spiHelperGetGlobalUser(sock.username);
+  if (!userInfo) {
     // Skip, don't tag accounts that don't exist
-    const $statusLine = $('<li>').appendTo($('#spiHelper_status', document));
-    $statusLine.addClass('spihelper-errortext').html('<b>The account ' + tagEntry.username + ' does not exist and so has not been tagged.</b>');
+    new VueMessage({ type: 'warning', content: `The account ${sock.username} does not exist and so has not been tagged` }).show();
     return false;
   }
   if (!tagNonLocalAccounts && !userInfo.existsLocally) {
     // Skip as the account does not exist locally and the
     // "tag accounts that don't exist locally" setting is unchecked.
+    new VueMessage({ type: 'warning', content: `The account ${sock.username} does not exist locally and so has not been tagged` }).show();
     return false;
   }
 
   let tagText = '';
-  let altmasterName = '';
-  let altmasterTag = '';
-  if (altmaster !== '' && tagEntry.altmasterTag !== '') {
-    altmasterName = altmaster;
-    altmasterTag = tagEntry.altmasterTag;
-  }
-  let isMaster = false;
+  const isMaster = sock.tag.startsWith('M');
   let tag: string;
-  let checked = '';
-  switch (tagEntry.tag) {
-    case 'master':
+  switch (sock.tag) {
+    case 'Mblocked':
       tag = 'blocked';
-      isMaster = true;
       break;
-    case 'sockmasterchecked':
+    case 'Mconfirmed':
       tag = 'blocked';
-      checked = 'yes';
-      isMaster = true;
       break;
-    case 'bannedmaster':
+    case 'Mbanned':
       tag = 'banned';
-      checked = 'yes';
-      isMaster = true;
+      break;
+    case 'Ssuspected':
+      tag = 'blocked';
+      break;
+    case 'Sproven':
+      tag = 'proven';
+      break;
+    case 'Sconfirmed':
+      tag = 'confirmed';
       break;
     default:
-      tag = tagEntry.tag;
+      console.error('spiHelperTagUser: Unexpected tag value', sock.tag);
+      return false;
   }
 
-  const blockSettings = await spiHelperGetUserBlockSettings(tagEntry.username);
-  const isNotBlocked = !userInfo.existsLocally || !blockSettings;
+  const isNotBlocked = !userInfo.existsLocally || !blocked;
 
   if (isMaster) {
-    // Not doing SPI or LTA fields for now - those auto-detect right
-    // now, and I'm not sure if setting them to empty would mess that up
     tagText += `{{sockpuppeteer
 | 1 = ${tag}
-| checked = ${checked}
-| locked = ${userInfo.locked}
+| checked = ${sock.tag === 'Mconfirmed' || sock.tag === 'Mbanned'}
+| locked = ${userInfo.locked ? 'yes' : 'no'}
 }}`;
   }
+  const tagAltmaster = sock.altmaster !== 'none';
   // Not if-else because we tag something as both sock and master if they're a
   // sockmaster and have a suspected altmaster
-  if (!isMaster || altmasterName) {
-    let sockmasterName = sockmaster;
-    if (altmasterName && isMaster) {
+  if (!isMaster || tagAltmaster) {
+    let altmasterParam = tagAltmaster ? altmaster : '';
+    let altmasterStatusParam = tagAltmaster ? sock.altmaster : '';
+    let sockmasterName = master;
+    if (tagAltmaster && isMaster) {
       // If we have an altmaster and we're the master, swap a few values around
-      sockmasterName = altmasterName;
-      tag = altmasterTag === 'suspected' ? 'blocked' : altmasterTag;
-      altmasterName = '';
-      altmasterTag = '';
+      sockmasterName = altmaster;
+      tag = sock.altmaster === 'suspected' ? 'blocked' : sock.altmaster;
+      altmasterParam = '';
+      altmasterStatusParam = '';
       tagText += '\n';
     }
     tagText += `{{sockpuppet
 | 1 = ${sockmasterName}
 | 2 = ${tag}
-| locked = ${userInfo.locked}
+| locked = ${userInfo.locked ? 'yes' : 'no'}
 | notblocked = ${isNotBlocked ? 'yes' : 'no'}
-| altmaster = ${altmasterName}
-| altmaster-status = ${altmasterTag}
+| altmaster = ${altmasterParam}
+| altmaster-status = ${altmasterStatusParam}
 }}`;
   }
-  await spiHelperEditPage('User:' + tagEntry.username, tagText, 'Adding sockpuppetry tag per [[' + context.prefixedName + ']]',
-    false, spiHelperSettings.watch.tagged, spiHelperSettings.expiry.tagged);
-  return true;
+  return spiHelperEditPage({
+    title: `User:${sock.username}`,
+    newText: tagText,
+    summary: `Adding sockpuppetry tag per [[${context.prefixedName}]]`,
+    createonly: false,
+    watch: spiHelperSettings.watch.tagged,
+    watchExpiry: spiHelperSettings.expiry.tagged,
+  });
+}
+
+export async function createSockCategories(opts: {
+  sockRows: SockRow[];
+  master: string;
+  altmaster: string;
+}): Promise<boolean> {
+  const { sockRows, master, altmaster } = opts;
+  // Whether we should purge sock pages (needed when we create a category)
+  let needsPurge = false;
+  // Check if we need to validate our categories to reduce API calls
+  const checkConfirmedCat = sockRows.some(sock => sock.tag === 'Sproven' || sock.tag === 'Sconfirmed');
+  const checkSuspectedCat = sockRows.some(sock => sock.tag === 'Ssuspected');
+  const checkAltSuspectedCat = sockRows.some(sock => sock.altmaster === 'suspected');
+  const checkAltProvenCat = sockRows.some(sock => sock.altmaster === 'proven');
+
+  if (checkAltProvenCat) {
+    const catName = `Category:Wikipedia sockpuppets of ${altmaster}`;
+    const catText = await spiHelperGetPageText(catName, false);
+    // Empty text means the page doesn't exist - create it
+    if (!catText) {
+      await createCategoryPage(catName);
+      needsPurge = true;
+    }
+  }
+  if (checkAltSuspectedCat) {
+    const catName = `Category:Suspected Wikipedia sockpuppets of ${altmaster}`;
+    const catText = await spiHelperGetPageText(catName, false);
+    if (!catText) {
+      await createCategoryPage(catName);
+      needsPurge = true;
+    }
+  }
+  if (checkConfirmedCat) {
+    const catName = `Category:Wikipedia sockpuppets of ${master}`;
+    const catText = await spiHelperGetPageText(catName, false);
+    if (!catText) {
+      await createCategoryPage(catName);
+      needsPurge = true;
+    }
+  }
+  if (checkSuspectedCat) {
+    const catName = `Category:Suspected Wikipedia sockpuppets of ${master}`;
+    const catText = await spiHelperGetPageText(catName, false);
+    if (!catText) {
+      await createCategoryPage(catName);
+      needsPurge = true;
+    }
+  }
+  return needsPurge;
 }

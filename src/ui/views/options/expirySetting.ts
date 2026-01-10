@@ -1,5 +1,5 @@
 import { defineComponent } from 'vue';
-import { parseExpiry } from './utils.ts';
+import { parseExpiry } from '../../../utils.ts';
 
 export const ExpirySettingComponent = defineComponent({
   props: {
@@ -10,19 +10,9 @@ export const ExpirySettingComponent = defineComponent({
   data() {
     return {
       internalValue: this.modelValue,
-      messages: { warning: 'Expiry option is invalid', success: 'Valid expiry option' },
       touched: false,
       isResetting: false, // Flag to track reset state
     };
-  },
-  computed: {
-    valid() {
-      return parseExpiry(this.internalValue) !== null;
-    },
-    status() {
-      if (!this.touched) return 'default';
-      return this.valid ? 'success' : 'warning';
-    },
   },
   watch: {
     resetTrigger() {
@@ -43,9 +33,6 @@ export const ExpirySettingComponent = defineComponent({
     },
   },
   template: `
-    <cdx-field :status="status" :messages="messages">
-      <template #label>{{ label }}</template>
-      <cdx-text-input v-model="internalValue"/>
-    </cdx-field>
+    <expiry-input :label="label" :touched="touched" v-model="internalValue" />
   `,
 });

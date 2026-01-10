@@ -1,0 +1,74 @@
+import { type PropType, defineComponent } from 'vue';
+import type { SelectionType } from '../../../types/vue.ts';
+import type { CaseActionName } from '../../../types/spi.ts';
+import { context } from '../../../context.ts';
+import { NonArchiveActions } from './utils/setup.ts';
+
+export const ActionButtonComponent = defineComponent({
+  props: {
+    selection: { type: [String, Number] as PropType<'all' | number>, required: true },
+    name: { type: String as PropType<CaseActionName>, required: true },
+    label: { type: [String, Object], required: true },
+    selectionType: { type: String as PropType<SelectionType>, required: true },
+    displayedForms: { type: Array as PropType<CaseActionName[]>, required: true },
+    actionEnabled: { type: Boolean, required: true },
+  },
+
+  computed: {
+    buttonEnabled(): boolean {
+      return this.displayedForms.includes(this.name) || this.actionEnabled;
+    },
+
+    allSelected(): boolean {
+      return this.selection === 'all';
+    },
+
+    showButton(): boolean {
+      if (context.isArchive) {
+        return NonArchiveActions.has(this.name);
+      }
+      if (this.name === 'sections') return true;
+      if (this.selection === null) return false;
+      if (this.selectionType === 'both') return true;
+      return (this.selectionType === 'case') === this.allSelected;
+    },
+
+    buttonAction(): 'progressive' | 'normal' {
+      return this.buttonEnabled ? 'progressive' : 'normal';
+    },
+
+    buttonStyle(): Record<string, string | number> {
+      return {
+        opacity: this.buttonEnabled ? 1 : 0.7,
+        color: this.displayedForms.includes(this.name)
+          ? 'var(--color-base)'
+          : '',
+      };
+    },
+
+    text(): string {
+      if (typeof this.label === 'string') {
+        return this.label;
+      }
+
+      if (this.selectionType === 'both') {
+        return this.allSelected
+          ? (this.label.case as string)
+          : (this.label.section as string);
+      }
+
+      return 'Unexpected configuration';
+    },
+  },
+
+  template: `
+    <cdx-button
+        v-if="showButton"
+        :name="name"
+        :action="buttonAction"
+        :style="buttonStyle"
+    >
+      {{ text }}
+    </cdx-button>
+  `,
+});

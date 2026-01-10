@@ -1,5 +1,4 @@
-import { SectionEntry } from '../types/spi.ts';
-import { type CaseState, refreshSections } from '../state.ts';
+import { type CaseState, SectionEntry, loadSectionText, refreshSections } from '../state.ts';
 import { context } from '../context.ts';
 import { spiHelperGetInterwikiPrefix, spiHelperGetMaxPostExpandSize } from '../utils.ts';
 import { spiHelperCaseClosedRegex, spiHelperCaseStatusRegex, spiHelperSectionRegex } from '../constants/regex.ts';
@@ -10,7 +9,8 @@ import {
   spiHelperGetPostExpandSize,
   spiHelperMovePage,
 } from '../api.ts';
-import { spiHelperSettings } from '../options.ts';
+import { spiHelperSettings } from '../options';
+import { VueMessage } from '../ui/messages.ts';
 
 /**
  * Archive all closed sections of a case
@@ -23,7 +23,7 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
     if (!section) {
       continue;
     }
-    const sectionText = await section.getText();
+    const sectionText = await loadSectionText(section);
 
     const currentRev = await spiHelperGetPageRev(context.pageName);
     if (previousRev === currentRev && currentRev !== 0) {
@@ -59,11 +59,20 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
           archiveId++;
         }
         const newArchiveName = context.archiveName + '/' + archiveId;
-        await spiHelperMovePage(
-          context.archiveName, newArchiveName,
-          'Moving archive to avoid exceeding post expand size limit', false, false)
-        ;
-        await spiHelperEditPage(context.archiveName, '', 'Removing redirect', false, 'nochange');
+        await spiHelperMovePage({
+          sourcePage: context.archiveName,
+          destPage: newArchiveName,
+          summary: 'Moving archive to avoid exceeding post expand size limit',
+          ignoreWarnings: false,
+          moveSubpages: false,
+        });
+        await spiHelperEditPage({
+          title: context.archiveName,
+          newText: '',
+          summary: 'Removing redirect',
+          createonly: false,
+          watch: 'nochange',
+        });
       }
       // Need an await here.
       // If we have multiple sections archiving we don't want to stomp on each other
@@ -82,41 +91,52 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
  * @param section The section to archive
  */
 export async function spiHelperArchiveCaseSection(section: SectionEntry): Promise<void> {
-  let sectionText = await section.getText();
+  let sectionText = await loadSectionText(section);
   sectionText = sectionText.replace(spiHelperCaseStatusRegex, '');
   const newArchiveText = sectionText.slice(sectionText.search(spiHelperSectionRegex));
   let archiveText = await spiHelperGetPageText(context.archiveName, true);
 
-  const $statusLine = $('<li>');
+  const message = new VueMessage({ type: 'error', content: '' });
   // Edit conflict check
   if (archiveText.includes(sectionText)) {
-    $statusLine.appendTo($('#spiHelper_status', document));
-    $statusLine.addClass('spihelper-errortext').append('b').text('Looks like the page has been archived already');
+    message.type = 'warning';
+    message.content = 'Looks like the page has been archived already';
+    message.show();
     return;
   }
 
   // Update the archive
   if (!archiveText) {
-    archiveText = '__TOC__\n{{SPI archive notice|1=' + context.caseName + '}}\n{{SPIpriorcases}}';
+    archiveText = '__TOC__\n{{SPI archive notice|1=' + context.caseName + '}}\n{{SPIpriorcases}}\n';
   }
   else {
     archiveText = archiveText.replace(/<br\s*\/>\s*{{SPIpriorcases}}/gi, '\n{{SPIpriorcases}}'); // fmt fix whenever needed.
   }
   archiveText += '\n' + newArchiveText;
-  const archiveSuccess = await spiHelperEditPage(
-    context.archiveName, archiveText,
-    'Archiving case section from [[' + context.prefixedName + ']]',
-    false, spiHelperSettings.watch.archive, spiHelperSettings.expiry.archive,
-  );
+  const archiveSuccess = await spiHelperEditPage({
+    title: context.archiveName,
+    newText: archiveText,
+    summary: `Archiving case section from [[${context.prefixedName}]]`,
+    createonly: false,
+    watch: spiHelperSettings.watch.archive,
+    watchExpiry: spiHelperSettings.expiry.archive,
+  });
 
   if (!archiveSuccess) {
-    $statusLine.appendTo($('#spiHelper_status', document));
-    $statusLine.addClass('spihelper-errortext').append('b').text('Failed to update archive, not removing section from case page');
+    message.content = 'Failed to update archive, not removing section from case page';
+    message.show();
     return;
   }
 
   // Blank the section we archived
-  await context.edit({ newText: '', summary: 'Archiving case section to [[' + spiHelperGetInterwikiPrefix() + context.archiveName + ']]', watch: spiHelperSettings.watch.case, watchExpiry: spiHelperSettings.expiry.case, baseRevId: context.startingRevId, sectionId: section.id });
+  await context.edit({
+    newText: '',
+    summary: `Archiving case section to [[${spiHelperGetInterwikiPrefix()}${context.archiveName}]]`,
+    watch: spiHelperSettings.watch.case,
+    watchExpiry: spiHelperSettings.expiry.case,
+    baseRevId: context.startingRevId,
+    sectionId: section.id,
+  });
   // Update to the latest revision ID
   context.startingRevId = await spiHelperGetPageRev(context.pageName);
 }

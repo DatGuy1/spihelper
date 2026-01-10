@@ -6,8 +6,11 @@ import type {
   ApiParseParams,
   ApiProtectParams,
   ApiPurgeParams,
+  ApiQueryAllPagesParams,
+  ApiQueryAllUsersParams,
   ApiQueryBacklinksParams,
   ApiQueryBlocksParams,
+  ApiQueryCategoriesParams,
   ApiQueryFlaggedParams,
   ApiQueryInfoParams,
   ApiQueryRevisionsParams,
@@ -16,10 +19,19 @@ import type {
   ApiUndeleteParams,
   CentralAuthApiQueryGlobalAllUsersParams,
 } from 'types-mediawiki-api';
-import { type BlockEntry, type GlobalUser, SectionEntry } from './types/spi.ts';
+import { type GlobalUser } from './types/spi.ts';
 import type {
+  AllPage,
+  AllPagesResponse,
+  AllUser,
+  AllUsersResponse,
   BacklinksResponse,
-  BlocksResponse, FlaggedResponse, GlobalAllUseresResponse, InfoResponse,
+  BlockEntry,
+  BlocksResponse,
+  CategoriesResponse,
+  FlaggedResponse,
+  GlobalAllUsersResponse,
+  InfoResponse,
   NewPendingChanges,
   ParseResponse,
   PendingChanges,
@@ -28,9 +40,12 @@ import type {
   WatchOption,
 } from './types/api.ts';
 import { spiHelperStripXWikiPrefix } from './utils.ts';
-import { finishOp, OpState, startOp } from './operations.ts';
+import { OpState, finishOp, startOp } from './operations.ts';
 import { spiHelperAdvert } from './constants/settings.ts';
+import { SectionEntry } from './state.ts';
+import { VueMessage } from './ui/messages.ts';
 
+// noinspection JSUnusedGlobalSymbols
 /**
  * Get a user's current block settings
  *
@@ -60,17 +75,136 @@ export async function spiHelperGetUserBlockSettings(user: string): Promise<Block
     return {
       username: user,
       duration: firstBlock.expiry,
-      acb: (firstBlock.nocreate || firstBlock.anononly),
-      ab: firstBlock.autoblock,
+      acb: firstBlock.nocreate,
+      abao: firstBlock.autoblock || firstBlock.anononly,
       ntp: !(firstBlock.allowusertalk),
       nem: firstBlock.noemail,
-      tpn: '',
       reason: firstBlock.reason,
     };
   }
   catch {
     return null;
   }
+}
+
+export async function spiHelperGetBulkPageText(
+  titles: string[],
+): Promise<Map<string, string>> {
+  if (titles.length === 0) {
+    return new Map<string, string>();
+  }
+  const api = spiHelperGetAPI();
+  const resultMap = new Map<string, string>();
+
+  const request: ApiQueryRevisionsParams = {
+    action: 'query',
+    prop: 'revisions',
+    rvprop: 'content',
+    rvslots: 'main',
+    titles: titles,
+    formatversion: '2',
+  };
+
+  try {
+    const response = await api.get(request) as RevisionsResponse<'content'>;
+
+    for (const page of response.query.pages) {
+      if (page.missing || !page.revisions) {
+        continue;
+      }
+      const latestRevision = page.revisions[0];
+      if (!latestRevision) {
+        continue;
+      }
+      const pageTitle = page.title.split(':', 2)[1];
+      if (!pageTitle) {
+        console.error('spiHelperGetBulkPageText: could not find name for', page.title);
+        continue;
+      }
+      resultMap.set(pageTitle, latestRevision.slots.main.content);
+    }
+  }
+  catch (error) {
+    console.error('spiHelperGetBulkPageText fetch error:', error);
+  }
+
+  return resultMap;
+}
+
+export async function spiHelperGetBulkUserBlockSettings(
+  usernames: string[],
+): Promise<Map<string, BlockEntry>> {
+  if (usernames.length == 0) {
+    return new Map<string, BlockEntry>();
+  }
+  const api = spiHelperGetAPI();
+  const resultMap = new Map<string, BlockEntry>();
+
+  const request: ApiQueryBlocksParams = {
+    action: 'query',
+    list: 'blocks',
+    bklimit: 'max',
+    bkusers: usernames,
+    bkprop: ['user', 'reason', 'flags', 'expiry'],
+  };
+
+  try {
+    const response = await api.get(request) as BlocksResponse;
+
+    for (const block of response.query.blocks) {
+      resultMap.set(block.user, {
+        username: block.user,
+        duration: block.expiry,
+        acb: block.nocreate,
+        abao: block.autoblock || block.anononly,
+        ntp: !(block.allowusertalk),
+        nem: block.noemail,
+        reason: block.reason,
+      });
+    }
+  }
+  catch (error) {
+    console.error('spiHelperGetBulkUserBlockSettings fetch error:', error);
+  }
+
+  return resultMap;
+}
+
+// noinspection JSUnusedGlobalSymbols
+export async function spiHelperGetBulkPageCategories(
+  pages: string[],
+): Promise<Map<string, string[]>> {
+  const api = spiHelperGetAPI();
+  const resultMap = new Map<string, string[]>();
+
+  const request: ApiQueryCategoriesParams = {
+    action: 'query',
+    prop: 'categories',
+    titles: pages,
+    cllimit: 'max',
+    formatversion: '2',
+  };
+
+  try {
+    const response = await api.get(request) as CategoriesResponse;
+
+    for (const page of response.query.pages) {
+      if (!page.categories) {
+        continue;
+      }
+      const pageTitle = page.title.split(':', 2)[1];
+      if (!pageTitle) {
+        console.error('spiHelperGetBulkUserBlockSettings: could not find name for', page.title);
+        continue;
+      }
+      resultMap.set(pageTitle, page.categories.map(item => item.title));
+    }
+  }
+  catch (error) {
+    console.error('spiHelperGetBulkPageCategories fetch error:', error);
+  }
+
+  return resultMap;
 }
 
 /**
@@ -90,7 +224,7 @@ export async function spiHelperGetGlobalUser(user: string): Promise<GlobalUser |
     aguprop: ['lockinfo', 'existslocally'],
   };
   try {
-    const response = await api.get(request) as GlobalAllUseresResponse;
+    const response = await api.get(request) as GlobalAllUsersResponse;
     const [globalUserData] = response.query.globalallusers;
 
     if (!globalUserData) {
@@ -108,6 +242,46 @@ export async function spiHelperGetGlobalUser(user: string): Promise<GlobalUser |
   }
 }
 
+export async function spiHelperGetUsers(from: string, limit: number): Promise<AllUser[]> {
+  const api = spiHelperGetAPI();
+  const request: ApiQueryAllUsersParams = {
+    action: 'query',
+    list: 'allusers',
+    aulimit: limit,
+    auprefix: from,
+    auprop: ['blockinfo'],
+    formatversion: '2',
+  };
+  try {
+    const response = await api.get(request) as AllUsersResponse;
+    return response.query.allusers;
+  }
+  catch {
+    return [];
+  }
+}
+
+export async function spiHelperGetPages(
+  from: string, namespace: number, limit: number,
+): Promise<AllPage[]> {
+  const api = spiHelperGetAPI();
+  const request: ApiQueryAllPagesParams = {
+    action: 'query',
+    list: 'allpages',
+    aplimit: limit,
+    apprefix: from,
+    apnamespace: namespace,
+    formatversion: '2',
+  };
+  try {
+    const response = await api.get(request) as AllPagesResponse;
+    return response.query.allpages;
+  }
+  catch {
+    return [];
+  }
+}
+
 /**
  * Delete a page. Admin-only function.
  *
@@ -118,9 +292,12 @@ export async function spiHelperDeletePage(title: string, reason: string) {
   const activeOpKey = 'delete_' + title;
   startOp(activeOpKey);
 
-  const $statusLine = $('<li>').appendTo($('#spiHelper_status', document));
   const $link = $('<a>').attr('href', mw.util.getUrl(title)).attr('title', title).text(title);
-  $statusLine.html('Deleting ' + $link.prop('outerHTML'));
+  const message = new VueMessage({
+    type: 'notice',
+    content: `Deleting ${$link.prop('outerHTML')}`,
+    isHtml: true,
+  }).show();
 
   const api = spiHelperGetAPI(title);
   const request: ApiDeleteParams = {
@@ -130,11 +307,14 @@ export async function spiHelperDeletePage(title: string, reason: string) {
   };
   try {
     await api.postWithToken('csrf', request);
-    $statusLine.html('Deleted ' + $link.prop('outerHTML'));
+    message.update({ type: 'success', content: `Deleted ${$link.prop('outerHTML')}` });
     finishOp(activeOpKey, OpState.Success);
   }
   catch (error) {
-    $statusLine.addClass('spihelper-errortext').html('<b>Failed to delete ' + $link.prop('outerHTML') + '</b>: ' + error);
+    message.update({
+      type: 'error',
+      content: `Failed to delete ${$link.prop('outerHTML')}: ${mw.html.escape(JSON.stringify(error))}`,
+    });
     finishOp(activeOpKey, OpState.Failed);
   }
 }
@@ -149,9 +329,12 @@ export async function spiHelperUndeletePage(title: string, reason: string) {
   const activeOpKey = 'undelete_' + title;
   startOp(activeOpKey);
 
-  const $statusLine = $('<li>').appendTo($('#spiHelper_status', document));
   const $link = $('<a>').attr('href', mw.util.getUrl(title)).attr('title', title).text(title);
-  $statusLine.html('Undeleting ' + $link.prop('outerHTML'));
+  const message = new VueMessage({
+    type: 'notice',
+    content: `Undeleting ${$link.prop('outerHTML')}`,
+    isHtml: true,
+  }).show();
 
   const api = spiHelperGetAPI(title);
   const request: ApiUndeleteParams = {
@@ -161,11 +344,14 @@ export async function spiHelperUndeletePage(title: string, reason: string) {
   };
   try {
     await api.postWithToken('csrf', request);
-    $statusLine.html('Undeleted ' + $link.prop('outerHTML'));
+    message.update({ type: 'success', content: `Undeleted ${$link.prop('outerHTML')}` });
     finishOp(activeOpKey, OpState.Success);
   }
   catch (error) {
-    $statusLine.addClass('spihelper-errortext').html('<b>Failed to undelete ' + $link.prop('outerHTML') + '</b>: ' + error);
+    message.update({
+      type: 'error',
+      content: `Failed to undelete ${$link.prop('outerHTML')}: ${mw.html.escape(JSON.stringify(error))}`,
+    });
     finishOp(activeOpKey, OpState.Failed);
   }
 }
@@ -191,7 +377,7 @@ export async function spiHelperRenderText(title: string, text: string): Promise<
     return response.parse.text['*'];
   }
   catch (error) {
-    console.error('Error rendering text: ' + error);
+    console.error('Error rendering text:', error);
     return '';
   }
 }
@@ -207,7 +393,6 @@ export async function spiHelperGetInvestigationSectionIDs(
   // Uses the parse API to get page sections, then find the investigation
   // sections (should all be level-3 headers)
 
-  // Since this only affects the local page, no need to call spiHelper_getAPI()
   const request: ApiParseParams = {
     action: 'parse',
     // @ts-expect-error - Latest MediaWiki deprecated 'section'
@@ -219,7 +404,6 @@ export async function spiHelperGetInvestigationSectionIDs(
   const response = await api.get(request) as ParseResponse<'toc'>;
   const dateSections: SectionEntry[] = [];
   for (let i = 0; i < response.parse.tocdata.sections.length; i++) {
-    // TODO: also check for presence of spi case status
     const currentSection = response.parse.tocdata.sections[i] as SectionResult;
     if (parseInt(currentSection.hLevel) === 3) {
       dateSections.push(new SectionEntry(parseInt(currentSection.index), currentSection.line));
@@ -313,9 +497,8 @@ export async function spiHelperProtectPage(pageName: string, protections: Protec
   const activeOpKey = 'protect_' + pageName;
   startOp(activeOpKey);
 
-  const $statusLine = $('<li>').appendTo($('#spiHelper_status', document));
   const $link = $('<a>').attr('href', mw.util.getUrl(pageName)).attr('title', pageName).text(pageName);
-  $statusLine.html('Protecting ' + $link.prop('outerHTML'));
+  const message = new VueMessage({ type: 'notice', content: `Protecting ${$link.prop('outerHTML')}`, isHtml: true });
 
   const api = spiHelperGetAPI();
   try {
@@ -339,13 +522,14 @@ export async function spiHelperProtectPage(pageName: string, protections: Protec
       reason: 'Restoring protection after history merge',
     };
     await api.postWithToken('csrf', request);
-    $statusLine.html('Protected ' + $link.prop('outerHTML'));
+    message.update({ type: 'success', content: `Protected ${$link.prop('outerHTML')}` });
     finishOp(activeOpKey, OpState.Success);
   }
   catch (error) {
-    $statusLine
-      .addClass('spihelper-errortext')
-      .html('<b>Failed to protect ' + $link.prop('outerHTML') + '</b>: ' + error);
+    message.update({
+      type: 'error',
+      content: `Failed to protect ${$link.prop('outerHTML')}: ${mw.html.escape(JSON.stringify(error))}`,
+    });
     finishOp(activeOpKey, OpState.Failed);
   }
 }
@@ -412,18 +596,18 @@ export async function spiHelperGetSiteRestrictionInformation(): Promise<Restrict
  *                           that logged-in users with the IP are also blocked)
  * @param opts.accountcreation Whether to permit the user to create new accounts
  * @param opts.autoblock Whether to apply an autoblock to the user's IP
- * @param opts.talkpage Whether to revoke talkpage access
- * @param opts.email Whether to block email
+ * @param opts.notalkpage Whether to revoke talkpage access
+ * @param opts.noemail Whether to block email
  * @param opts.watchBlockedUser Watchlist setting for whether to watch the newly-blocked user
  * @param opts.watchExpiry Duration to watch the blocked user, if unset
  *                             defaults to 'indefinite'
 
  * @return {Promise<boolean>} True if the block suceeded, false if not
  */
-export async function spiHelperWikiBlockUser(opts: {
+export async function spiHelperBlockUser(opts: {
   user: string; duration: string; reason: string; reblock: boolean;
   anononly: boolean; accountcreation: boolean; autoblock: boolean;
-  talkpage: boolean; email: boolean;
+  notalkpage: boolean; noemail: boolean;
   watchBlockedUser: boolean; watchExpiry: string;
 }): Promise<boolean> {
   const {
@@ -434,8 +618,8 @@ export async function spiHelperWikiBlockUser(opts: {
     anononly,
     accountcreation,
     autoblock,
-    talkpage,
-    email,
+    notalkpage,
+    noemail,
     watchBlockedUser,
     watchExpiry = 'indefinite',
   } = opts;
@@ -444,9 +628,12 @@ export async function spiHelperWikiBlockUser(opts: {
   startOp(activeOpKey);
 
   const userPage = 'User:' + user;
-  const $statusLine = $('<li>').appendTo($('#spiHelper_status', document));
   const $link = $('<a>').attr('href', mw.util.getUrl(userPage)).attr('title', userPage).text(user);
-  $statusLine.html('Blocking ' + $link.prop('outerHTML'));
+  const message = new VueMessage({
+    type: 'notice',
+    content: `Blocking ${$link.prop('outerHTML')}`,
+    isHtml: true,
+  }).show();
 
   // This is not something which should ever be cross-wiki
   const api = spiHelperGetAPI();
@@ -458,20 +645,23 @@ export async function spiHelperWikiBlockUser(opts: {
     anononly: anononly,
     nocreate: accountcreation,
     autoblock: autoblock,
-    allowusertalk: !talkpage,
-    noemail: email,
+    allowusertalk: !notalkpage,
+    noemail: noemail,
     watchuser: watchBlockedUser,
     watchlistexpiry: watchExpiry,
     user: user,
   };
   try {
     await api.postWithToken('csrf', request);
-    $statusLine.html('Blocked ' + $link.prop('outerHTML'));
+    message.update({ type: 'success', content: `Blocked ${$link.prop('outerHTML')}` });
     finishOp(activeOpKey, OpState.Success);
     return true;
   }
   catch (error) {
-    $statusLine.addClass('spihelper-errortext').html('<b>Failed to block ' + $link.prop('outerHTML') + '</b>: ' + error);
+    message.update({
+      type: 'error',
+      content: `Failed to block ${$link.prop('outerHTML')}: ${mw.html.escape(JSON.stringify(error))}`,
+    });
     finishOp(activeOpKey, OpState.Failed);
     return false;
   }
@@ -480,14 +670,16 @@ export async function spiHelperWikiBlockUser(opts: {
 /**
  * Purges a page's cache
  *
- *
  * @param {string} title Title of the page to purge
  */
 export async function spiHelperPurgePage(title: string): Promise<void> {
   // Forces a cache purge on the selected page
-  const $statusLine = $('<li>').appendTo($('#spiHelper_status', document));
   const $link = $('<a>').attr('href', mw.util.getUrl(title)).attr('title', title).text(title);
-  $statusLine.html('Purging ' + $link.prop('outerHTML'));
+  const message = new VueMessage({
+    type: 'notice',
+    content: `Purging ${$link.prop('outerHTML')}`,
+    isHtml: true,
+  }).show();
   const strippedTitle = spiHelperStripXWikiPrefix(title);
 
   const api = spiHelperGetAPI(title);
@@ -497,38 +689,48 @@ export async function spiHelperPurgePage(title: string): Promise<void> {
   };
   try {
     await api.postWithToken('csrf', request);
-    $statusLine.html('Purged ' + $link.prop('outerHTML'));
+    message.update({ type: 'success', content: `Purged ${$link.prop('outerHTML')}` });
   }
   catch (error) {
-    $statusLine.addClass('spihelper-errortext').html('<b>Failed to purge ' + $link.prop('outerHTML') + '</b>: ' + error);
+    message.update({
+      type: 'error',
+      content: `Failed to purge ${$link.prop('outerHTML')}: ${mw.html.escape(JSON.stringify(error))}`,
+    });
   }
 }
 
 /**
  * Moves a page. Exactly what it sounds like.
  *
- * @param {string} sourcePage Title of the source page (page we're moving)
- * @param {string} destPage Title of the destination page (page we're moving to)
- * @param {string} summary Edit summary to use for the move
- * @param {boolean} ignoreWarnings Whether to ignore warnings on move
+ * @param opts.sourcePage Title of the source page (page we're moving)
+ * @param opts.destPage Title of the destination page (page we're moving to)
+ * @param opts.summary Edit summary to use for the move
+ * @param opts.ignoreWarnings Whether to ignore warnings on move
  * (used to force-move one page over another)
- * @param moveSubpages Whether to move the subpages of the source page as well
+ * @param opts.moveSubpages Whether to move the subpages of the source page as well
  */
-export async function spiHelperMovePage(
-  sourcePage: string, destPage: string, summary: string,
-  ignoreWarnings: boolean, moveSubpages: boolean = true,
-) {
+export async function spiHelperMovePage(opts: {
+  sourcePage: string;
+  destPage: string;
+  summary: string;
+  ignoreWarnings: boolean;
+  moveSubpages?: boolean;
+}) {
+  const { sourcePage, destPage, summary, ignoreWarnings, moveSubpages = true } = opts;
   const activeOpKey = 'move_' + sourcePage + '_' + destPage;
   startOp(activeOpKey);
 
   // Should never be a crosswiki call
   const api = spiHelperGetAPI();
 
-  const $statusLine = $('<li>').appendTo($('#spiHelper_status', document));
   const $sourceLink = $('<a>').attr('href', mw.util.getUrl(sourcePage)).attr('title', sourcePage).text(sourcePage);
   const $destLink = $('<a>').attr('href', mw.util.getUrl(destPage)).attr('title', destPage).text(destPage);
 
-  $statusLine.html('Moving ' + $sourceLink.prop('outerHTML') + ' to ' + $destLink.prop('outerHTML'));
+  const message = new VueMessage({
+    type: 'notice',
+    content: `Moving ${$sourceLink.prop('outerHTML')} to ${$destLink.prop('outerHTML')}`,
+    isHtml: true,
+  }).show();
 
   const request: ApiMoveParams = {
     action: 'move',
@@ -541,45 +743,63 @@ export async function spiHelperMovePage(
   };
   try {
     await api.postWithToken('csrf', request);
-    $statusLine.html('Moved ' + $sourceLink.prop('outerHTML') + ' to ' + $destLink.prop('outerHTML'));
+    message.update({
+      type: 'success',
+      content: `Moved ${$sourceLink.prop('outerHTML')} to ${$destLink.prop('outerHTML')}`,
+    });
     finishOp(activeOpKey, OpState.Success);
   }
   catch (error) {
-    $statusLine.addClass('spihelper-errortext').html('<b>Failed to move ' + $sourceLink.prop('outerHTML') + ' to ' + $destLink.prop('outerHTML') + '</b>: ' + error);
+    message.update({
+      type: 'error',
+      content: `Failed to move ${$sourceLink.prop('outerHTML')} to ${$destLink.prop('outerHTML')}: ${mw.html.escape(JSON.stringify(error))}`,
+    });
     finishOp(activeOpKey, OpState.Failed);
   }
 }
 
 /**
  *
- * @param {string} title Title of the page to edit
- * @param {string} newtext New content of the page
- * @param {string} summary Edit summary to use for the edit
- * @param {boolean} createonly Only try to create the page - if false,
+ * @param {string} opts.title Title of the page to edit
+ * @param {string} opts.newtext New content of the page
+ * @param {string} opts.summary Edit summary to use for the edit
+ * @param {boolean} opts.createonly Only try to create the page - if false,
  *                             will fail if the page already exists
- * @param {string} watch What watchlist setting to use when editing - decides
+ * @param {string} opts.watch What watchlist setting to use when editing - decides
  *                       whether the edited page will be watched
- * @param {string} watchExpiry Duration to watch the edited page, if unset
+ * @param {string} opts.watchExpiry Duration to watch the edited page, if unset
  *                             defaults to 'indefinite'
- * @param {?number} baseRevId Base revision ID, used to detect edit conflicts. If null,
+ * @param {?number} opts.baseRevId Base revision ID, used to detect edit conflicts. If null,
  *                           we'll grab the current page ID.
- * @param {?number} [sectionId=null] Section to edit - if null, edits the whole page
+ * @param {?number} [opts.sectionId=null] Section to edit - if null, edits the whole page
  *
  * @return {Promise<boolean>} Whether the edit was successful
  */
-export async function spiHelperEditPage(
-  title: string, newtext: string, summary: string, createonly: boolean,
-  watch: WatchOption, watchExpiry?: string, baseRevId?: number, sectionId?: number | null,
-): Promise<boolean> {
+export async function spiHelperEditPage(opts: {
+  title: string; newText: string; summary: string; createonly?: boolean;
+  watch: WatchOption; watchExpiry?: string; baseRevId?: number; sectionId?: number | null;
+}): Promise<boolean> {
+  const {
+    title,
+    newText,
+    summary,
+    createonly = false,
+    watch,
+    watchExpiry,
+    baseRevId,
+    sectionId,
+  } = opts;
   let activeOpKey = 'edit_' + title;
   if (sectionId) {
     activeOpKey += '_' + sectionId;
   }
   startOp(activeOpKey);
-  const $statusLine = $('<li>').appendTo($('#spiHelper_status', document));
   const $link = $('<a>').attr('href', mw.util.getUrl(title)).attr('title', title).text(title);
-
-  $statusLine.html('Editing ' + $link.prop('outerHTML'));
+  const message = new VueMessage({
+    type: 'notice',
+    content: 'Editing ' + $link.prop('outerHTML'),
+    isHtml: true,
+  }).show();
 
   const api = spiHelperGetAPI(title);
   const finalTitle = spiHelperStripXWikiPrefix(title);
@@ -588,7 +808,7 @@ export async function spiHelperEditPage(
     action: 'edit',
     watchlist: watch,
     summary: summary + spiHelperAdvert,
-    text: newtext,
+    text: newText,
     title: finalTitle,
     createonly: createonly,
   };
@@ -603,12 +823,16 @@ export async function spiHelperEditPage(
   }
   try {
     await api.postWithToken('csrf', request);
-    $statusLine.html('Saved ' + $link.prop('outerHTML'));
+    message.update({ type: 'success', content: 'Saved ' + $link.prop('outerHTML'), isHtml: true });
     finishOp(activeOpKey, OpState.Success);
     return true;
   }
   catch (error) {
-    $statusLine.addClass('spihelper-errortext').html('<b>Edit failed on ' + $link.html() + '</b>: ' + error);
+    message.update({
+      type: 'error',
+      content: `Edit failed on ${$link.prop('outerHTML')}: ${mw.html.escape(JSON.stringify(error))}`,
+      isHtml: true,
+    });
     console.error(error);
     finishOp(activeOpKey, OpState.Failed);
     return false;
@@ -627,14 +851,12 @@ export async function spiHelperEditPage(
 export async function spiHelperGetPageText(
   title: string, show: boolean, sectionId?: number | null,
 ): Promise<string> {
-  const $statusLine = $('<li>');
-  if (show) {
-    // Actually display the statusLine
-    $('#spiHelper_status', document).append($statusLine);
-  }
   // Build the link element (use JQuery so we get escapes and such)
   const $link = $('<a>').attr('href', mw.util.getUrl(title)).attr('title', title).text(title);
-  $statusLine.html('Getting page ' + $link.prop('outerHTML'));
+  const message = new VueMessage({ type: 'notice', content: 'Getting page ' + $link.prop('outerHTML'), isHtml: true });
+  if (show) {
+    message.show();
+  }
 
   const finalTitle = spiHelperStripXWikiPrefix(title);
 
@@ -655,18 +877,28 @@ export async function spiHelperGetPageText(
     const response = await spiHelperGetAPI(title).get(request) as RevisionsResponse<'content'>;
     const targetPage = response.query.pages[0];
     if (!targetPage || 'missing' in targetPage) {
-      $statusLine.html('Page ' + $link.html() + ' does not exist');
+      if (show) {
+        message.update({ type: 'warning', content: `Page ${$link.prop('outerHTML')} does not exist`, isHtml: true });
+      }
       return '';
     }
     const latestRevision = targetPage.revisions[0];
     if (!latestRevision) {
       return '';
     }
-    $statusLine.html('Got ' + $link.html());
+    if (show) {
+      message.update({ type: 'success', content: `Got ${$link.prop('outerHTML')}`, isHtml: true });
+    }
     return latestRevision.slots.main.content;
   }
   catch (error) {
-    $statusLine.addClass('spihelper-errortext').html('<b>Failed to get ' + $link.html() + '</b>: ' + error);
+    if (show) {
+      message.update({
+        type: 'error',
+        content: `Failed to get ${$link.prop('outerHTML')}: ${mw.html.escape(JSON.stringify(error))}`,
+        isHtml: true,
+      });
+    }
     return '';
   }
 }

@@ -19,25 +19,21 @@ export const spiHelperDefaultSettings: ScriptSettings = {
     categories: 'indefinite',
     blocked: 'indefinite',
   },
-  // Log all actions to Special:MyPage/spihelper_log
   log: {
     enabled: false,
     reversed: false,
     page: 'spihelper_log',
   },
-  // Lets people disable clerk options if they're not a clerk
   clerk: true,
-  // Enable the "move section" button
   iUnderstandSectionMoves: false,
-  // Automatically tick the "Archive case" option if the case is closed
   tickArchiveWhenCaseClosed: true,
-  // Use checkuserblock-account when CU blocking. False when not a CU, by default true when a CU
   useCheckuserblockAccount: spiHelperIsCheckuser(false),
-  // Default IPv6 listings to /64 in the block/tag socks menu
   displayIPv6As64: true,
-  // These are for debugging to view as other roles. If you're picking apart the code and
-  // decide to set these (especially the CU option), it is YOUR responsibility to make sure
-  // you don't do something that violates policy
+  useLookup: true,
+  interface: {
+    pinned: true,
+    buttonLayout: true,
+  },
   debug: {
     enabled: false,
     forceCheckuser: false,

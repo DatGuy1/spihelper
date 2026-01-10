@@ -6,15 +6,15 @@
   "type": "module",
   "private": true,
   "devDependencies": {
-    "@eslint/js": "^9.39.1",
+    "@eslint/js": "^9.39.2",
     "@stylistic/eslint-plugin": "^5.6.1",
     "@types/bun": "latest",
     "@wikimedia/codex": "^2.3.3",
-    "eslint": "^9.39.1",
+    "eslint": "^9.39.2",
     "globals": "^16.5.0",
     "jiti": "^2.6.1",
     "types-mediawiki": "^2.0.0",
-    "typescript-eslint": "^8.48.1",
+    "typescript-eslint": "^8.51.0",
     "vue": "^3.5.26"
   },
   "scripts": {
@@ -23,7 +23,7 @@
     "check": "tsc --noEmit && eslint . --max-warnings=0"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   },
   "repository": {
     "type": "git",

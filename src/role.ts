@@ -4,7 +4,7 @@
  *
  * @return {boolean} Whether the current user is a checkuser
  */
-import { spiHelperSettings } from './options.ts';
+import { spiHelperSettings } from './options';
 
 export function spiHelperIsCheckuser(allowDebug: boolean = true): boolean {
   if (allowDebug && spiHelperSettings.debug.enabled) {

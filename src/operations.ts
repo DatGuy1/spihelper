@@ -21,6 +21,10 @@ export function hasRunningOps(): boolean {
   return false;
 }
 
-export function getActiveOps(): Map<string, OpState> {
-  return activeOperations;
+export function isOpRunning(name: string): boolean {
+  return activeOperations.get(name) === OpState.Running;
+}
+
+export function getOpState(name: string): OpState | undefined {
+  return activeOperations.get(name);
 }

@@ -1,6 +1,6 @@
 import { spiHelperEditPage, spiHelperGetPageRev, spiHelperGetPageText } from './api.ts';
 import type { WatchOption } from './types/api.ts';
-import { spiHelperGetInterwikiPrefix } from './utils.ts';
+import { spiHelperGetInterwikiPrefix, spiHelperNormalizeUsername } from './utils.ts';
 
 export class SpiPageContext {
   // Name of the SPI page in wiki title form, "Wikipedia:Sockpuppet investigations/Foo"
@@ -9,6 +9,7 @@ export class SpiPageContext {
   readonly prefixedName: string;
   // Only the username part of the case, "Foo"
   readonly caseName: string;
+  readonly userName: string;
   readonly archiveName: string;
   readonly isArchive: boolean;
   // used to check if the page has been edited since we opened it to prevent edit conflicts
@@ -21,6 +22,7 @@ export class SpiPageContext {
     this.prefixedName = spiHelperGetInterwikiPrefix() + pageName;
     this.isArchive = /Wikipedia:Sockpuppet investigations\/.+\/Archive/.test(pageName);
     this.caseName = extractCaseName(pageName, this.isArchive);
+    this.userName = spiHelperNormalizeUsername(this.caseName);
     this.archiveName = pageName + '/Archive';
     if (currentPage) {
       this.startingRevId = mw.config.get('wgCurRevisionId');
@@ -51,16 +53,16 @@ export class SpiPageContext {
     baseRevId?: number;
     sectionId?: number | null;
   }): Promise<boolean> {
-    return spiHelperEditPage(
-      this.pageName,
-      opts.newText,
-      opts.summary,
-      opts.createonly ?? false,
-      opts.watch,
-      opts.watchExpiry,
-      opts.baseRevId,
-      opts.sectionId,
-    );
+    return spiHelperEditPage({
+      title: this.pageName,
+      newText: opts.newText,
+      summary: opts.summary,
+      createonly: opts.createonly ?? false,
+      watch: opts.watch,
+      watchExpiry: opts.watchExpiry,
+      baseRevId: opts.baseRevId,
+      sectionId: opts.sectionId,
+    });
   }
 }
 
