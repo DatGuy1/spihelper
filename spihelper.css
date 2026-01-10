@@ -1,0 +1,230 @@
+/* {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/develop|path=spihelper.css}} */
+/* v3.0.0-beta.1 "A Whole New World" */
+/* src/spihelper.css */
+.spihelper-hovertext {
+  text-decoration: underline dotted;
+  text-underline-offset: 1px;
+  cursor: var(--cursor-help, help);
+}
+
+.spiHelper-setting {
+  padding: 12px;
+}
+
+#spiHelper-topView-Card {
+  background-color: var(--background-color-base, #fff);
+  border: 1px solid var(--border-color-base, #a2a9b1);
+  border-radius: 2px;
+  padding: 12px;
+}
+
+#spiHelper-topView-Action {
+  display: flex;
+  flex-direction: column;
+  align-items:  flex-start;
+}
+
+#spiHelper-vue-mount-point.unpinned {
+  position: sticky;
+  z-index: 5;
+  top: 60px;
+}
+
+#spiHelper-vue-mount-point.unpinned #spiHelper-topView-Card {
+  position: absolute;
+  width: 97.35%;
+}
+
+#spiHelper-topView-Header {
+  position: relative;
+}
+
+#spiHelper-topView-Header .header-buttons {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+#spiHelper-topView-Accordion .cdx-accordion {
+  overflow: visible;
+}
+
+#buttonRow {
+  display: flex;
+  padding-bottom: 2px;
+}
+
+#messageRow {
+  width: 100%;
+}
+
+#messageRow:has( > *) {
+  padding-top: 20px;
+}
+
+#contentRow {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  margin-top: 1em;
+}
+
+#contentRow > div {
+  display: flex;
+  flex-direction: column;
+  gap: .75em;
+}
+
+#contentRow > div.is-visible ~ div.is-visible {
+  border-top: 1px solid var(--color-base--subtle);
+  padding-top: 16px;
+}
+
+#contentRow > div:not(.is-visible) {
+  display: none;
+}
+
+.enableSwitch {
+  align-self: baseline;
+}
+
+.spiHelper-blockoptions-group {
+  margin-bottom: 12px;
+}
+
+#spiHelper-topView-Accordion .enableSwitch:not(:only-child) {
+  margin-bottom: .75em;
+}
+
+.spiHelper-submitForm {
+  margin-top: 12px;
+}
+
+.spiHelper-submitForm .cdx-text-input {
+  max-width: 80px;
+}
+
+.spiHelper-submitForm .cdx-button:not(:only-child) {
+  margin-top: 12px;
+}
+
+.spiHelper-sockTable thead tr:first-child th {
+  vertical-align: bottom;
+}
+
+.spiHelper-sockTable tbody td {
+  vertical-align: middle;
+}
+
+.spiHelper-sockTable .setAllRow th {
+  vertical-align: middle;
+}
+
+.spiHelper-sockTable .header-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items:  center;
+  gap: 8px;
+}
+
+.spiHelper-sockTable .header-content .header-content-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.spiHelper-sockTable .header-content .header-content-buttons .cdx-message {
+  align-items:  center;
+}
+
+.spiHelper-sockTable .header-content .header-content-buttons .cdx-message .cdx-message__content {
+  margin-left: 4px;
+}
+
+.spiHelper-sockTable th.selectHeader {
+  width: 200px;
+}
+
+.spiHelper-sockTable th.checkboxHeader {
+  padding: 12px 8px;
+}
+
+.spiHelper-sockTable .cdx-select-vue {
+  width: 100%;
+}
+
+.spiHelper-sockTable .cdx-select-vue__handle {
+  word-break: keep-all;
+  min-width: 110px;
+}
+
+.spiHelper-sockTable div.tagOptions {
+  min-width: 130px;
+}
+
+.spiHelper-sockTable thead tr.blockSettingsRow th {
+  white-space: nowrap;
+  padding: 6px 4px;
+  font-size: .75rem;
+}
+
+.spiHelper-sockTable .cdx-checkbox {
+  width: min-content;
+  margin: 0 auto;
+  left: 1px;
+}
+
+.spiHelper-sockTable td:has(.cdx-checkbox) {
+  width: 55px;
+  padding: 4px;
+}
+
+.spiHelper-sockTable .setAllRow th:has(.cdx-checkbox) {
+  width: 55px;
+  padding: 4px;
+}
+
+.spiHelper-sockTable .cdx-text-input {
+  min-width: 50px;
+}
+
+.spiHelper-sockTable .cdx-field__help-text {
+  display: none;
+}
+
+.spiHelper-sockTable .user-lookup {
+  min-width: 150px;
+}
+
+.spiHelper-sockTable th.selectTagOptions {
+  font-weight: normal;
+}
+
+.spiHelper-sockTable .setAllRow > th {
+  border-bottom-color: var(--color-emphasized, #101418) !important;
+}
+
+.spiHelper-sockTable .spihelper-expiry-input {
+  min-width: 90px;
+}
+
+.spiHelper-sockTable.linkTable thead {
+  text-wrap: nowrap;
+}
+
+#spiHelper-PreviewBox {
+  min-height: 26px;
+}
+
+#spiHelper-PreviewBox .cdx-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+#spiHelper-PreviewBox #htmlPreview {
+  word-wrap: break-word;
+  box-sizing: border-box;
+  width: 100%;
+  padding-right: 40px;
+}
