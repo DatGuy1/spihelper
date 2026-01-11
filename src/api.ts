@@ -972,9 +972,7 @@ export async function spiHelperGetPostExpandSize(
     // The page might not exist, so we need to handle that smartly
     return Number(response.parse?.limitreportdata.find(item => item.name === 'limitreport-postexpandincludesize')?.['0'] ?? 0);
   }
-  catch {
-    // Something's gone wrong, just return 0
-  }
+  catch { /* empty */ }
 
   return 0;
 }
