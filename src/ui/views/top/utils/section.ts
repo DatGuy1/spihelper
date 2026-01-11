@@ -7,6 +7,7 @@ import {
   spiHelperGetGlobalUser,
 } from '../../../../api.ts';
 import type { SockRow } from '../../../../types/spi.ts';
+import { isNonRegisteredAccount } from '../../../../utils.ts';
 
 export async function prefetchSockRowsForSelection(
   selection: SectionSelection | null,
@@ -31,15 +32,12 @@ export async function prefetchSockRowsForSelection(
   // For the minute time complexity gains
   const likelySet = new Set(likelySocks);
 
-  const nonIPUsernames = allUsernames.filter(name =>
-    !mw.util.isIPAddress(name, true)
-    && !mw.util.isTemporaryUser(name),
-  )
+  const validUsernames = allUsernames.filter(name => !isNonRegisteredAccount(name))
     .map(name => `User:${name}`);
 
   const [blockSettings, userPages] = await Promise.all([
     spiHelperGetBulkUserBlockSettings(allUsernames),
-    spiHelperGetBulkPageText(nonIPUsernames),
+    spiHelperGetBulkPageText(validUsernames),
   ]);
 
   const userPromises = [...likelySocks, ...possibleSocks].map(async (sock) => {

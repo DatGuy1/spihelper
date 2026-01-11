@@ -355,13 +355,13 @@ async function spiHelperHandleBlocks(opts: BlockActionData): Promise<{
   let lockPromise: Promise<string[]> = Promise.resolve([]);
 
   const {
-    accounts: sockRows,
     userlocks: userLocks,
     options: blockOptions,
     lockcomment: lockComment,
     master,
     altmaster,
   } = opts;
+  const sockRows = opts.accounts.filter(sock => sock.username !== '');
 
   const lockTargets: string[] = [];
   const needsPurge = await createSockCategories({ sockRows, master, altmaster });
