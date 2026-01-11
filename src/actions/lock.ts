@@ -8,7 +8,7 @@ import { VueMessage } from '../ui/messages.ts';
 async function filterLockedAccounts(users: string[]): Promise<string[]> {
   const lockResults = await Promise.all(
     users.map(async user =>
-      (await spiHelperGetGlobalUser(user))?.locked ? user : null,
+      (await spiHelperGetGlobalUser(user))?.locked ? null : user,
     ),
   );
 
