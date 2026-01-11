@@ -577,7 +577,7 @@
         if (page.missing) {
           continue;
         }
-        const latestRevision = page.revisions[0];
+        const latestRevision = page.revisions?.[0];
         if (!latestRevision) {
           continue;
         }
@@ -604,7 +604,8 @@
       list: "blocks",
       bklimit: "max",
       bkusers: usernames,
-      bkprop: ["user", "reason", "flags", "expiry"]
+      bkprop: ["user", "reason", "flags", "expiry"],
+      formatversion: "2"
     };
     try {
       const response = await api.get(request);
@@ -1101,7 +1102,7 @@
         }
         return "";
       }
-      const latestRevision = targetPage.revisions[0];
+      const latestRevision = targetPage.revisions?.[0];
       if (!latestRevision) {
         return "";
       }
@@ -1136,7 +1137,7 @@
       if (!targetPage || "missing" in targetPage) {
         return 0;
       }
-      const latestRevision = targetPage.revisions[0];
+      const latestRevision = targetPage.revisions?.[0];
       if (!latestRevision) {
         return 0;
       }
@@ -2237,10 +2238,10 @@
       state
     });
     const likelySet = new Set(likelySocks);
-    const nonIPUsernames = allUsernames.filter((name) => !mw.util.isIPAddress(name, true) && !mw.util.isTemporaryUser(name)).map((name) => `User:${name}`);
+    const validUsernames = allUsernames.filter((name) => !isNonRegisteredAccount(name)).map((name) => `User:${name}`);
     const [blockSettings, userPages] = await Promise.all([
       spiHelperGetBulkUserBlockSettings(allUsernames),
-      spiHelperGetBulkPageText(nonIPUsernames)
+      spiHelperGetBulkPageText(validUsernames)
     ]);
     const userPromises = [...likelySocks, ...possibleSocks].map(async (sock) => {
       const blockSetting = blockSettings.get(sock.username);
@@ -3011,7 +3012,7 @@ $2`);
 
   // src/actions/lock.ts
   async function filterLockedAccounts(users) {
-    const lockResults = await Promise.all(users.map(async (user) => (await spiHelperGetGlobalUser(user))?.locked ? user : null));
+    const lockResults = await Promise.all(users.map(async (user) => (await spiHelperGetGlobalUser(user))?.locked ? null : user));
     return lockResults.filter((user) => user !== null);
   }
   async function spiHelperRequestLocks(opts) {
@@ -3359,13 +3360,13 @@ ${comment}
     const tagPromises = [];
     let lockPromise = Promise.resolve([]);
     const {
-      accounts: sockRows,
       userlocks: userLocks,
       options: blockOptions,
       lockcomment: lockComment,
       master,
       altmaster
     } = opts;
+    const sockRows = opts.accounts.filter((sock) => sock.username !== "");
     const lockTargets = [];
     const needsPurge = await createSockCategories({ sockRows, master, altmaster });
     const blockAvailable = spiHelperIsAdmin() && !blockOptions.noBlock;
