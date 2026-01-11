@@ -1,5 +1,6 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|refs=refs/heads/build/develop|path=spihelper.js}}
 // v3.0.0-beta.1 "A Whole New World"
+// <nowiki>
 (() => {
 
   // src/constants/regex.ts
@@ -30,6 +31,9 @@
     const temp = mw.config.get("wgServer").replace(/^(https?)?:?\/\//, "").split(".");
     const wikiLang = temp[0];
     const wikiFamily = temp[1];
+    if (wikiLang === undefined || wikiFamily === undefined) {
+      return "";
+    }
     let iwPrefix;
     switch (wikiFamily) {
       case "wikimedia":
@@ -150,6 +154,10 @@
   function addSignature(text) {
     const withSignature = spiHelperSignatureRegex.test(text);
     return withSignature ? text : text.trimEnd() + " ~~~~";
+  }
+  function buildTitleLinkHtml(title) {
+    const $link = $("<a>").attr("href", mw.util.getUrl(title)).attr("title", title).text(title);
+    return $link.prop("outerHTML");
   }
 
   // src/operations.ts
@@ -361,6 +369,9 @@
   function setNestedValue(obj, path, value) {
     let current = obj;
     for (let i = 0;i < path.length - 1; i++) {
+      if (!path[i]) {
+        throw new Error(`Path segment "${path.join(".")}" is invalid`);
+      }
       const key = path[i];
       const next = current[key];
       if (next === null || typeof next !== "object") {
@@ -437,7 +448,7 @@
     return spiHelperGetAPI().saveOption(saveKey, JSON.stringify(spiHelperSettings));
   }
   function loadOptions() {
-    const rawData = mw.user.options.get(saveKey);
+    const rawData = String(mw.user.options.get(saveKey));
     try {
       return rawData ? JSON.parse(rawData) : null;
     } catch (e) {
@@ -530,20 +541,12 @@
       return this;
     }
     update(opts) {
-      const { type, content, isHtml } = opts;
-      if (type !== undefined) {
-        this.type = type;
-      }
-      if (content !== undefined) {
-        this.content = content;
-      }
-      if (isHtml !== undefined) {
-        this.isHtml = isHtml;
-      }
-      if (!this._index) {
+      Object.assign(this, opts);
+      if (this._index === undefined) {
         this.show();
+      } else {
+        messages[this._index] = this;
       }
-      messages[this._index] = this;
       return this;
     }
   }
@@ -571,7 +574,7 @@
     try {
       const response = await api.get(request);
       for (const page of response.query.pages) {
-        if (page.missing || !page.revisions) {
+        if (page.missing) {
           continue;
         }
         const latestRevision = page.revisions[0];
@@ -683,10 +686,10 @@
   async function spiHelperDeletePage(title, reason) {
     const activeOpKey = "delete_" + title;
     startOp(activeOpKey);
-    const $link = $("<a>").attr("href", mw.util.getUrl(title)).attr("title", title).text(title);
+    const linkHtml = buildTitleLinkHtml(title);
     const message = new VueMessage({
       type: "notice",
-      content: `Deleting ${$link.prop("outerHTML")}`,
+      content: `Deleting ${linkHtml}`,
       isHtml: true
     }).show();
     const api = spiHelperGetAPI(title);
@@ -697,12 +700,12 @@
     };
     try {
       await api.postWithToken("csrf", request);
-      message.update({ type: "success", content: `Deleted ${$link.prop("outerHTML")}` });
+      message.update({ type: "success", content: `Deleted ${linkHtml}` });
       finishOp(activeOpKey, "success" /* Success */);
     } catch (error) {
       message.update({
         type: "error",
-        content: `Failed to delete ${$link.prop("outerHTML")}: ${mw.html.escape(JSON.stringify(error))}`
+        content: `Failed to delete ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`
       });
       finishOp(activeOpKey, "failed" /* Failed */);
     }
@@ -710,10 +713,10 @@
   async function spiHelperUndeletePage(title, reason) {
     const activeOpKey = "undelete_" + title;
     startOp(activeOpKey);
-    const $link = $("<a>").attr("href", mw.util.getUrl(title)).attr("title", title).text(title);
+    const linkHtml = buildTitleLinkHtml(title);
     const message = new VueMessage({
       type: "notice",
-      content: `Undeleting ${$link.prop("outerHTML")}`,
+      content: `Undeleting ${linkHtml}`,
       isHtml: true
     }).show();
     const api = spiHelperGetAPI(title);
@@ -724,12 +727,12 @@
     };
     try {
       await api.postWithToken("csrf", request);
-      message.update({ type: "success", content: `Undeleted ${$link.prop("outerHTML")}` });
+      message.update({ type: "success", content: `Undeleted ${linkHtml}` });
       finishOp(activeOpKey, "success" /* Success */);
     } catch (error) {
       message.update({
         type: "error",
-        content: `Failed to undelete ${$link.prop("outerHTML")}: ${mw.html.escape(JSON.stringify(error))}`
+        content: `Failed to undelete ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`
       });
       finishOp(activeOpKey, "failed" /* Failed */);
     }
@@ -744,7 +747,7 @@
     };
     try {
       const response = await spiHelperGetAPI(title).get(request);
-      return response.parse.text["*"];
+      return response.parse?.text["*"] ?? "";
     } catch (error) {
       console.error("Error rendering text:", error);
       return "";
@@ -758,11 +761,14 @@
     };
     const api = spiHelperGetAPI();
     const response = await api.get(request);
+    if (!response.parse) {
+      console.error("spiHelperGetInvestigationSectionIDs: Could not parse sections");
+      return [];
+    }
     const dateSections = [];
-    for (let i = 0;i < response.parse.tocdata.sections.length; i++) {
-      const currentSection = response.parse.tocdata.sections[i];
-      if (parseInt(currentSection.hLevel) === 3) {
-        dateSections.push(new SectionEntry(parseInt(currentSection.index), currentSection.line));
+    for (const section of response.parse.tocdata.sections) {
+      if (parseInt(section.hLevel) === 3) {
+        dateSections.push(new SectionEntry(parseInt(section.index), section.line));
       }
     }
     return dateSections;
@@ -781,7 +787,7 @@
     try {
       const response = await api.get(request);
       return response.query.backlinks.filter((dictEntry) => {
-        return dictEntry.title.startsWith("Wikipedia:Sockpuppet investigations/") && !dictEntry.title.startsWith("Wikipedia:Sockpuppet investigations/SPI/") && !dictEntry.title.match("Wikipedia:Sockpuppet investigations/.*/Archive.*");
+        return dictEntry.title.startsWith("Wikipedia:Sockpuppet investigations/") && !dictEntry.title.startsWith("Wikipedia:Sockpuppet investigations/SPI/") && !/Wikipedia:Sockpuppet investigations\/.*\/Archive.*/.exec(dictEntry.title);
       });
     } catch {
       return [];
@@ -825,8 +831,8 @@
   async function spiHelperProtectPage(pageName, protections) {
     const activeOpKey = "protect_" + pageName;
     startOp(activeOpKey);
-    const $link = $("<a>").attr("href", mw.util.getUrl(pageName)).attr("title", pageName).text(pageName);
-    const message = new VueMessage({ type: "notice", content: `Protecting ${$link.prop("outerHTML")}`, isHtml: true });
+    const linkHtml = buildTitleLinkHtml(pageName);
+    const message = new VueMessage({ type: "notice", content: `Protecting ${linkHtml}`, isHtml: true });
     const api = spiHelperGetAPI();
     try {
       let protectLevel = "";
@@ -848,12 +854,12 @@
         reason: "Restoring protection after history merge"
       };
       await api.postWithToken("csrf", request);
-      message.update({ type: "success", content: `Protected ${$link.prop("outerHTML")}` });
+      message.update({ type: "success", content: `Protected ${linkHtml}` });
       finishOp(activeOpKey, "success" /* Success */);
     } catch (error) {
       message.update({
         type: "error",
-        content: `Failed to protect ${$link.prop("outerHTML")}: ${mw.html.escape(JSON.stringify(error))}`
+        content: `Failed to protect ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`
       });
       finishOp(activeOpKey, "failed" /* Failed */);
     }
@@ -917,10 +923,10 @@
     const activeOpKey = "block_" + user;
     startOp(activeOpKey);
     const userPage = "User:" + user;
-    const $link = $("<a>").attr("href", mw.util.getUrl(userPage)).attr("title", userPage).text(user);
+    const linkHtml = buildTitleLinkHtml(userPage);
     const message = new VueMessage({
       type: "notice",
-      content: `Blocking ${$link.prop("outerHTML")}`,
+      content: `Blocking ${linkHtml}`,
       isHtml: true
     }).show();
     const api = spiHelperGetAPI();
@@ -940,23 +946,23 @@
     };
     try {
       await api.postWithToken("csrf", request);
-      message.update({ type: "success", content: `Blocked ${$link.prop("outerHTML")}` });
+      message.update({ type: "success", content: `Blocked ${linkHtml}` });
       finishOp(activeOpKey, "success" /* Success */);
       return true;
     } catch (error) {
       message.update({
         type: "error",
-        content: `Failed to block ${$link.prop("outerHTML")}: ${mw.html.escape(JSON.stringify(error))}`
+        content: `Failed to block ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`
       });
       finishOp(activeOpKey, "failed" /* Failed */);
       return false;
     }
   }
   async function spiHelperPurgePage(title) {
-    const $link = $("<a>").attr("href", mw.util.getUrl(title)).attr("title", title).text(title);
+    const linkHtml = buildTitleLinkHtml(title);
     const message = new VueMessage({
       type: "notice",
-      content: `Purging ${$link.prop("outerHTML")}`,
+      content: `Purging ${linkHtml}`,
       isHtml: true
     }).show();
     const strippedTitle = spiHelperStripXWikiPrefix(title);
@@ -967,11 +973,11 @@
     };
     try {
       await api.postWithToken("csrf", request);
-      message.update({ type: "success", content: `Purged ${$link.prop("outerHTML")}` });
+      message.update({ type: "success", content: `Purged ${linkHtml}` });
     } catch (error) {
       message.update({
         type: "error",
-        content: `Failed to purge ${$link.prop("outerHTML")}: ${mw.html.escape(JSON.stringify(error))}`
+        content: `Failed to purge ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`
       });
     }
   }
@@ -980,11 +986,11 @@
     const activeOpKey = "move_" + sourcePage + "_" + destPage;
     startOp(activeOpKey);
     const api = spiHelperGetAPI();
-    const $sourceLink = $("<a>").attr("href", mw.util.getUrl(sourcePage)).attr("title", sourcePage).text(sourcePage);
-    const $destLink = $("<a>").attr("href", mw.util.getUrl(destPage)).attr("title", destPage).text(destPage);
+    const sourceLinkHtml = buildTitleLinkHtml(sourcePage);
+    const destLinkHtml = buildTitleLinkHtml(destPage);
     const message = new VueMessage({
       type: "notice",
-      content: `Moving ${$sourceLink.prop("outerHTML")} to ${$destLink.prop("outerHTML")}`,
+      content: `Moving ${sourceLinkHtml} to ${destLinkHtml}`,
       isHtml: true
     }).show();
     const request = {
@@ -1000,13 +1006,13 @@
       await api.postWithToken("csrf", request);
       message.update({
         type: "success",
-        content: `Moved ${$sourceLink.prop("outerHTML")} to ${$destLink.prop("outerHTML")}`
+        content: `Moved ${sourceLinkHtml} to ${destLinkHtml}`
       });
       finishOp(activeOpKey, "success" /* Success */);
     } catch (error) {
       message.update({
         type: "error",
-        content: `Failed to move ${$sourceLink.prop("outerHTML")} to ${$destLink.prop("outerHTML")}: ${mw.html.escape(JSON.stringify(error))}`
+        content: `Failed to move ${sourceLinkHtml} to ${destLinkHtml}: ${mw.html.escape(JSON.stringify(error))}`
       });
       finishOp(activeOpKey, "failed" /* Failed */);
     }
@@ -1022,15 +1028,15 @@
       baseRevId,
       sectionId
     } = opts;
-    let activeOpKey = "edit_" + title;
+    let activeOpKey = `edit_${title}`;
     if (sectionId) {
-      activeOpKey += "_" + sectionId;
+      activeOpKey += `_${sectionId}`;
     }
     startOp(activeOpKey);
-    const $link = $("<a>").attr("href", mw.util.getUrl(title)).attr("title", title).text(title);
+    const linkHtml = buildTitleLinkHtml(title);
     const message = new VueMessage({
       type: "notice",
-      content: "Editing " + $link.prop("outerHTML"),
+      content: "Editing " + linkHtml,
       isHtml: true
     }).show();
     const api = spiHelperGetAPI(title);
@@ -1054,13 +1060,13 @@
     }
     try {
       await api.postWithToken("csrf", request);
-      message.update({ type: "success", content: "Saved " + $link.prop("outerHTML"), isHtml: true });
+      message.update({ type: "success", content: "Saved " + linkHtml, isHtml: true });
       finishOp(activeOpKey, "success" /* Success */);
       return true;
     } catch (error) {
       message.update({
         type: "error",
-        content: `Edit failed on ${$link.prop("outerHTML")}: ${mw.html.escape(JSON.stringify(error))}`,
+        content: `Edit failed on ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`,
         isHtml: true
       });
       console.error(error);
@@ -1069,8 +1075,8 @@
     }
   }
   async function spiHelperGetPageText(title, show, sectionId) {
-    const $link = $("<a>").attr("href", mw.util.getUrl(title)).attr("title", title).text(title);
-    const message = new VueMessage({ type: "notice", content: "Getting page " + $link.prop("outerHTML"), isHtml: true });
+    const linkHtml = buildTitleLinkHtml(title);
+    const message = new VueMessage({ type: "notice", content: "Getting page " + linkHtml, isHtml: true });
     if (show) {
       message.show();
     }
@@ -1091,7 +1097,7 @@
       const targetPage = response.query.pages[0];
       if (!targetPage || "missing" in targetPage) {
         if (show) {
-          message.update({ type: "warning", content: `Page ${$link.prop("outerHTML")} does not exist`, isHtml: true });
+          message.update({ type: "warning", content: `Page ${linkHtml} does not exist`, isHtml: true });
         }
         return "";
       }
@@ -1100,14 +1106,14 @@
         return "";
       }
       if (show) {
-        message.update({ type: "success", content: `Got ${$link.prop("outerHTML")}`, isHtml: true });
+        message.update({ type: "success", content: `Got ${linkHtml}`, isHtml: true });
       }
       return latestRevision.slots.main.content;
     } catch (error) {
       if (show) {
         message.update({
           type: "error",
-          content: `Failed to get ${$link.prop("outerHTML")}: ${mw.html.escape(JSON.stringify(error))}`,
+          content: `Failed to get ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`,
           isHtml: true
         });
       }
@@ -1120,7 +1126,7 @@
       action: "query",
       prop: "revisions",
       rvslots: "main",
-      rvprop: ["ids"],
+      rvprop: "ids",
       titles: finalTitle,
       formatversion: "2"
     };
@@ -1169,12 +1175,12 @@
     };
     try {
       const response = await api.get(request);
-      return response.parse.text["*"];
+      return response.parse?.text["*"] ?? "";
     } catch {
       return "";
     }
   }
-  var userAgent = "MediaWiki-JS/" + mw.config.get("wgVersion") + " spihelper/" + "3.0.0-beta.1";
+  var userAgent = `MediaWiki-JS/${mw.config.get("wgVersion")} spihelper/${"3.0.0-beta.1"}`;
   var APIs = {
     meta: new mw.ForeignApi("https://meta.wikimedia.org/w/api.php", { userAgent }),
     local: new mw.Api({ userAgent })
@@ -1240,7 +1246,7 @@
   function cleanPageName(pageName) {
     return pageName.replaceAll(/_/g, " ");
   }
-  var rawPageName = mw.config.get("wgPageName") ?? "";
+  var rawPageName = mw.config.get("wgPageName");
   var pageName = cleanPageName(rawPageName);
   var context = new SpiPageContext(pageName, true);
 
@@ -1346,7 +1352,7 @@
       openButton: { type: Object, required: true }
     },
     data: function() {
-      const username = mw.config.get("wgUserName") || "";
+      const username = mw.config.get("wgUserName") ?? "";
       const logPrefix = `User:${username}/`;
       return {
         open: false,
@@ -1370,7 +1376,7 @@
       },
       isCheckUser() {
         const { debug } = this.spiHelperSettings;
-        const isCU = mw.config.get("wgUserGroups")?.includes("checkuser") || false;
+        const isCU = mw.config.get("wgUserGroups")?.includes("checkuser") ?? false;
         return isCU || debug.enabled && debug.forceCheckuser;
       }
     },
@@ -1646,7 +1652,7 @@
   // src/ui/views/top/actionAccordion.ts
   var ActionAccordionComponent = defineComponent({
     props: {
-      selection: { type: String, required: true },
+      selection: { type: Object, required: true },
       name: { type: String, required: true },
       label: { type: [String, Object], required: true },
       selectionType: { type: String, required: true },
@@ -1699,7 +1705,7 @@
   // src/ui/views/top/actionButton.ts
   var ActionButtonComponent = defineComponent({
     props: {
-      selection: { type: [String, Number], required: true },
+      selection: { type: Object, required: true },
       name: { type: String, required: true },
       label: { type: [String, Object], required: true },
       selectionType: { type: String, required: true },
@@ -1805,17 +1811,15 @@
         visibleItemLimit: 6,
         searchQuery: ""
       };
-      const userSuggestions = [];
       const messages2 = {
         success: "Valid user",
         warning: "User not found"
       };
-      const selection = null;
       return {
         lookupStatus: "default",
         messages: messages2,
-        selection,
-        userSuggestions,
+        selection: null,
+        userSuggestions: [],
         menuConfig,
         useLookup: spiHelperSettings.useLookup
       };
@@ -1878,7 +1882,7 @@
           return;
         }
         spiHelperGetUsers(this.username, this.userSuggestions.length + ITEM_LIMIT).then((users) => {
-          if (!users || users.length === 0) {
+          if (users.length === 0) {
             return;
           }
           this.userSuggestions = users.map((user) => ({
@@ -1886,7 +1890,7 @@
             value: user.userid.toString(),
             customData: user
           }));
-        }).catch(() => {});
+        }, () => {});
       },
       async validateInstantly() {
         await this.$nextTick(() => {
@@ -1961,8 +1965,6 @@
   function parseTemplates(wikitext) {
     const templates = [];
     const matches = wikitext.trim().matchAll(/\{\{([\s\S]+?)}}/g);
-    if (!matches)
-      return [];
     for (const match of matches) {
       if (!match[1]) {
         continue;
@@ -1973,7 +1975,7 @@
   }
   function parseTemplate(templateText) {
     const parts = templateText.split("|").map((p) => p.trim());
-    const name = parts.shift().toLowerCase();
+    const name = parts.shift()?.toLowerCase() ?? "unknown";
     const params = {};
     const positional = [];
     for (const part of parts) {
@@ -1993,7 +1995,7 @@
       result.push(positional);
     }
     for (const [key, value] of Object.entries(template.params)) {
-      if (!Number.isNaN(key)) {
+      if (!Number.isNaN(Number(key))) {
         result.push(value);
       }
     }
@@ -2014,7 +2016,7 @@
       console.error("Missing archive notice");
       return null;
     }
-    const username = archiveNoticeTemplate.positional[0] || archiveNoticeTemplate.params["1"];
+    const username = archiveNoticeTemplate.positional[0] ?? archiveNoticeTemplate.params["1"];
     if (!username) {
       console.error("Invalid archive notice: Username missing");
       return null;
@@ -2044,7 +2046,7 @@
     }
     const archiveNotice = state.archiveNotice ?? new ParsedArchiveNotice({ username: context.caseName });
     const archiveNoticeText = archiveNotice.generateWikitext();
-    const tocMatch = pageText.match(/(<noinclude>)?__TOC__(<\/noinclude>)?/);
+    const tocMatch = /(<noinclude>)?__TOC__(<\/noinclude>)?/.exec(pageText);
     if (tocMatch) {
       const tocEnd = tocMatch.index + tocMatch[0].length;
       pageText = pageText.slice(0, tocEnd) + `
@@ -2067,7 +2069,7 @@
     const { text, fullSearch, state } = opts;
     const likelySocks = fullSearch ? [generateSockRow(context.caseName, state)] : [];
     const possibleSocks = [];
-    const allUsernames = fullSearch ? new Set(context.caseName) : new Set;
+    const allUsernames = fullSearch ? new Set([context.caseName]) : new Set;
     if (fullSearch) {
       let $searchOrigin = $(document);
       if (state.selectedSection?.type === "specific") {
@@ -2084,7 +2086,7 @@
       }
     }
     const isRelevantTemplate = (templateName) => {
-      return templateName.match(/sock ?list/) !== null || ["ip", "vandal", "user", "ping"].some((t) => templateName.includes(t));
+      return /sock ?list/.exec(templateName) !== null || ["ip", "vandal", "user", "ping"].some((t) => templateName.includes(t));
     };
     const allTemplates = parseTemplates(text);
     for (const template of allTemplates) {
@@ -2179,7 +2181,7 @@
               console.warn("Unrecognised sock status", blockParam, "for", row.username);
               break;
           }
-          if (template.params["altmaster"]) {
+          if (template.params.altmaster) {
             const altmasterStatus = template.params["altmaster-status"];
             switch (altmasterStatus) {
               case undefined:
@@ -2228,7 +2230,7 @@
     if (!selection) {
       return [];
     }
-    const searchText = await (selection.type === "all" ? loadCaseText(state) : loadSectionText(selection.section)) ?? "";
+    const searchText = await (selection.type === "all" ? loadCaseText(state) : loadSectionText(selection.section));
     const [likelySocks, possibleSocks, allUsernames] = getSockEntries({
       text: searchText,
       fullSearch: true,
@@ -2356,8 +2358,8 @@
     let logPageText = await spiHelperGetPageText(logPage, false);
     if (!logPageText.match(dateHeaderRe)) {
       if (spiHelperSettings.log.reversed) {
-        const firstHeaderMatch = logPageText.match(dateHeaderReWithAnyDate);
-        if (firstHeaderMatch && firstHeaderMatch.index) {
+        const firstHeaderMatch = dateHeaderReWithAnyDate.exec(logPageText);
+        if (firstHeaderMatch?.index) {
           logPageText = logPageText.slice(0, firstHeaderMatch.index) + "== " + dateString + ` ==
 ` + logPageText.slice(firstHeaderMatch.index);
         }
@@ -2367,8 +2369,8 @@
       }
     }
     if (spiHelperSettings.log.reversed) {
-      const firstHeaderMatch = logPageText.match(dateHeaderReWithAnyDate);
-      if (firstHeaderMatch && firstHeaderMatch.index) {
+      const firstHeaderMatch = dateHeaderReWithAnyDate.exec(logPageText);
+      if (firstHeaderMatch?.index) {
         logPageText = logPageText.slice(0, firstHeaderMatch.index + firstHeaderMatch[0].length) + `
 ` + logString + logPageText.slice(firstHeaderMatch.index + firstHeaderMatch[0].length);
       }
@@ -2557,7 +2559,7 @@
   async function spiHelperMoveCaseSection(mergeTarget, section) {
     const newContext = new SpiPageContext(context.pageName.replace(context.caseName, mergeTarget));
     let targetPageText = await newContext.getText();
-    let sectionText = await loadSectionText(section) ?? "";
+    let sectionText = await loadSectionText(section);
     sectionText = sectionText.replace(/\n*----(?!(\n|.)*----)/, `
 * {{clerknote}} originally filed under [[Wikipedia:Sockpuppet investigations/` + context.caseName + `]]. ~~~~
 ----`);
@@ -2613,7 +2615,7 @@
             watch: spiHelperSettings.watch.case,
             watchExpiry: spiHelperSettings.expiry.case
           });
-          if (pagesChecked.indexOf(backlink.title) !== -1) {
+          if (pagesChecked.includes(backlink.title)) {
             pagesToCheck.push(backlink.title);
           }
         }
@@ -2927,7 +2929,7 @@ $2`);
       }
       i++;
       const result = spiHelperCaseStatusRegex.exec(sectionText);
-      if (result === null || !result[1]) {
+      if (!result?.[1]) {
         continue;
       }
       if (spiHelperCaseClosedRegex.test(result[1])) {
@@ -2935,10 +2937,10 @@ $2`);
         const postExpandPercent = (await spiHelperGetPostExpandSize(context.pageName, section.id) + await spiHelperGetPostExpandSize(context.archiveName)) / spiHelperGetMaxPostExpandSize();
         if (postExpandPercent >= 1) {
           let archiveId = 1;
-          while (await spiHelperGetPageText(context.archiveName + "/" + archiveId, false) !== "") {
+          while (await spiHelperGetPageText(`${context.archiveName}/${archiveId}`, false) !== "") {
             archiveId++;
           }
-          const newArchiveName = context.archiveName + "/" + archiveId;
+          const newArchiveName = `${context.archiveName}/${archiveId}`;
           await spiHelperMovePage({
             sourcePage: context.archiveName,
             destPage: newArchiveName,
@@ -3020,7 +3022,7 @@ $2`);
     }
     let lockTemplate;
     const usePlural = lockTargets.length > 1;
-    if (!usePlural) {
+    if (!usePlural && lockTargets[0]) {
       lockTemplate = `* {{LockHide|1=${lockTargets[0]}}}`;
     } else {
       lockTemplate = "{{MultiLock";
@@ -3087,7 +3089,7 @@ $1`);
     await spiHelperArchiveCase(state);
     await spiHelperPurgePage(context.pageName);
     const logMessage = `* [[${context.pageName}]]: used one-click archiver ~~~~~`;
-    if (spiHelperSettings.log) {
+    if (spiHelperSettings.log.enabled) {
       await spiHelperLog(logMessage);
     }
     new VueMessage({ type: "success", content: "Done!" }).show();
@@ -3150,7 +3152,7 @@ $1`);
     if (!context.isArchive) {
       if (sectionType === "specific") {
         const caseStatusResult = spiHelperCaseStatusRegex.exec(targetText);
-        if (caseStatusResult === null || !caseStatusResult[1]) {
+        if (!caseStatusResult?.[1]) {
           targetText = targetText.replace(/^(\s*===.*===[^\S\r\n]*)/, `$1
 {{SPI case status|}}`);
           actions.status.data.old = "new";
@@ -3177,7 +3179,7 @@ $1`);
         if (actions.management.enabled) {
           const noticeOpts = actions.management.data.flags;
           state.archiveNotice = new ParsedArchiveNotice({
-            username: state.archiveNotice?.username || context.caseName,
+            username: state.archiveNotice.username || context.caseName,
             deny: noticeOpts.has("deny"),
             crosswiki: noticeOpts.has("crosswiki"),
             notalk: noticeOpts.has("notalk"),
@@ -3230,9 +3232,6 @@ $1`);
       if (renameTarget) {
         switch (state.selectedSection.type) {
           case "all": {
-            if (!state.archiveNotice) {
-              state.archiveNotice = new ParsedArchiveNotice;
-            }
             logMessage += `
 ** moved/merged case to ` + renameTarget;
             await spiHelperMoveCase(renameTarget, state.archiveNotice);
@@ -3248,7 +3247,7 @@ $1`);
       }
     }
     const [blockedUsers, taggedUsers, lockedUsers] = await userActionsPromise;
-    if (spiHelperSettings.log) {
+    if (spiHelperSettings.log.enabled) {
       if (blockedUsers.length > 0) {
         logMessage += `
 ** blocked ` + blockedUsers.filter(Boolean).join(", ");
@@ -3350,7 +3349,7 @@ ${comment}
         console.error("Unexpected case status value", newStatus);
     }
     const caseStatusResult = spiHelperCaseStatusRegex.exec(targetText);
-    if (caseStatusResult !== null && caseStatusResult[0]) {
+    if (caseStatusResult?.[0]) {
       targetText = targetText.replace(caseStatusResult[0], `{{SPI case status|${newStatus}}}`);
     }
     return { newStatus, summaryItem, targetText };
@@ -3443,6 +3442,9 @@ ${comment}
   }
   function formatEditSummary(editSummaryActions) {
     const [firstAction, ...rest] = editSummaryActions;
+    if (!firstAction) {
+      return "";
+    }
     const formattedStart = firstAction.charAt(0).toUpperCase() + firstAction.slice(1);
     const remainder = rest.length ? `, ${rest.join(", ")}` : "";
     return formattedStart + remainder;
@@ -3510,6 +3512,9 @@ ${comment}
       },
       archiveNotice() {
         return this.state.archiveNotice;
+      },
+      mountPoint() {
+        return this.$el.parentElement;
       }
     },
     template: `
@@ -3606,11 +3611,14 @@ ${comment}
   `,
     watch: {
       unpinned(newVal) {
-        const mountPoint = this.$el.parentElement;
+        if (!this.mountPoint) {
+          console.error("TopViewComponent unpinned: Could not find mountPoint");
+          return;
+        }
         if (newVal) {
-          mountPoint.classList?.add("unpinned");
+          this.mountPoint.classList.add("unpinned");
         } else {
-          mountPoint.classList?.remove("unpinned");
+          this.mountPoint.classList.remove("unpinned");
         }
         spiHelperSettings.interface.pinned = !newVal;
       },
@@ -3712,7 +3720,7 @@ ${comment}
         const newText = await loadSectionText(targetSection);
         const result = spiHelperCaseStatusRegex.exec(newText);
         let caseStatus = "";
-        if (result && result[1]) {
+        if (result?.[1]) {
           caseStatus = result[1];
         }
         const normalisedStatus = normalizeCaseStatus(caseStatus);
@@ -3767,9 +3775,7 @@ ${comment}
         HandleUserSelected(data, this.caseActions.block.data.accounts[index]);
       },
       handleAddRow(row) {
-        if (row === undefined) {
-          row = getDefaultSockRow(this.state.archiveNotice);
-        }
+        row ??= getDefaultSockRow(this.state.archiveNotice);
         this.caseActions.block.data.accounts = [
           ...this.caseActions.block.data.accounts,
           row
@@ -3802,11 +3808,14 @@ ${comment}
       }
     },
     mounted() {
-      const mountPoint = this.$el.parentElement;
+      if (!this.mountPoint) {
+        console.error("TopViewComponent mounted: Could not find mountPoint");
+        return;
+      }
       if (this.unpinned) {
-        mountPoint.classList?.add("unpinned");
+        this.mountPoint.classList.add("unpinned");
       } else {
-        mountPoint.classList?.remove("unpinned");
+        this.mountPoint.classList.remove("unpinned");
       }
       this._beforeUnloadHandler = (e) => {
         const opState = getOpState("mainActions");
@@ -3980,6 +3989,10 @@ ${comment}
       },
       insertText(templateValue) {
         const textareaElement = this.commentBox.$el.querySelector("textarea");
+        if (!textareaElement) {
+          console.error("commentAction: Unable to find textarea");
+          return;
+        }
         const selectionStart = textareaElement.selectionStart;
         const selectionEnd = textareaElement.selectionEnd;
         let newText = this.text;
@@ -4022,8 +4035,11 @@ ${comment}
           return itemData?.value ?? null;
         },
         set(value) {
+          if (value === null) {
+            return;
+          }
           this.localStatus = String(value);
-          if (value !== undefined && value !== "nochange") {
+          if (value !== "nochange") {
             this.$emit("update:status", String(value));
           }
         }
@@ -4901,7 +4917,7 @@ ${comment}
     props: {
       enabled: { type: Boolean, required: true },
       status: { type: String, required: true },
-      selection: { type: [String, Number], required: true }
+      selection: { type: Object, required: true }
     },
     emits: ["update:enabled"],
     template: `
@@ -5006,19 +5022,17 @@ ${comment}
         visibleItemLimit: 6,
         searchQuery: ""
       };
-      const pageSuggestions = [];
       const messages2 = {
         success: "Page exists",
         warning: "Page not found"
       };
-      const selection = null;
       return {
         lookupStatus: "default",
         messages: messages2,
-        selection,
-        pageSuggestions,
-        menuConfig,
-        useLookup: spiHelperSettings.useLookup
+        pageSuggestions: [],
+        useLookup: spiHelperSettings.useLookup,
+        selection: null,
+        menuConfig
       };
     },
     template: `
@@ -5079,14 +5093,14 @@ ${comment}
           return;
         }
         spiHelperGetPages(this.fullPagename, 4, this.pageSuggestions.length + ITEM_LIMIT2).then((pages) => {
-          if (!pages || pages.length === 0) {
+          if (pages.length === 0) {
             return;
           }
           this.pageSuggestions = pages.filter((page) => !page.title.includes("/Archive")).map((page) => ({
             label: this.stripTitle(page.title),
             value: page.pageid.toString()
           }));
-        }).catch(() => {});
+        }, () => {});
       },
       async validateInstantly() {
         await this.$nextTick(() => {
@@ -5107,7 +5121,7 @@ ${comment}
         }
       },
       stripTitle(fullTitle) {
-        return fullTitle.split(this.prefix)[1] || fullTitle;
+        return fullTitle.split(this.prefix)[1] ?? fullTitle;
       }
     },
     computed: {
@@ -5311,12 +5325,14 @@ ${comment}
       return {
         _activateHandler: null,
         open: false,
+        archiving: false,
         messages
       };
     },
     template: `
     <cdx-dialog v-model:open="open" title="One Click Archival">
-      <div>
+      <cdx-progress-bar v-if="archiving" aria-label="Archival in progress" />
+      <div style="margin-top: 12px;">
         <cdx-message v-for="(message, index) in messages" :key="index" :type="message.type">
           <span v-if="message.isHtml" v-html="message.content" />
           <span v-else>
@@ -5330,7 +5346,10 @@ ${comment}
       this._activateHandler = () => {
         messages.length = 0;
         this.open = true;
-        spiHelperOneClickArchive(this.state);
+        this.archiving = true;
+        spiHelperOneClickArchive(this.state).then(() => {
+          this.archiving = false;
+        }, () => {});
       };
       this.activateButton.addEventListener("click", this._activateHandler);
     },
@@ -5348,8 +5367,8 @@ ${comment}
     }
     const Vue = require2("vue");
     const Codex = require2("@wikimedia/codex");
-    if (true) {
-      mw.loader.load("http://127.0.0.1:8080/spihelper.css", "text/css");
+    if (false) {} else if (true) {
+      importStylesheet("User:DatGuy/spihelper.dev.css");
     } else {}
     const caseState = Vue.reactive(new CaseState);
     refreshSections(caseState);
@@ -5369,18 +5388,19 @@ ${comment}
       mw.util.$content.prepend(mountPoint);
       Vue.createMwApp(TopViewComponent, { state: caseState, openButton: initLink }).component("cdx-tabs", Codex.CdxTabs).component("cdx-tab", Codex.CdxTab).component("cdx-select", Codex.CdxSelect).component("cdx-card", Codex.CdxCard).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-text-area", Codex.CdxTextArea).component("cdx-toggle-button", Codex.CdxToggleButton).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("cdx-button-group", Codex.CdxButtonGroup).component("cdx-button", Codex.CdxButton).component("cdx-icon", Codex.CdxIcon).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-lookup", Codex.CdxLookup).component("cdx-field", Codex.CdxField).component("cdx-message", Codex.CdxMessage).component("cdx-progress-bar", Codex.CdxProgressBar).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-accordion", Codex.CdxAccordion).component("cdx-label", Codex.CdxLabel).component("cdx-popover", Codex.CdxPopover).component("action-accordion", ActionAccordionComponent).component("action-button", ActionButtonComponent).component("action-container", ActionContainerComponent).component("action-content", ActionContentComponent).component("submit-form", SubmitFormComponent).component("comment-action", CommentActionComponent).component("change-status-action", ChangeStatusActionComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("management-action", ManagementActionComponent).component("archive-action", ArchiveActionComponent).component("move-action", MoveActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
     }
-    const modalMountPoint = document.body.appendChild(document.createElement("div"));
     const settingsLink = mw.util.addPortletLink("p-cactions", "#", "SPI-Beta-Options", "ca-spiHelperOpts", "Modify spiHelper settings");
     if (settingsLink) {
-      Vue.createMwApp(OptionsComponent, { openButton: settingsLink }).component("cdx-button", Codex.CdxButton).component("cdx-dialog", Codex.CdxDialog).component("cdx-field", Codex.CdxField).component("cdx-select", Codex.CdxSelect).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-accordion", Codex.CdxAccordion).component("cdx-text-input", Codex.CdxTextInput).component("cdx-icon", Codex.CdxIcon).component("cdx-message", Codex.CdxMessage).component("watch-setting", WatchSettingComponent).component("expiry-setting", ExpirySettingComponent).component("expiry-input", ExpiryInputComponent).component("log-page-setting", LogPageSettingComponent).mount(modalMountPoint);
+      const mountPoint = document.body.appendChild(document.createElement("div"));
+      Vue.createMwApp(OptionsComponent, { openButton: settingsLink }).component("cdx-button", Codex.CdxButton).component("cdx-dialog", Codex.CdxDialog).component("cdx-field", Codex.CdxField).component("cdx-select", Codex.CdxSelect).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-accordion", Codex.CdxAccordion).component("cdx-text-input", Codex.CdxTextInput).component("cdx-icon", Codex.CdxIcon).component("cdx-message", Codex.CdxMessage).component("watch-setting", WatchSettingComponent).component("expiry-setting", ExpirySettingComponent).component("expiry-input", ExpiryInputComponent).component("log-page-setting", LogPageSettingComponent).mount(mountPoint);
     }
     if (mw.config.get("wgCategories").includes("SPI cases awaiting archive") && spiHelperIsClerk()) {
       const oneClickArchiveLink = mw.util.addPortletLink("p-cactions", "#", "SPI-Beta-Archive", "ca-spiHelperArchive", "Run one click archival");
       if (oneClickArchiveLink) {
+        const mountPoint = document.body.appendChild(document.createElement("div"));
         Vue.createMwApp(OneClickArchivalComponent, {
           state: caseState,
           activateButton: oneClickArchiveLink
-        }).component("cdx-dialog", Codex.CdxDialog).component("cdx-message", Codex.CdxMessage).mount(modalMountPoint);
+        }).component("cdx-dialog", Codex.CdxDialog).component("cdx-message", Codex.CdxMessage).component("cdx-progress-bar", Codex.CdxProgressBar).mount(mountPoint);
       }
     }
     window.addEventListener("beforeunload", (e) => {
@@ -5390,3 +5410,5 @@ ${comment}
     });
   });
 })();
+
+// </nowiki>
