@@ -65,6 +65,7 @@ export async function spiHelperGetUserBlockSettings(user: string): Promise<Block
     bklimit: 1,
     bkusers: user,
     bkprop: ['user', 'reason', 'flags', 'expiry'],
+    formatversion: '2',
   };
   try {
     const response = await api.get(request) as BlocksResponse;
@@ -148,6 +149,7 @@ export async function spiHelperGetBulkUserBlockSettings(
     bklimit: 'max',
     bkusers: usernames,
     bkprop: ['user', 'reason', 'flags', 'expiry'],
+    formatversion: '2',
   };
 
   try {
