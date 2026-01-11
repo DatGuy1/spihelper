@@ -39,7 +39,7 @@ export function getSockEntries(opts: {
   }
 
   const isRelevantTemplate = (templateName: string) => {
-    return (/sock ?list/.exec(templateName)) !== null || ['ip', 'vandal', 'user', 'ping'].some(t => templateName.includes(t));
+    return (/sock ?list/.exec(templateName)) !== null || ['ip', 'vandal', 'user', 'noping'].some(t => templateName.includes(t));
   };
   const allTemplates = parseTemplates(text);
   for (const template of allTemplates) {
