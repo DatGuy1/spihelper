@@ -42,7 +42,7 @@ export class SectionEntry {
   }
 }
 
-export async function loadCaseText(state: CaseState, purge: boolean = false) {
+export async function loadCaseText(state: CaseState, purge = false) {
   if (state._loadingPromise) {
     return state._loadingPromise;
   }
@@ -61,7 +61,7 @@ export async function refreshSections(state: CaseState) {
   state.sections = await spiHelperGetInvestigationSectionIDs(context.pageName);
 }
 
-export async function loadSectionText(section: SectionEntry, purge: boolean = false) {
+export async function loadSectionText(section: SectionEntry, purge = false) {
   if (section._loadingPromise) {
     return section._loadingPromise;
   }

@@ -38,7 +38,7 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
     }
     i++;
     const result = spiHelperCaseStatusRegex.exec(sectionText);
-    if (result === null || !result[1]) {
+    if (!result?.[1]) {
       // Bail out - can't find the case status template in this section
       continue;
     }
@@ -55,10 +55,10 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
         // We'd overflow the archive, so move it and then archive the current page
         // Find the first empty archive page
         let archiveId = 1;
-        while (await spiHelperGetPageText(context.archiveName + '/' + archiveId, false) !== '') {
+        while (await spiHelperGetPageText(`${context.archiveName}/${archiveId}`, false) !== '') {
           archiveId++;
         }
-        const newArchiveName = context.archiveName + '/' + archiveId;
+        const newArchiveName = `${context.archiveName}/${archiveId}`;
         await spiHelperMovePage({
           sourcePage: context.archiveName,
           destPage: newArchiveName,

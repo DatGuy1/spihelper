@@ -9,7 +9,7 @@ import {
 import type { SockRow } from '../../../../types/spi.ts';
 
 export async function prefetchSockRowsForSelection(
-  selection: SectionSelection,
+  selection: SectionSelection | null,
   state: CaseState,
   userlocks: Map<string, boolean>,
 ): Promise<SockRow[]> {
@@ -20,7 +20,7 @@ export async function prefetchSockRowsForSelection(
   // Prefill block and link tables. Should we make this configurable?
   const searchText = await (selection.type === 'all'
     ? loadCaseText(state)
-    : loadSectionText(selection.section)) ?? '';
+    : loadSectionText(selection.section));
 
   const [likelySocks, possibleSocks, allUsernames] = getSockEntries({
     text: searchText,

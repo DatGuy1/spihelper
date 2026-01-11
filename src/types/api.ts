@@ -46,21 +46,21 @@ interface ParseResponseToc extends ParseResponseBase {
 }
 
 interface ParseResponseLimitData extends ParseResponseBase {
-  limitreportdata: Array<{
+  limitreportdata: {
     name: string;
     0: string | number;
     1: string | number;
-  }>;
+  }[];
 }
 
-type ParseDataMap = {
+interface ParseDataMap {
   text: ParseResponseText;
   toc: ParseResponseToc;
   limit: ParseResponseLimitData;
-};
+}
 
 export interface ParseResponse<T extends keyof ParseDataMap> {
-  parse: ParseDataMap[T];
+  parse?: ParseDataMap[T];
 }
 
 export interface BlockEntry {
@@ -82,7 +82,7 @@ export interface BlockEntry {
 
 export interface BlocksResponse {
   query: {
-    blocks: Array<{
+    blocks: {
       user: string;
       expiry: string;
       reason: string;
@@ -94,38 +94,38 @@ export interface BlocksResponse {
       hidden: boolean;
       allowusertalk: boolean;
       partial: boolean;
-    }>;
+    }[];
   };
 }
 
 export interface CategoriesResponse {
   query: {
-    pages: Array<{
+    pages: {
       pageid: number;
       ns: number;
       title: string;
-      categories: Array<{
+      categories?: {
         ns: number;
         title: string;
-      }>;
-    }>;
+      }[];
+    }[];
   };
 }
 
 export interface GlobalAllUsersResponse {
   query: {
-    globalallusers: Array<{
+    globalallusers: {
       id: number;
       name: string;
       existslocally?: string;
       locked?: string;
-    }>;
+    }[];
   };
 }
 
 export interface AllUsersResponse {
   query: {
-    allusers: Array<AllUser>;
+    allusers: AllUser[];
   };
 }
 
@@ -146,7 +146,7 @@ export interface AllUser {
 
 export interface AllPagesResponse {
   query: {
-    allpages: Array<AllPage>;
+    allpages: AllPage[];
   };
 }
 
@@ -171,46 +171,46 @@ interface RevisionsResponseContent {
   };
 }
 
-type RevisionsDataMap = {
+interface RevisionsDataMap {
   ids: RevisionsResponseIDs;
   content: RevisionsResponseContent;
-};
+}
 
 export interface RevisionsResponse<T extends keyof RevisionsDataMap> {
   query: {
-    pages: Array<{
+    pages: {
       pageid: number;
       ns: number;
       title: string;
       missing?: boolean;
-      revisions: Array<RevisionsDataMap[T]>;
-    }>;
+      revisions: RevisionsDataMap[T][];
+    }[];
   };
 }
 
 export interface BacklinksResponse {
   query: {
-    backlinks: Array<{
+    backlinks: {
       pageid: number;
       ns: number;
       title: string;
-    }>;
+    }[];
   };
 }
 
 export interface InfoResponse {
   query: {
-    pages: Array<{
+    pages: {
       protection: Protection[];
-    }>;
+    }[];
   };
 }
 
 export interface FlaggedResponse {
   query: {
-    pages: Array<{
+    pages: {
       flagged?: PendingChanges;
-    }>;
+    }[];
   };
 }
 

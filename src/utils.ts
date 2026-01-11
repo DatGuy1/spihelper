@@ -36,6 +36,9 @@ export function spiHelperGetInterwikiPrefix(): string {
   const temp: string[] = mw.config.get('wgServer').replace(/^(https?)?:?\/\//, '').split('.');
   const wikiLang = temp[0];
   const wikiFamily = temp[1];
+  if (wikiLang === undefined || wikiFamily === undefined) {
+    return '';
+  }
 
   let iwPrefix;
   switch (wikiFamily) {
@@ -170,4 +173,9 @@ export function isNonRegisteredAccount(username: string) {
 export function addSignature(text: string): string {
   const withSignature = spiHelperSignatureRegex.test(text);
   return withSignature ? text : text.trimEnd() + ' ~~~~';
+}
+
+export function buildTitleLinkHtml(title: string): string {
+  const $link = $('<a>').attr('href', mw.util.getUrl(title)).attr('title', title).text(title);
+  return $link.prop('outerHTML') as string;
 }

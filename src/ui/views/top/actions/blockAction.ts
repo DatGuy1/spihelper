@@ -6,7 +6,7 @@ import { HandleUserSelected } from '../../userLookup.ts';
 import type { AltmasterTag, BlockOptions, SockRow, Tag } from '../../../../types/spi.ts';
 import { isNonRegisteredAccount } from '../../../../utils.ts';
 
-type TagOption = { value: Tag; label: string };
+interface TagOption { value: Tag; label: string }
 type TagOptions = (TagOption | { label: string; items: TagOption[] })[];
 
 export const BlockActionComponent = defineComponent({

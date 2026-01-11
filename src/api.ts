@@ -35,11 +35,13 @@ import type {
   NewPendingChanges,
   ParseResponse,
   PendingChanges,
-  Protection, Restrictions, RevisionsResponse,
-  SectionResult, SiteInfoResponse,
+  Protection,
+  Restrictions,
+  RevisionsResponse,
+  SiteInfoResponse,
   WatchOption,
 } from './types/api.ts';
-import { spiHelperStripXWikiPrefix } from './utils.ts';
+import { buildTitleLinkHtml, spiHelperStripXWikiPrefix } from './utils.ts';
 import { OpState, finishOp, startOp } from './operations.ts';
 import { spiHelperAdvert } from './constants/settings.ts';
 import { SectionEntry } from './state.ts';
@@ -109,7 +111,7 @@ export async function spiHelperGetBulkPageText(
     const response = await api.get(request) as RevisionsResponse<'content'>;
 
     for (const page of response.query.pages) {
-      if (page.missing || !page.revisions) {
+      if (page.missing) {
         continue;
       }
       const latestRevision = page.revisions[0];
@@ -292,10 +294,10 @@ export async function spiHelperDeletePage(title: string, reason: string) {
   const activeOpKey = 'delete_' + title;
   startOp(activeOpKey);
 
-  const $link = $('<a>').attr('href', mw.util.getUrl(title)).attr('title', title).text(title);
+  const linkHtml = buildTitleLinkHtml(title);
   const message = new VueMessage({
     type: 'notice',
-    content: `Deleting ${$link.prop('outerHTML')}`,
+    content: `Deleting ${linkHtml}`,
     isHtml: true,
   }).show();
 
@@ -307,13 +309,13 @@ export async function spiHelperDeletePage(title: string, reason: string) {
   };
   try {
     await api.postWithToken('csrf', request);
-    message.update({ type: 'success', content: `Deleted ${$link.prop('outerHTML')}` });
+    message.update({ type: 'success', content: `Deleted ${linkHtml}` });
     finishOp(activeOpKey, OpState.Success);
   }
   catch (error) {
     message.update({
       type: 'error',
-      content: `Failed to delete ${$link.prop('outerHTML')}: ${mw.html.escape(JSON.stringify(error))}`,
+      content: `Failed to delete ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`,
     });
     finishOp(activeOpKey, OpState.Failed);
   }
@@ -329,10 +331,10 @@ export async function spiHelperUndeletePage(title: string, reason: string) {
   const activeOpKey = 'undelete_' + title;
   startOp(activeOpKey);
 
-  const $link = $('<a>').attr('href', mw.util.getUrl(title)).attr('title', title).text(title);
+  const linkHtml = buildTitleLinkHtml(title);
   const message = new VueMessage({
     type: 'notice',
-    content: `Undeleting ${$link.prop('outerHTML')}`,
+    content: `Undeleting ${linkHtml}`,
     isHtml: true,
   }).show();
 
@@ -344,13 +346,13 @@ export async function spiHelperUndeletePage(title: string, reason: string) {
   };
   try {
     await api.postWithToken('csrf', request);
-    message.update({ type: 'success', content: `Undeleted ${$link.prop('outerHTML')}` });
+    message.update({ type: 'success', content: `Undeleted ${linkHtml}` });
     finishOp(activeOpKey, OpState.Success);
   }
   catch (error) {
     message.update({
       type: 'error',
-      content: `Failed to undelete ${$link.prop('outerHTML')}: ${mw.html.escape(JSON.stringify(error))}`,
+      content: `Failed to undelete ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`,
     });
     finishOp(activeOpKey, OpState.Failed);
   }
@@ -374,7 +376,7 @@ export async function spiHelperRenderText(title: string, text: string): Promise<
 
   try {
     const response = await spiHelperGetAPI(title).get(request) as ParseResponse<'text'>;
-    return response.parse.text['*'];
+    return response.parse?.text['*'] ?? '';
   }
   catch (error) {
     console.error('Error rendering text:', error);
@@ -402,11 +404,14 @@ export async function spiHelperGetInvestigationSectionIDs(
   };
   const api = spiHelperGetAPI();
   const response = await api.get(request) as ParseResponse<'toc'>;
+  if (!response.parse) {
+    console.error('spiHelperGetInvestigationSectionIDs: Could not parse sections');
+    return [];
+  }
   const dateSections: SectionEntry[] = [];
-  for (let i = 0; i < response.parse.tocdata.sections.length; i++) {
-    const currentSection = response.parse.tocdata.sections[i] as SectionResult;
-    if (parseInt(currentSection.hLevel) === 3) {
-      dateSections.push(new SectionEntry(parseInt(currentSection.index), currentSection.line));
+  for (const section of response.parse.tocdata.sections) {
+    if (parseInt(section.hLevel) === 3) {
+      dateSections.push(new SectionEntry(parseInt(section.index), section.line));
     }
   }
   return dateSections;
@@ -432,7 +437,7 @@ export async function spiHelperGetSPIBacklinks(casePageName: string) {
     return response.query.backlinks.filter((dictEntry) => {
       return dictEntry.title.startsWith('Wikipedia:Sockpuppet investigations/')
         && !dictEntry.title.startsWith('Wikipedia:Sockpuppet investigations/SPI/')
-        && !dictEntry.title.match('Wikipedia:Sockpuppet investigations/.*/Archive.*');
+        && !(/Wikipedia:Sockpuppet investigations\/.*\/Archive.*/.exec(dictEntry.title));
     });
   }
   catch {
@@ -497,8 +502,8 @@ export async function spiHelperProtectPage(pageName: string, protections: Protec
   const activeOpKey = 'protect_' + pageName;
   startOp(activeOpKey);
 
-  const $link = $('<a>').attr('href', mw.util.getUrl(pageName)).attr('title', pageName).text(pageName);
-  const message = new VueMessage({ type: 'notice', content: `Protecting ${$link.prop('outerHTML')}`, isHtml: true });
+  const linkHtml = buildTitleLinkHtml(pageName);
+  const message = new VueMessage({ type: 'notice', content: `Protecting ${linkHtml}`, isHtml: true });
 
   const api = spiHelperGetAPI();
   try {
@@ -522,13 +527,13 @@ export async function spiHelperProtectPage(pageName: string, protections: Protec
       reason: 'Restoring protection after history merge',
     };
     await api.postWithToken('csrf', request);
-    message.update({ type: 'success', content: `Protected ${$link.prop('outerHTML')}` });
+    message.update({ type: 'success', content: `Protected ${linkHtml}` });
     finishOp(activeOpKey, OpState.Success);
   }
   catch (error) {
     message.update({
       type: 'error',
-      content: `Failed to protect ${$link.prop('outerHTML')}: ${mw.html.escape(JSON.stringify(error))}`,
+      content: `Failed to protect ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`,
     });
     finishOp(activeOpKey, OpState.Failed);
   }
@@ -608,7 +613,7 @@ export async function spiHelperBlockUser(opts: {
   user: string; duration: string; reason: string; reblock: boolean;
   anononly: boolean; accountcreation: boolean; autoblock: boolean;
   notalkpage: boolean; noemail: boolean;
-  watchBlockedUser: boolean; watchExpiry: string;
+  watchBlockedUser: boolean; watchExpiry?: string;
 }): Promise<boolean> {
   const {
     user,
@@ -628,10 +633,10 @@ export async function spiHelperBlockUser(opts: {
   startOp(activeOpKey);
 
   const userPage = 'User:' + user;
-  const $link = $('<a>').attr('href', mw.util.getUrl(userPage)).attr('title', userPage).text(user);
+  const linkHtml = buildTitleLinkHtml(userPage);
   const message = new VueMessage({
     type: 'notice',
-    content: `Blocking ${$link.prop('outerHTML')}`,
+    content: `Blocking ${linkHtml}`,
     isHtml: true,
   }).show();
 
@@ -653,14 +658,14 @@ export async function spiHelperBlockUser(opts: {
   };
   try {
     await api.postWithToken('csrf', request);
-    message.update({ type: 'success', content: `Blocked ${$link.prop('outerHTML')}` });
+    message.update({ type: 'success', content: `Blocked ${linkHtml}` });
     finishOp(activeOpKey, OpState.Success);
     return true;
   }
   catch (error) {
     message.update({
       type: 'error',
-      content: `Failed to block ${$link.prop('outerHTML')}: ${mw.html.escape(JSON.stringify(error))}`,
+      content: `Failed to block ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`,
     });
     finishOp(activeOpKey, OpState.Failed);
     return false;
@@ -674,10 +679,10 @@ export async function spiHelperBlockUser(opts: {
  */
 export async function spiHelperPurgePage(title: string): Promise<void> {
   // Forces a cache purge on the selected page
-  const $link = $('<a>').attr('href', mw.util.getUrl(title)).attr('title', title).text(title);
+  const linkHtml = buildTitleLinkHtml(title);
   const message = new VueMessage({
     type: 'notice',
-    content: `Purging ${$link.prop('outerHTML')}`,
+    content: `Purging ${linkHtml}`,
     isHtml: true,
   }).show();
   const strippedTitle = spiHelperStripXWikiPrefix(title);
@@ -689,12 +694,12 @@ export async function spiHelperPurgePage(title: string): Promise<void> {
   };
   try {
     await api.postWithToken('csrf', request);
-    message.update({ type: 'success', content: `Purged ${$link.prop('outerHTML')}` });
+    message.update({ type: 'success', content: `Purged ${linkHtml}` });
   }
   catch (error) {
     message.update({
       type: 'error',
-      content: `Failed to purge ${$link.prop('outerHTML')}: ${mw.html.escape(JSON.stringify(error))}`,
+      content: `Failed to purge ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`,
     });
   }
 }
@@ -723,12 +728,12 @@ export async function spiHelperMovePage(opts: {
   // Should never be a crosswiki call
   const api = spiHelperGetAPI();
 
-  const $sourceLink = $('<a>').attr('href', mw.util.getUrl(sourcePage)).attr('title', sourcePage).text(sourcePage);
-  const $destLink = $('<a>').attr('href', mw.util.getUrl(destPage)).attr('title', destPage).text(destPage);
+  const sourceLinkHtml = buildTitleLinkHtml(sourcePage);
+  const destLinkHtml = buildTitleLinkHtml(destPage);
 
   const message = new VueMessage({
     type: 'notice',
-    content: `Moving ${$sourceLink.prop('outerHTML')} to ${$destLink.prop('outerHTML')}`,
+    content: `Moving ${sourceLinkHtml} to ${destLinkHtml}`,
     isHtml: true,
   }).show();
 
@@ -745,14 +750,14 @@ export async function spiHelperMovePage(opts: {
     await api.postWithToken('csrf', request);
     message.update({
       type: 'success',
-      content: `Moved ${$sourceLink.prop('outerHTML')} to ${$destLink.prop('outerHTML')}`,
+      content: `Moved ${sourceLinkHtml} to ${destLinkHtml}`,
     });
     finishOp(activeOpKey, OpState.Success);
   }
   catch (error) {
     message.update({
       type: 'error',
-      content: `Failed to move ${$sourceLink.prop('outerHTML')} to ${$destLink.prop('outerHTML')}: ${mw.html.escape(JSON.stringify(error))}`,
+      content: `Failed to move ${sourceLinkHtml} to ${destLinkHtml}: ${mw.html.escape(JSON.stringify(error))}`,
     });
     finishOp(activeOpKey, OpState.Failed);
   }
@@ -789,15 +794,15 @@ export async function spiHelperEditPage(opts: {
     baseRevId,
     sectionId,
   } = opts;
-  let activeOpKey = 'edit_' + title;
+  let activeOpKey = `edit_${title}`;
   if (sectionId) {
-    activeOpKey += '_' + sectionId;
+    activeOpKey += `_${sectionId}`;
   }
   startOp(activeOpKey);
-  const $link = $('<a>').attr('href', mw.util.getUrl(title)).attr('title', title).text(title);
+  const linkHtml = buildTitleLinkHtml(title);
   const message = new VueMessage({
     type: 'notice',
-    content: 'Editing ' + $link.prop('outerHTML'),
+    content: 'Editing ' + linkHtml,
     isHtml: true,
   }).show();
 
@@ -823,14 +828,14 @@ export async function spiHelperEditPage(opts: {
   }
   try {
     await api.postWithToken('csrf', request);
-    message.update({ type: 'success', content: 'Saved ' + $link.prop('outerHTML'), isHtml: true });
+    message.update({ type: 'success', content: 'Saved ' + linkHtml, isHtml: true });
     finishOp(activeOpKey, OpState.Success);
     return true;
   }
   catch (error) {
     message.update({
       type: 'error',
-      content: `Edit failed on ${$link.prop('outerHTML')}: ${mw.html.escape(JSON.stringify(error))}`,
+      content: `Edit failed on ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`,
       isHtml: true,
     });
     console.error(error);
@@ -852,8 +857,8 @@ export async function spiHelperGetPageText(
   title: string, show: boolean, sectionId?: number | null,
 ): Promise<string> {
   // Build the link element (use JQuery so we get escapes and such)
-  const $link = $('<a>').attr('href', mw.util.getUrl(title)).attr('title', title).text(title);
-  const message = new VueMessage({ type: 'notice', content: 'Getting page ' + $link.prop('outerHTML'), isHtml: true });
+  const linkHtml = buildTitleLinkHtml(title);
+  const message = new VueMessage({ type: 'notice', content: 'Getting page ' + linkHtml, isHtml: true });
   if (show) {
     message.show();
   }
@@ -878,7 +883,7 @@ export async function spiHelperGetPageText(
     const targetPage = response.query.pages[0];
     if (!targetPage || 'missing' in targetPage) {
       if (show) {
-        message.update({ type: 'warning', content: `Page ${$link.prop('outerHTML')} does not exist`, isHtml: true });
+        message.update({ type: 'warning', content: `Page ${linkHtml} does not exist`, isHtml: true });
       }
       return '';
     }
@@ -887,7 +892,7 @@ export async function spiHelperGetPageText(
       return '';
     }
     if (show) {
-      message.update({ type: 'success', content: `Got ${$link.prop('outerHTML')}`, isHtml: true });
+      message.update({ type: 'success', content: `Got ${linkHtml}`, isHtml: true });
     }
     return latestRevision.slots.main.content;
   }
@@ -895,7 +900,7 @@ export async function spiHelperGetPageText(
     if (show) {
       message.update({
         type: 'error',
-        content: `Failed to get ${$link.prop('outerHTML')}: ${mw.html.escape(JSON.stringify(error))}`,
+        content: `Failed to get ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`,
         isHtml: true,
       });
     }
@@ -915,7 +920,7 @@ export async function spiHelperGetPageRev(title: string): Promise<number> {
     action: 'query',
     prop: 'revisions',
     rvslots: 'main',
-    rvprop: ['ids'],
+    rvprop: 'ids',
     titles: finalTitle,
     formatversion: '2',
   };
@@ -992,7 +997,7 @@ export async function spiHelperParseWikitext(wikitext: string) {
   };
   try {
     const response = await api.get(request) as ParseResponse<'text'>;
-    return response.parse.text['*'];
+    return response.parse?.text['*'] ?? '';
   }
   catch {
     return '';
@@ -1000,7 +1005,7 @@ export async function spiHelperParseWikitext(wikitext: string) {
 }
 
 // @ts-expect-error Ignore __VERSION__ not existing error because Bun should replace it on compile
-const userAgent = 'MediaWiki-JS/' + mw.config.get('wgVersion') + ' spihelper/' + __VERSION__;
+const userAgent = `MediaWiki-JS/${mw.config.get('wgVersion')} spihelper/${__VERSION__}`;
 const APIs = {
   meta: new mw.ForeignApi('https://meta.wikimedia.org/w/api.php', { userAgent: userAgent }),
   local: new mw.Api({ userAgent: userAgent }),

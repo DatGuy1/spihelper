@@ -63,7 +63,7 @@ export function saveOptions() {
 }
 
 export function loadOptions(): Record<string, unknown> | null {
-  const rawData = mw.user.options.get(saveKey);
+  const rawData = String(mw.user.options.get(saveKey));
   try {
     return rawData ? JSON.parse(rawData) as Record<string, unknown> : null;
   }
@@ -73,7 +73,7 @@ export function loadOptions(): Record<string, unknown> | null {
   }
 }
 
-declare let spiHelperCustomOpts: Record<string, unknown>;
+declare let spiHelperCustomOpts: Record<string, unknown> | undefined;
 
 export async function migrateOptions() {
   try {

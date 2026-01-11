@@ -8,7 +8,11 @@ export default defineConfig([
   globalIgnores(['dist/']),
   {
     files: ['**/*.{js,ts}'],
-    extends: [eslint.configs.recommended, tseslint.configs.recommendedTypeChecked],
+    extends: [
+      eslint.configs.recommended,
+      tseslint.configs.strictTypeChecked,
+      tseslint.configs.stylisticTypeChecked,
+    ],
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -48,12 +52,11 @@ export default defineConfig([
         memberSyntaxSortOrder: ['none', 'all', 'multiple', 'single'],
         allowSeparatedGroups: false,
       }],
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
       '@stylistic/spaced-comment': ['error', 'always', {
         markers: ['!'],
+      }],
+      '@typescript-eslint/restrict-template-expressions': ['error', {
+        allowNumber: true,
       }],
     },
   },

@@ -1,9 +1,18 @@
 import { defineComponent } from 'vue';
 import { spiHelperGetPages } from '../../api.ts';
-import { type MenuItemData } from '@wikimedia/codex';
+import { type MenuItemData, type ValidationStatusType } from '@wikimedia/codex';
 import { spiHelperSettings } from '../../options';
 
 const ITEM_LIMIT = 10;
+
+interface Data {
+  lookupStatus: ValidationStatusType;
+  messages: { success: string; warning: string };
+  selection: string | number | null;
+  pageSuggestions: MenuItemData[];
+  menuConfig: { visibleItemLimit: number; searchQuery: string };
+  useLookup: boolean;
+}
 
 export const PageLookupComponent = defineComponent({
   props: {
@@ -14,25 +23,23 @@ export const PageLookupComponent = defineComponent({
     prefix: { type: String, default: '' },
   },
   emits: ['update:modelValue'],
-  data() {
+  data(): Data {
     const menuConfig = {
       visibleItemLimit: 6,
       searchQuery: '',
     };
-    const pageSuggestions: MenuItemData[] = [];
     const messages = {
       success: 'Page exists',
       warning: 'Page not found',
     };
-    const selection: string | number | null = null;
 
     return {
       lookupStatus: 'default',
       messages: messages,
-      selection: selection,
-      pageSuggestions: pageSuggestions,
-      menuConfig: menuConfig,
+      pageSuggestions: [],
       useLookup: spiHelperSettings.useLookup,
+      selection: null,
+      menuConfig,
     };
   },
   template: `
@@ -107,7 +114,7 @@ export const PageLookupComponent = defineComponent({
 
       spiHelperGetPages(this.fullPagename, 4, this.pageSuggestions.length + ITEM_LIMIT)
         .then((pages) => {
-          if (!pages || pages.length === 0) {
+          if (pages.length === 0) {
             return;
           }
 
@@ -117,9 +124,9 @@ export const PageLookupComponent = defineComponent({
               label: this.stripTitle(page.title),
               value: page.pageid.toString(),
             }));
-        })
-        .catch(() => {
-        });
+        },
+        () => { /* empty */ },
+        );
     },
     async validateInstantly() {
       await this.$nextTick(() => {
@@ -129,18 +136,18 @@ export const PageLookupComponent = defineComponent({
         }
         const selection = this.pageSuggestions.find(item => item.label === this.pagename) ?? null;
         if (selection !== null) {
-          (this.selection as string | number | null) = selection.value;
+          (this.selection) = selection.value;
         }
         this.lookupStatus = this.selection === null ? 'warning' : 'success';
       });
     },
-    onSelection(newSelection: string) {
+    onSelection(newSelection: string | number | null) {
       if (newSelection !== null) {
         this.lookupStatus = 'success';
       }
     },
     stripTitle(fullTitle: string): string {
-      return fullTitle.split(this.prefix)[1] || fullTitle;
+      return fullTitle.split(this.prefix)[1] ?? fullTitle;
     },
   },
   computed: {

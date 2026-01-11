@@ -33,8 +33,11 @@ export const ChangeStatusActionComponent = defineComponent({
         return itemData?.value ?? null;
       },
       set(value: MenuItemValue | null) {
+        if (value === null) {
+          return;
+        }
         this.localStatus = String(value);
-        if (value !== undefined && value !== 'nochange') {
+        if (value !== 'nochange') {
           this.$emit('update:status', String(value));
         }
       },

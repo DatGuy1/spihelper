@@ -1,4 +1,5 @@
 import type { StatusType } from '@wikimedia/codex';
+import type * as VueType from 'vue';
 
 export class VueMessage {
   type: StatusType;
@@ -22,20 +23,15 @@ export class VueMessage {
   }
 
   update(opts: { type?: StatusType; content?: string; isHtml?: boolean }) {
-    const { type, content, isHtml } = opts;
-    if (type !== undefined) {
-      this.type = type;
-    }
-    if (content !== undefined) {
-      this.content = content;
-    }
-    if (isHtml !== undefined) {
-      this.isHtml = isHtml;
-    }
-    if (!this._index) {
+    Object.assign(this, opts);
+    // If we didn't already show, show it
+    if (this._index === undefined) {
       this.show();
     }
-    messages[this._index!] = this;
+    // Otherwise, replace it
+    else {
+      messages[this._index] = this;
+    }
     return this;
   }
 }
@@ -43,6 +39,6 @@ export class VueMessage {
 // This is scuffed as fuck.
 export let messages: VueMessage[] = [];
 mw.loader.using(['vue'], (require) => {
-  const Vue = require('vue');
+  const Vue = require('vue') as typeof VueType;
   messages = Vue.reactive(messages);
 });

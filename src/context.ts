@@ -17,7 +17,7 @@ export class SpiPageContext {
 
   _text: string | null = null;
 
-  constructor(pageName: string, currentPage: boolean = false) {
+  constructor(pageName: string, currentPage = false) {
     this.pageName = pageName;
     this.prefixedName = spiHelperGetInterwikiPrefix() + pageName;
     this.isArchive = /Wikipedia:Sockpuppet investigations\/.+\/Archive/.test(pageName);
@@ -75,7 +75,7 @@ function cleanPageName(pageName: string): string {
   return pageName.replaceAll(/_/g, ' ');
 }
 
-const rawPageName = mw.config.get('wgPageName') ?? '';
+const rawPageName = mw.config.get('wgPageName');
 const pageName = cleanPageName(rawPageName);
 
 export const context: SpiPageContext = new SpiPageContext(pageName, true);

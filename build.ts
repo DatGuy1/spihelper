@@ -3,7 +3,7 @@ import { VueImportPlugin } from './plugin.ts';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
-const branch = process.env.GITHUB_REF_NAME; // "main" or "develop"
+const branch = process.env.GITHUB_REF_NAME ?? 'develop'; // "main" or "develop"
 const buildRef = `refs/heads/build/${branch}`;
 const mode = branch === 'main' ? 'production' : 'dev';
 

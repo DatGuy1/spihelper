@@ -1,6 +1,6 @@
 import { defineComponent } from 'vue';
 import { spiHelperGetUsers } from '../../api.ts';
-import { type MenuItemData } from '@wikimedia/codex';
+import { type MenuItemData, type ValidationStatusType } from '@wikimedia/codex';
 import type { AllUser } from '../../types/api.ts';
 import { spiHelperSettings } from '../../options';
 import type { SockRow } from '../../types/spi.ts';
@@ -29,30 +29,37 @@ export function HandleUserSelected(data: AllUser, row: SockRow) {
   }
 }
 
+interface Data {
+  lookupStatus: ValidationStatusType;
+  messages: { success: string; warning: string };
+  selection: string | number | null;
+  userSuggestions: (MenuItemData & { customData: AllUser })[];
+  menuConfig: { visibleItemLimit: number; searchQuery: string };
+  useLookup: boolean;
+}
+
 export const UserLookupComponent = defineComponent({
   props: {
     modelValue: { type: String, required: true },
     label: { type: String, required: false },
   },
   emits: ['update:modelValue', 'user-selected'],
-  data() {
+  data(): Data {
     const menuConfig = {
       visibleItemLimit: 6,
       searchQuery: '',
     };
-    const userSuggestions: (MenuItemData & { customData: AllUser })[] = [];
     const messages = {
       success: 'Valid user',
       warning: 'User not found',
     };
-    const selection: string | number | null = null;
 
     return {
       lookupStatus: 'default',
-      messages: messages,
-      selection: selection,
-      userSuggestions: userSuggestions,
-      menuConfig: menuConfig,
+      messages,
+      selection: null,
+      userSuggestions: [],
+      menuConfig,
       useLookup: spiHelperSettings.useLookup,
     };
   },
@@ -126,7 +133,7 @@ export const UserLookupComponent = defineComponent({
 
       spiHelperGetUsers(this.username, this.userSuggestions.length + ITEM_LIMIT)
         .then((users) => {
-          if (!users || users.length === 0) {
+          if (users.length === 0) {
             return;
           }
 
@@ -135,9 +142,9 @@ export const UserLookupComponent = defineComponent({
             value: user.userid.toString(),
             customData: user,
           }));
-        })
-        .catch(() => {
-        });
+        },
+        () => { /* empty */ },
+        );
     },
     async validateInstantly() {
       // Await nextTick in case the user has selected a menu item via the Enter key - this
@@ -152,12 +159,12 @@ export const UserLookupComponent = defineComponent({
         const selection = this.userSuggestions.find(item => item.label === this.username) ?? null;
         if (selection !== null) {
           this.$emit('user-selected', selection.customData);
-          (this.selection as string | number | null) = selection.value;
+          (this.selection) = selection.value;
         }
         this.lookupStatus = this.selection === null ? 'warning' : 'success';
       });
     },
-    onSelection(newSelection: string) {
+    onSelection(newSelection: string | null) {
       if (newSelection !== null) {
         const selection = this.userSuggestions.find(item => item.value === newSelection) ?? null;
         if (selection) {

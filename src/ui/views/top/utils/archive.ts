@@ -3,7 +3,7 @@ import type { ManagementFlag, ParsedArchiveNotice } from '../../../../types/spi.
 export function getManagementFlagsFromArchiveNotice(
   archiveNotice: ParsedArchiveNotice | null,
 ): Set<ManagementFlag> {
-  const flags: Set<ManagementFlag> = new Set();
+  const flags = new Set<ManagementFlag>();
   if (archiveNotice === null) {
     return flags;
   }

@@ -23,7 +23,7 @@ export const ExpirySettingComponent = defineComponent({
         this.isResetting = false;
       });
     },
-    internalValue(newValue) {
+    internalValue(newValue: string) {
       if (!this.isResetting) {
         this.touched = true;
       }

@@ -54,9 +54,11 @@ export type AltmasterTag = 'suspected' | 'proven' | 'none';
 
 export type ManagementFlag = 'crosswiki' | 'deny' | 'notalk' | 'moot';
 
+export type CaseActionSection = number | 'all' | null;
+
 export type CaseActionName = 'sections' | 'management' | 'block' | 'status' | 'link' | 'comment' | 'move' | 'archive';
 
-export type ActionLabel = { case: string; section: string };
+export interface ActionLabel { case: string; section: string }
 
 export interface CaseAction<T> {
   enabled: boolean;
@@ -73,7 +75,7 @@ export interface BlockActionData {
 }
 
 export interface CaseActions {
-  sections: CaseAction<{ section: number | 'all' | null }>;
+  sections: CaseAction<{ section: CaseActionSection }>;
   comment: CaseAction<{ text: string }>;
   status: CaseAction<{ old: string; new: string }>;
   block: CaseAction<BlockActionData>;

@@ -6,7 +6,7 @@
  */
 import { spiHelperSettings } from './options';
 
-export function spiHelperIsCheckuser(allowDebug: boolean = true): boolean {
+export function spiHelperIsCheckuser(allowDebug = true): boolean {
   if (allowDebug && spiHelperSettings.debug.enabled) {
     return spiHelperSettings.debug.forceCheckuser;
   }

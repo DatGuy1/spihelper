@@ -1,15 +1,13 @@
-type Template = {
+interface Template {
   name: string;
   params: Record<string, string>;
   positional: string[];
-};
+}
 
 export function parseTemplates(wikitext: string): Template[] {
   const templates: Template[] = [];
   // Rudimentary matching
   const matches = wikitext.trim().matchAll(/\{\{([\s\S]+?)}}/g);
-  if (!matches) return [];
-
   for (const match of matches) {
     if (!match[1]) {
       continue;
@@ -22,7 +20,7 @@ export function parseTemplates(wikitext: string): Template[] {
 
 function parseTemplate(templateText: string): Template {
   const parts = templateText.split('|').map(p => p.trim());
-  const name = parts.shift()!.toLowerCase();
+  const name = parts.shift()?.toLowerCase() ?? 'unknown';
 
   const params: Record<string, string> = {};
   const positional: string[] = [];

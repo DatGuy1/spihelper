@@ -261,7 +261,7 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
 export async function spiHelperMoveCaseSection(mergeTarget: string, section: SectionEntry) {
   const newContext = new SpiPageContext(context.pageName.replace(context.caseName, mergeTarget));
   let targetPageText = await newContext.getText();
-  let sectionText = await loadSectionText(section) ?? '';
+  let sectionText = await loadSectionText(section);
   sectionText = sectionText.replace(
     /\n*----(?!(\n|.)*----)/,
     '\n* {{clerknote}} originally filed under [[Wikipedia:Sockpuppet investigations/' + context.caseName + ']]. ~~~~\n----',
@@ -337,7 +337,7 @@ async function spiHelperPostRenameCleanup(
           watch: spiHelperSettings.watch.case,
           watchExpiry: spiHelperSettings.expiry.case,
         });
-        if (pagesChecked.indexOf(backlink.title) !== -1) {
+        if (pagesChecked.includes(backlink.title)) {
           pagesToCheck.push(backlink.title);
         }
       }

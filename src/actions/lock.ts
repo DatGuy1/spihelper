@@ -34,7 +34,7 @@ export async function spiHelperRequestLocks(opts: {
 
   let lockTemplate: string;
   const usePlural = lockTargets.length > 1;
-  if (!usePlural) {
+  if (!usePlural && lockTargets[0]) {
     lockTemplate = `* {{LockHide|1=${lockTargets[0]}}}`;
   }
   else {

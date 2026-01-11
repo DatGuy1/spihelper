@@ -97,7 +97,11 @@ export const CommentActionComponent = defineComponent({
      */
     insertText(templateValue: string) {
       // https://stackoverflow.com/questions/11076975/how-to-insert-text-into-the-textarea-at-the-current-cursor-position
-      const textareaElement = this.commentBox.$el.querySelector('textarea') as HTMLTextAreaElement;
+      const textareaElement = (this.commentBox.$el as HTMLElement).querySelector('textarea');
+      if (!textareaElement) {
+        console.error('commentAction: Unable to find textarea');
+        return;
+      }
       const selectionStart = textareaElement.selectionStart;
       const selectionEnd = textareaElement.selectionEnd;
       let newText = this.text;

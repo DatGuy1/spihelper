@@ -1,12 +1,12 @@
 import { type PropType, defineComponent } from 'vue';
 import type { SelectionType } from '../../../types/vue.ts';
-import type { ActionLabel, CaseActionName } from '../../../types/spi.ts';
+import type { ActionLabel, CaseActionName, CaseActionSection } from '../../../types/spi.ts';
 import { context } from '../../../context.ts';
 import { NonArchiveActions } from './utils/setup.ts';
 
 export const ActionAccordionComponent = defineComponent({
   props: {
-    selection: { type: String, required: true },
+    selection: { type: Object as PropType<CaseActionSection>, required: true },
     name: { type: String as PropType<CaseActionName>, required: true },
     label: { type: [String, Object] as PropType<string | ActionLabel>, required: true },
     selectionType: { type: String as PropType<SelectionType>, required: true },

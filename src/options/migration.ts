@@ -35,10 +35,13 @@ const migrationMap: MigrationRule[] = [
   { oldPath: 'debugForceAdminState', newPath: ['debug', 'forceAdmin'], type: 'boolean' },
 ];
 
-function setNestedValue<T extends object>(obj: T, path: string[], value: unknown) {
+function setNestedValue(obj: object, path: string[], value: unknown) {
   let current: unknown = obj;
   for (let i = 0; i < path.length - 1; i++) {
-    const key = path[i]! as keyof typeof current;
+    if (!path[i]) {
+      throw new Error(`Path segment "${path.join('.')}" is invalid`);
+    }
+    const key = path[i] as keyof typeof current;
     const next = (current as Record<string, unknown>)[key];
 
     if (next === null || typeof next !== 'object') {

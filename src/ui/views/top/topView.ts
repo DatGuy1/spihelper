@@ -10,7 +10,7 @@ import { spiHelperAddArchiveNotice, spiHelperParseArchiveNotice } from '../../..
 import { context } from '../../../context.ts';
 import {
   type CaseActionName,
-  type CaseActions,
+  type CaseActionSection, type CaseActions,
   type LinkRow,
   ParsedArchiveNotice,
   type SockRow,
@@ -110,6 +110,9 @@ export const TopViewComponent = defineComponent({
     archiveNotice() {
       return this.state.archiveNotice;
     },
+    mountPoint() {
+      return (this.$el as HTMLElement).parentElement;
+    },
   },
   template: `
     <div id="spiHelper-topView-Card" v-if="open">
@@ -205,12 +208,15 @@ export const TopViewComponent = defineComponent({
   `,
   watch: {
     unpinned(newVal) {
-      const mountPoint = this.$el.parentElement;
+      if (!this.mountPoint) {
+        console.error('TopViewComponent unpinned: Could not find mountPoint');
+        return;
+      }
       if (newVal) {
-        mountPoint.classList?.add('unpinned');
+        this.mountPoint.classList.add('unpinned');
       }
       else {
-        mountPoint.classList?.remove('unpinned');
+        this.mountPoint.classList.remove('unpinned');
       }
       spiHelperSettings.interface.pinned = !newVal;
     },
@@ -257,7 +263,7 @@ export const TopViewComponent = defineComponent({
       this.caseActions.management.data.flags = getManagementFlagsFromArchiveNotice(newNotice);
     },
     // Disable actions when changing section
-    'caseActions.sections.data.section'(newSection, oldSection) {
+    'caseActions.sections.data.section'(newSection: CaseActionSection, oldSection: CaseActionSection) {
       if (newSection === oldSection) {
         return;
       }
@@ -334,7 +340,7 @@ export const TopViewComponent = defineComponent({
       const newText = await loadSectionText(targetSection);
       const result = spiHelperCaseStatusRegex.exec(newText);
       let caseStatus = '';
-      if (result && result[1]) {
+      if (result?.[1]) {
         caseStatus = result[1];
       }
       const normalisedStatus = normalizeCaseStatus(caseStatus);
@@ -391,9 +397,7 @@ export const TopViewComponent = defineComponent({
       HandleUserSelected(data, (this.caseActions.block.data.accounts[index] as SockRow));
     },
     handleAddRow(row?: SockRow) {
-      if (row === undefined) {
-        row = getDefaultSockRow(this.state.archiveNotice);
-      }
+      row ??= getDefaultSockRow(this.state.archiveNotice);
       this.caseActions.block.data.accounts = [
         ...this.caseActions.block.data.accounts,
         row,
@@ -437,12 +441,15 @@ export const TopViewComponent = defineComponent({
   },
   mounted() {
     // Access the parent mount element
-    const mountPoint = this.$el.parentElement;
+    if (!this.mountPoint) {
+      console.error('TopViewComponent mounted: Could not find mountPoint');
+      return;
+    }
     if (this.unpinned) {
-      mountPoint.classList?.add('unpinned');
+      this.mountPoint.classList.add('unpinned');
     }
     else {
-      mountPoint.classList?.remove('unpinned');
+      this.mountPoint.classList.remove('unpinned');
     }
 
     this._beforeUnloadHandler = (e) => {

@@ -3,6 +3,7 @@ import { cdxIconClock, cdxIconCode, cdxIconJournal, cdxIconReload, cdxIconWatchl
 import { saveOptions, spiHelperSettings } from '../../../options';
 import { spiHelperDefaultSettings } from '../../../constants/settings.ts';
 import { getFullLogPage } from '../../../options/utils.ts';
+import type { ScriptSettings } from '../../../options/types.ts';
 
 interface Data {
   open: boolean;
@@ -25,7 +26,7 @@ export const OptionsComponent = defineComponent({
     openButton: { type: Object as PropType<HTMLElement>, required: true },
   },
   data: function (): Data {
-    const username = mw.config.get('wgUserName') || '';
+    const username = mw.config.get('wgUserName') ?? '';
     const logPrefix = `User:${username}/`;
     return {
       open: false,
@@ -49,7 +50,7 @@ export const OptionsComponent = defineComponent({
     },
     isCheckUser(): boolean {
       const { debug } = this.spiHelperSettings;
-      const isCU = mw.config.get('wgUserGroups')?.includes('checkuser') || false;
+      const isCU = mw.config.get('wgUserGroups')?.includes('checkuser') ?? false;
 
       return isCU || (debug.enabled && debug.forceCheckuser);
     },
@@ -155,7 +156,8 @@ export const OptionsComponent = defineComponent({
   methods: {
     loadDefaults() {
       // Create a deep copy and replace the reactive reference
-      this.spiHelperSettings = JSON.parse(JSON.stringify(spiHelperDefaultSettings));
+      this.spiHelperSettings
+        = JSON.parse(JSON.stringify(spiHelperDefaultSettings)) as ScriptSettings;
       // Also update the global
       Object.assign(spiHelperSettings, spiHelperDefaultSettings);
       this.resetTrigger++;

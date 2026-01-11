@@ -23,7 +23,9 @@ async function build() {
 
   if (!result.success) {
     log('Build failed');
-    result.logs.forEach(message => log(message.message));
+    result.logs.forEach((message) => {
+      log(message.message);
+    });
   }
   else {
     log('Build complete!');
@@ -53,6 +55,11 @@ const server = Bun.serve({
     });
   },
 });
+
+if (!server.port) {
+  log('Failed to initialise dev server');
+  process.exit(1);
+}
 
 log(`Dev server running at http://localhost:${server.port}`);
 log('Watching for changes...');

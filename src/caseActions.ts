@@ -17,7 +17,7 @@ import { spiHelperLog } from './actions/log.ts';
 import { type CaseState, loadCaseText, loadSectionText, refreshSections } from './state.ts';
 import { addSignature, isNonRegisteredAccount, spiHelperNormalizeUsername } from './utils.ts';
 import {
-  type BlockActionData,
+  type BlockActionData, type CaseAction,
   type CaseActions,
   ParsedArchiveNotice,
   type SockRow,
@@ -49,7 +49,7 @@ export async function spiHelperOneClickArchive(state: CaseState): Promise<void> 
   await spiHelperArchiveCase(state);
   await spiHelperPurgePage(context.pageName);
   const logMessage = `* [[${context.pageName}]]: used one-click archiver ~~~~~`;
-  if (spiHelperSettings.log) {
+  if (spiHelperSettings.log.enabled) {
     await spiHelperLog(logMessage);
   }
 
@@ -65,7 +65,7 @@ export async function spiHelperPerformActions(opts: {
 }) {
   const { actions, state } = opts;
 
-  if (Object.values(actions).every(action => !action.enabled)) {
+  if (Object.values(actions).every((action: CaseAction<never>) => !action.enabled)) {
     new VueMessage({ type: 'warning', content: 'No actions are enabled' }).show();
     return;
   }
@@ -158,7 +158,7 @@ export async function spiHelperPerformActions(opts: {
       if (actions.management.enabled) {
         const noticeOpts = actions.management.data.flags;
         state.archiveNotice = new ParsedArchiveNotice({
-          username: state.archiveNotice?.username || context.caseName,
+          username: state.archiveNotice.username || context.caseName,
           deny: noticeOpts.has('deny'),
           crosswiki: noticeOpts.has('crosswiki'),
           notalk: noticeOpts.has('notalk'),
@@ -221,9 +221,6 @@ export async function spiHelperPerformActions(opts: {
     if (renameTarget) {
       switch (state.selectedSection.type) {
         case 'all': {
-          if (!state.archiveNotice) {
-            state.archiveNotice = new ParsedArchiveNotice();
-          }
           // Option 1: we selected "All cases," this is a whole-case move/merge
           logMessage += '\n** moved/merged case to ' + renameTarget;
           await spiHelperMoveCase(renameTarget, state.archiveNotice);
@@ -240,7 +237,7 @@ export async function spiHelperPerformActions(opts: {
   }
 
   const [blockedUsers, taggedUsers, lockedUsers] = await userActionsPromise;
-  if (spiHelperSettings.log) {
+  if (spiHelperSettings.log.enabled) {
     if (blockedUsers.length > 0) {
       logMessage += '\n** blocked ' + blockedUsers.filter(Boolean).join(', ');
     }
@@ -342,7 +339,7 @@ function spiHelperHandleStatus(newStatus: string, targetText: string) {
       console.error('Unexpected case status value', newStatus);
   }
   const caseStatusResult = spiHelperCaseStatusRegex.exec(targetText);
-  if (caseStatusResult !== null && caseStatusResult[0]) {
+  if (caseStatusResult?.[0]) {
     targetText = targetText.replace(caseStatusResult[0], `{{SPI case status|${newStatus}}}`);
   }
   return { newStatus, summaryItem, targetText };
@@ -459,8 +456,10 @@ async function spiHelperHandleBlocks(opts: BlockActionData): Promise<{
 
 function formatEditSummary(editSummaryActions: string[]): string {
   const [firstAction, ...rest] = editSummaryActions;
-  // Add non-null assertion because we add editSummaryActions above
-  const formattedStart = firstAction!.charAt(0).toUpperCase() + firstAction!.slice(1);
+  if (!firstAction) {
+    return '';
+  }
+  const formattedStart = firstAction.charAt(0).toUpperCase() + firstAction.slice(1);
   const remainder = rest.length ? `, ${rest.join(', ')}` : '';
   return formattedStart + remainder;
 }

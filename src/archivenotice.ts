@@ -29,7 +29,7 @@ export async function spiHelperParseArchiveNotice(
     console.error('Missing archive notice');
     return null;
   }
-  const username = archiveNoticeTemplate.positional[0] || archiveNoticeTemplate.params['1'];
+  const username = archiveNoticeTemplate.positional[0] ?? archiveNoticeTemplate.params['1'];
   if (!username) {
     console.error('Invalid archive notice: Username missing');
     return null;
@@ -64,10 +64,10 @@ export async function spiHelperAddArchiveNotice(state: CaseState) {
   const archiveNotice = state.archiveNotice
     ?? new ParsedArchiveNotice({ username: context.caseName });
   const archiveNoticeText = archiveNotice.generateWikitext();
-  const tocMatch = pageText.match(/(<noinclude>)?__TOC__(<\/noinclude>)?/);
+  const tocMatch = /(<noinclude>)?__TOC__(<\/noinclude>)?/.exec(pageText);
   if (tocMatch) {
     // Insert after existing TOC
-    const tocEnd = tocMatch.index! + tocMatch[0].length;
+    const tocEnd = tocMatch.index + tocMatch[0].length;
     pageText = pageText.slice(0, tocEnd) + '\n' + archiveNoticeText + pageText.slice(tocEnd);
   }
   else {

@@ -1,10 +1,11 @@
 import { type PropType, defineComponent } from 'vue';
+import type { CaseActionSection } from '../../../../types/spi.ts';
 
 export const ArchiveActionComponent = defineComponent({
   props: {
     enabled: { type: Boolean, required: true },
     status: { type: String, required: true },
-    selection: { type: [String, Number] as PropType<'all' | number>, required: true },
+    selection: { type: Object as PropType<CaseActionSection>, required: true },
   },
   emits: ['update:enabled'],
   template: `

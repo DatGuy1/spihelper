@@ -30,6 +30,8 @@ import { SubmitFormComponent } from './ui/views/top/submitForm.ts';
 import { ActionContentComponent } from './ui/views/top/actionContent.ts';
 import { hasRunningOps } from './operations.ts';
 import { OneClickArchivalComponent } from './ui/views/OCAModal.ts';
+import type * as VueType from 'vue';
+import type * as CodexType from '@wikimedia/codex';
 
 // DatGuy's rewrite of GeneralNotability's rewrite of Tim's SPI helper script
 // With additional contributions from 0xDeadbeef, Dreamy Jazz,
@@ -40,14 +42,14 @@ mw.loader.using(['vue', '@wikimedia/codex', 'mediawiki.api', 'mediawiki.util', '
     return;
   }
 
-  const Vue = require('vue');
-  const Codex = require('@wikimedia/codex');
+  const Vue = require('vue') as typeof VueType;
+  const Codex = require('@wikimedia/codex') as typeof CodexType;
 
   // @ts-expect-error Ignore __MODE__ not existing error because Bun should replace it on compile
   if (__MODE__ === 'live') {
     mw.loader.load('http://127.0.0.1:8080/spihelper.css', 'text/css');
   }
-  // @ts-expect-error See above
+  // @ts-expect-error Ignore __MODE__, same as above
   else if (__MODE__ === 'dev') {
     importStylesheet('User:DatGuy/spihelper.dev.css');
   }

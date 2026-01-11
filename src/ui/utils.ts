@@ -39,7 +39,7 @@ export function getSockEntries(opts: {
   }
 
   const isRelevantTemplate = (templateName: string) => {
-    return templateName.match(/sock ?list/) !== null || ['ip', 'vandal', 'user', 'ping'].some(t => templateName.includes(t));
+    return (/sock ?list/.exec(templateName)) !== null || ['ip', 'vandal', 'user', 'ping'].some(t => templateName.includes(t));
   };
   const allTemplates = parseTemplates(text);
   for (const template of allTemplates) {
@@ -157,7 +157,7 @@ export function updateSockRowSettings(opts: {
             break;
         }
 
-        if (template.params['altmaster']) {
+        if (template.params.altmaster) {
           const altmasterStatus = template.params['altmaster-status'];
           switch (altmasterStatus) {
             case undefined:
