@@ -6,6 +6,7 @@ import type { CaseState } from '../../state.ts';
 interface Data {
   _activateHandler: ((e: Event) => void) | null;
   open: boolean;
+  archiving: boolean;
   messages: VueMessage[];
 }
 
@@ -18,12 +19,14 @@ export const OneClickArchivalComponent = defineComponent({
     return {
       _activateHandler: null,
       open: false,
+      archiving: false,
       messages,
     };
   },
   template: `
     <cdx-dialog v-model:open="open" title="One Click Archival">
-      <div>
+      <cdx-progress-bar v-if="archiving" aria-label="Archival in progress" />
+      <div style="margin-top: 12px;">
         <cdx-message v-for="(message, index) in messages" :key="index" :type="message.type">
           <span v-if="message.isHtml" v-html="message.content" />
           <span v-else>
@@ -38,7 +41,11 @@ export const OneClickArchivalComponent = defineComponent({
       // Clear any messages we have in-place to maintain reactivity
       messages.length = 0;
       this.open = true;
-      void spiHelperOneClickArchive(this.state);
+      this.archiving = true;
+      spiHelperOneClickArchive(this.state).then(
+        () => { this.archiving = false; },
+        () => { /* empty */ },
+      );
     };
     this.activateButton.addEventListener('click', this._activateHandler);
   },

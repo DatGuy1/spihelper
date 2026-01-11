@@ -150,6 +150,7 @@ mw.loader.using(['vue', '@wikimedia/codex', 'mediawiki.api', 'mediawiki.util', '
       )
         .component('cdx-dialog', Codex.CdxDialog)
         .component('cdx-message', Codex.CdxMessage)
+        .component('cdx-progress-bar', Codex.CdxProgressBar)
         .mount(mountPoint);
     }
   }

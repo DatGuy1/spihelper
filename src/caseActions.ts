@@ -33,7 +33,7 @@ import { VueMessage } from './ui/messages.ts';
 /**
  * Archives everything on the page that's eligible for archiving
  */
-export async function spiHelperOneClickArchive(state: CaseState) {
+export async function spiHelperOneClickArchive(state: CaseState): Promise<void> {
   startOp('oneClickArchive');
   new VueMessage({ type: 'notice', content: 'Starting OCA' }).show();
 
@@ -129,7 +129,7 @@ export async function spiHelperPerformActions(opts: {
   if (!context.isArchive) {
     if (sectionType === 'specific') {
       const caseStatusResult = spiHelperCaseStatusRegex.exec(targetText);
-      if (caseStatusResult === null || !caseStatusResult[1]) {
+      if (!caseStatusResult?.[1]) {
         // The case status is malformed, reset it
         targetText = targetText.replace(/^(\s*===.*===[^\S\r\n]*)/, '$1\n{{SPI case status|}}');
         actions.status.data.old = 'new';
