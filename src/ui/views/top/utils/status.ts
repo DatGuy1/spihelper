@@ -62,7 +62,7 @@ export function updateCommentWithStatus(commentText: string, newStatus: string):
 }
 
 export function normalizeCaseStatus(caseStatus: string) {
-  if (spiHelperCaseClosedRegex.test(caseStatus)) return 'reopen';
+  if (spiHelperCaseClosedRegex.test(caseStatus)) return 'closed';
   if (/^open$/i.test(caseStatus)) return 'open';
   if (/^(?:inprogress|checking)$/i.test(caseStatus)) return 'inprogress';
   if (/^relist(ed)?$/i.test(caseStatus)) return 'relist';
