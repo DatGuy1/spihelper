@@ -2322,7 +2322,7 @@
   }
   function normalizeCaseStatus(caseStatus) {
     if (spiHelperCaseClosedRegex.test(caseStatus))
-      return "reopen";
+      return "closed";
     if (/^open$/i.test(caseStatus))
       return "open";
     if (/^(?:inprogress|checking)$/i.test(caseStatus))

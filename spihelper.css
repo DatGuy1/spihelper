@@ -51,6 +51,7 @@
 
 #buttonRow {
   display: flex;
+  max-width: 85%;
   padding-bottom: 2px;
 }
 
