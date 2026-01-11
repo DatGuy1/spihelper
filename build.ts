@@ -9,7 +9,7 @@ const mode = branch === 'main' ? 'production' : 'dev';
 
 const versionBanner = `v${version} "${codename}"`;
 
-const usyncTemplateJs = `{{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|refs=${buildRef}|path=spihelper.js}}`;
+const usyncTemplateJs = `{{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=${buildRef}|path=spihelper.js}}`;
 await Bun.build({
   entrypoints: ['src/spihelper.ts', 'src/spihelper.css'],
   outdir: './dist',
