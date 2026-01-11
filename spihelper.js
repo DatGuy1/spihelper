@@ -1,4 +1,4 @@
-// {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|refs=refs/heads/build/develop|path=spihelper.js}}
+// {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
 // v3.0.0-beta.1 "A Whole New World"
 // <nowiki>
 (() => {
@@ -2086,7 +2086,7 @@
       }
     }
     const isRelevantTemplate = (templateName) => {
-      return /sock ?list/.exec(templateName) !== null || ["ip", "vandal", "user", "ping"].some((t) => templateName.includes(t));
+      return /sock ?list/.exec(templateName) !== null || ["ip", "vandal", "user", "noping"].some((t) => templateName.includes(t));
     };
     const allTemplates = parseTemplates(text);
     for (const template of allTemplates) {
