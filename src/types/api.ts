@@ -183,7 +183,7 @@ export interface RevisionsResponse<T extends keyof RevisionsDataMap> {
       ns: number;
       title: string;
       missing?: boolean;
-      revisions: RevisionsDataMap[T][];
+      revisions?: RevisionsDataMap[T][];
     }[];
   };
 }

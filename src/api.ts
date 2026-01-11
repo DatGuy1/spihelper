@@ -114,7 +114,7 @@ export async function spiHelperGetBulkPageText(
       if (page.missing) {
         continue;
       }
-      const latestRevision = page.revisions[0];
+      const latestRevision = page.revisions?.[0];
       if (!latestRevision) {
         continue;
       }
@@ -887,7 +887,7 @@ export async function spiHelperGetPageText(
       }
       return '';
     }
-    const latestRevision = targetPage.revisions[0];
+    const latestRevision = targetPage.revisions?.[0];
     if (!latestRevision) {
       return '';
     }
@@ -932,7 +932,7 @@ export async function spiHelperGetPageRev(title: string): Promise<number> {
       // Check if page is missing
       return 0;
     }
-    const latestRevision = targetPage.revisions[0];
+    const latestRevision = targetPage.revisions?.[0];
     if (!latestRevision) {
       // Another sanity check, in case it's revision-deleted or something
       return 0;
