@@ -49,6 +49,14 @@
   overflow: visible;
 }
 
+#spiHelper-topView-Accordion .cdx-accordion.action-enabled > summary {
+  background-color: var(--background-color-progressive-subtle, #e8eeff);
+}
+
+#spiHelper-topView-Accordion .enableSwitch:not(:only-child) {
+  margin-bottom: .75em;
+}
+
 #buttonRow {
   display: flex;
   overflow-x: auto;
@@ -108,10 +116,6 @@
   width: 100%;
 }
 
-#spiHelper-topView-Accordion .enableSwitch:not(:only-child) {
-  margin-bottom: .75em;
-}
-
 .spiHelper-submitForm {
   margin-top: 12px;
 }
@@ -124,15 +128,16 @@
   margin-top: 12px;
 }
 
+.spiHelper-sockTable .setAllRow > th {
+  vertical-align: middle;
+  border-bottom-color: var(--color-emphasized, #101418) !important;
+}
+
 .spiHelper-sockTable thead tr:first-child th {
   vertical-align: bottom;
 }
 
 .spiHelper-sockTable tbody td {
-  vertical-align: middle;
-}
-
-.spiHelper-sockTable .setAllRow th {
   vertical-align: middle;
 }
 
@@ -213,10 +218,6 @@
 
 .spiHelper-sockTable th.selectTagOptions {
   font-weight: normal;
-}
-
-.spiHelper-sockTable .setAllRow > th {
-  border-bottom-color: var(--color-emphasized, #101418) !important;
 }
 
 .spiHelper-sockTable .spihelper-expiry-input {

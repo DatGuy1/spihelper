@@ -1693,7 +1693,8 @@
       name: { type: String, required: true },
       label: { type: [String, Object], required: true },
       selectionType: { type: String, required: true },
-      displayedForms: { type: Array, required: true }
+      displayedForms: { type: Array, required: true },
+      actionEnabled: { type: Boolean, required: true }
     },
     emits: ["actionToggled"],
     data() {
@@ -1725,6 +1726,9 @@
           return this.allSelected ? this.label.case : this.label.section;
         }
         return "Unexpected configuration";
+      },
+      showEnabledClass() {
+        return this.name !== "sections" && this.actionEnabled;
       }
     },
     template: `
@@ -1733,6 +1737,7 @@
         :name="name"
         :model-value="this.displayedForms.includes(name)"
         @click.prevent="$emit('actionToggled')"
+        :class="{'action-enabled': showEnabledClass}"
     >
       <template #title>{{ text }}</template>
       <slot />
@@ -3616,6 +3621,7 @@ ${comment}
             :selection-type="button.selectionType"
             :selection="caseActions.sections.data.section"
             :displayedForms="displayedForms"
+            :actionEnabled="caseActions[name].enabled"
             @action-toggled="onAccordionToggle(name)"
         >
           <action-content
