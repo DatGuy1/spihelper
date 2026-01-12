@@ -3693,6 +3693,15 @@ ${comment}
           saveOptions();
         }
       },
+      async "state.sections"(newValue) {
+        if (this.caseActions.sections.data.section === null) {
+          const firstSection = newValue[0];
+          if (firstSection) {
+            this.caseActions.sections.data.section = firstSection.id;
+            await this.loadNewSection(firstSection);
+          }
+        }
+      },
       async selectedSection(selection) {
         if (!selection) {
           return;
@@ -3764,6 +3773,9 @@ ${comment}
           console.error("onUpdateSectionSelection: Could not find target section with ID", newSelection);
           return;
         }
+        await this.loadNewSection(targetSection);
+      },
+      async loadNewSection(targetSection) {
         this.state.selectedSection = { type: "specific", section: targetSection };
         const newText = await loadSectionText(targetSection);
         const result = spiHelperCaseStatusRegex.exec(newText);
