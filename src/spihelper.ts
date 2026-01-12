@@ -30,6 +30,7 @@ import { SubmitFormComponent } from './ui/views/top/submitForm.ts';
 import { ActionContentComponent } from './ui/views/top/actionContent.ts';
 import { hasRunningOps } from './operations.ts';
 import { OneClickArchivalComponent } from './ui/views/OCAModal.ts';
+import { FeedbackConfig } from './constants/settings.ts';
 import type * as VueType from 'vue';
 import type * as CodexType from '@wikimedia/codex';
 
@@ -37,13 +38,18 @@ import type * as CodexType from '@wikimedia/codex';
 // With additional contributions from 0xDeadbeef, Dreamy Jazz,
 // L235, Tamzin, TheresNoTime, and Xiplus
 
-mw.loader.using(['vue', '@wikimedia/codex', 'mediawiki.api', 'mediawiki.util', 'mediawiki.user'], (require) => {
+mw.loader.using(['vue', '@wikimedia/codex', 'mediawiki.api', 'mediawiki.util', 'mediawiki.user', 'mediawiki.feedback'], (require) => {
   if (!mw.config.get('wgPageName').includes('Wikipedia:Sockpuppet_investigations/')) {
     return;
   }
 
   const Vue = require('vue') as typeof VueType;
   const Codex = require('@wikimedia/codex') as typeof CodexType;
+
+  // For some reason mw.Feedback isn't typed
+  // @ts-expect-error - mw.Feedback exists at runtime but not in type definitions
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-call
+  const feedbackDialog = new mw.Feedback(FeedbackConfig);
 
   // @ts-expect-error Ignore __MODE__ not existing error because Bun should replace it on compile
   if (__MODE__ === 'live') {
@@ -77,7 +83,7 @@ mw.loader.using(['vue', '@wikimedia/codex', 'mediawiki.api', 'mediawiki.util', '
     mountPoint.setAttribute('id', 'spiHelper-vue-mount-point');
     mw.util.$content.prepend(mountPoint);
 
-    Vue.createMwApp(TopViewComponent, { state: caseState, openButton: initLink })
+    Vue.createMwApp(TopViewComponent, { state: caseState, feedbackDialog, openButton: initLink })
       .component('cdx-tabs', Codex.CdxTabs)
       .component('cdx-tab', Codex.CdxTab)
       .component('cdx-select', Codex.CdxSelect)
@@ -122,7 +128,7 @@ mw.loader.using(['vue', '@wikimedia/codex', 'mediawiki.api', 'mediawiki.util', '
   const settingsLink = mw.util.addPortletLink('p-cactions', '#', 'SPI-Beta-Options', 'ca-spiHelperOpts', 'Modify spiHelper settings');
   if (settingsLink) {
     const mountPoint = document.body.appendChild(document.createElement('div'));
-    Vue.createMwApp(OptionsComponent, { openButton: settingsLink })
+    Vue.createMwApp(OptionsComponent, { feedbackDialog, openButton: settingsLink })
       .component('cdx-button', Codex.CdxButton)
       .component('cdx-dialog', Codex.CdxDialog)
       .component('cdx-field', Codex.CdxField)

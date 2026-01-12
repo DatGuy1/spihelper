@@ -1,5 +1,13 @@
 import { type PropType, defineComponent } from 'vue';
-import { cdxIconClock, cdxIconCode, cdxIconJournal, cdxIconReload, cdxIconWatchlist } from '@wikimedia/codex-icons';
+import {
+  cdxIconClock,
+  cdxIconClose,
+  cdxIconCode,
+  cdxIconFeedback,
+  cdxIconJournal,
+  cdxIconReload,
+  cdxIconWatchlist,
+} from '@wikimedia/codex-icons';
 import { saveOptions, spiHelperSettings } from '../../../options';
 import { spiHelperDefaultSettings } from '../../../constants/settings.ts';
 import { getFullLogPage } from '../../../options/utils.ts';
@@ -14,7 +22,9 @@ interface Data {
   logPrefix: string;
   cdxIconWatchlist: typeof cdxIconWatchlist;
   cdxIconClock: typeof cdxIconClock;
+  cdxIconClose: typeof cdxIconClose;
   cdxIconCode: typeof cdxIconCode;
+  cdxIconFeedback: typeof cdxIconFeedback;
   cdxIconJournal: typeof cdxIconJournal;
   cdxIconReload: typeof cdxIconReload;
   spiHelperSettings: typeof spiHelperSettings;
@@ -23,6 +33,7 @@ interface Data {
 
 export const OptionsComponent = defineComponent({
   props: {
+    feedbackDialog: { type: Object as PropType<{ launch: unknown }>, required: true },
     openButton: { type: Object as PropType<HTMLElement>, required: true },
   },
   data: function (): Data {
@@ -34,13 +45,15 @@ export const OptionsComponent = defineComponent({
       showExtra: spiHelperSettings.debug.enabled || spiHelperSettings.iUnderstandSectionMoves,
       showExtraMessage: false,
       _showExtraHandler: null,
-      logPrefix: logPrefix,
-      cdxIconWatchlist: cdxIconWatchlist,
-      cdxIconClock: cdxIconClock,
-      cdxIconCode: cdxIconCode,
-      cdxIconJournal: cdxIconJournal,
-      cdxIconReload: cdxIconReload,
-      spiHelperSettings: spiHelperSettings,
+      logPrefix,
+      cdxIconWatchlist,
+      cdxIconClock,
+      cdxIconClose,
+      cdxIconCode,
+      cdxIconFeedback,
+      cdxIconJournal,
+      cdxIconReload,
+      spiHelperSettings,
       resetTrigger: 0,
     };
   },
@@ -56,8 +69,28 @@ export const OptionsComponent = defineComponent({
     },
   },
   template: `
-    <cdx-dialog v-model:open="open" title="spiHelper Options"
-                close-button-label="Close" id="spiHelper-opts-dialog">
+    <cdx-dialog v-model:open="open" title="spiHelper Options" id="spiHelper-opts-dialog" close-button-label="Close">
+      <template #header>
+        <div class="cdx-dialog__header__title-group">
+          <h2 class="cdx-dialog__header__title">
+            spiHelper Options
+          </h2>
+        </div>
+        <div>
+          <cdx-button weight="quiet" type="button" aria-label="Give feedback" @click="feedbackDialog.launch()">
+            <cdx-icon :icon="cdxIconFeedback" />
+          </cdx-button>
+          <cdx-button
+              class="cdx-dialog__header__close-button"
+              weight="quiet"
+              type="button"
+              aria-label="Close"
+              @click="open = false"
+          >
+            <cdx-icon :icon="cdxIconClose" />
+          </cdx-button>
+        </div>
+      </template>
       <p>Configure your spiHelper options</p>
       <cdx-message v-if="showExtraMessage" type="success" :fade-in="true" :auto-dismiss="true" :display-time="3000">
         I trust that you understand section moves

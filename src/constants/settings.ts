@@ -43,3 +43,10 @@ export const spiHelperDefaultSettings: ScriptSettings = {
 
 // Advert to append to the edit summary of edits
 export const spiHelperAdvert = ' (using [[:w:en:WP:SPIH|spihelper.js]])';
+
+export const FeedbackConfig = {
+  title: new mw.Title('User talk:DatGuy/spihelper.js'),
+  bugsLink: '//github.com/DatGuy1/spihelper/issues/new',
+  showUseragentCheckbox: true,
+  useragentCheckboxMessage: 'I want to share my user agent publicly alongside my feedback. This is optional.',
+};

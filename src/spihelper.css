@@ -98,6 +98,14 @@
     margin-bottom: 12px;
 }
 
+#spiHelper-opts-dialog .cdx-dialog__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    box-sizing: border-box;
+    width: 100%;
+}
+
 #spiHelper-topView-Accordion .enableSwitch:not(:only-child) {
     margin-bottom: 0.75em;
 }
@@ -119,7 +127,7 @@
         vertical-align: bottom;
     }
 
-    tbody td, .setAllRow th  {
+    tbody td, .setAllRow th {
         vertical-align: middle;
     }
 

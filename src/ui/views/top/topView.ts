@@ -1,5 +1,5 @@
 import { type PropType, defineComponent } from 'vue';
-import { cdxIconCollapse, cdxIconExpand, cdxIconPushPin } from '@wikimedia/codex-icons';
+import { cdxIconCollapse, cdxIconExpand, cdxIconFeedback, cdxIconPushPin } from '@wikimedia/codex-icons';
 import { DefaultLinkRow } from '../../../types/vue.ts';
 import { type CaseState, type SectionEntry, type SectionSelection, loadSectionText } from '../../../state.ts';
 import type { MenuItemData } from '@wikimedia/codex';
@@ -39,6 +39,7 @@ interface Data {
   cdxIconPushPin: typeof cdxIconPushPin;
   cdxIconCollapse: typeof cdxIconCollapse;
   cdxIconExpand: typeof cdxIconExpand;
+  cdxIconFeedback: typeof cdxIconFeedback;
   unpinned: boolean;
   buttonLayout: boolean;
   actionButtons: ActionButtons;
@@ -50,6 +51,7 @@ interface Data {
 export const TopViewComponent = defineComponent({
   props: {
     state: { type: Object as PropType<CaseState>, required: true },
+    feedbackDialog: { type: Object as PropType<{ launch: unknown }>, required: true },
     openButton: { type: Object as PropType<HTMLElement>, required: true },
   },
   data(): Data {
@@ -71,6 +73,7 @@ export const TopViewComponent = defineComponent({
       cdxIconPushPin,
       cdxIconCollapse,
       cdxIconExpand,
+      cdxIconFeedback,
     };
   },
   computed: {
@@ -119,6 +122,9 @@ export const TopViewComponent = defineComponent({
     <div id="spiHelper-topView-Card" v-if="open">
       <div id="spiHelper-topView-Header">
         <div class="header-buttons">
+          <cdx-button aria-label="Give feedback" weight="quiet" @click="feedbackDialog.launch()">
+            <cdx-icon :icon="cdxIconFeedback" />
+          </cdx-button>
           <cdx-button aria-label="Toggle layout" weight="quiet" @click="toggleButtonLayout">
             <cdx-icon :icon="buttonLayout ? cdxIconExpand : cdxIconCollapse" />
           </cdx-button>
