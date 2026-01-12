@@ -123,11 +123,16 @@
 }
 
 .spiHelper-sockTable {
+    .setAllRow > th {
+        vertical-align: middle;
+        border-bottom-color: var(--color-emphasized, #101418) !important;
+    }
+
     thead tr:first-child th {
         vertical-align: bottom;
     }
 
-    tbody td, .setAllRow th {
+    tbody td {
         vertical-align: middle;
     }
 
@@ -203,10 +208,6 @@
 
     th.selectTagOptions {
         font-weight: normal;
-    }
-
-    .setAllRow > th {
-        border-bottom-color: var(--color-emphasized, #101418) !important;
     }
 
     .spihelper-expiry-input {
