@@ -256,6 +256,15 @@ export const TopViewComponent = defineComponent({
         void saveOptions();
       }
     },
+    async 'state.sections'(newValue: SectionEntry[]) {
+      if (this.caseActions.sections.data.section === null) {
+        const firstSection = newValue[0];
+        if (firstSection) {
+          this.caseActions.sections.data.section = firstSection.id;
+          await this.loadNewSection(firstSection);
+        }
+      }
+    },
     async selectedSection(selection: SectionSelection | null) {
       if (!selection) {
         return;
@@ -343,6 +352,9 @@ export const TopViewComponent = defineComponent({
         console.error('onUpdateSectionSelection: Could not find target section with ID', newSelection);
         return;
       }
+      await this.loadNewSection(targetSection);
+    },
+    async loadNewSection(targetSection: SectionEntry) {
       this.state.selectedSection = { type: 'specific', section: targetSection };
 
       const newText = await loadSectionText(targetSection);
