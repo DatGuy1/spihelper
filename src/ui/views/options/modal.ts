@@ -126,8 +126,8 @@ export const OptionsComponent = defineComponent({
       <div class="spiHelper-setting">
         <cdx-toggle-switch v-model="spiHelperSettings.clerk" :align-switch="true">Clerk</cdx-toggle-switch>
         <cdx-toggle-switch v-model="spiHelperSettings.tickArchiveWhenCaseClosed" :align-switch="true">
-          Tick archive
-          <template #description>Automatically tick the "Archive case" option if the case is closed</template>
+          Archive closed by default
+          <template #description>If the case is closed, enable archival by default</template>
         </cdx-toggle-switch>
         <cdx-toggle-switch v-model="spiHelperSettings.displayIPv6As64" :align-switch="true">
           Display IPv6 as /64

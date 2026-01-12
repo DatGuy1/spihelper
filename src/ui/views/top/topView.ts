@@ -55,6 +55,7 @@ export const TopViewComponent = defineComponent({
   data(): Data {
     const actionButtons = getActionButtons();
     const actionButtonKeys = Object.keys(actionButtons) as CaseActionName[];
+
     return {
       open: false,
       _openHandler: null,
@@ -346,6 +347,9 @@ export const TopViewComponent = defineComponent({
       const normalisedStatus = normalizeCaseStatus(caseStatus);
       this.caseActions.status.data.old = normalisedStatus;
       this.caseActions.status.data.new = normalisedStatus;
+      if (normalisedStatus === 'closed' && spiHelperSettings.tickArchiveWhenCaseClosed) {
+        this.caseActions.archive.enabled = true;
+      }
     },
     async onSubmitActions() {
       if (isOpRunning('mainActions')) {
