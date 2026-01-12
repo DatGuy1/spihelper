@@ -178,6 +178,7 @@ export const TopViewComponent = defineComponent({
             :selection-type="button.selectionType"
             :selection="caseActions.sections.data.section"
             :displayedForms="displayedForms"
+            :actionEnabled="caseActions[name].enabled"
             @action-toggled="onAccordionToggle(name)"
         >
           <action-content

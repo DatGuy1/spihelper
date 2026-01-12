@@ -42,8 +42,18 @@
     }
 }
 
-#spiHelper-topView-Accordion .cdx-accordion {
-    overflow: visible;
+#spiHelper-topView-Accordion {
+    .cdx-accordion {
+        overflow: visible;
+    }
+
+    .cdx-accordion.action-enabled > summary {
+        background-color: var(--background-color-progressive-subtle, #e8eeff)
+    }
+
+    .enableSwitch:not(:only-child) {
+        margin-bottom: 0.75em;
+    }
 }
 
 #buttonRow {
@@ -104,10 +114,6 @@
     justify-content: flex-end;
     box-sizing: border-box;
     width: 100%;
-}
-
-#spiHelper-topView-Accordion .enableSwitch:not(:only-child) {
-    margin-bottom: 0.75em;
 }
 
 .spiHelper-submitForm {

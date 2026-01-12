@@ -11,6 +11,7 @@ export const ActionAccordionComponent = defineComponent({
     label: { type: [String, Object] as PropType<string | ActionLabel>, required: true },
     selectionType: { type: String as PropType<SelectionType>, required: true },
     displayedForms: { type: Array as PropType<CaseActionName[]>, required: true },
+    actionEnabled: { type: Boolean, required: true },
   },
   emits: ['actionToggled'],
   data() {
@@ -22,7 +23,6 @@ export const ActionAccordionComponent = defineComponent({
     allSelected(): boolean {
       return this.selection === 'all';
     },
-
     showAccordion(): boolean {
       if (context.isArchive) {
         return NonArchiveActions.has(this.name);
@@ -32,7 +32,6 @@ export const ActionAccordionComponent = defineComponent({
       if (this.selectionType === 'both') return true;
       return (this.selectionType === 'case') === this.allSelected;
     },
-
     text(): string {
       if (typeof this.label === 'string') {
         return this.label;
@@ -46,6 +45,9 @@ export const ActionAccordionComponent = defineComponent({
 
       return 'Unexpected configuration';
     },
+    showEnabledClass(): boolean {
+      return this.name !== 'sections' && this.actionEnabled;
+    },
   },
 
   template: `
@@ -54,6 +56,7 @@ export const ActionAccordionComponent = defineComponent({
         :name="name"
         :model-value="this.displayedForms.includes(name)"
         @click.prevent="$emit('actionToggled')"
+        :class="{'action-enabled': showEnabledClass}"
     >
       <template #title>{{ text }}</template>
       <slot />
