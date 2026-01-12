@@ -1,5 +1,5 @@
 /* {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.css}} */
-/* v3.0.0-beta.1 "A Whole New World" */
+/* v3.0.0-beta.3 "A Whole New World" */
 /* src/spihelper.css */
 .spihelper-hovertext {
   text-decoration: underline dotted;
@@ -51,8 +51,14 @@
 
 #buttonRow {
   display: flex;
+  overflow-x: auto;
+  flex-wrap: nowrap;
   max-width: 85%;
   padding-bottom: 2px;
+}
+
+#buttonRow > button {
+  flex-shrink: 0;
 }
 
 #messageRow {
@@ -92,6 +98,14 @@
 
 .spiHelper-blockoptions-group {
   margin-bottom: 12px;
+}
+
+#spiHelper-opts-dialog .cdx-dialog__header {
+  display: flex;
+  box-sizing: border-box;
+  justify-content: flex-end;
+  align-items: baseline;
+  width: 100%;
 }
 
 #spiHelper-topView-Accordion .enableSwitch:not(:only-child) {

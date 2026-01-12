@@ -1,5 +1,5 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
-// v3.0.0-beta.1 "A Whole New World"
+// v3.0.0-beta.3 "A Whole New World"
 // <nowiki>
 (() => {
 
@@ -522,6 +522,12 @@
     }
   };
   var spiHelperAdvert = " (using [[:w:en:WP:SPIH|spihelper.js]])";
+  var FeedbackConfig = {
+    title: new mw.Title("User talk:DatGuy/spihelper.js"),
+    bugsLink: "//github.com/DatGuy1/spihelper/issues/new",
+    showUseragentCheckbox: true,
+    useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
+  };
 
   // src/ui/messages.ts
   class VueMessage {
@@ -1181,7 +1187,7 @@
       return "";
     }
   }
-  var userAgent = `MediaWiki-JS/${mw.config.get("wgVersion")} spihelper/${"3.0.0-beta.1"}`;
+  var userAgent = `MediaWiki-JS/${mw.config.get("wgVersion")} spihelper/${"3.0.0-beta.3"}`;
   var APIs = {
     meta: new mw.ForeignApi("https://meta.wikimedia.org/w/api.php", { userAgent }),
     local: new mw.Api({ userAgent })
@@ -1310,11 +1316,13 @@
   // node_modules/@wikimedia/codex-icons/dist/codex-icons.js
   var M = '<path d="M11 9V4H9v5H4v2h5v5h2v-5h5V9z"/>';
   var r1 = '<path d="M10 0a10 10 0 1010 10A10 10 0 0010 0m2.5 14.5L9 11V4h2v6l3 3z"/>';
+  var z1 = '<path d="m4.34 2.93 12.73 12.73-1.41 1.41L2.93 4.35z"/><path d="M17.07 4.34 4.34 17.07l-1.41-1.41L15.66 2.93z"/>';
   var i1 = '<path id="cdx-icon-code-a" d="M1 10.08V8.92h1.15c1.15 0 1.15 0 1.15-1.15V5a7.4 7.4 0 01.09-1.3 2 2 0 01.3-.7 1.84 1.84 0 01.93-.68A6.4 6.4 0 016.74 2h1.18v1.15h-.86A1.32 1.32 0 006 3.62a1.7 1.7 0 00-.36 1.23V7a3.2 3.2 0 01-.28 1.72 2 2 0 01-1.26.77 2.15 2.15 0 011.26.79A3.26 3.26 0 015.62 12v3.15A1.67 1.67 0 006 16.37a1.31 1.31 0 001.08.47h.87V18H6.74a6.3 6.3 0 01-2.12-.29 1.82 1.82 0 01-.93-.71 1.9 1.9 0 01-.3-.72A7.5 7.5 0 013.31 15v-3.77c0-1.15 0-1.15-1.15-1.15zm18 0V8.92h-1.15c-1.15 0-1.15 0-1.15-1.15V5a7.4 7.4 0 00-.08-1.32 2 2 0 00-.3-.73 1.84 1.84 0 00-.93-.68A6.4 6.4 0 0013.26 2h-1.18v1.15h.87a1.32 1.32 0 011.05.47 1.7 1.7 0 01.36 1.23V7a3.2 3.2 0 00.28 1.72 2 2 0 001.26.77 2.15 2.15 0 00-1.26.79 3.26 3.26 0 00-.26 1.72v3.15a1.67 1.67 0 01-.38 1.22 1.31 1.31 0 01-1.08.47h-.87V18h1.19a6.3 6.3 0 002.12-.29 1.82 1.82 0 00.93-.68 1.9 1.9 0 00.3-.72 7.5 7.5 0 00.1-1.31v-3.77c0-1.15 0-1.15 1.15-1.15z"/><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#cdx-icon-code-a" transform="matrix(-1 0 0 1 20 0)"/>';
   var p1 = '<path d="m2.5 15.25 7.5-7.5 7.5 7.5 1.5-1.5-9-9-9 9z"/>';
   var M1 = '<path d="M3 3h8v2h2V3c0-1.1-.895-2-2-2H3c-1.1 0-2 .895-2 2v8c0 1.1.895 2 2 2h2v-2H3z"/><path d="M9 9h8v8H9zm0-2c-1.1 0-2 .895-2 2v8c0 1.1.895 2 2 2h8c1.1 0 2-.895 2-2V9c0-1.1-.895-2-2-2z"/>';
   var I1 = '<path d="M17 12v5H3v-5H1v5a2 2 0 002 2h14a2 2 0 002-2v-5z"/><path d="M15 9h-4V1H9v8H5l5 6z"/>';
   var q1 = '<path d="m17.5 4.75-7.5 7.5-7.5-7.5L1 6.25l9 9 9-9z"/>';
+  var Z1 = '<path d="M19 16 2 12a3.83 3.83 0 01-1-2.5A3.83 3.83 0 012 7l17-4z"/><rect width="4" height="8" x="4" y="9" rx="2"/>';
   var A0 = '<path d="M2 18.5A1.5 1.5 0 003.5 20H5V0H3.5A1.5 1.5 0 002 1.5zM6 0v20h10a2 2 0 002-2V2a2 2 0 00-2-2zm7 8H8V7h5zm3-2H8V5h8z"/>';
   var E2 = '<path d="M13 8V2a2 2 0 002-2H5a2 2 0 002 2v6H6a2 2 0 00-2 2v1h5v5l1 4 1-4v-5h5v-1a2 2 0 00-2-2z"/>';
   var _2 = '<path d="M15.65 4.35A8 8 0 1017.4 13h-2.22a6 6 0 11-1-7.22L11 9h7V2z"/>';
@@ -1323,6 +1331,7 @@
   var V3 = '<path d="M1 3h16v2H1Zm0 6h6v2H1Zm0 6h8v2H1Zm8-4.24h3.85L14.5 7l1.65 3.76H20l-3 3.17.9 4.05-3.4-2.14L11.1 18l.9-4.05Z"/>';
   var k3 = M;
   var d4 = r1;
+  var e4 = z1;
   var r4 = i1;
   var z4 = p1;
   var p4 = {
@@ -1331,6 +1340,10 @@
   };
   var u4 = I1;
   var f4 = q1;
+  var q4 = {
+    ltr: Z1,
+    shouldFlip: true
+  };
   var z6 = {
     ltr: A0,
     shouldFlip: true
@@ -1350,6 +1363,7 @@
   // src/ui/views/options/modal.ts
   var OptionsComponent = defineComponent({
     props: {
+      feedbackDialog: { type: Object, required: true },
       openButton: { type: Object, required: true }
     },
     data: function() {
@@ -1364,7 +1378,9 @@
         logPrefix,
         cdxIconWatchlist: t9,
         cdxIconClock: d4,
+        cdxIconClose: e4,
         cdxIconCode: r4,
+        cdxIconFeedback: q4,
         cdxIconJournal: z6,
         cdxIconReload: U7,
         spiHelperSettings,
@@ -1382,8 +1398,28 @@
       }
     },
     template: `
-    <cdx-dialog v-model:open="open" title="spiHelper Options"
-                close-button-label="Close" id="spiHelper-opts-dialog">
+    <cdx-dialog v-model:open="open" title="spiHelper Options" id="spiHelper-opts-dialog" close-button-label="Close">
+      <template #header>
+        <div class="cdx-dialog__header__title-group">
+          <h2 class="cdx-dialog__header__title">
+            spiHelper Options
+          </h2>
+        </div>
+        <div>
+          <cdx-button weight="quiet" type="button" aria-label="Give feedback" @click="feedbackDialog.launch()">
+            <cdx-icon :icon="cdxIconFeedback" />
+          </cdx-button>
+          <cdx-button
+              class="cdx-dialog__header__close-button"
+              weight="quiet"
+              type="button"
+              aria-label="Close"
+              @click="open = false"
+          >
+            <cdx-icon :icon="cdxIconClose" />
+          </cdx-button>
+        </div>
+      </template>
       <p>Configure your spiHelper options</p>
       <cdx-message v-if="showExtraMessage" type="success" :fade-in="true" :auto-dismiss="true" :display-time="3000">
         I trust that you understand section moves
@@ -1452,8 +1488,8 @@
       <div class="spiHelper-setting">
         <cdx-toggle-switch v-model="spiHelperSettings.clerk" :align-switch="true">Clerk</cdx-toggle-switch>
         <cdx-toggle-switch v-model="spiHelperSettings.tickArchiveWhenCaseClosed" :align-switch="true">
-          Tick archive
-          <template #description>Automatically tick the "Archive case" option if the case is closed</template>
+          Archive closed by default
+          <template #description>If the case is closed, enable archival by default</template>
         </cdx-toggle-switch>
         <cdx-toggle-switch v-model="spiHelperSettings.displayIPv6As64" :align-switch="true">
           Display IPv6 as /64
@@ -3455,6 +3491,7 @@ ${comment}
   var TopViewComponent = defineComponent({
     props: {
       state: { type: Object, required: true },
+      feedbackDialog: { type: Object, required: true },
       openButton: { type: Object, required: true }
     },
     data() {
@@ -3474,7 +3511,8 @@ ${comment}
         messages,
         cdxIconPushPin: y7,
         cdxIconCollapse: z4,
-        cdxIconExpand: f4
+        cdxIconExpand: f4,
+        cdxIconFeedback: q4
       };
     },
     computed: {
@@ -3522,6 +3560,9 @@ ${comment}
     <div id="spiHelper-topView-Card" v-if="open">
       <div id="spiHelper-topView-Header">
         <div class="header-buttons">
+          <cdx-button aria-label="Give feedback" weight="quiet" @click="feedbackDialog.launch()">
+            <cdx-icon :icon="cdxIconFeedback" />
+          </cdx-button>
           <cdx-button aria-label="Toggle layout" weight="quiet" @click="toggleButtonLayout">
             <cdx-icon :icon="buttonLayout ? cdxIconExpand : cdxIconCollapse" />
           </cdx-button>
@@ -3727,6 +3768,9 @@ ${comment}
         const normalisedStatus = normalizeCaseStatus(caseStatus);
         this.caseActions.status.data.old = normalisedStatus;
         this.caseActions.status.data.new = normalisedStatus;
+        if (normalisedStatus === "closed" && spiHelperSettings.tickArchiveWhenCaseClosed) {
+          this.caseActions.archive.enabled = true;
+        }
       },
       async onSubmitActions() {
         if (isOpRunning("mainActions")) {
@@ -5362,12 +5406,13 @@ ${comment}
   });
 
   // src/spihelper.ts
-  mw.loader.using(["vue", "@wikimedia/codex", "mediawiki.api", "mediawiki.util", "mediawiki.user"], (require2) => {
+  mw.loader.using(["vue", "@wikimedia/codex", "mediawiki.api", "mediawiki.util", "mediawiki.user", "mediawiki.feedback"], (require2) => {
     if (!mw.config.get("wgPageName").includes("Wikipedia:Sockpuppet_investigations/")) {
       return;
     }
     const Vue = require2("vue");
     const Codex = require2("@wikimedia/codex");
+    const feedbackDialog = new mw.Feedback(FeedbackConfig);
     if (false) {} else if (true) {
       importStylesheet("User:DatGuy/spihelper.dev.css");
     } else {}
@@ -5387,12 +5432,12 @@ ${comment}
       const mountPoint = document.createElement("div");
       mountPoint.setAttribute("id", "spiHelper-vue-mount-point");
       mw.util.$content.prepend(mountPoint);
-      Vue.createMwApp(TopViewComponent, { state: caseState, openButton: initLink }).component("cdx-tabs", Codex.CdxTabs).component("cdx-tab", Codex.CdxTab).component("cdx-select", Codex.CdxSelect).component("cdx-card", Codex.CdxCard).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-text-area", Codex.CdxTextArea).component("cdx-toggle-button", Codex.CdxToggleButton).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("cdx-button-group", Codex.CdxButtonGroup).component("cdx-button", Codex.CdxButton).component("cdx-icon", Codex.CdxIcon).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-lookup", Codex.CdxLookup).component("cdx-field", Codex.CdxField).component("cdx-message", Codex.CdxMessage).component("cdx-progress-bar", Codex.CdxProgressBar).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-accordion", Codex.CdxAccordion).component("cdx-label", Codex.CdxLabel).component("cdx-popover", Codex.CdxPopover).component("action-accordion", ActionAccordionComponent).component("action-button", ActionButtonComponent).component("action-container", ActionContainerComponent).component("action-content", ActionContentComponent).component("submit-form", SubmitFormComponent).component("comment-action", CommentActionComponent).component("change-status-action", ChangeStatusActionComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("management-action", ManagementActionComponent).component("archive-action", ArchiveActionComponent).component("move-action", MoveActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
+      Vue.createMwApp(TopViewComponent, { state: caseState, feedbackDialog, openButton: initLink }).component("cdx-tabs", Codex.CdxTabs).component("cdx-tab", Codex.CdxTab).component("cdx-select", Codex.CdxSelect).component("cdx-card", Codex.CdxCard).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-text-area", Codex.CdxTextArea).component("cdx-toggle-button", Codex.CdxToggleButton).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("cdx-button-group", Codex.CdxButtonGroup).component("cdx-button", Codex.CdxButton).component("cdx-icon", Codex.CdxIcon).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-lookup", Codex.CdxLookup).component("cdx-field", Codex.CdxField).component("cdx-message", Codex.CdxMessage).component("cdx-progress-bar", Codex.CdxProgressBar).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-accordion", Codex.CdxAccordion).component("cdx-label", Codex.CdxLabel).component("cdx-popover", Codex.CdxPopover).component("action-accordion", ActionAccordionComponent).component("action-button", ActionButtonComponent).component("action-container", ActionContainerComponent).component("action-content", ActionContentComponent).component("submit-form", SubmitFormComponent).component("comment-action", CommentActionComponent).component("change-status-action", ChangeStatusActionComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("management-action", ManagementActionComponent).component("archive-action", ArchiveActionComponent).component("move-action", MoveActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
     }
     const settingsLink = mw.util.addPortletLink("p-cactions", "#", "SPI-Beta-Options", "ca-spiHelperOpts", "Modify spiHelper settings");
     if (settingsLink) {
       const mountPoint = document.body.appendChild(document.createElement("div"));
-      Vue.createMwApp(OptionsComponent, { openButton: settingsLink }).component("cdx-button", Codex.CdxButton).component("cdx-dialog", Codex.CdxDialog).component("cdx-field", Codex.CdxField).component("cdx-select", Codex.CdxSelect).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-accordion", Codex.CdxAccordion).component("cdx-text-input", Codex.CdxTextInput).component("cdx-icon", Codex.CdxIcon).component("cdx-message", Codex.CdxMessage).component("watch-setting", WatchSettingComponent).component("expiry-setting", ExpirySettingComponent).component("expiry-input", ExpiryInputComponent).component("log-page-setting", LogPageSettingComponent).mount(mountPoint);
+      Vue.createMwApp(OptionsComponent, { feedbackDialog, openButton: settingsLink }).component("cdx-button", Codex.CdxButton).component("cdx-dialog", Codex.CdxDialog).component("cdx-field", Codex.CdxField).component("cdx-select", Codex.CdxSelect).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-accordion", Codex.CdxAccordion).component("cdx-text-input", Codex.CdxTextInput).component("cdx-icon", Codex.CdxIcon).component("cdx-message", Codex.CdxMessage).component("watch-setting", WatchSettingComponent).component("expiry-setting", ExpirySettingComponent).component("expiry-input", ExpiryInputComponent).component("log-page-setting", LogPageSettingComponent).mount(mountPoint);
     }
     if (mw.config.get("wgCategories").includes("SPI cases awaiting archive") && spiHelperIsClerk()) {
       const oneClickArchiveLink = mw.util.addPortletLink("p-cactions", "#", "SPI-Beta-Archive", "ca-spiHelperArchive", "Run one click archival");
