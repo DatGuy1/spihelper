@@ -42,7 +42,7 @@ export const spiHelperDefaultSettings: ScriptSettings = {
 };
 
 // Advert to append to the edit summary of edits
-export const spiHelperAdvert = ' (using [[:w:en:WP:SPIH|spihelper.js]])';
+export const spiHelperAdvert = ' (using [[:w:en:User:DatGuy/spihelper|User:DatGuy/spihelper.js]])';
 
 export const FeedbackConfig = {
   title: new mw.Title('User talk:DatGuy/spihelper.js'),
