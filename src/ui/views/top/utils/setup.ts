@@ -43,7 +43,7 @@ export function getActionButtons(): ActionButtons {
     },
     archive: {
       label: {
-        case: 'Archive All Closed',
+        case: 'Archive Closed',
         section: 'Archive',
       },
       selectionType: 'both',

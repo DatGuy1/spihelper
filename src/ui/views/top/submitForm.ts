@@ -118,8 +118,9 @@ export const SubmitFormComponent = defineComponent({
         this.popover.show = true;
       }
     },
-    confirmSubmit() {
+    async confirmSubmit() {
       this.popover.show = false;
+      await context.refreshRevId();
       this.$emit('onSubmit');
     },
   },

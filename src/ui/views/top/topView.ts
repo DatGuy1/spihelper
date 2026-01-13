@@ -257,6 +257,7 @@ export const TopViewComponent = defineComponent({
       }
     },
     async 'state.sections'(newValue: SectionEntry[]) {
+      // Put it in watch in case our state loads after we open our form
       if (this.caseActions.sections.data.section === null) {
         const firstSection = newValue[0];
         if (firstSection) {
