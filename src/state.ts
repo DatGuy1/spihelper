@@ -42,7 +42,11 @@ export class SectionEntry {
   }
 }
 
-export async function loadCaseText(state: CaseState, purge = false) {
+export async function loadCaseText(
+  state: CaseState,
+  opts: { purge?: boolean; show?: boolean } = {},
+) {
+  const { purge = false, show = false } = opts;
   if (state._loadingPromise) {
     return state._loadingPromise;
   }
@@ -50,7 +54,7 @@ export async function loadCaseText(state: CaseState, purge = false) {
     return state._text;
   }
 
-  state._loadingPromise = spiHelperGetPageText(context.pageName, false);
+  state._loadingPromise = spiHelperGetPageText(context.pageName, show);
   state._text = await state._loadingPromise;
   state._loadingPromise = null;
 
@@ -61,7 +65,11 @@ export async function refreshSections(state: CaseState) {
   state.sections = await spiHelperGetInvestigationSectionIDs(context.pageName);
 }
 
-export async function loadSectionText(section: SectionEntry, purge = false) {
+export async function loadSectionText(
+  section: SectionEntry,
+  opts: { purge?: boolean; show?: boolean } = {},
+) {
+  const { purge = false, show = false } = opts;
   if (section._loadingPromise) {
     return section._loadingPromise;
   }
@@ -69,7 +77,7 @@ export async function loadSectionText(section: SectionEntry, purge = false) {
     return section._text;
   }
 
-  section._loadingPromise = spiHelperGetPageText(context.pageName, false, section.id);
+  section._loadingPromise = spiHelperGetPageText(context.pageName, show, section.id);
   section._text = await section._loadingPromise;
   section._loadingPromise = null;
 

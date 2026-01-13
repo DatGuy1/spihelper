@@ -37,8 +37,7 @@ export async function spiHelperOneClickArchive(state: CaseState): Promise<void> 
   startOp('oneClickArchive');
   new VueMessage({ type: 'notice', content: 'Starting OCA' }).show();
 
-  const pageText = await loadCaseText(state);
-  console.log('state is', state);
+  const pageText = await loadCaseText(state, { show: true, purge: true });
   if (!spiHelperSectionRegex.test(pageText)) {
     new VueMessage({ type: 'notice', content: 'Looks like the page has been archived already' }).show();
     finishOp('oneClickArchive', OpState.Success);
