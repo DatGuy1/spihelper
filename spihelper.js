@@ -521,7 +521,7 @@
       forceAdmin: false
     }
   };
-  var spiHelperAdvert = " (using [[:w:en:WP:SPIH|spihelper.js]])";
+  var spiHelperAdvert = " (using [[:w:en:User:DatGuy/spihelper|User:DatGuy/spihelper.js]])";
   var FeedbackConfig = {
     title: new mw.Title("User talk:DatGuy/spihelper.js"),
     bugsLink: "//github.com/DatGuy1/spihelper/issues/new",
@@ -1285,14 +1285,15 @@
       this.name = name;
     }
   }
-  async function loadCaseText(state, purge = false) {
+  async function loadCaseText(state, opts = {}) {
+    const { purge = false, show = false } = opts;
     if (state._loadingPromise) {
       return state._loadingPromise;
     }
     if (state._text !== null && !purge) {
       return state._text;
     }
-    state._loadingPromise = spiHelperGetPageText(context.pageName, false);
+    state._loadingPromise = spiHelperGetPageText(context.pageName, show);
     state._text = await state._loadingPromise;
     state._loadingPromise = null;
     return state._text;
@@ -1300,14 +1301,15 @@
   async function refreshSections(state) {
     state.sections = await spiHelperGetInvestigationSectionIDs(context.pageName);
   }
-  async function loadSectionText(section, purge = false) {
+  async function loadSectionText(section, opts = {}) {
+    const { purge = false, show = false } = opts;
     if (section._loadingPromise) {
       return section._loadingPromise;
     }
     if (section._text !== null && !purge) {
       return section._text;
     }
-    section._loadingPromise = spiHelperGetPageText(context.pageName, false, section.id);
+    section._loadingPromise = spiHelperGetPageText(context.pageName, show, section.id);
     section._text = await section._loadingPromise;
     section._loadingPromise = null;
     return section._text;
@@ -1612,7 +1614,7 @@
       },
       archive: {
         label: {
-          case: "Archive All Closed",
+          case: "Archive Closed",
           section: "Archive"
         },
         selectionType: "both"
@@ -2953,56 +2955,95 @@ $2`);
 
   // src/actions/archive.ts
   async function spiHelperArchiveCase(state) {
-    let i = 0;
-    let previousRev = 0;
-    while (i < state.sections.length) {
-      const section = state.sections[i];
-      if (!section) {
-        continue;
-      }
+    const sectionFetchMessage = new VueMessage({ type: "notice", content: "Loading all sections" }).show();
+    const pageTextPromise = loadCaseText(state);
+    const sectionsToArchive = (await Promise.all(state.sections.map(async (section) => {
       const sectionText = await loadSectionText(section);
-      const currentRev = await spiHelperGetPageRev(context.pageName);
-      if (previousRev === currentRev && currentRev !== 0) {
-        await new Promise((resolve) => {
-          setTimeout(resolve, 100);
-        });
-        await refreshSections(state);
-        continue;
+      const caseStatus = spiHelperCaseStatusRegex.exec(sectionText);
+      if (!caseStatus?.[1]) {
+        return null;
       }
-      i++;
-      const result = spiHelperCaseStatusRegex.exec(sectionText);
-      if (!result?.[1]) {
-        continue;
-      }
-      if (spiHelperCaseClosedRegex.test(result[1])) {
-        previousRev = await spiHelperGetPageRev(context.pageName);
-        const postExpandPercent = (await spiHelperGetPostExpandSize(context.pageName, section.id) + await spiHelperGetPostExpandSize(context.archiveName)) / spiHelperGetMaxPostExpandSize();
-        if (postExpandPercent >= 1) {
-          let archiveId = 1;
-          while (await spiHelperGetPageText(`${context.archiveName}/${archiveId}`, false) !== "") {
-            archiveId++;
-          }
-          const newArchiveName = `${context.archiveName}/${archiveId}`;
-          await spiHelperMovePage({
-            sourcePage: context.archiveName,
-            destPage: newArchiveName,
-            summary: "Moving archive to avoid exceeding post expand size limit",
-            ignoreWarnings: false,
-            moveSubpages: false
-          });
-          await spiHelperEditPage({
-            title: context.archiveName,
-            newText: "",
-            summary: "Removing redirect",
-            createonly: false,
-            watch: "nochange"
-          });
-        }
-        await spiHelperArchiveCaseSection(section);
-        i--;
-        await refreshSections(state);
-      }
+      return spiHelperCaseClosedRegex.test(caseStatus[1]) ? section : null;
+    }))).filter((section) => section !== null);
+    let newText = await pageTextPromise;
+    sectionFetchMessage.update({ type: "success", content: "All sections loaded" });
+    if (sectionsToArchive.length === 0) {
+      new VueMessage({ type: "warning", content: "Nothing to archive" }).show();
+      return;
     }
+    let newArchiveText = await spiHelperGetPageText(context.archiveName, true);
+    const postExpandPercent = (await spiHelperGetPostExpandSize(context.pageName) + await spiHelperGetPostExpandSize(context.archiveName)) / spiHelperGetMaxPostExpandSize();
+    if (postExpandPercent >= 1) {
+      let archiveId = 0;
+      while (newArchiveText !== "") {
+        newArchiveText = await spiHelperGetPageText(`${context.archiveName}/${++archiveId}`, true);
+      }
+      const newArchiveName = `${context.archiveName}/${archiveId}`;
+      await spiHelperMovePage({
+        sourcePage: context.archiveName,
+        destPage: newArchiveName,
+        summary: "Moving archive to avoid exceeding post expand size limit",
+        ignoreWarnings: false,
+        moveSubpages: false
+      });
+      await spiHelperEditPage({
+        title: context.archiveName,
+        newText: "",
+        summary: "Removing redirect",
+        createonly: false,
+        watch: "nochange"
+      });
+    }
+    if (newArchiveText === "") {
+      newArchiveText = `__TOC__
+{{SPI archive notice|1=${context.caseName}}}
+{{SPIpriorcases}}
+`;
+    } else {
+      newArchiveText = newArchiveText.replace(/<br\s*\/>\s*{{SPIpriorcases}}/gi, `
+{{SPIpriorcases}}`);
+    }
+    let sectionsAdded = 0;
+    for (const section of sectionsToArchive) {
+      const sectionText = await loadSectionText(section);
+      newText = newText.replace(sectionText + `
+`, "").replace(sectionText, "");
+      const cleanSectionText = sectionText.slice(sectionText.search(spiHelperSectionRegex)).replace(spiHelperCaseStatusRegex, "");
+      if (newArchiveText.includes(cleanSectionText)) {
+        new VueMessage({ type: "warning", content: `Section ${section.name} already exists in the archive` }).show();
+        continue;
+      }
+      newArchiveText += `
+`;
+      newArchiveText += cleanSectionText;
+      sectionsAdded++;
+    }
+    if (sectionsAdded === 0) {
+      new VueMessage({ type: "warning", content: "Nothing to archive" }).show();
+      return;
+    }
+    const usePlural = sectionsAdded > 1;
+    const summaryPrefix = `Archiving ${sectionsAdded} section${usePlural ? "s" : ""}`;
+    const archiveSuccess = await spiHelperEditPage({
+      title: context.archiveName,
+      newText: newArchiveText,
+      summary: `${summaryPrefix} from [[${context.prefixedName}]]`,
+      watch: spiHelperSettings.watch.archive,
+      watchExpiry: spiHelperSettings.expiry.archive
+    });
+    if (!archiveSuccess) {
+      new VueMessage({ type: "error", content: "Failed to update archive, not removing sections from case page" }).show();
+      return;
+    }
+    await context.edit({
+      newText,
+      summary: `${summaryPrefix} to [[${spiHelperGetInterwikiPrefix()}${context.archiveName}]]`,
+      watch: spiHelperSettings.watch.case,
+      watchExpiry: spiHelperSettings.expiry.case,
+      baseRevId: context.startingRevId
+    });
+    context.refreshRevId();
+    refreshSections(state);
   }
   async function spiHelperArchiveCaseSection(section) {
     let sectionText = await loadSectionText(section);
@@ -3016,7 +3057,7 @@ $2`);
       message.show();
       return;
     }
-    if (!archiveText) {
+    if (archiveText === "") {
       archiveText = `__TOC__
 {{SPI archive notice|1=` + context.caseName + `}}
 {{SPIpriorcases}}
@@ -3120,8 +3161,7 @@ $1`);
   async function spiHelperOneClickArchive(state) {
     startOp("oneClickArchive");
     new VueMessage({ type: "notice", content: "Starting OCA" }).show();
-    const pageText = await loadCaseText(state);
-    console.log("state is", state);
+    const pageText = await loadCaseText(state, { show: true, purge: true });
     if (!spiHelperSectionRegex.test(pageText)) {
       new VueMessage({ type: "notice", content: "Looks like the page has been archived already" }).show();
       finishOp("oneClickArchive", "success" /* Success */);
@@ -5294,8 +5334,9 @@ ${comment}
           this.popover.show = true;
         }
       },
-      confirmSubmit() {
+      async confirmSubmit() {
         this.popover.show = false;
+        await context.refreshRevId();
         this.$emit("onSubmit");
       }
     },
