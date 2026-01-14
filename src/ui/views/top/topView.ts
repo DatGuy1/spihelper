@@ -375,6 +375,7 @@ export const TopViewComponent = defineComponent({
       if (isOpRunning('mainActions')) {
         return;
       }
+      mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'submit' });
       startOp('mainActions');
       // I would have liked to use isOpRunning in the v-if, but it's messed up with Vue's reactivity
       this.actionsRunning = true;
@@ -486,6 +487,9 @@ export const TopViewComponent = defineComponent({
 
     this._openHandler = () => {
       this.open = !this.open;
+      if (this.open) {
+        mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'open' });
+      }
       if (this._beforeUnloadHandler) {
         if (this.open) {
           window.addEventListener('beforeunload', this._beforeUnloadHandler);

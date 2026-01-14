@@ -42,6 +42,7 @@ export const OneClickArchivalComponent = defineComponent({
       messages.length = 0;
       this.open = true;
       this.archiving = true;
+      mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'oneclickarchive' });
       spiHelperOneClickArchive(this.state).then(
         () => { this.archiving = false; },
         () => { /* empty */ },

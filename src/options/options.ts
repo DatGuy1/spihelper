@@ -76,6 +76,7 @@ export function loadOptions(): Record<string, unknown> | null {
 declare let spiHelperCustomOpts: Record<string, unknown> | undefined;
 
 export async function migrateOptions() {
+  mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'migrate' });
   try {
     await mw.loader.getScript('/w/index.php?title=Special:MyPage/spihelper-options.js&action=raw&ctype=text/javascript');
     if (spiHelperCustomOpts !== undefined) {

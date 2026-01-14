@@ -214,6 +214,7 @@ export const OptionsComponent = defineComponent({
   mounted() {
     this._openHandler = () => {
       this.open = true;
+      mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'options' });
     };
     this.openButton.addEventListener('click', this._openHandler);
 
