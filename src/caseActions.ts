@@ -250,6 +250,7 @@ export async function spiHelperPerformActions(opts: {
   }
 
   await spiHelperPurgePage(context.pageName);
+  await refreshSections(state);
   new VueMessage({ type: 'success', content: 'Done!' }).show();
 }
 
