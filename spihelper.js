@@ -457,6 +457,7 @@
     }
   }
   async function migrateOptions() {
+    mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "migrate" });
     try {
       await mw.loader.getScript("/w/index.php?title=Special:MyPage/spihelper-options.js&action=raw&ctype=text/javascript");
       if (spiHelperCustomOpts !== undefined) {
@@ -1541,6 +1542,7 @@
     mounted() {
       this._openHandler = () => {
         this.open = true;
+        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "options" });
       };
       this.openButton.addEventListener("click", this._openHandler);
       //! Use the Konami code to unlock section moves
@@ -3345,6 +3347,7 @@ $1`);
       await spiHelperLog(logMessage);
     }
     await spiHelperPurgePage(context.pageName);
+    await refreshSections(state);
     new VueMessage({ type: "success", content: "Done!" }).show();
   }
   function spiHelperHandleComment(targetText, comment) {
@@ -3834,6 +3837,7 @@ ${comment}
         if (isOpRunning("mainActions")) {
           return;
         }
+        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "submit" });
         startOp("mainActions");
         this.actionsRunning = true;
         await spiHelperPerformActions({
@@ -3928,6 +3932,9 @@ ${comment}
       };
       this._openHandler = () => {
         this.open = !this.open;
+        if (this.open) {
+          mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "open" });
+        }
         if (this._beforeUnloadHandler) {
           if (this.open) {
             window.addEventListener("beforeunload", this._beforeUnloadHandler);
@@ -5451,6 +5458,7 @@ ${comment}
         messages.length = 0;
         this.open = true;
         this.archiving = true;
+        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "oneclickarchive" });
         spiHelperOneClickArchive(this.state).then(() => {
           this.archiving = false;
         }, () => {});
