@@ -239,10 +239,10 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
       ignoreWarnings: false,
     });
   }
-  await spiHelperPostRenameCleanup(oldContext.pageName, archiveNotice);
+  await spiHelperPostRenameCleanup(oldContext, newContext, archiveNotice);
   if (targetPageText) {
     // If there was a page there before, also need to do post-merge cleanup
-    await spiHelperPostMergeCleanup(targetPageText);
+    await spiHelperPostMergeCleanup(targetPageText, newContext);
   }
   if (archivesCopied) {
     new VueMessage({
@@ -299,26 +299,31 @@ export async function spiHelperMoveCaseSection(mergeTarget: string, section: Sec
  * Cleanups following a rename - update the archive notice, add an archive notice to the
  * old case name, add the original sockmaster to the sock list for reference
  *
- * @param {string} oldCasePage Title of the previous case page
- * @param archiveNotice Archive notice for the new page
+ * @param oldContext The previous case page's context
+ * @param newContext The new case page's context
+ * @param oldNotice Base archive notice to use for the new page
  */
 async function spiHelperPostRenameCleanup(
-  oldCasePage: string, archiveNotice: ParsedArchiveNotice,
+  oldContext: SpiPageContext, newContext: SpiPageContext, oldNotice: ParsedArchiveNotice,
 ): Promise<void> {
-  archiveNotice.username = context.caseName;
-  const replacementArchiveNotice = archiveNotice.generateWikitext();
-  const oldCaseName = oldCasePage.replace(/Wikipedia:Sockpuppet investigations\//g, '');
+  const newNotice = new ParsedArchiveNotice({ username: newContext.caseName });
+  const replacementArchiveNotice = newNotice.generateWikitext();
+  // After generating the replacement wikitext, add in the flags
+  newNotice.crosswiki = oldNotice.crosswiki;
+  newNotice.deny = oldNotice.deny;
+  newNotice.notalk = oldNotice.notalk;
+  newNotice.moot = oldNotice.moot;
 
   // Update previous SPI redirects to this location
   const pagesChecked = [];
-  const pagesToCheck = [oldCasePage];
+  const pagesToCheck = [oldContext.pageName];
   let currentPageToCheck = null;
   while (pagesToCheck.length !== 0) {
     currentPageToCheck = pagesToCheck.pop();
     if (
       !currentPageToCheck
-      || currentPageToCheck === context.pageName
-      || currentPageToCheck === oldCasePage
+      || currentPageToCheck === newContext.pageName
+      || currentPageToCheck === oldContext.pageName
     ) {
       continue;
     }
@@ -333,7 +338,7 @@ async function spiHelperPostRenameCleanup(
         void spiHelperEditPage({
           title: backlink.title,
           newText: replacementArchiveNotice,
-          summary: 'Updating case following page move',
+          summary: 'Updating backlink following page move',
           watch: spiHelperSettings.watch.case,
           watchExpiry: spiHelperSettings.expiry.case,
         });
@@ -345,46 +350,46 @@ async function spiHelperPostRenameCleanup(
   }
 
   // The old case should just be the archivenotice template and point to the new case
-  await spiHelperEditPage({
-    title: oldCasePage,
+  await oldContext.edit({
     newText: replacementArchiveNotice,
-    summary: 'Updating case following page move',
+    summary: 'Updating old case following page move',
     watch: spiHelperSettings.watch.case,
     watchExpiry: spiHelperSettings.expiry.case,
   });
 
   // The new case's archivenotice should be updated with the new name
-  let newPageText = await context.getText({ show: true });
-  newPageText = newPageText.replace(spiHelperArchiveNoticeRegex, '{{SPI archive notice|1=' + context.caseName + '$2}}');
+  let newPageText = await newContext.getText({ purge: true, show: true });
+  newPageText = newPageText.replace(spiHelperArchiveNoticeRegex, newNotice.generateWikitext());
   // We also want to add the previous master to the sock list
   // We use SOCK_SECTION_RE_WITH_NEWLINE to clean up any extraneous whitespace
-  newPageText = newPageText.replace(spiHelperSockSectionWithNewlineRegex, '====Suspected sockpuppets====' + '\n* {{checkuser|1=' + oldCaseName + '}} ({{clerknote}} original case name)\n');
+  newPageText = newPageText.replace(spiHelperSockSectionWithNewlineRegex, '====Suspected sockpuppets====' + '\n* {{checkuser|1=' + oldContext.caseName + '}} ({{clerknote}} original case name)\n');
   // Also remove the new master if they're in the sock list
   // This RE is kind of ugly. The idea is that we find everything from the level 4 heading
   // ending with "sockpuppets" to the level 4 heading beginning with <big> and pull the checkuser
   // template matching the current case name out. This keeps us from accidentally replacing a
   // checkuser entry in the admin section
-  const newMasterReString = '(sockpuppets\\s*====.*?)\\n^\\s*\\*\\s*{{checkuser\\|(?:1=)?' + context.caseName + '(?:\\|master name\\s*=.*?)?}}\\s*$(.*====\\s*<big>)';
+  const newMasterReString = '(sockpuppets\\s*====.*?)\\n^\\s*\\*\\s*{{checkuser\\|(?:1=)?' + newContext.caseName + '(?:\\|master name\\s*=.*?)?}}\\s*$(.*====\\s*<big>)';
   const newMasterRe = new RegExp(newMasterReString, 'sm');
   newPageText = newPageText.replace(newMasterRe, '$1\n$2');
 
-  await context.edit({
+  await newContext.edit({
     newText: newPageText,
-    summary: 'Updating case following page move',
+    summary: 'Updating new case following page move',
     watch: spiHelperSettings.watch.case,
     watchExpiry: spiHelperSettings.expiry.case,
   });
-  // Update to the latest revision ID
-  await context.refreshRevId();
 }
 
 /**
  * Cleanups following a merge - re-insert the original page text
  *
  * @param {string} originalText Text of the page pre-merge
+ * @param newContext Context of the new SPI page
  */
-async function spiHelperPostMergeCleanup(originalText: string): Promise<void> {
-  let newText = await context.getText({ purge: true });
+async function spiHelperPostMergeCleanup(
+  originalText: string, newContext: SpiPageContext,
+): Promise<void> {
+  let newText = await newContext.getText({ purge: true });
   // Remove the SPI header templates from the page
   newText = newText.replace(/\n*<noinclude>__TOC__.*\n/ig, '');
   newText = newText.replace(spiHelperArchiveNoticeRegex, '');
@@ -392,12 +397,10 @@ async function spiHelperPostMergeCleanup(originalText: string): Promise<void> {
   newText = originalText + '\n' + newText;
 
   // Write the updated case
-  await context.edit({
+  await newContext.edit({
     newText: newText,
     summary: 'Re-adding previous cases following merge',
     watch: spiHelperSettings.watch.case,
     watchExpiry: spiHelperSettings.expiry.case,
   });
-  // Update to the latest revision ID
-  await context.refreshRevId();
 }
