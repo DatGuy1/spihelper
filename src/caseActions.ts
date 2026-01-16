@@ -419,6 +419,9 @@ async function spiHelperHandleBlocks(opts: BlockActionData): Promise<{
       }
 
       blockPromises.push((async () => {
+        // jitter: 0–500 ms. remove me when T260838 is fixed
+        await new Promise(r => setTimeout(r, Math.random() * 500));
+
         const blockSuccess = await spiHelperProcessBlockRow({
           sock: sockRow,
           userBlock: userBlocks.get(sockRow.username),
