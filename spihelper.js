@@ -2591,9 +2591,9 @@
         ignoreWarnings: false
       });
     }
-    await spiHelperPostRenameCleanup(oldContext.pageName, archiveNotice);
+    await spiHelperPostRenameCleanup(oldContext, newContext, archiveNotice);
     if (targetPageText) {
-      await spiHelperPostMergeCleanup(targetPageText);
+      await spiHelperPostMergeCleanup(targetPageText, newContext);
     }
     if (archivesCopied) {
       new VueMessage({
@@ -2634,30 +2634,33 @@
     });
     context.startingRevId = await spiHelperGetPageRev(context.pageName);
   }
-  async function spiHelperPostRenameCleanup(oldCasePage, archiveNotice) {
-    archiveNotice.username = context.caseName;
-    const replacementArchiveNotice = archiveNotice.generateWikitext();
-    const oldCaseName = oldCasePage.replace(/Wikipedia:Sockpuppet investigations\//g, "");
+  async function spiHelperPostRenameCleanup(oldContext, newContext, oldNotice) {
+    const newNotice = new ParsedArchiveNotice({ username: newContext.caseName });
+    const replacementArchiveNotice = newNotice.generateWikitext();
+    newNotice.crosswiki = oldNotice.crosswiki;
+    newNotice.deny = oldNotice.deny;
+    newNotice.notalk = oldNotice.notalk;
+    newNotice.moot = oldNotice.moot;
     const pagesChecked = [];
-    const pagesToCheck = [oldCasePage];
+    const pagesToCheck = [oldContext.pageName];
     let currentPageToCheck = null;
     while (pagesToCheck.length !== 0) {
       currentPageToCheck = pagesToCheck.pop();
-      if (!currentPageToCheck || currentPageToCheck === context.pageName || currentPageToCheck === oldCasePage) {
+      if (!currentPageToCheck || currentPageToCheck === newContext.pageName || currentPageToCheck === oldContext.pageName) {
         continue;
       }
       pagesChecked.push(currentPageToCheck);
       const backlinks = await spiHelperGetSPIBacklinks(currentPageToCheck);
       for (const backlink of backlinks) {
-        const archiveNotice2 = await spiHelperParseArchiveNotice(backlink.title);
-        if (!archiveNotice2) {
+        const archiveNotice = await spiHelperParseArchiveNotice(backlink.title);
+        if (!archiveNotice) {
           continue;
         }
-        if (archiveNotice2.username === currentPageToCheck.replace(/Wikipedia:Sockpuppet investigations\//g, "")) {
+        if (archiveNotice.username === currentPageToCheck.replace(/Wikipedia:Sockpuppet investigations\//g, "")) {
           spiHelperEditPage({
             title: backlink.title,
             newText: replacementArchiveNotice,
-            summary: "Updating case following page move",
+            summary: "Updating backlink following page move",
             watch: spiHelperSettings.watch.case,
             watchExpiry: spiHelperSettings.expiry.case
           });
@@ -2667,44 +2670,41 @@
         }
       }
     }
-    await spiHelperEditPage({
-      title: oldCasePage,
+    await oldContext.edit({
       newText: replacementArchiveNotice,
-      summary: "Updating case following page move",
+      summary: "Updating old case following page move",
       watch: spiHelperSettings.watch.case,
       watchExpiry: spiHelperSettings.expiry.case
     });
-    let newPageText = await context.getText({ show: true });
-    newPageText = newPageText.replace(spiHelperArchiveNoticeRegex, "{{SPI archive notice|1=" + context.caseName + "$2}}");
+    let newPageText = await newContext.getText({ purge: true, show: true });
+    newPageText = newPageText.replace(spiHelperArchiveNoticeRegex, newNotice.generateWikitext());
     newPageText = newPageText.replace(spiHelperSockSectionWithNewlineRegex, "====Suspected sockpuppets====" + `
-* {{checkuser|1=` + oldCaseName + `}} ({{clerknote}} original case name)
+* {{checkuser|1=` + oldContext.caseName + `}} ({{clerknote}} original case name)
 `);
-    const newMasterReString = "(sockpuppets\\s*====.*?)\\n^\\s*\\*\\s*{{checkuser\\|(?:1=)?" + context.caseName + "(?:\\|master name\\s*=.*?)?}}\\s*$(.*====\\s*<big>)";
+    const newMasterReString = "(sockpuppets\\s*====.*?)\\n^\\s*\\*\\s*{{checkuser\\|(?:1=)?" + newContext.caseName + "(?:\\|master name\\s*=.*?)?}}\\s*$(.*====\\s*<big>)";
     const newMasterRe = new RegExp(newMasterReString, "sm");
     newPageText = newPageText.replace(newMasterRe, `$1
 $2`);
-    await context.edit({
+    await newContext.edit({
       newText: newPageText,
-      summary: "Updating case following page move",
+      summary: "Updating new case following page move",
       watch: spiHelperSettings.watch.case,
       watchExpiry: spiHelperSettings.expiry.case
     });
-    await context.refreshRevId();
   }
-  async function spiHelperPostMergeCleanup(originalText) {
-    let newText = await context.getText({ purge: true });
+  async function spiHelperPostMergeCleanup(originalText, newContext) {
+    let newText = await newContext.getText({ purge: true });
     newText = newText.replace(/\n*<noinclude>__TOC__.*\n/ig, "");
     newText = newText.replace(spiHelperArchiveNoticeRegex, "");
     newText = newText.replace(spiHelperPriorCasesRegex, "");
     newText = originalText + `
 ` + newText;
-    await context.edit({
+    await newContext.edit({
       newText,
       summary: "Re-adding previous cases following merge",
       watch: spiHelperSettings.watch.case,
       watchExpiry: spiHelperSettings.expiry.case
     });
-    await context.refreshRevId();
   }
 
   // src/actions/tag.ts
@@ -3496,6 +3496,7 @@ ${comment}
           noticeType = "sock";
         }
         blockPromises.push((async () => {
+          await new Promise((r) => setTimeout(r, Math.random() * 500));
           const blockSuccess = await spiHelperProcessBlockRow({
             sock: sockRow,
             userBlock: userBlocks.get(sockRow.username),
