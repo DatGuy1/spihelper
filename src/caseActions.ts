@@ -2,7 +2,6 @@ import { OpState, finishOp, startOp } from './operations.ts';
 import {
   spiHelperGetBulkPageText,
   spiHelperGetBulkUserBlockSettings,
-  spiHelperGetPageRev,
   spiHelperPurgePage,
 } from './api.ts';
 import { context } from './context.ts';
@@ -199,7 +198,7 @@ export async function spiHelperPerformActions(opts: {
   }
 
   // Update to the latest revision ID
-  context.startingRevId = await spiHelperGetPageRev(context.pageName);
+  await context.refreshRevId();
   if (actions.archive.enabled) {
     switch (state.selectedSection.type) {
       case 'all': {

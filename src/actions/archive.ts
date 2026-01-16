@@ -4,7 +4,6 @@ import { spiHelperGetInterwikiPrefix, spiHelperGetMaxPostExpandSize } from '../u
 import { spiHelperCaseClosedRegex, spiHelperCaseStatusRegex, spiHelperSectionRegex } from '../constants/regex.ts';
 import {
   spiHelperEditPage,
-  spiHelperGetPageRev,
   spiHelperGetPageText,
   spiHelperGetPostExpandSize,
   spiHelperMovePage,
@@ -178,5 +177,5 @@ export async function spiHelperArchiveCaseSection(section: SectionEntry): Promis
     sectionId: section.id,
   });
   // Update to the latest revision ID
-  context.startingRevId = await spiHelperGetPageRev(context.pageName);
+  await context.refreshRevId();
 }

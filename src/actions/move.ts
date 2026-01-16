@@ -4,7 +4,6 @@ import {
   spiHelperConfigurePendingChanges,
   spiHelperDeletePage,
   spiHelperEditPage,
-  spiHelperGetPageRev,
   spiHelperGetPageText,
   spiHelperGetProtectionInformation,
   spiHelperGetSPIBacklinks,
@@ -291,8 +290,6 @@ export async function spiHelperMoveCaseSection(mergeTarget: string, section: Sec
     baseRevId: context.startingRevId,
     sectionId: section.id,
   });
-  // Update to the latest revision ID
-  context.startingRevId = await spiHelperGetPageRev(context.pageName);
 }
 
 /**
