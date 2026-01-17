@@ -155,8 +155,9 @@
     const withSignature = spiHelperSignatureRegex.test(text);
     return withSignature ? text : text.trimEnd() + " ~~~~";
   }
-  function buildTitleLinkHtml(title) {
-    const $link = $("<a>").attr("href", mw.util.getUrl(title)).attr("title", title).text(title);
+  function buildTitleLinkHtml(title, text) {
+    text ??= title;
+    const $link = $("<a>").attr("href", mw.util.getUrl(title)).attr("title", title).text(text);
     return $link.prop("outerHTML");
   }
 
@@ -2632,7 +2633,6 @@
       baseRevId: context.startingRevId,
       sectionId: section.id
     });
-    context.startingRevId = await spiHelperGetPageRev(context.pageName);
   }
   async function spiHelperPostRenameCleanup(oldContext, newContext, oldNotice) {
     const newNotice = new ParsedArchiveNotice({ username: newContext.caseName });
@@ -3091,7 +3091,7 @@ $2`);
       baseRevId: context.startingRevId,
       sectionId: section.id
     });
-    context.startingRevId = await spiHelperGetPageRev(context.pageName);
+    await context.refreshRevId();
   }
 
   // src/actions/lock.ts
@@ -3120,10 +3120,13 @@ $2`);
       lockTemplate += "}}";
     }
     let heading;
+    let headingText;
     if (hideNames) {
       heading = usePlural ? `${lockTargets.length} sockpuppets` : "a sockpuppet";
+      headingText = heading;
     } else {
       heading = `${lockTargets.length} [[Special:CentralAuth/${master}|${master}]] ${usePlural ? "socks" : "sock"}`;
+      headingText = `${lockTargets.length} ${master} ${usePlural ? "socks" : "sock"}`;
     }
     const lockComment = opts.lockComment.trim().replace(/\.+$/, "");
     let message = `=== Global lock for ${heading} ===`;
@@ -3132,7 +3135,7 @@ $2`);
     message += `
 ${lockTemplate}`;
     message += `
- ${usePlural ? "Sockpuppets" : "Sockpuppet"} found in enwiki sockpuppet investigation, see [[${context.prefixedName}]].`;
+${usePlural ? "Sockpuppets" : "Sockpuppet"} found in enwiki sockpuppet investigation, see [[${context.prefixedName}]].`;
     if (lockComment !== "") {
       message += ` ${lockComment}.`;
     }
@@ -3152,7 +3155,8 @@ $1`);
       watch: "nochange"
     });
     if (editSuccess) {
-      new VueMessage({ type: "success", content: "Global lock request filed successfully!" }).show();
+      const linkHtml = buildTitleLinkHtml(`meta:Steward requests/Global#${headingText}`, "filed");
+      new VueMessage({ type: "success", content: `Global lock request ${linkHtml} successfully!`, isHtml: true }).show();
     } else {
       new VueMessage({ type: "warning", content: "Global lock request failed." }).show();
     }
@@ -3295,7 +3299,7 @@ $1`);
         new VueMessage({ type: "error", content: "Failed to save edit" }).show();
       }
     }
-    context.startingRevId = await spiHelperGetPageRev(context.pageName);
+    await context.refreshRevId();
     if (actions.archive.enabled) {
       switch (state.selectedSection.type) {
         case "all": {
