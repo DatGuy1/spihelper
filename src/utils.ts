@@ -175,7 +175,8 @@ export function addSignature(text: string): string {
   return withSignature ? text : text.trimEnd() + ' ~~~~';
 }
 
-export function buildTitleLinkHtml(title: string): string {
-  const $link = $('<a>').attr('href', mw.util.getUrl(title)).attr('title', title).text(title);
+export function buildTitleLinkHtml(title: string, text?: string): string {
+  text ??= title;
+  const $link = $('<a>').attr('href', mw.util.getUrl(title)).attr('title', title).text(text);
   return $link.prop('outerHTML') as string;
 }

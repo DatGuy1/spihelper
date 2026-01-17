@@ -1,6 +1,7 @@
 import { context } from '../context.ts';
 import { spiHelperEditPage, spiHelperGetGlobalUser, spiHelperGetPageText } from '../api.ts';
 import { VueMessage } from '../ui/messages.ts';
+import { buildTitleLinkHtml } from '../utils.ts';
 
 /**
  * Removes locked accounts from the list
@@ -48,18 +49,21 @@ export async function spiHelperRequestLocks(opts: {
     lockTemplate += '}}';
   }
   let heading: string;
+  let headingText: string;
   if (hideNames) {
     heading = usePlural ? `${lockTargets.length} sockpuppets` : 'a sockpuppet';
+    headingText = heading;
   }
   else {
     heading = `${lockTargets.length} [[Special:CentralAuth/${master}|${master}]] ${usePlural ? 'socks' : 'sock'}`;
+    headingText = `${lockTargets.length} ${master} ${usePlural ? 'socks' : 'sock'}`;
   }
   // Trim and remove a trailing period since we add our own
   const lockComment = opts.lockComment.trim().replace(/\.+$/, '');
   let message = `=== Global lock for ${heading} ===`;
   message += '\n{{status}}';
   message += `\n${lockTemplate}`;
-  message += `\n ${usePlural ? 'Sockpuppets' : 'Sockpuppet'} found in enwiki sockpuppet investigation, see [[${context.prefixedName}]].`;
+  message += `\n${usePlural ? 'Sockpuppets' : 'Sockpuppet'} found in enwiki sockpuppet investigation, see [[${context.prefixedName}]].`;
   if (lockComment !== '') {
     message += ` ${lockComment}.`;
   }
@@ -77,7 +81,8 @@ export async function spiHelperRequestLocks(opts: {
     watch: 'nochange',
   });
   if (editSuccess) {
-    new VueMessage({ type: 'success', content: 'Global lock request filed successfully!' }).show();
+    const linkHtml = buildTitleLinkHtml(`meta:Steward requests/Global#${headingText}`, 'filed');
+    new VueMessage({ type: 'success', content: `Global lock request ${linkHtml} successfully!`, isHtml: true }).show();
   }
   else {
     new VueMessage({ type: 'warning', content: 'Global lock request failed.' }).show();
