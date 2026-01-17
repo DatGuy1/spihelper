@@ -127,7 +127,7 @@ export async function spiHelperPerformActions(opts: {
   if (!context.isArchive) {
     if (sectionType === 'specific') {
       const caseStatusResult = spiHelperCaseStatusRegex.exec(targetText);
-      if (!caseStatusResult?.[1]) {
+      if (caseStatusResult === null) {
         // The case status is malformed, reset it
         targetText = targetText.replace(/^(\s*===.*===[^\S\r\n]*)/, '$1\n{{SPI case status|}}');
         actions.status.data.old = 'new';

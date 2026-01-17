@@ -360,11 +360,7 @@ export const TopViewComponent = defineComponent({
 
       const newText = await loadSectionText(targetSection);
       const result = spiHelperCaseStatusRegex.exec(newText);
-      let caseStatus = '';
-      if (result?.[1]) {
-        caseStatus = result[1];
-      }
-      const normalisedStatus = normalizeCaseStatus(caseStatus);
+      const normalisedStatus = normalizeCaseStatus(result?.[1] ?? '');
       this.caseActions.status.data.old = normalisedStatus;
       this.caseActions.status.data.new = normalisedStatus;
       if (normalisedStatus === 'closed' && spiHelperSettings.tickArchiveWhenCaseClosed) {
