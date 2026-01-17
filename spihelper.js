@@ -3240,7 +3240,7 @@ $1`);
     if (!context.isArchive) {
       if (sectionType === "specific") {
         const caseStatusResult = spiHelperCaseStatusRegex.exec(targetText);
-        if (!caseStatusResult?.[1]) {
+        if (caseStatusResult === null) {
           targetText = targetText.replace(/^(\s*===.*===[^\S\r\n]*)/, `$1
 {{SPI case status|}}`);
           actions.status.data.old = "new";
@@ -3605,6 +3605,9 @@ ${comment}
       archiveNotice() {
         return this.state.archiveNotice;
       },
+      stateSections() {
+        return this.state.sections;
+      },
       mountPoint() {
         return this.$el.parentElement;
       }
@@ -3741,7 +3744,7 @@ ${comment}
           saveOptions();
         }
       },
-      async "state.sections"(newValue) {
+      async stateSections(newValue) {
         if (this.caseActions.sections.data.section === null) {
           const firstSection = newValue[0];
           if (firstSection) {
@@ -3827,11 +3830,7 @@ ${comment}
         this.state.selectedSection = { type: "specific", section: targetSection };
         const newText = await loadSectionText(targetSection);
         const result = spiHelperCaseStatusRegex.exec(newText);
-        let caseStatus = "";
-        if (result?.[1]) {
-          caseStatus = result[1];
-        }
-        const normalisedStatus = normalizeCaseStatus(caseStatus);
+        const normalisedStatus = normalizeCaseStatus(result?.[1] ?? "");
         this.caseActions.status.data.old = normalisedStatus;
         this.caseActions.status.data.new = normalisedStatus;
         if (normalisedStatus === "closed" && spiHelperSettings.tickArchiveWhenCaseClosed) {
