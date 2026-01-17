@@ -114,6 +114,9 @@ export const TopViewComponent = defineComponent({
     archiveNotice() {
       return this.state.archiveNotice;
     },
+    stateSections() {
+      return this.state.sections;
+    },
     mountPoint() {
       return (this.$el as HTMLElement).parentElement;
     },
@@ -256,7 +259,7 @@ export const TopViewComponent = defineComponent({
         void saveOptions();
       }
     },
-    async 'state.sections'(newValue: SectionEntry[]) {
+    async stateSections(newValue: SectionEntry[]) {
       // Put it in watch in case our state loads after we open our form
       if (this.caseActions.sections.data.section === null) {
         const firstSection = newValue[0];
