@@ -24,7 +24,7 @@ export const ActionButtonComponent = defineComponent({
 
     showButton(): boolean {
       if (context.isArchive) {
-        return NonArchiveActions.has(this.name);
+        return !NonArchiveActions.has(this.name);
       }
       if (this.name === 'sections') return true;
       if (this.selection === null) return false;
