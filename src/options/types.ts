@@ -24,9 +24,10 @@ export interface ScriptSettings {
   iUnderstandSectionMoves: boolean;
   tickArchiveWhenCaseClosed: boolean;
   useCheckuserblockAccount: boolean;
-  displayIPv6As64: boolean;
   useLookup: boolean;
   interface: {
+    defaultBlockDuration: string;
+    displayIPv6As64: boolean;
     pinned: boolean;
     buttonLayout: boolean;
   };

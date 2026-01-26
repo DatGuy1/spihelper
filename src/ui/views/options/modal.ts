@@ -5,6 +5,7 @@ import {
   cdxIconCode,
   cdxIconFeedback,
   cdxIconJournal,
+  cdxIconPalette,
   cdxIconReload,
   cdxIconWatchlist,
 } from '@wikimedia/codex-icons';
@@ -26,6 +27,7 @@ interface Data {
   cdxIconCode: typeof cdxIconCode;
   cdxIconFeedback: typeof cdxIconFeedback;
   cdxIconJournal: typeof cdxIconJournal;
+  cdxIconPalette: typeof cdxIconPalette;
   cdxIconReload: typeof cdxIconReload;
   spiHelperSettings: typeof spiHelperSettings;
   resetTrigger: number;
@@ -52,6 +54,7 @@ export const OptionsComponent = defineComponent({
       cdxIconCode,
       cdxIconFeedback,
       cdxIconJournal,
+      cdxIconPalette,
       cdxIconReload,
       spiHelperSettings,
       resetTrigger: 0,
@@ -139,6 +142,14 @@ export const OptionsComponent = defineComponent({
           </p>
         </div>
       </cdx-accordion>
+      <cdx-accordion :action-icon="cdxIconPalette" :action-always-visible="true">
+        <template #title>Interface</template>
+        <cdx-toggle-switch v-model="spiHelperSettings.interface.displayIPv6As64" :align-switch="true">
+          Display IPv6 as /64
+          <template #description>Default IPv6 listings to /64 in the block/tag socks menu</template>
+        </cdx-toggle-switch>
+        <expiry-setting label="Default block duration" v-model="spiHelperSettings.interface.defaultBlockDuration" :reset-trigger="resetTrigger" />
+      </cdx-accordion>
       <cdx-accordion :action-icon="cdxIconCode" :action-always-visible="true" v-if="showExtra">
         <template #title>Debug</template>
         <cdx-toggle-switch v-model="spiHelperSettings.debug.enabled" :align-switch="true">
@@ -161,10 +172,6 @@ export const OptionsComponent = defineComponent({
         <cdx-toggle-switch v-model="spiHelperSettings.tickArchiveWhenCaseClosed" :align-switch="true">
           Archive closed by default
           <template #description>If the case is closed, enable archival by default</template>
-        </cdx-toggle-switch>
-        <cdx-toggle-switch v-model="spiHelperSettings.displayIPv6As64" :align-switch="true">
-          Display IPv6 as /64
-          <template #description>Default IPv6 listings to /64 in the block/tag socks menu</template>
         </cdx-toggle-switch>
         <cdx-toggle-switch v-if="isCheckUser" v-model="spiHelperSettings.useCheckuserblockAccount" :align-switch="true">
           <span v-pre>Use {{<a href="//en.wikipedia.org/wiki/Template:Checkuserblock-account">checkuserblock-account</a>}} when CU blocking</span>

@@ -60,7 +60,7 @@ export function getSockEntries(opts: {
 
 function generateSockRow(username: string, state: CaseState): SockRow {
   if (mw.util.isIPAddress(username, true)) {
-    if (spiHelperSettings.displayIPv6As64 && mw.util.isIPv6Address(username, false)) {
+    if (spiHelperSettings.interface.displayIPv6As64 && mw.util.isIPv6Address(username, false)) {
       return {
         ...getDefaultSockRow(state.archiveNotice),
         username: buildIPBlock(username),
@@ -93,6 +93,7 @@ export function getDefaultSockRow(archiveNotice: ParsedArchiveNotice | null) {
       newRow.ntp = true;
     }
   }
+  newRow.duration = spiHelperSettings.interface.defaultBlockDuration;
   return newRow;
 }
 

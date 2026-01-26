@@ -29,7 +29,7 @@ const migrationMap: MigrationRule[] = [
   { oldPath: 'iUnderstandSectionMoves', newPath: ['iUnderstandSectionMoves'], type: 'boolean' },
   { oldPath: 'tickArchiveWhenCaseClosed', newPath: ['tickArchiveWhenCaseClosed'], type: 'boolean' },
   { oldPath: 'useCheckuserblockAccount', newPath: ['useCheckuserblockAccount'], type: 'boolean' },
-  { oldPath: 'displayIPv6As64', newPath: ['displayIPv6As64'], type: 'boolean' },
+  { oldPath: 'displayIPv6As64', newPath: ['interface', 'displayIPv6As64'], type: 'boolean' },
 
   { oldPath: 'debugForceCheckuserState', newPath: ['debug', 'forceCheckuser'], type: 'boolean' },
   { oldPath: 'debugForceAdminState', newPath: ['debug', 'forceAdmin'], type: 'boolean' },
