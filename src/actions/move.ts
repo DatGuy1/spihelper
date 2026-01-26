@@ -137,6 +137,7 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
   const newContext = new SpiPageContext(context.pageName.replace(context.caseName, target));
 
   const targetPageText = await newContext.getText();
+  // TODO: Move this to archiveAction.ts
   if (targetPageText) {
     if (spiHelperIsAdmin()) {
       const proceed = confirm('Target page exists, do you want to histmerge the cases?');
@@ -167,7 +168,7 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
     if (sourceArchiveText && targetArchiveText) {
       new VueMessage({
         type: 'notice',
-        content: 'Archive detected on both source and target cases, manually copying archive.',
+        content: 'Archives detected on both source and target cases, copying it manually.',
       }).show();
 
       // Normalize the source archive text
@@ -198,7 +199,7 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
       oldContext.pageName, newContext.pageName, siteRestrictions,
     );
     // Ignore warnings on the move, we're going to get one since we're stomping an existing page
-    await spiHelperDeletePage(oldContext.pageName, 'Deleting as part of case merge');
+    await spiHelperDeletePage(newContext.pageName, 'Deleting as part of case merge');
     await spiHelperMovePage({
       sourcePage: oldContext.pageName,
       destPage: newContext.pageName,
