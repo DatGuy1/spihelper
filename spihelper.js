@@ -183,309 +183,6 @@
     return activeOperations.get(name);
   }
 
-  // node_modules/vue/dist/vue.runtime.esm-bundler.js
-  var defineComponent = (c) => c;
-
-  // src/types/vue.ts
-  var WatchOptionsSelect = [
-    { label: "Follow preferences", value: "preferences" },
-    { label: "No change", value: "nochange" },
-    { label: "Watch", value: "watch" },
-    { label: "Unwatch", value: "unwatch" }
-  ];
-  var WatchOptions = ["preferences", "watch", "nochange", "unwatch"];
-  var DefaultSockRow = {
-    username: "",
-    block: false,
-    duration: "",
-    acb: true,
-    abao: true,
-    ntp: false,
-    nem: false,
-    tag: "none",
-    altmaster: "none",
-    lock: false
-  };
-  var DefaultLinkRow = {
-    username: "",
-    analyser: false,
-    timeline: false,
-    timecard: false,
-    pages: false,
-    summary: false,
-    cuwiki: false
-  };
-
-  // src/ui/views/options/watchSetting.ts
-  var WatchSettingComponent = defineComponent({
-    props: {
-      modelValue: { type: String, required: true },
-      label: { type: String, required: true },
-      resetTrigger: { type: Number, default: 0 }
-    },
-    data() {
-      return {
-        internalValue: this.modelValue,
-        watchOptions: WatchOptionsSelect,
-        messages: { error: "Watch option is invalid" }
-      };
-    },
-    computed: {
-      status() {
-        return WatchOptions.includes(this.internalValue) ? "default" : "error";
-      }
-    },
-    watch: {
-      resetTrigger() {
-        this.internalValue = this.modelValue;
-      },
-      internalValue(newValue) {
-        this.$emit("update:modelValue", newValue);
-      }
-    },
-    template: `
-    <cdx-field :status="status" :messages="messages">
-      <template #label>{{ this.label }}</template>
-      <cdx-select
-          :menu-items="watchOptions"
-          v-model:selected="internalValue"
-      />
-    </cdx-field>
-  `
-  });
-  // src/ui/views/options/expirySetting.ts
-  var ExpirySettingComponent = defineComponent({
-    props: {
-      modelValue: { type: String, required: true },
-      label: { type: String, required: true },
-      resetTrigger: { type: Number, default: 0 }
-    },
-    data() {
-      return {
-        internalValue: this.modelValue,
-        touched: false,
-        isResetting: false
-      };
-    },
-    watch: {
-      resetTrigger() {
-        this.isResetting = true;
-        this.internalValue = this.modelValue;
-        this.touched = false;
-        this.$nextTick(() => {
-          this.isResetting = false;
-        });
-      },
-      internalValue(newValue) {
-        if (!this.isResetting) {
-          this.touched = true;
-        }
-        if (parseExpiry(newValue) !== null) {
-          this.$emit("update:modelValue", newValue);
-        }
-      }
-    },
-    template: `
-    <expiry-input :label="label" :touched="touched" v-model="internalValue" />
-  `
-  });
-  // src/ui/views/options/logPageSetting.ts
-  var LogPageSettingComponent = defineComponent({
-    props: {
-      modelValue: { type: String, required: true },
-      prefix: { type: String, required: true }
-    },
-    data() {
-      return {
-        inputValue: this.modelValue,
-        messages: { error: "Page name is invalid" },
-        resetValue: "spihelper_log"
-      };
-    },
-    computed: {
-      valid() {
-        return this.inputValue.length > 0 && mw.Title.newFromText(this.prefix + this.inputValue) !== null;
-      },
-      status() {
-        return this.valid ? "default" : "error";
-      }
-    },
-    watch: {
-      inputValue(newValue) {
-        if (this.valid) {
-          this.$emit("update:modelValue", newValue);
-        }
-      }
-    },
-    methods: {
-      resetInput() {
-        this.inputValue = this.resetValue;
-      }
-    },
-    template: `
-    <cdx-field :status="status" :messages="messages">
-      <template #label>Page</template>
-      <div style="display: flex; align-items: center; gap: 4px;">
-        <span style="font-family: monospace; color: #666">{{ this.prefix }}</span>
-        <cdx-text-input v-model="inputValue" style="flex-grow: 1;"/>
-      </div>
-      <cdx-button @click="resetInput">
-        Reset
-      </cdx-button>
-      <template #description>Page in your userspace to log to</template>
-    </cdx-field>
-  `
-  });
-  // src/options/utils.ts
-  async function spiHelperValidateDate(dateInStringFormat) {
-    const response = await spiHelperParseWikitext("{{#time:r|" + dateInStringFormat + "}}");
-    return !response.includes("Error: Invalid time.");
-  }
-  function getFullLogPage(logPage) {
-    return `User:${mw.config.get("wgUserName")}/${logPage}`;
-  }
-
-  // src/options/migration.ts
-  var migrationMap = [
-    { oldPath: "watchCase", newPath: ["watch", "case"], type: "WatchOption" },
-    { oldPath: "watchArchive", newPath: ["watch", "archive"], type: "WatchOption" },
-    { oldPath: "watchTaggedUser", newPath: ["watch", "tagged"], type: "WatchOption" },
-    { oldPath: "watchNewCats", newPath: ["watch", "categories"], type: "WatchOption" },
-    { oldPath: "watchBlockedUser", newPath: ["watch", "blocked"], type: "boolean" },
-    { oldPath: "watchCaseExpiry", newPath: ["expiry", "case"], type: "expiry" },
-    { oldPath: "watchArchiveExpiry", newPath: ["expiry", "archive"], type: "expiry" },
-    { oldPath: "watchTaggedUserExpiry", newPath: ["expiry", "tagged"], type: "expiry" },
-    { oldPath: "watchNewCatsExpiry", newPath: ["expiry", "categories"], type: "expiry" },
-    { oldPath: "watchBlockedUserExpiry", newPath: ["expiry", "blocked"], type: "expiry" },
-    { oldPath: "clerk", newPath: ["clerk"], type: "boolean" },
-    { oldPath: "log", newPath: ["log", "enabled"], type: "boolean" },
-    { oldPath: "reversed_log", newPath: ["log", "reversed"], type: "boolean" },
-    { oldPath: "iUnderstandSectionMoves", newPath: ["iUnderstandSectionMoves"], type: "boolean" },
-    { oldPath: "tickArchiveWhenCaseClosed", newPath: ["tickArchiveWhenCaseClosed"], type: "boolean" },
-    { oldPath: "useCheckuserblockAccount", newPath: ["useCheckuserblockAccount"], type: "boolean" },
-    { oldPath: "displayIPv6As64", newPath: ["displayIPv6As64"], type: "boolean" },
-    { oldPath: "debugForceCheckuserState", newPath: ["debug", "forceCheckuser"], type: "boolean" },
-    { oldPath: "debugForceAdminState", newPath: ["debug", "forceAdmin"], type: "boolean" }
-  ];
-  function setNestedValue(obj, path, value) {
-    let current = obj;
-    for (let i = 0;i < path.length - 1; i++) {
-      if (!path[i]) {
-        throw new Error(`Path segment "${path.join(".")}" is invalid`);
-      }
-      const key = path[i];
-      const next = current[key];
-      if (next === null || typeof next !== "object") {
-        throw new Error(`Path segment "${path[i]}" is not an object`);
-      }
-      current = next;
-    }
-    const lastKey = path[path.length - 1];
-    current[lastKey] = value;
-  }
-  async function migrateSettings(oldSettings) {
-    const tasks = migrationMap.map(async ({ oldPath, newPath, type }) => {
-      const value = oldSettings[oldPath];
-      if (value === undefined) {
-        return;
-      }
-      const isValid = await validateSetting(value, type);
-      if (isValid) {
-        setNestedValue(spiHelperSettings, newPath, value);
-      }
-    });
-    await Promise.all(tasks);
-  }
-  async function validateSetting(value, type) {
-    switch (type) {
-      case "boolean":
-        return typeof value === "boolean";
-      case "WatchOption":
-        return typeof value === "string" && ["preferences", "watch", "nochange", "unwatch"].includes(value);
-      case "expiry":
-        return typeof value === "string" && spiHelperValidateDate(value);
-    }
-  }
-
-  // src/options/options.ts
-  var spiHelperSettings = {
-    watch: {
-      case: "preferences",
-      archive: "nochange",
-      tagged: "preferences",
-      categories: "nochange",
-      blocked: true
-    },
-    expiry: {
-      case: "indefinite",
-      archive: "indefinite",
-      tagged: "indefinite",
-      categories: "indefinite",
-      blocked: "indefinite"
-    },
-    log: {
-      enabled: false,
-      reversed: false,
-      page: "spihelper_log"
-    },
-    clerk: true,
-    iUnderstandSectionMoves: false,
-    tickArchiveWhenCaseClosed: true,
-    useCheckuserblockAccount: spiHelperIsCheckuser(false),
-    displayIPv6As64: true,
-    useLookup: true,
-    interface: {
-      pinned: true,
-      buttonLayout: true
-    },
-    debug: {
-      enabled: false,
-      forceCheckuser: false,
-      forceAdmin: false
-    }
-  };
-  var saveKey = "userjs-spihelper";
-  function saveOptions() {
-    return spiHelperGetAPI().saveOption(saveKey, JSON.stringify(spiHelperSettings));
-  }
-  function loadOptions() {
-    const rawData = String(mw.user.options.get(saveKey));
-    try {
-      return rawData ? JSON.parse(rawData) : null;
-    } catch (e) {
-      console.warn("Failed to parse saved options", e);
-      return null;
-    }
-  }
-  async function migrateOptions() {
-    mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "migrate" });
-    try {
-      await mw.loader.getScript("/w/index.php?title=Special:MyPage/spihelper-options.js&action=raw&ctype=text/javascript");
-      if (spiHelperCustomOpts !== undefined) {
-        await migrateSettings(spiHelperCustomOpts);
-      }
-    } catch (error) {
-      mw.notify("Error retrieving your spihelper-options.js", { type: "error" });
-      console.error("Error getting local spihelper-options.js: ", error);
-    }
-  }
-  // src/role.ts
-  function spiHelperIsCheckuser(allowDebug = true) {
-    if (allowDebug && spiHelperSettings.debug.enabled) {
-      return spiHelperSettings.debug.forceCheckuser;
-    }
-    return mw.config.get("wgUserGroups")?.includes("checkuser") ?? false;
-  }
-  function spiHelperIsClerk() {
-    return spiHelperSettings.clerk || spiHelperIsCheckuser();
-  }
-  function spiHelperIsAdmin() {
-    if (spiHelperSettings.debug.enabled) {
-      return spiHelperSettings.debug.forceAdmin;
-    }
-    return mw.config.get("wgUserGroups")?.includes("sysop") ?? false;
-  }
-
   // src/constants/settings.ts
   var spiHelperDefaultSettings = {
     watch: {
@@ -510,10 +207,11 @@
     clerk: true,
     iUnderstandSectionMoves: false,
     tickArchiveWhenCaseClosed: true,
-    useCheckuserblockAccount: spiHelperIsCheckuser(false),
-    displayIPv6As64: true,
+    useCheckuserblockAccount: mw.config.get("wgUserGroups")?.includes("checkuser") ?? false,
     useLookup: true,
     interface: {
+      defaultBlockDuration: "",
+      displayIPv6As64: true,
       pinned: true,
       buttonLayout: true
     },
@@ -1317,6 +1015,274 @@
     return section._text;
   }
 
+  // node_modules/vue/dist/vue.runtime.esm-bundler.js
+  var defineComponent = (c) => c;
+
+  // src/types/vue.ts
+  var WatchOptionsSelect = [
+    { label: "Follow preferences", value: "preferences" },
+    { label: "No change", value: "nochange" },
+    { label: "Watch", value: "watch" },
+    { label: "Unwatch", value: "unwatch" }
+  ];
+  var WatchOptions = ["preferences", "watch", "nochange", "unwatch"];
+  var DefaultSockRow = {
+    username: "",
+    block: false,
+    duration: "",
+    acb: true,
+    abao: true,
+    ntp: false,
+    nem: false,
+    tag: "none",
+    altmaster: "none",
+    lock: false
+  };
+  var DefaultLinkRow = {
+    username: "",
+    analyser: false,
+    timeline: false,
+    timecard: false,
+    pages: false,
+    summary: false,
+    cuwiki: false
+  };
+
+  // src/ui/views/options/watchSetting.ts
+  var WatchSettingComponent = defineComponent({
+    props: {
+      modelValue: { type: String, required: true },
+      label: { type: String, required: true },
+      resetTrigger: { type: Number, default: 0 }
+    },
+    data() {
+      return {
+        internalValue: this.modelValue,
+        watchOptions: WatchOptionsSelect,
+        messages: { error: "Watch option is invalid" }
+      };
+    },
+    computed: {
+      status() {
+        return WatchOptions.includes(this.internalValue) ? "default" : "error";
+      }
+    },
+    watch: {
+      resetTrigger() {
+        this.internalValue = this.modelValue;
+      },
+      internalValue(newValue) {
+        this.$emit("update:modelValue", newValue);
+      }
+    },
+    template: `
+    <cdx-field :status="status" :messages="messages">
+      <template #label>{{ this.label }}</template>
+      <cdx-select
+          :menu-items="watchOptions"
+          v-model:selected="internalValue"
+      />
+    </cdx-field>
+  `
+  });
+  // src/ui/views/options/expirySetting.ts
+  var ExpirySettingComponent = defineComponent({
+    props: {
+      modelValue: { type: String, required: true },
+      label: { type: String, required: true },
+      resetTrigger: { type: Number, default: 0 }
+    },
+    data() {
+      return {
+        internalValue: this.modelValue,
+        touched: false,
+        isResetting: false
+      };
+    },
+    watch: {
+      resetTrigger() {
+        this.isResetting = true;
+        this.internalValue = this.modelValue;
+        this.touched = false;
+        this.$nextTick(() => {
+          this.isResetting = false;
+        });
+      },
+      internalValue(newValue) {
+        if (!this.isResetting) {
+          this.touched = true;
+        }
+        if (parseExpiry(newValue) !== null) {
+          this.$emit("update:modelValue", newValue);
+        }
+      }
+    },
+    template: `
+    <expiry-input :label="label" :touched="touched" v-model="internalValue" />
+  `
+  });
+  // src/ui/views/options/logPageSetting.ts
+  var LogPageSettingComponent = defineComponent({
+    props: {
+      modelValue: { type: String, required: true },
+      prefix: { type: String, required: true }
+    },
+    data() {
+      return {
+        inputValue: this.modelValue,
+        messages: { error: "Page name is invalid" },
+        resetValue: "spihelper_log"
+      };
+    },
+    computed: {
+      valid() {
+        return this.inputValue.length > 0 && mw.Title.newFromText(this.prefix + this.inputValue) !== null;
+      },
+      status() {
+        return this.valid ? "default" : "error";
+      }
+    },
+    watch: {
+      inputValue(newValue) {
+        if (this.valid) {
+          this.$emit("update:modelValue", newValue);
+        }
+      }
+    },
+    methods: {
+      resetInput() {
+        this.inputValue = this.resetValue;
+      }
+    },
+    template: `
+    <cdx-field :status="status" :messages="messages">
+      <template #label>Page</template>
+      <div style="display: flex; align-items: center; gap: 4px;">
+        <span style="font-family: monospace; color: #666">{{ this.prefix }}</span>
+        <cdx-text-input v-model="inputValue" style="flex-grow: 1;"/>
+      </div>
+      <cdx-button @click="resetInput">
+        Reset
+      </cdx-button>
+      <template #description>Page in your userspace to log to</template>
+    </cdx-field>
+  `
+  });
+  // src/options/utils.ts
+  async function spiHelperValidateDate(dateInStringFormat) {
+    const response = await spiHelperParseWikitext("{{#time:r|" + dateInStringFormat + "}}");
+    return !response.includes("Error: Invalid time.");
+  }
+  function getFullLogPage(logPage) {
+    return `User:${mw.config.get("wgUserName")}/${logPage}`;
+  }
+
+  // src/options/migration.ts
+  var migrationMap = [
+    { oldPath: "watchCase", newPath: ["watch", "case"], type: "WatchOption" },
+    { oldPath: "watchArchive", newPath: ["watch", "archive"], type: "WatchOption" },
+    { oldPath: "watchTaggedUser", newPath: ["watch", "tagged"], type: "WatchOption" },
+    { oldPath: "watchNewCats", newPath: ["watch", "categories"], type: "WatchOption" },
+    { oldPath: "watchBlockedUser", newPath: ["watch", "blocked"], type: "boolean" },
+    { oldPath: "watchCaseExpiry", newPath: ["expiry", "case"], type: "expiry" },
+    { oldPath: "watchArchiveExpiry", newPath: ["expiry", "archive"], type: "expiry" },
+    { oldPath: "watchTaggedUserExpiry", newPath: ["expiry", "tagged"], type: "expiry" },
+    { oldPath: "watchNewCatsExpiry", newPath: ["expiry", "categories"], type: "expiry" },
+    { oldPath: "watchBlockedUserExpiry", newPath: ["expiry", "blocked"], type: "expiry" },
+    { oldPath: "clerk", newPath: ["clerk"], type: "boolean" },
+    { oldPath: "log", newPath: ["log", "enabled"], type: "boolean" },
+    { oldPath: "reversed_log", newPath: ["log", "reversed"], type: "boolean" },
+    { oldPath: "iUnderstandSectionMoves", newPath: ["iUnderstandSectionMoves"], type: "boolean" },
+    { oldPath: "tickArchiveWhenCaseClosed", newPath: ["tickArchiveWhenCaseClosed"], type: "boolean" },
+    { oldPath: "useCheckuserblockAccount", newPath: ["useCheckuserblockAccount"], type: "boolean" },
+    { oldPath: "displayIPv6As64", newPath: ["interface", "displayIPv6As64"], type: "boolean" },
+    { oldPath: "debugForceCheckuserState", newPath: ["debug", "forceCheckuser"], type: "boolean" },
+    { oldPath: "debugForceAdminState", newPath: ["debug", "forceAdmin"], type: "boolean" }
+  ];
+  function setNestedValue(obj, path, value) {
+    let current = obj;
+    for (let i = 0;i < path.length - 1; i++) {
+      if (!path[i]) {
+        throw new Error(`Path segment "${path.join(".")}" is invalid`);
+      }
+      const key = path[i];
+      const next = current[key];
+      if (next === null || typeof next !== "object") {
+        throw new Error(`Path segment "${path[i]}" is not an object`);
+      }
+      current = next;
+    }
+    const lastKey = path[path.length - 1];
+    current[lastKey] = value;
+  }
+  async function migrateSettings(oldSettings) {
+    const tasks = migrationMap.map(async ({ oldPath, newPath, type }) => {
+      const value = oldSettings[oldPath];
+      if (value === undefined) {
+        return;
+      }
+      const isValid = await validateSetting(value, type);
+      if (isValid) {
+        setNestedValue(spiHelperSettings, newPath, value);
+      }
+    });
+    await Promise.all(tasks);
+  }
+  async function validateSetting(value, type) {
+    switch (type) {
+      case "boolean":
+        return typeof value === "boolean";
+      case "WatchOption":
+        return typeof value === "string" && ["preferences", "watch", "nochange", "unwatch"].includes(value);
+      case "expiry":
+        return typeof value === "string" && spiHelperValidateDate(value);
+    }
+  }
+
+  // src/options/options.ts
+  var spiHelperSettings = structuredClone(spiHelperDefaultSettings);
+  var saveKey = "userjs-spihelper";
+  function saveOptions() {
+    return spiHelperGetAPI().saveOption(saveKey, JSON.stringify(spiHelperSettings));
+  }
+  function loadOptions() {
+    const rawData = String(mw.user.options.get(saveKey));
+    try {
+      return rawData ? JSON.parse(rawData) : null;
+    } catch (e) {
+      console.warn("Failed to parse saved options", e);
+      return null;
+    }
+  }
+  async function migrateOptions() {
+    mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "migrate" });
+    try {
+      await mw.loader.getScript("/w/index.php?title=Special:MyPage/spihelper-options.js&action=raw&ctype=text/javascript");
+      if (spiHelperCustomOpts !== undefined) {
+        await migrateSettings(spiHelperCustomOpts);
+      }
+    } catch (error) {
+      mw.notify("Error retrieving your spihelper-options.js", { type: "error" });
+      console.error("Error getting local spihelper-options.js: ", error);
+    }
+  }
+  // src/role.ts
+  function spiHelperIsCheckuser(allowDebug = true) {
+    if (allowDebug && spiHelperSettings.debug.enabled) {
+      return spiHelperSettings.debug.forceCheckuser;
+    }
+    return mw.config.get("wgUserGroups")?.includes("checkuser") ?? false;
+  }
+  function spiHelperIsClerk() {
+    return spiHelperSettings.clerk || spiHelperIsCheckuser();
+  }
+  function spiHelperIsAdmin() {
+    if (spiHelperSettings.debug.enabled) {
+      return spiHelperSettings.debug.forceAdmin;
+    }
+    return mw.config.get("wgUserGroups")?.includes("sysop") ?? false;
+  }
+
   // node_modules/@wikimedia/codex-icons/dist/codex-icons.js
   var M = '<path d="M11 9V4H9v5H4v2h5v5h2v-5h5V9z"/>';
   var r1 = '<path d="M10 0a10 10 0 1010 10A10 10 0 0010 0m2.5 14.5L9 11V4h2v6l3 3z"/>';
@@ -1328,6 +1294,7 @@
   var q1 = '<path d="m17.5 4.75-7.5 7.5-7.5-7.5L1 6.25l9 9 9-9z"/>';
   var Z1 = '<path d="M19 16 2 12a3.83 3.83 0 01-1-2.5A3.83 3.83 0 012 7l17-4z"/><rect width="4" height="8" x="4" y="9" rx="2"/>';
   var A0 = '<path d="M2 18.5A1.5 1.5 0 003.5 20H5V0H3.5A1.5 1.5 0 002 1.5zM6 0v20h10a2 2 0 002-2V2a2 2 0 00-2-2zm7 8H8V7h5zm3-2H8V5h8z"/>';
+  var B2 = '<path d="M13 15v2a3 3 0 01-3 3 10 10 0 1110-10 5 5 0 01-5 5ZM3 8.5a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0m3-4a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0m5 0a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0m3 4a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0"/>';
   var E2 = '<path d="M13 8V2a2 2 0 002-2H5a2 2 0 002 2v6H6a2 2 0 00-2 2v1h5v5l1 4 1-4v-5h5v-1a2 2 0 00-2-2z"/>';
   var _2 = '<path d="M15.65 4.35A8 8 0 1017.4 13h-2.22a6 6 0 11-1-7.22L11 9h7V2z"/>';
   var N5 = '<path d="M17 2h-3.5l-1-1h-5l-1 1H3v2h14zM4 17a2 2 0 002 2h8a2 2 0 002-2V5H4z"/>';
@@ -1350,6 +1317,10 @@
   };
   var z6 = {
     ltr: A0,
+    shouldFlip: true
+  };
+  var u7 = {
+    ltr: B2,
     shouldFlip: true
   };
   var y7 = E2;
@@ -1386,6 +1357,7 @@
         cdxIconCode: r4,
         cdxIconFeedback: q4,
         cdxIconJournal: z6,
+        cdxIconPalette: u7,
         cdxIconReload: U7,
         spiHelperSettings,
         resetTrigger: 0
@@ -1472,6 +1444,14 @@
           </p>
         </div>
       </cdx-accordion>
+      <cdx-accordion :action-icon="cdxIconPalette" :action-always-visible="true">
+        <template #title>Interface</template>
+        <cdx-toggle-switch v-model="spiHelperSettings.interface.displayIPv6As64" :align-switch="true">
+          Display IPv6 as /64
+          <template #description>Default IPv6 listings to /64 in the block/tag socks menu</template>
+        </cdx-toggle-switch>
+        <expiry-setting label="Default block duration" v-model="spiHelperSettings.interface.defaultBlockDuration" :reset-trigger="resetTrigger" />
+      </cdx-accordion>
       <cdx-accordion :action-icon="cdxIconCode" :action-always-visible="true" v-if="showExtra">
         <template #title>Debug</template>
         <cdx-toggle-switch v-model="spiHelperSettings.debug.enabled" :align-switch="true">
@@ -1494,10 +1474,6 @@
         <cdx-toggle-switch v-model="spiHelperSettings.tickArchiveWhenCaseClosed" :align-switch="true">
           Archive closed by default
           <template #description>If the case is closed, enable archival by default</template>
-        </cdx-toggle-switch>
-        <cdx-toggle-switch v-model="spiHelperSettings.displayIPv6As64" :align-switch="true">
-          Display IPv6 as /64
-          <template #description>Default IPv6 listings to /64 in the block/tag socks menu</template>
         </cdx-toggle-switch>
         <cdx-toggle-switch v-if="isCheckUser" v-model="spiHelperSettings.useCheckuserblockAccount" :align-switch="true">
           <span v-pre>Use {{<a href="//en.wikipedia.org/wiki/Template:Checkuserblock-account">checkuserblock-account</a>}} when CU blocking</span>
@@ -1713,7 +1689,7 @@
       },
       showAccordion() {
         if (context.isArchive) {
-          return NonArchiveActions.has(this.name);
+          return !NonArchiveActions.has(this.name);
         }
         if (this.name === "sections")
           return true;
@@ -1768,7 +1744,7 @@
       },
       showButton() {
         if (context.isArchive) {
-          return NonArchiveActions.has(this.name);
+          return !NonArchiveActions.has(this.name);
         }
         if (this.name === "sections")
           return true;
@@ -2152,7 +2128,7 @@
   }
   function generateSockRow(username, state) {
     if (mw.util.isIPAddress(username, true)) {
-      if (spiHelperSettings.displayIPv6As64 && mw.util.isIPv6Address(username, false)) {
+      if (spiHelperSettings.interface.displayIPv6As64 && mw.util.isIPv6Address(username, false)) {
         return {
           ...getDefaultSockRow(state.archiveNotice),
           username: buildIPBlock(username)
@@ -2181,6 +2157,7 @@
         newRow.ntp = true;
       }
     }
+    newRow.duration = spiHelperSettings.interface.defaultBlockDuration;
     return newRow;
   }
   function updateSockRowSettings(opts) {
@@ -2536,7 +2513,7 @@
       if (sourceArchiveText && targetArchiveText) {
         new VueMessage({
           type: "notice",
-          content: "Archive detected on both source and target cases, manually copying archive."
+          content: "Archives detected on both source and target cases, copying it manually."
         }).show();
         sourceArchiveText = sourceArchiveText.replace(/^\s*__TOC__\s*$\n/gm, "");
         sourceArchiveText = sourceArchiveText.replace(spiHelperArchiveNoticeRegex, "");
@@ -2558,7 +2535,7 @@
       const siteRestrictions = await spiHelperGetSiteRestrictionInformation();
       const newProtection = await getNewProtection(oldContext.pageName, newContext.pageName, siteRestrictions);
       const newPendingChanges = await getNewPendingChanges(oldContext.pageName, newContext.pageName, siteRestrictions);
-      await spiHelperDeletePage(oldContext.pageName, "Deleting as part of case merge");
+      await spiHelperDeletePage(newContext.pageName, "Deleting as part of case merge");
       await spiHelperMovePage({
         sourcePage: oldContext.pageName,
         destPage: newContext.pageName,
