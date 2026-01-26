@@ -384,16 +384,12 @@ async function spiHelperHandleBlocks(opts: BlockActionData): Promise<{
       altmaster,
     });
     if (tagSuccess) {
-      new VueMessage({ type: 'success', content: `Tagged ${sockRow.username}` }).show();
       // Purge the sock pages if we created a category to get rid of
       // the issue where the page says "click here to create category"
       // when the category was created after the page
       if (needsPurge) {
         await spiHelperPurgePage(`User:${sockRow.username}`);
       }
-    }
-    else {
-      new VueMessage({ type: 'warning', content: `Failed to tag ${sockRow.username}` }).show();
     }
 
     return tagSuccess ? sockRow.username : null;
@@ -429,11 +425,7 @@ async function spiHelperHandleBlocks(opts: BlockActionData): Promise<{
           noticeType: noticeType,
           sockmaster: master,
         });
-        if (blockSuccess) {
-          new VueMessage({ type: 'success', content: `Blocked ${sockRow.username}` }).show();
-        }
-        else {
-          new VueMessage({ type: 'warning', content: `Failed to block ${sockRow.username}` }).show();
+        if (!blockSuccess) {
           return null;
         }
 
