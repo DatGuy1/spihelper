@@ -296,7 +296,7 @@ export const TopViewComponent = defineComponent({
       }
     },
     // Changes the case status in the comment box
-    'caseActions.status.data.status'(newStatus: string) {
+    'caseActions.status.data.new'(newStatus: string) {
       this.caseActions.comment.data.text = updateCommentWithStatus(
         this.caseActions.comment.data.text,
         newStatus,
