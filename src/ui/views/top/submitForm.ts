@@ -6,10 +6,12 @@ import { spiHelperGetPageRev } from '../../../api.ts';
 import { context } from '../../../context.ts';
 import { cdxIconUpdate } from '@wikimedia/codex-icons';
 import { type ModalAction, type PrimaryModalAction } from '@wikimedia/codex';
+import { CaseState, loadCaseText, loadSectionText } from '../../../state.ts';
 
 interface Data {
   popover: {
     show: boolean;
+    revId: number;
     cancelAction: ModalAction;
     continueAction: PrimaryModalAction;
   };
@@ -19,6 +21,7 @@ interface Data {
 
 export const SubmitFormComponent = defineComponent({
   props: {
+    state: { type: Object as PropType<CaseState>, required: true },
     socks: { type: Array as PropType<SockRow[]>, required: true },
     locks: { type: Map as PropType<Map<string, boolean>>, required: true },
     master: { type: String, required: true },
@@ -32,6 +35,7 @@ export const SubmitFormComponent = defineComponent({
     return {
       popover: {
         show: false,
+        revId: 0,
         cancelAction,
         continueAction,
       },
@@ -108,19 +112,25 @@ export const SubmitFormComponent = defineComponent({
     },
   },
   methods: {
+    // Should this be in topView.ts?
     async onSubmit() {
-      // Should this be in topView.ts?
-      const pageRev = await spiHelperGetPageRev(context.pageName);
-      if (pageRev === context.startingRevId) {
+      // Store it in order to prevent calling spiHelperGetPageRev() again
+      this.popover.revId = await spiHelperGetPageRev(context.pageName);
+      if (this.popover.revId === context.startingRevId) {
         this.$emit('onSubmit');
       }
       else {
         this.popover.show = true;
       }
     },
-    async confirmSubmit() {
+    confirmSubmit() {
       this.popover.show = false;
-      await context.refreshRevId();
+      context.startingRevId = this.popover.revId;
+      // Refetch our content. We don't need to await it because spiHelperPerformActions
+      // will get our _loadingPromise if it isn't completed
+      void (this.state.selectedSection?.type === 'specific'
+        ? loadSectionText(this.state.selectedSection.section, { purge: true })
+        : loadCaseText(this.state, { purge: true }));
       this.$emit('onSubmit');
     },
   },
