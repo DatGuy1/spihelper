@@ -6,7 +6,7 @@
   // src/constants/regex.ts
   var spiHelperCaseStatusRegex = /{{\s*SPI case status\s*\|?\s*(\S*?)\s*}}/i;
   var spiHelperCaseClosedRegex = /^closed?$/i;
-  var spiHelperClerkStatusRegex = /{{(CURequest|awaitingadmin|clerk ?request|(?:self|requestand|cu)?endorse|inprogress|decline(?:-ip)?|moreinfo|relisted|onhold)}}/i;
+  var spiHelperClerkStatusRegex = /{{(CURequest|awaitingadmin|clerk ?request|(?:self|requestand|cu-?)?endorse|inprogress|(?:cu\s?)?decline(?:-ip)?|(?:cu)?moreinfo|relisted|onhold)}}/i;
   var spiHelperSockSectionWithNewlineRegex = /====\s*Suspected sockpuppets\s*====\n*/i;
   var spiHelperAdminSectionWithPrecedingNewlinesRegex = /\n*\s*====\s*<big>Clerk, CheckUser, and\/or patrolling admin comments<\/big>\s*====\s*/i;
   var spiHelperCUBlockRegex = /{{(checkuserblock(-account|-wide)?|checkuser block)}}/i;
@@ -3745,7 +3745,7 @@ ${comment}
           caseAction.enabled = false;
         }
       },
-      "caseActions.status.data.status"(newStatus) {
+      "caseActions.status.data.new"(newStatus) {
         this.caseActions.comment.data.text = updateCommentWithStatus(this.caseActions.comment.data.text, newStatus);
       }
     },
@@ -4097,14 +4097,15 @@ ${comment}
   var ChangeStatusActionComponent = defineComponent({
     props: {
       enabled: { type: Boolean, required: true },
-      status: { type: String, required: true }
+      oldStatus: { type: String, required: true },
+      newStatus: { type: String, required: true }
     },
     data() {
       return {
-        localStatus: this.status
+        localStatus: this.oldStatus
       };
     },
-    emits: ["update:enabled", "update:status"],
+    emits: ["update:enabled", "update:newStatus"],
     template: `
     <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
       <cdx-select v-model:selected="selected" :menu-items="caseStatusItems" default-label="New case status" />
@@ -4116,7 +4117,7 @@ ${comment}
           if (this.localStatus === "nochange") {
             return "nochange";
           }
-          const itemData = this.caseStatusItems.flatMap((item) => isMenuGroupData(item) ? item.items : [item]).find((item) => item.value === this.status);
+          const itemData = this.caseStatusItems.flatMap((item) => isMenuGroupData(item) ? item.items : [item]).find((item) => item.value === this.newStatus);
           return itemData?.value ?? null;
         },
         set(value) {
@@ -4125,7 +4126,7 @@ ${comment}
           }
           this.localStatus = String(value);
           if (value !== "nochange") {
-            this.$emit("update:status", String(value));
+            this.$emit("update:newStatus", String(value));
           }
         }
       },
@@ -4136,11 +4137,11 @@ ${comment}
         const deferItems = [];
         const isCheckuser = spiHelperIsCheckuser();
         const isClerk = spiHelperIsClerk();
-        const cuRequested = /^(?:CU|checkuser|CUrequest|request|cumoreinfo)$/i.test(this.status);
-        const cuEndorsed = /^endorsed?$/i.test(this.status);
-        const cuCompleted = /^(?:inprogress|checking|relist(ed)?|checked|completed|declined?|cudeclin(ed)?)$/i.test(this.status);
+        const cuRequested = /^(?:CU|checkuser|CUrequest|request|cumoreinfo)$/i.test(this.oldStatus);
+        const cuEndorsed = /^endorsed?$/i.test(this.oldStatus);
+        const cuCompleted = /^(?:inprogress|checking|relist(ed)?|checked|completed|declined?|cudeclin(ed)?)$/i.test(this.oldStatus);
         mainItems.push({ label: "No change", value: "nochange" });
-        if (spiHelperCaseClosedRegex.test(this.status)) {
+        if (spiHelperCaseClosedRegex.test(this.oldStatus)) {
           mainItems.push({ label: "Reopen", value: "reopen" });
         } else {
           mainItems.push({ label: "Open", value: "open" });
@@ -5382,7 +5383,7 @@ ${comment}
     <comment-action v-else-if="name === 'comment'" v-model:enabled="caseActions.comment.enabled"
                     v-model:text="caseActions.comment.data.text" />
     <change-status-action v-else-if="name === 'status'" v-model:enabled="caseActions.status.enabled"
-                          v-model:status="caseActions.status.data.new" />
+                          :old-status="caseActions.status.data.old" v-model:new-status="caseActions.status.data.new" />
     <block-action v-else-if="name === 'block'" v-model:enabled="caseActions.block.enabled"
                   v-model="caseActions.block.data.accounts" v-model:block-options="caseActions.block.data.options"
                   :user-locks="caseActions.block.data.userlocks"
