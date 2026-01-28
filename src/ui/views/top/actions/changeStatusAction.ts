@@ -7,14 +7,15 @@ import { isMenuGroupData } from '../../../utils.ts';
 export const ChangeStatusActionComponent = defineComponent({
   props: {
     enabled: { type: Boolean, required: true },
-    status: { type: String, required: true },
+    oldStatus: { type: String, required: true },
+    newStatus: { type: String, required: true },
   },
   data() {
     return {
-      localStatus: this.status,
+      localStatus: this.oldStatus,
     };
   },
-  emits: ['update:enabled', 'update:status'],
+  emits: ['update:enabled', 'update:newStatus'],
   template: `
     <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
       <cdx-select v-model:selected="selected" :menu-items="caseStatusItems" default-label="New case status" />
@@ -28,7 +29,7 @@ export const ChangeStatusActionComponent = defineComponent({
         }
         const itemData = this.caseStatusItems
           .flatMap(item => isMenuGroupData(item) ? item.items : [item])
-          .find(item => item.value === this.status);
+          .find(item => item.value === this.newStatus);
 
         return itemData?.value ?? null;
       },
@@ -38,7 +39,7 @@ export const ChangeStatusActionComponent = defineComponent({
         }
         this.localStatus = String(value);
         if (value !== 'nochange') {
-          this.$emit('update:status', String(value));
+          this.$emit('update:newStatus', String(value));
         }
       },
     },
@@ -51,13 +52,13 @@ export const ChangeStatusActionComponent = defineComponent({
       const isCheckuser = spiHelperIsCheckuser();
       const isClerk = spiHelperIsClerk();
 
-      const cuRequested = /^(?:CU|checkuser|CUrequest|request|cumoreinfo)$/i.test(this.status);
-      const cuEndorsed = /^endorsed?$/i.test(this.status);
-      const cuCompleted = /^(?:inprogress|checking|relist(ed)?|checked|completed|declined?|cudeclin(ed)?)$/i.test(this.status);
+      const cuRequested = /^(?:CU|checkuser|CUrequest|request|cumoreinfo)$/i.test(this.oldStatus);
+      const cuEndorsed = /^endorsed?$/i.test(this.oldStatus);
+      const cuCompleted = /^(?:inprogress|checking|relist(ed)?|checked|completed|declined?|cudeclin(ed)?)$/i.test(this.oldStatus);
 
       // We'd prefer for 'change status' to be disabled, but also add 'no change' for confused users
       mainItems.push({ label: 'No change', value: 'nochange' });
-      if (spiHelperCaseClosedRegex.test(this.status)) {
+      if (spiHelperCaseClosedRegex.test(this.oldStatus)) {
         mainItems.push({ label: 'Reopen', value: 'reopen' });
       }
       else {
