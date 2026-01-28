@@ -61,6 +61,7 @@ export const spiHelperClerkTemplates: MenuGroupData[] = [
     items: [
       { value: '{{subst:DiffsNeeded|moreinfo}}', label: 'Diffs needed' },
       { value: '{{GlobalLocksRequested}}', label: 'Locks requested' },
+      { value: '{{Decline-IP}}', label: 'IP check declined' },
     ],
   },
 ];
