@@ -3452,12 +3452,9 @@ ${comment}
         altmaster
       });
       if (tagSuccess) {
-        new VueMessage({ type: "success", content: `Tagged ${sockRow.username}` }).show();
         if (needsPurge) {
           await spiHelperPurgePage(`User:${sockRow.username}`);
         }
-      } else {
-        new VueMessage({ type: "warning", content: `Failed to tag ${sockRow.username}` }).show();
       }
       return tagSuccess ? sockRow.username : null;
     };
@@ -3486,10 +3483,7 @@ ${comment}
             noticeType,
             sockmaster: master
           });
-          if (blockSuccess) {
-            new VueMessage({ type: "success", content: `Blocked ${sockRow.username}` }).show();
-          } else {
-            new VueMessage({ type: "warning", content: `Failed to block ${sockRow.username}` }).show();
+          if (!blockSuccess) {
             return null;
           }
           if (sockRow.tag !== "none" || sockRow.altmaster !== "none") {
@@ -5233,6 +5227,7 @@ ${comment}
   // src/ui/views/top/submitForm.ts
   var SubmitFormComponent = defineComponent({
     props: {
+      state: { type: Object, required: true },
       socks: { type: Array, required: true },
       locks: { type: Map, required: true },
       master: { type: String, required: true },
@@ -5246,6 +5241,7 @@ ${comment}
       return {
         popover: {
           show: false,
+          revId: 0,
           cancelAction,
           continueAction
         },
@@ -5315,16 +5311,17 @@ ${comment}
     },
     methods: {
       async onSubmit() {
-        const pageRev = await spiHelperGetPageRev(context.pageName);
-        if (pageRev === context.startingRevId) {
+        this.popover.revId = await spiHelperGetPageRev(context.pageName);
+        if (this.popover.revId === context.startingRevId) {
           this.$emit("onSubmit");
         } else {
           this.popover.show = true;
         }
       },
-      async confirmSubmit() {
+      confirmSubmit() {
         this.popover.show = false;
-        await context.refreshRevId();
+        context.startingRevId = this.popover.revId;
+        this.state.selectedSection?.type === "specific" ? loadSectionText(this.state.selectedSection.section, { purge: true }) : loadCaseText(this.state, { purge: true });
         this.$emit("onSubmit");
       }
     },
