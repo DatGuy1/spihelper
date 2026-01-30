@@ -203,7 +203,7 @@ export const TopViewComponent = defineComponent({
       <submit-form v-if="caseActions.sections.data.section !== null" v-model:socks="caseActions.block.data.accounts"
                    v-model:master="caseActions.block.data.master" v-model:altmaster="caseActions.block.data.altmaster"
                    v-model:lock-comment="caseActions.block.data.lockcomment" :locks="caseActions.block.data.userlocks"
-                   :all-disabled="allDisabled"
+                   :all-disabled="allDisabled" :state="state"
                    @on-submit="onSubmitActions" />
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
       <div id="messageRow">
