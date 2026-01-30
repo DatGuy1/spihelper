@@ -42,13 +42,19 @@ export async function spiHelperTagUser(opts: {
   const userInfo = await spiHelperGetGlobalUser(sock.username);
   if (!userInfo) {
     // Skip, don't tag accounts that don't exist
-    new VueMessage({ type: 'warning', content: `The account ${sock.username} does not exist and so has not been tagged` }).show();
+    new VueMessage({
+      type: 'warning',
+      content: `The account ${sock.username} does not exist and so has not been tagged`,
+    }).show();
     return false;
   }
   if (!tagNonLocalAccounts && !userInfo.existsLocally) {
     // Skip as the account does not exist locally and the
     // "tag accounts that don't exist locally" setting is unchecked.
-    new VueMessage({ type: 'warning', content: `The account ${sock.username} does not exist locally and so has not been tagged` }).show();
+    new VueMessage({
+      type: 'warning',
+      content: `The account ${sock.username} does not exist locally and so has not been tagged`,
+    }).show();
     return false;
   }
 
@@ -84,9 +90,11 @@ export async function spiHelperTagUser(opts: {
   if (isMaster) {
     tagText += `{{sockpuppeteer
 | 1 = ${tag}
-| checked = ${sock.tag === 'Mconfirmed' || sock.tag === 'Mbanned'}
-| locked = ${userInfo.locked ? 'yes' : 'no'}
-}}`;
+| locked = ${userInfo.locked ? 'yes' : 'no'}`;
+    if (sock.tag === 'Mconfirmed' || sock.tag === 'Mbanned') {
+      tagText += '\n| checked = yes';
+    }
+    tagText += '\n}}';
   }
   const tagAltmaster = sock.altmaster !== 'none';
   // Not if-else because we tag something as both sock and master if they're a
