@@ -138,6 +138,7 @@ mw.loader.using(['vue', '@wikimedia/codex', 'mediawiki.api', 'mediawiki.util', '
       .component('cdx-text-input', Codex.CdxTextInput)
       .component('cdx-icon', Codex.CdxIcon)
       .component('cdx-message', Codex.CdxMessage)
+      .component('cdx-multiselect-lookup', Codex.CdxMultiselectLookup)
       .component('watch-setting', WatchSettingComponent)
       .component('expiry-setting', ExpirySettingComponent)
       .component('expiry-input', ExpiryInputComponent)

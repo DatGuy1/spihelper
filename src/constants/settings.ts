@@ -37,6 +37,9 @@ export const spiHelperDefaultSettings: ScriptSettings = {
   useCheckuserblockAccount: mw.config.get('wgUserGroups')?.includes('checkuser') ?? false,
   // Whether to lookup usernames and pages while writing in the menu
   useLookup: true,
+  // Actions that should start enabled by default
+  // Can this be merged with tickArchiveWhenCaseClosed?
+  defaultActions: ['comment'],
   interface: {
     // Default block duration to prefill
     defaultBlockDuration: '',

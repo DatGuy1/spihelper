@@ -1,4 +1,5 @@
 import type { WatchOption } from '../types/api.ts';
+import type { CaseActionName } from '../types/spi.ts';
 
 export interface ScriptSettings {
   watch: {
@@ -25,6 +26,7 @@ export interface ScriptSettings {
   tickArchiveWhenCaseClosed: boolean;
   useCheckuserblockAccount: boolean;
   useLookup: boolean;
+  defaultActions: CaseActionName[];
   interface: {
     defaultBlockDuration: string;
     displayIPv6As64: boolean;

@@ -56,22 +56,24 @@ export type ManagementFlag = 'crosswiki' | 'deny' | 'notalk' | 'moot';
 
 export type CaseActionSection = number | 'all' | null;
 
-export type CaseActionName = 'sections' | 'management' | 'block' | 'status' | 'link' | 'comment' | 'move' | 'archive';
+export const CASE_ACTION_NAMES = [
+  'sections',
+  'management',
+  'block',
+  'status',
+  'link',
+  'comment',
+  'move',
+  'archive',
+] as const;
+
+export type CaseActionName = typeof CASE_ACTION_NAMES[number];
 
 export interface ActionLabel { case: string; section: string }
 
 export interface CaseAction<T> {
   enabled: boolean;
   data: T;
-}
-
-export interface BlockActionData {
-  accounts: SockRow[];
-  options: BlockOptions;
-  userlocks: Map<string, boolean>;
-  master: string;
-  altmaster: string;
-  lockcomment: string;
 }
 
 export interface CaseActions {
@@ -83,6 +85,15 @@ export interface CaseActions {
   management: CaseAction<{ flags: Set<ManagementFlag> }>;
   move: CaseAction<{ target: string }>;
   archive: { enabled: boolean };
+}
+
+export interface BlockActionData {
+  accounts: SockRow[];
+  options: BlockOptions;
+  userlocks: Map<string, boolean>;
+  master: string;
+  altmaster: string;
+  lockcomment: string;
 }
 
 export interface BlockOptions {

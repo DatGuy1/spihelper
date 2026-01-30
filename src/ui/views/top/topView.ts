@@ -289,10 +289,11 @@ export const TopViewComponent = defineComponent({
         return;
       }
       for (const [actionName, caseAction] of Object.entries(this.caseActions)) {
-        if (actionName === 'sections') {
+        const caseAN = actionName as CaseActionName;
+        if (caseAN === 'sections') {
           continue;
         }
-        caseAction.enabled = false;
+        caseAction.enabled = spiHelperSettings.defaultActions.includes(caseAN);
       }
     },
     // Changes the case status in the comment box
