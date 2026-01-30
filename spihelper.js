@@ -209,6 +209,7 @@
     tickArchiveWhenCaseClosed: true,
     useCheckuserblockAccount: mw.config.get("wgUserGroups")?.includes("checkuser") ?? false,
     useLookup: true,
+    defaultActions: ["comment"],
     interface: {
       defaultBlockDuration: "",
       displayIPv6As64: true,
@@ -1335,6 +1336,49 @@
     shouldFlip: true
   };
 
+  // src/types/spi.ts
+  class ParsedArchiveNotice {
+    username;
+    crosswiki;
+    deny;
+    notalk;
+    moot;
+    constructor(opts) {
+      this.username = opts?.username ?? context.caseName;
+      this.crosswiki = opts?.crosswiki ?? false;
+      this.deny = opts?.deny ?? false;
+      this.notalk = opts?.notalk ?? false;
+      this.moot = opts?.moot ?? false;
+    }
+    generateWikitext() {
+      let notice = "{{SPI archive notice|1=" + this.username;
+      if (this.crosswiki) {
+        notice += "|crosswiki=yes";
+      }
+      if (this.deny) {
+        notice += "|deny=yes";
+      }
+      if (this.notalk) {
+        notice += "|notalk=yes";
+      }
+      if (this.moot) {
+        notice += "|moot=yes";
+      }
+      notice += "}}";
+      return notice;
+    }
+  }
+  var CASE_ACTION_NAMES = [
+    "sections",
+    "management",
+    "block",
+    "status",
+    "link",
+    "comment",
+    "move",
+    "archive"
+  ];
+
   // src/ui/views/options/modal.ts
   var OptionsComponent = defineComponent({
     props: {
@@ -1344,6 +1388,15 @@
     data: function() {
       const username = mw.config.get("wgUserName") ?? "";
       const logPrefix = `User:${username}/`;
+      const caseActionMenuItems = CASE_ACTION_NAMES.reduce((acc, actionName) => {
+        if (actionName !== "sections") {
+          acc.push({
+            value: actionName,
+            label: actionName.charAt(0).toUpperCase() + actionName.slice(1)
+          });
+        }
+        return acc;
+      }, []);
       return {
         open: false,
         _openHandler: null,
@@ -1351,14 +1404,18 @@
         showExtraMessage: false,
         _showExtraHandler: null,
         logPrefix,
-        cdxIconWatchlist: t9,
-        cdxIconClock: d4,
-        cdxIconClose: e4,
-        cdxIconCode: r4,
-        cdxIconFeedback: q4,
-        cdxIconJournal: z6,
-        cdxIconPalette: u7,
-        cdxIconReload: U7,
+        caseActionMenuItems,
+        selectedChipItems: spiHelperSettings.defaultActions,
+        icons: {
+          cdxIconWatchlist: t9,
+          cdxIconClock: d4,
+          cdxIconClose: e4,
+          cdxIconCode: r4,
+          cdxIconFeedback: q4,
+          cdxIconJournal: z6,
+          cdxIconPalette: u7,
+          cdxIconReload: U7
+        },
         spiHelperSettings,
         resetTrigger: 0
       };
@@ -1371,6 +1428,17 @@
         const { debug } = this.spiHelperSettings;
         const isCU = mw.config.get("wgUserGroups")?.includes("checkuser") ?? false;
         return isCU || debug.enabled && debug.forceCheckuser;
+      },
+      inputChipItems: {
+        get() {
+          return this.spiHelperSettings.defaultActions.map((actionName) => ({
+            value: actionName,
+            label: actionName.charAt(0).toUpperCase() + actionName.slice(1)
+          }));
+        },
+        set(value) {
+          this.spiHelperSettings.defaultActions = value.map((item) => item.value);
+        }
       }
     },
     template: `
@@ -1383,7 +1451,7 @@
         </div>
         <div>
           <cdx-button weight="quiet" type="button" aria-label="Give feedback" @click="feedbackDialog.launch()">
-            <cdx-icon :icon="cdxIconFeedback" />
+            <cdx-icon :icon="icons.cdxIconFeedback" />
           </cdx-button>
           <cdx-button
               class="cdx-dialog__header__close-button"
@@ -1392,7 +1460,7 @@
               aria-label="Close"
               @click="open = false"
           >
-            <cdx-icon :icon="cdxIconClose" />
+            <cdx-icon :icon="icons.cdxIconClose" />
           </cdx-button>
         </div>
       </template>
@@ -1400,7 +1468,7 @@
       <cdx-message v-if="showExtraMessage" type="success" :fade-in="true" :auto-dismiss="true" :display-time="3000">
         I trust that you understand section moves
       </cdx-message>
-      <cdx-accordion :action-icon="cdxIconWatchlist" :action-always-visible="true">
+      <cdx-accordion :action-icon="icons.cdxIconWatchlist" :action-always-visible="true">
         <template #title>Watch</template>
         <watch-setting label="Cases" v-model="spiHelperSettings.watch.case" :reset-trigger="resetTrigger" />
         <watch-setting label="Archives" v-model="spiHelperSettings.watch.archive" :reset-trigger="resetTrigger" />
@@ -1412,7 +1480,7 @@
           <template #help-text>Due to API limitations, only a toggle is available</template>
         </cdx-field>
       </cdx-accordion>
-      <cdx-accordion :action-icon="cdxIconClock" :action-always-visible="true">
+      <cdx-accordion :action-icon="icons.cdxIconClock" :action-always-visible="true">
         <template #title>Expiry</template>
         <p>
           Expiry values may be relative (e.g. 5 months or 2 weeks) or absolute (e.g. 2014-09-18T12:34:56Z). For no
@@ -1426,7 +1494,7 @@
         <expiry-setting label="Blocked Users" v-model="spiHelperSettings.expiry.blocked"
                         :reset-trigger="resetTrigger" />
       </cdx-accordion>
-      <cdx-accordion :action-icon="cdxIconJournal" :action-always-visible="true">
+      <cdx-accordion :action-icon="icons.cdxIconJournal" :action-always-visible="true">
         <template #title>Log</template>
         <cdx-toggle-switch v-model="spiHelperSettings.log.enabled">
           Enabled
@@ -1444,15 +1512,16 @@
           </p>
         </div>
       </cdx-accordion>
-      <cdx-accordion :action-icon="cdxIconPalette" :action-always-visible="true">
+      <cdx-accordion :action-icon="icons.cdxIconPalette" :action-always-visible="true">
         <template #title>Interface</template>
         <cdx-toggle-switch v-model="spiHelperSettings.interface.displayIPv6As64" :align-switch="true">
           Display IPv6 as /64
           <template #description>Default IPv6 listings to /64 in the block/tag socks menu</template>
         </cdx-toggle-switch>
-        <expiry-setting label="Default block duration" v-model="spiHelperSettings.interface.defaultBlockDuration" :reset-trigger="resetTrigger" />
+        <expiry-setting label="Default block duration" v-model="spiHelperSettings.interface.defaultBlockDuration"
+                        :reset-trigger="resetTrigger" />
       </cdx-accordion>
-      <cdx-accordion :action-icon="cdxIconCode" :action-always-visible="true" v-if="showExtra">
+      <cdx-accordion :action-icon="icons.cdxIconCode" :action-always-visible="true" v-if="showExtra">
         <template #title>Debug</template>
         <cdx-toggle-switch v-model="spiHelperSettings.debug.enabled" :align-switch="true">
           Enabled
@@ -1476,12 +1545,28 @@
           <template #description>If the case is closed, enable archival by default</template>
         </cdx-toggle-switch>
         <cdx-toggle-switch v-if="isCheckUser" v-model="spiHelperSettings.useCheckuserblockAccount" :align-switch="true">
-          <span v-pre>Use {{<a href="//en.wikipedia.org/wiki/Template:Checkuserblock-account">checkuserblock-account</a>}} when CU blocking</span>
+          Use &#123;&#123;<a href="//en.wikipedia.org/wiki/Template:Checkuserblock-account">checkuserblock-account</a>&#125;&#125;
+          when CU blocking
         </cdx-toggle-switch>
         <cdx-toggle-switch v-model="spiHelperSettings.useLookup" :align-switch="true">
           Use lookups
           <template #description>Use the API to suggest autocompletions</template>
         </cdx-toggle-switch>
+        <cdx-field>
+          <cdx-multiselect-lookup
+              v-model:input-chips="inputChipItems" v-model:selected="selectedChipItems"
+              :menu-items="caseActionMenuItems">
+            <template #no-results>
+              No actions found
+            </template>
+          </cdx-multiselect-lookup>
+          <template #label>
+            Default actions
+          </template>
+          <template #description>
+            Actions to have enabled by default when opening the form
+          </template>
+        </cdx-field>
         <div v-if="showExtra">
           <cdx-toggle-switch v-model="spiHelperSettings.iUnderstandSectionMoves" :align-switch="true">
             I understand section moves
@@ -1490,7 +1575,7 @@
         <br>
         <cdx-button @click="loadDefaults">
           Load defaults
-          <cdx-icon :icon="cdxIconReload" />
+          <cdx-icon :icon="icons.cdxIconReload" />
         </cdx-button>
       </div>
     </cdx-dialog>
@@ -1950,39 +2035,6 @@
       }
     }
   });
-
-  // src/types/spi.ts
-  class ParsedArchiveNotice {
-    username;
-    crosswiki;
-    deny;
-    notalk;
-    moot;
-    constructor(opts) {
-      this.username = opts?.username ?? context.caseName;
-      this.crosswiki = opts?.crosswiki ?? false;
-      this.deny = opts?.deny ?? false;
-      this.notalk = opts?.notalk ?? false;
-      this.moot = opts?.moot ?? false;
-    }
-    generateWikitext() {
-      let notice = "{{SPI archive notice|1=" + this.username;
-      if (this.crosswiki) {
-        notice += "|crosswiki=yes";
-      }
-      if (this.deny) {
-        notice += "|deny=yes";
-      }
-      if (this.notalk) {
-        notice += "|notalk=yes";
-      }
-      if (this.moot) {
-        notice += "|moot=yes";
-      }
-      notice += "}}";
-      return notice;
-    }
-  }
 
   // src/template.ts
   function parseTemplates(wikitext) {
@@ -2702,11 +2754,17 @@ $2`);
     }
     const userInfo = await spiHelperGetGlobalUser(sock.username);
     if (!userInfo) {
-      new VueMessage({ type: "warning", content: `The account ${sock.username} does not exist and so has not been tagged` }).show();
+      new VueMessage({
+        type: "warning",
+        content: `The account ${sock.username} does not exist and so has not been tagged`
+      }).show();
       return false;
     }
     if (!tagNonLocalAccounts && !userInfo.existsLocally) {
-      new VueMessage({ type: "warning", content: `The account ${sock.username} does not exist locally and so has not been tagged` }).show();
+      new VueMessage({
+        type: "warning",
+        content: `The account ${sock.username} does not exist locally and so has not been tagged`
+      }).show();
       return false;
     }
     let tagText = "";
@@ -2739,8 +2797,12 @@ $2`);
     if (isMaster) {
       tagText += `{{sockpuppeteer
 | 1 = ${tag}
-| checked = ${sock.tag === "Mconfirmed" || sock.tag === "Mbanned"}
-| locked = ${userInfo.locked ? "yes" : "no"}
+| locked = ${userInfo.locked ? "yes" : "no"}`;
+      if (sock.tag === "Mconfirmed" || sock.tag === "Mbanned") {
+        tagText += `
+| checked = yes`;
+      }
+      tagText += `
 }}`;
     }
     const tagAltmaster = sock.altmaster !== "none";
@@ -3665,7 +3727,7 @@ ${comment}
       <submit-form v-if="caseActions.sections.data.section !== null" v-model:socks="caseActions.block.data.accounts"
                    v-model:master="caseActions.block.data.master" v-model:altmaster="caseActions.block.data.altmaster"
                    v-model:lock-comment="caseActions.block.data.lockcomment" :locks="caseActions.block.data.userlocks"
-                   :all-disabled="allDisabled"
+                   :all-disabled="allDisabled" :state="state"
                    @on-submit="onSubmitActions" />
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
       <div id="messageRow">
@@ -3739,10 +3801,11 @@ ${comment}
           return;
         }
         for (const [actionName, caseAction] of Object.entries(this.caseActions)) {
-          if (actionName === "sections") {
+          const caseAN = actionName;
+          if (caseAN === "sections") {
             continue;
           }
-          caseAction.enabled = false;
+          caseAction.enabled = spiHelperSettings.defaultActions.includes(caseAN);
         }
       },
       "caseActions.status.data.new"(newStatus) {
@@ -3990,7 +4053,8 @@ ${comment}
       label: "Other",
       items: [
         { value: "{{subst:DiffsNeeded|moreinfo}}", label: "Diffs needed" },
-        { value: "{{GlobalLocksRequested}}", label: "Locks requested" }
+        { value: "{{GlobalLocksRequested}}", label: "Locks requested" },
+        { value: "{{Decline-IP}}", label: "IP check declined" }
       ]
     }
   ];
@@ -5483,7 +5547,7 @@ ${comment}
     const settingsLink = mw.util.addPortletLink("p-cactions", "#", "SPI-Beta-Options", "ca-spiHelperOpts", "Modify spiHelper settings");
     if (settingsLink) {
       const mountPoint = document.body.appendChild(document.createElement("div"));
-      Vue.createMwApp(OptionsComponent, { feedbackDialog, openButton: settingsLink }).component("cdx-button", Codex.CdxButton).component("cdx-dialog", Codex.CdxDialog).component("cdx-field", Codex.CdxField).component("cdx-select", Codex.CdxSelect).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-accordion", Codex.CdxAccordion).component("cdx-text-input", Codex.CdxTextInput).component("cdx-icon", Codex.CdxIcon).component("cdx-message", Codex.CdxMessage).component("watch-setting", WatchSettingComponent).component("expiry-setting", ExpirySettingComponent).component("expiry-input", ExpiryInputComponent).component("log-page-setting", LogPageSettingComponent).mount(mountPoint);
+      Vue.createMwApp(OptionsComponent, { feedbackDialog, openButton: settingsLink }).component("cdx-button", Codex.CdxButton).component("cdx-dialog", Codex.CdxDialog).component("cdx-field", Codex.CdxField).component("cdx-select", Codex.CdxSelect).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-accordion", Codex.CdxAccordion).component("cdx-text-input", Codex.CdxTextInput).component("cdx-icon", Codex.CdxIcon).component("cdx-message", Codex.CdxMessage).component("cdx-multiselect-lookup", Codex.CdxMultiselectLookup).component("watch-setting", WatchSettingComponent).component("expiry-setting", ExpirySettingComponent).component("expiry-input", ExpiryInputComponent).component("log-page-setting", LogPageSettingComponent).mount(mountPoint);
     }
     if (mw.config.get("wgCategories").includes("SPI cases awaiting archive") && spiHelperIsClerk()) {
       const oneClickArchiveLink = mw.util.addPortletLink("p-cactions", "#", "SPI-Beta-Archive", "ca-spiHelperArchive", "Run one click archival");
