@@ -140,6 +140,7 @@ export interface AllUser {
   blockexpiry?: string;
   blocknocreate?: boolean;
   blockanononly?: boolean;
+  blockautoblocking?: boolean;
   blockemail?: boolean;
   blockowntalk?: boolean;
 }

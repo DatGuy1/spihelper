@@ -17,9 +17,15 @@ export function HandleUserSelected(data: AllUser, row: SockRow) {
   if (data.blockemail !== undefined) {
     row.nem = data.blockemail;
   }
-  // TODO: Support autoblock once T413535 is merged
-  if (mw.util.isIPAddress(data.name) && data.blockanononly !== undefined) {
-    row.abao = data.blockanononly;
+  if (mw.util.isIPAddress(data.name)) {
+    if (data.blockanononly !== undefined) {
+      row.abao = data.blockanononly;
+    }
+  }
+  else {
+    if (data.blockautoblocking !== undefined) {
+      row.abao = data.blockautoblocking;
+    }
   }
   if (data.blockowntalk !== undefined) {
     row.ntp = data.blockowntalk;
