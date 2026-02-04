@@ -88,7 +88,7 @@ export function getDefaultSockRow(archiveNotice: ParsedArchiveNotice | null) {
     if (archiveNotice.crosswiki) {
       newRow.lock = true;
     }
-    if (archiveNotice.deny) {
+    if (archiveNotice.notalk) {
       newRow.nem = true;
       newRow.ntp = true;
     }
