@@ -1898,8 +1898,14 @@
     if (data.blockemail !== undefined) {
       row.nem = data.blockemail;
     }
-    if (mw.util.isIPAddress(data.name) && data.blockanononly !== undefined) {
-      row.abao = data.blockanononly;
+    if (mw.util.isIPAddress(data.name)) {
+      if (data.blockanononly !== undefined) {
+        row.abao = data.blockanononly;
+      }
+    } else {
+      if (data.blockautoblocking !== undefined) {
+        row.abao = data.blockautoblocking;
+      }
     }
     if (data.blockowntalk !== undefined) {
       row.ntp = data.blockowntalk;
@@ -2204,7 +2210,7 @@
       if (archiveNotice.crosswiki) {
         newRow.lock = true;
       }
-      if (archiveNotice.deny) {
+      if (archiveNotice.notalk) {
         newRow.nem = true;
         newRow.ntp = true;
       }
@@ -3593,6 +3599,7 @@ ${comment}
         buttonLayout: spiHelperSettings.interface.buttonLayout,
         actionButtons,
         actionButtonKeys,
+        sectionAccountNames: new Set,
         caseActions: getInitialCaseActions(),
         messages,
         cdxIconPushPin: y7,
@@ -3786,13 +3793,6 @@ ${comment}
           }
         }
       },
-      async selectedSection(selection) {
-        if (!selection) {
-          return;
-        }
-        const allRows = await prefetchSockRowsForSelection(selection, this.state, this.caseActions.block.data.userlocks);
-        this.massAddSockRows(allRows);
-      },
       archiveNotice(newNotice) {
         this.caseActions.management.data.flags = getManagementFlagsFromArchiveNotice(newNotice);
       },
@@ -3846,11 +3846,14 @@ ${comment}
         if (newSelection === null) {
           return;
         }
-        if (typeof newSelection !== typeof this.state.selectedSection?.type) {
+        const prevType = this.state.selectedSection?.type ?? null;
+        const nextType = newSelection === "all" ? "all" : "specific";
+        if (prevType !== nextType) {
           this.displayedForms = ["sections"];
         }
         if (newSelection === "all") {
           this.state.selectedSection = { type: "all" };
+          this.loadSectionAccounts(this.state.selectedSection);
           return;
         }
         const targetSection = this.state.sections.find((section) => section.id === newSelection);
@@ -3870,6 +3873,18 @@ ${comment}
         if (normalisedStatus === "closed" && spiHelperSettings.tickArchiveWhenCaseClosed) {
           this.caseActions.archive.enabled = true;
         }
+        this.loadSectionAccounts(this.state.selectedSection);
+      },
+      async loadSectionAccounts(selection) {
+        const removeIndexes = this.caseActions.block.data.accounts.reduce((acc, row, i) => {
+          if (this.sectionAccountNames.has(row.username)) {
+            acc.push(i);
+          }
+          return acc;
+        }, []);
+        this.handleRemoveRows(removeIndexes);
+        const allRows = await prefetchSockRowsForSelection(selection, this.state, this.caseActions.block.data.userlocks);
+        this.sectionAccountNames = new Set(this.massAddSockRows(allRows).map((row) => row.username));
       },
       async onSubmitActions() {
         if (isOpRunning("mainActions")) {
@@ -3939,10 +3954,8 @@ ${comment}
         const linkRows = this.caseActions.link.data.rows;
         const withDefault = sockRows.at(-1)?.username === "";
         const existingUsernames = new Set(sockRows.map((s) => s.username));
-        newRows.forEach((newRow) => {
-          if (existingUsernames.has(newRow.username)) {
-            return;
-          }
+        const filteredRows = newRows.filter((newRow) => !existingUsernames.has(newRow.username));
+        filteredRows.forEach((newRow) => {
           if (withDefault) {
             sockRows.splice(sockRows.length - 1, 0, newRow);
             linkRows.splice(linkRows.length - 1, 0, { ...DefaultLinkRow, username: newRow.username });
@@ -3950,6 +3963,7 @@ ${comment}
             this.handleAddRow(newRow);
           }
         });
+        return filteredRows;
       }
     },
     mounted() {
@@ -4345,33 +4359,33 @@ ${comment}
           {{ isAdmin ? 'Block Options' : 'Tag Options' }}
         </cdx-label>
 
-        <cdx-checkbox v-model="blockOptionsLocal.noBlock" v-if="isAdmin">
+        <cdx-checkbox v-model="blockOptions.noBlock" v-if="isAdmin">
           Do not make any blocks
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptionsLocal.override" v-if="isAdmin" :disabled="blockOptionsLocal.noBlock">
+        <cdx-checkbox v-model="blockOptions.override" v-if="isAdmin" :disabled="blockOptions.noBlock">
           Override any existing blocks
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptionsLocal.tagUnattached" v-if="isClerk">
+        <cdx-checkbox v-model="blockOptions.tagUnattached" v-if="isClerk">
           Tag accounts without an attached local account
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptionsLocal.cuBlock" v-if="isCheckuser">
+        <cdx-checkbox v-model="blockOptions.cuBlock" v-if="isCheckuser">
           Mark blocks as Checkuser blocks
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptionsLocal.cuBlockOnly" v-if="isCheckuser" :disabled="!blockOptionsLocal.cuBlock">
+        <cdx-checkbox v-model="blockOptions.cuBlockOnly" v-if="isCheckuser" :disabled="!blockOptions.cuBlock">
           <span v-pre>
             Suppress the usual block summary and only use {{checkuserblock-account}} and {{checkuserblock}}
           </span>
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptionsLocal.addMasterNotice" v-if="isAdmin">
+        <cdx-checkbox v-model="blockOptions.addMasterNotice" v-if="isAdmin">
           Add talk page notice when (re)blocking the sockmaster
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptionsLocal.addSockNotice" v-if="isAdmin">
+        <cdx-checkbox v-model="blockOptions.addSockNotice" v-if="isAdmin">
           Add talk page notice when blocking socks
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptionsLocal.blankTalk" v-if="isAdmin">
+        <cdx-checkbox v-model="blockOptions.blankTalk" v-if="isAdmin">
           Blank the talk page when adding talk notices
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptionsLocal.lockHideNames">
+        <cdx-checkbox v-model="blockOptions.lockHideNames">
           Hide usernames when requesting global locks
         </cdx-checkbox>
       </div>
@@ -4500,7 +4514,7 @@ ${comment}
         </template>
 
         <template #item-block="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.block" :disabled="blockOptionsLocal.noBlock">Block</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.block" :disabled="blockOptions.noBlock">Block</cdx-checkbox>
         </template>
 
         <template #item-duration="{ item, row }">
@@ -4552,14 +4566,6 @@ ${comment}
           return false;
         } else
           return this.selectedRows.length !== 0;
-      },
-      blockOptionsLocal: {
-        get() {
-          return this.blockOptions;
-        },
-        set(value) {
-          this.$emit("update:blockOptions", value);
-        }
       }
     },
     methods: {
