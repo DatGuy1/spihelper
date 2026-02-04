@@ -42,6 +42,7 @@ interface Data {
   cdxIconFeedback: typeof cdxIconFeedback;
   unpinned: boolean;
   buttonLayout: boolean;
+  sectionAccountNames: Set<string>;
   actionButtons: ActionButtons;
   actionButtonKeys: CaseActionName[];
   caseActions: CaseActions;
@@ -68,6 +69,7 @@ export const TopViewComponent = defineComponent({
       buttonLayout: spiHelperSettings.interface.buttonLayout,
       actionButtons,
       actionButtonKeys,
+      sectionAccountNames: new Set<string>(),
       caseActions: getInitialCaseActions(),
       messages,
       cdxIconPushPin,
@@ -269,22 +271,12 @@ export const TopViewComponent = defineComponent({
         }
       }
     },
-    async selectedSection(selection: SectionSelection | null) {
-      if (!selection) {
-        return;
-      }
-      const allRows = await prefetchSockRowsForSelection(
-        selection,
-        this.state,
-        this.caseActions.block.data.userlocks,
-      );
-      this.massAddSockRows(allRows);
-    },
     archiveNotice(newNotice: ParsedArchiveNotice | null) {
       this.caseActions.management.data.flags = getManagementFlagsFromArchiveNotice(newNotice);
     },
     // Disable actions when changing section
     'caseActions.sections.data.section'(newSection: CaseActionSection, oldSection: CaseActionSection) {
+      // Is this even necessary?
       if (newSection === oldSection) {
         return;
       }
@@ -345,11 +337,15 @@ export const TopViewComponent = defineComponent({
         return;
       }
       // If we switch from a section to 'all' or vice versa, reset the displayed forms
-      if (typeof newSelection !== typeof this.state.selectedSection?.type) {
+      const prevType = this.state.selectedSection?.type ?? null;
+      const nextType = newSelection === 'all' ? 'all' : 'specific';
+      if (prevType !== nextType) {
         this.displayedForms = ['sections'];
       }
+
       if (newSelection === 'all') {
         this.state.selectedSection = { type: 'all' };
+        void this.loadSectionAccounts(this.state.selectedSection);
         return;
       }
       const targetSection = this.state.sections.find(section => section.id === newSelection);
@@ -370,6 +366,22 @@ export const TopViewComponent = defineComponent({
       if (normalisedStatus === 'closed' && spiHelperSettings.tickArchiveWhenCaseClosed) {
         this.caseActions.archive.enabled = true;
       }
+      void this.loadSectionAccounts(this.state.selectedSection);
+    },
+    async loadSectionAccounts(selection: SectionSelection) {
+      const removeIndexes = this.caseActions.block.data.accounts.reduce<number[]>((acc, row, i) => {
+        if (this.sectionAccountNames.has(row.username)) {
+          acc.push(i);
+        }
+        return acc;
+      }, []);
+      this.handleRemoveRows(removeIndexes);
+      const allRows = await prefetchSockRowsForSelection(
+        selection,
+        this.state,
+        this.caseActions.block.data.userlocks,
+      );
+      this.sectionAccountNames = new Set(this.massAddSockRows(allRows).map(row => row.username));
     },
     async onSubmitActions() {
       if (isOpRunning('mainActions')) {
@@ -449,10 +461,10 @@ export const TopViewComponent = defineComponent({
       const withDefault = sockRows.at(-1)?.username === '';
       // Used to filter out duplicates
       const existingUsernames = new Set(sockRows.map(s => s.username));
-      newRows.forEach((newRow) => {
-        if (existingUsernames.has(newRow.username)) {
-          return;
-        }
+      const filteredRows: SockRow[] = newRows.filter(
+        newRow => !existingUsernames.has(newRow.username),
+      );
+      filteredRows.forEach((newRow) => {
         // If last row is the default, insert in ^1st slot
         if (withDefault) {
           sockRows.splice(sockRows.length - 1, 0, newRow);
@@ -462,6 +474,7 @@ export const TopViewComponent = defineComponent({
           this.handleAddRow(newRow);
         }
       });
+      return filteredRows;
     },
   },
   mounted() {

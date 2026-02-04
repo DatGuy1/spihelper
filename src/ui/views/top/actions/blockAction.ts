@@ -96,33 +96,33 @@ export const BlockActionComponent = defineComponent({
           {{ isAdmin ? 'Block Options' : 'Tag Options' }}
         </cdx-label>
 
-        <cdx-checkbox v-model="blockOptionsLocal.noBlock" v-if="isAdmin">
+        <cdx-checkbox v-model="blockOptions.noBlock" v-if="isAdmin">
           Do not make any blocks
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptionsLocal.override" v-if="isAdmin" :disabled="blockOptionsLocal.noBlock">
+        <cdx-checkbox v-model="blockOptions.override" v-if="isAdmin" :disabled="blockOptions.noBlock">
           Override any existing blocks
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptionsLocal.tagUnattached" v-if="isClerk">
+        <cdx-checkbox v-model="blockOptions.tagUnattached" v-if="isClerk">
           Tag accounts without an attached local account
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptionsLocal.cuBlock" v-if="isCheckuser">
+        <cdx-checkbox v-model="blockOptions.cuBlock" v-if="isCheckuser">
           Mark blocks as Checkuser blocks
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptionsLocal.cuBlockOnly" v-if="isCheckuser" :disabled="!blockOptionsLocal.cuBlock">
+        <cdx-checkbox v-model="blockOptions.cuBlockOnly" v-if="isCheckuser" :disabled="!blockOptions.cuBlock">
           <span v-pre>
             Suppress the usual block summary and only use {{checkuserblock-account}} and {{checkuserblock}}
           </span>
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptionsLocal.addMasterNotice" v-if="isAdmin">
+        <cdx-checkbox v-model="blockOptions.addMasterNotice" v-if="isAdmin">
           Add talk page notice when (re)blocking the sockmaster
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptionsLocal.addSockNotice" v-if="isAdmin">
+        <cdx-checkbox v-model="blockOptions.addSockNotice" v-if="isAdmin">
           Add talk page notice when blocking socks
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptionsLocal.blankTalk" v-if="isAdmin">
+        <cdx-checkbox v-model="blockOptions.blankTalk" v-if="isAdmin">
           Blank the talk page when adding talk notices
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptionsLocal.lockHideNames">
+        <cdx-checkbox v-model="blockOptions.lockHideNames">
           Hide usernames when requesting global locks
         </cdx-checkbox>
       </div>
@@ -251,7 +251,7 @@ export const BlockActionComponent = defineComponent({
         </template>
 
         <template #item-block="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.block" :disabled="blockOptionsLocal.noBlock">Block</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.block" :disabled="blockOptions.noBlock">Block</cdx-checkbox>
         </template>
 
         <template #item-duration="{ item, row }">
@@ -303,14 +303,6 @@ export const BlockActionComponent = defineComponent({
         return false;
       }
       else return this.selectedRows.length !== 0;
-    },
-    blockOptionsLocal: {
-      get(): BlockOptions {
-        return this.blockOptions;
-      },
-      set(value: BlockOptions) {
-        this.$emit('update:blockOptions', value);
-      },
     },
   },
   methods: {
