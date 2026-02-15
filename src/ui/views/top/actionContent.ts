@@ -3,6 +3,7 @@ import type { CaseActionName, CaseActions, SockRow } from '../../../types/spi.ts
 import type { MenuItemData } from '@wikimedia/codex';
 import type { CaseState } from '../../../state.ts';
 import type { AllUser } from '../../../types/api.ts';
+import { context } from '../../../context.ts';
 
 export const ActionContentComponent = defineComponent({
   props: {
@@ -44,6 +45,11 @@ export const ActionContentComponent = defineComponent({
       this.$emit('fetch-rows');
     },
   },
+  computed: {
+    caseName(): string {
+      return context.caseName;
+    },
+  },
   template: `
     <!-- Sections special case -->
     <div v-if="name === 'sections'">
@@ -63,7 +69,7 @@ export const ActionContentComponent = defineComponent({
                   @remove-rows="handleRemoveRows" @add-row="handleAddRow"
                   @fetch-rows="handleFetchRows" />
     <link-action v-else-if="name === 'link'" v-model:enabled="caseActions.link.enabled"
-                 v-model="caseActions.link.data.rows"
+                 v-model="caseActions.link.data.rows" :case-name="caseName"
                  @user-selected="handleLinkUsernameSelected" @username-changed="handleLinkUsernameChange"
                  @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
     <management-action v-else-if="name === 'management'" v-model:enabled="caseActions.management.enabled"

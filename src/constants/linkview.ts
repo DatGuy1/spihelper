@@ -1,5 +1,3 @@
-import { context } from '../context.ts';
-
 interface LinkFormatCollection {
   editorInteractionAnalyser: LinkFormat;
   interactionTimeline: LinkFormat;
@@ -18,7 +16,7 @@ interface LinkFormatCollection {
 }
 
 export interface LinkFormat {
-  baseUrl: URL;
+  baseUrl: (caseName: string) => URL;
   startingParams?: URLSearchParams;
   userQueryStringKey: string;
   userQueryStringSeparator: string;
@@ -29,14 +27,14 @@ export interface LinkFormat {
 
 export const spiHelperLinkViewURLFormats: LinkFormatCollection = {
   editorInteractionAnalyser: {
-    baseUrl: new URL('https://sigma.toolforge.org/editorinteract.py'),
+    baseUrl: (_caseName: string) => new URL('https://sigma.toolforge.org/editorinteract.py'),
     userQueryStringKey: 'users',
     userQueryStringSeparator: '&',
     userQueryStringWrapper: '',
     multipleUserQueryStringKeys: true,
   },
   interactionTimeline: {
-    baseUrl: new URL('https://interaction-timeline.toolforge.org'),
+    baseUrl: (_caseName: string) => new URL('https://interaction-timeline.toolforge.org'),
     startingParams: new URLSearchParams('wiki=enwiki'),
     userQueryStringKey: 'user',
     userQueryStringSeparator: '&',
@@ -45,21 +43,21 @@ export const spiHelperLinkViewURLFormats: LinkFormatCollection = {
   },
   SPITools: {
     timecard: {
-      baseUrl: new URL('https://spi-tools.toolforge.org/spi/timecard/' + context.caseName),
+      baseUrl: (caseName: string) => new URL('https://spi-tools.toolforge.org/spi/timecard/' + caseName),
       userQueryStringKey: 'users',
       userQueryStringSeparator: '&',
       userQueryStringWrapper: '',
       multipleUserQueryStringKeys: true,
     },
     consolidatedTimeline: {
-      baseUrl: new URL('https://spi-tools.toolforge.org/spi/timeline/' + context.caseName),
+      baseUrl: (caseName: string) => new URL('https://spi-tools.toolforge.org/spi/timeline/' + caseName),
       userQueryStringKey: 'users',
       userQueryStringSeparator: '&',
       userQueryStringWrapper: '',
       multipleUserQueryStringKeys: true,
     },
     pages: {
-      baseUrl: new URL('https://spi-tools.toolforge.org/spi/pages/' + context.caseName),
+      baseUrl: (caseName: string) => new URL('https://spi-tools.toolforge.org/spi/pages/' + caseName),
       userQueryStringKey: 'users',
       userQueryStringSeparator: '&',
       userQueryStringWrapper: '',
@@ -68,28 +66,28 @@ export const spiHelperLinkViewURLFormats: LinkFormatCollection = {
   },
   sandals: {
     timecard: {
-      baseUrl: new URL('https://sandals.toolforge.org/timecard'),
+      baseUrl: (_caseName: string) => new URL('https://sandals.toolforge.org/timecard'),
       userQueryStringKey: 'users',
       userQueryStringSeparator: '|',
       userQueryStringWrapper: '',
       multipleUserQueryStringKeys: false,
     },
     consolidatedTimeline: {
-      baseUrl: new URL('https://sandals.toolforge.org/timeline'),
+      baseUrl: (_caseName: string) => new URL('https://sandals.toolforge.org/timeline'),
       userQueryStringKey: 'users',
       userQueryStringSeparator: '|',
       userQueryStringWrapper: '',
       multipleUserQueryStringKeys: false,
     },
     pages: {
-      baseUrl: new URL('https://sandals.toolforge.org/pages'),
+      baseUrl: (_caseName: string) => new URL('https://sandals.toolforge.org/pages'),
       userQueryStringKey: 'users',
       userQueryStringSeparator: '|',
       userQueryStringWrapper: '',
       multipleUserQueryStringKeys: false,
     },
     summaries: {
-      baseUrl: new URL('https://sandals.toolforge.org/summaries'),
+      baseUrl: (_caseName: string) => new URL('https://sandals.toolforge.org/summaries'),
       userQueryStringKey: 'users',
       userQueryStringSeparator: '|',
       userQueryStringWrapper: '',
@@ -97,7 +95,7 @@ export const spiHelperLinkViewURLFormats: LinkFormatCollection = {
     },
   },
   checkUserWikiSearch: {
-    baseUrl: new URL('https://checkuser.wikimedia.org/w/index.php'),
+    baseUrl: (_caseName: string) => new URL('https://checkuser.wikimedia.org/w/index.php'),
     startingParams: new URLSearchParams('ns0=1'),
     userQueryStringKey: 'search',
     userQueryStringSeparator: ' OR ',

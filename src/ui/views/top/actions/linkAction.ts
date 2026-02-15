@@ -11,6 +11,7 @@ type LinkRecord = Record<ColumnId, { url: URL; label: string }>;
 export const LinkActionComponent = defineComponent({
   props: {
     modelValue: { type: Array as PropType<LinkRow[]>, required: true },
+    caseName: { type: String, required: true },
     enabled: { type: Boolean, required: true },
   },
   data() {
@@ -259,7 +260,7 @@ export const LinkActionComponent = defineComponent({
           continue;
         }
 
-        const resultUrl = new URL(linkFormat.baseUrl.href);
+        const resultUrl = linkFormat.baseUrl(this.caseName);
         const includedUsers: string[] = this.modelValue.reduce((accumulator: string[], row) => {
           if (row[linkColumn.id]) {
             accumulator.push(
