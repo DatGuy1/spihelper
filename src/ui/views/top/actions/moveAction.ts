@@ -14,7 +14,7 @@ export const MoveActionComponent = defineComponent({
     <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event);"
                     :disabled="disabled">
       <h3>Moving {{ moveTitle }}</h3>
-      <page-lookup :model-value="this.target" @update:model-value="this.$emit('update:target', $event)"
+      <page-lookup :model-value="target" @update:model-value="$emit('update:target', $event)"
                    :namespace="4" prefix="Sockpuppet investigations/"
                    placeholder="Title" label="New Case Name" />
       <cdx-message v-if="isSectionMove" type="notice" :allow-user-dismiss="true" style="margin-top: 16px;">
