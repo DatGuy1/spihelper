@@ -75,7 +75,8 @@ function cleanPageName(pageName: string): string {
   return pageName.replaceAll(/_/g, ' ');
 }
 
-const rawPageName = mw.config.get('wgPageName');
-const pageName = cleanPageName(rawPageName);
+export let context: SpiPageContext;
 
-export const context: SpiPageContext = new SpiPageContext(pageName, true);
+export function setContext(pageName: string) {
+  context = new SpiPageContext(cleanPageName(pageName), pageName === mw.config.get('wgPageName'));
+}

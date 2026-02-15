@@ -63,18 +63,22 @@ mw.loader.using(['vue', '@wikimedia/codex', 'mediawiki.api', 'mediawiki.util', '
     importStylesheet('User:DatGuy/spihelper.css');
   }
 
-  const caseState = Vue.reactive(new CaseState()) as CaseState;
-  void refreshSections(caseState);
-  const loadedOptions = loadOptions();
-  if (loadedOptions) {
-    Object.assign(spiHelperSettings, loadedOptions);
-  }
-  else {
-    void (async () => {
-      await migrateOptions();
-      saveOptions();
-    })();
-  }
+    const caseState = Vue.reactive(new CaseState()) as CaseState;
+    if (pageType === 'spi') {
+      const rawPageName = mw.config.get('wgPageName');
+      setContext(rawPageName);
+      void refreshSections(caseState);
+    }
+    const loadedOptions = loadOptions();
+    if (loadedOptions) {
+      Object.assign(spiHelperSettings, loadedOptions);
+    }
+    else {
+      void (async () => {
+        await migrateOptions();
+        saveOptions();
+      })();
+    }
 
   const initLink = mw.util.addPortletLink('p-cactions', '#', 'SPI-Beta', 'ca-spiHelper', 'Run spiHelper');
   // Fails if we don't have a p-cactions menu
