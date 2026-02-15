@@ -85,6 +85,16 @@ export async function spiHelperProcessBlockRow(opts: {
   sockmaster: string;
 }): Promise<boolean> {
   const { sock, userBlock, userTalkContent, blockOptions, noticeType, sockmaster } = opts;
+  if (userBlock !== undefined && !blockOptions.override) {
+    // If the user is already blocked, and we haven't asked
+    // to override, exit before we get to API block error
+    new VueMessage({
+      type: 'warning',
+      content: `Block target ${sock.username} is already blocked. Check the "override existing blocks" box to re-block them`,
+    }).show();
+    // Return true because end result is the same
+    return true;
+  }
   const blockReason = userBlock?.reason;
   if (
     !spiHelperIsCheckuser() && blockOptions.override
