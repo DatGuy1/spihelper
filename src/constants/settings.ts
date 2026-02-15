@@ -32,7 +32,7 @@ export const spiHelperDefaultSettings: ScriptSettings = {
   // Enable the "move section" button
   iUnderstandSectionMoves: false,
   // Automatically tick the "Archive case" option if the case is closed
-  tickArchiveWhenCaseClosed: true,
+  tickArchiveWhenCaseClosed: false,
   // Use checkuserblock-account when CU blocking. False when not a CU, by default true when a CU
   useCheckuserblockAccount: mw.config.get('wgUserGroups')?.includes('checkuser') ?? false,
   // Whether to lookup usernames and pages while writing in the menu
@@ -42,7 +42,7 @@ export const spiHelperDefaultSettings: ScriptSettings = {
   defaultActions: ['comment'],
   interface: {
     // Default block duration to prefill
-    defaultBlockDuration: '',
+    defaultBlockDuration: 'indefinite',
     // Default IPv6 listings to /64 in the block/tag socks menu
     displayIPv6As64: true,
     // Should we pin the top view to the top, or make it sticky
