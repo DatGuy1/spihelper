@@ -1,6 +1,6 @@
 import { type PropType, defineComponent } from 'vue';
 import { cdxIconCollapse, cdxIconExpand, cdxIconFeedback, cdxIconPushPin } from '@wikimedia/codex-icons';
-import { DefaultLinkRow } from '../../../types/vue.ts';
+import { DefaultLinkRow, type FeedbackDialog } from '../../../types/vue.ts';
 import { type CaseState, type SectionEntry, type SectionSelection, loadSectionText } from '../../../state.ts';
 import type { MenuItemData } from '@wikimedia/codex';
 import { saveOptions, spiHelperSettings } from '../../../options';
@@ -52,7 +52,7 @@ interface Data {
 export const TopViewComponent = defineComponent({
   props: {
     state: { type: Object as PropType<CaseState>, required: true },
-    feedbackDialog: { type: Object as PropType<{ launch: unknown }>, required: true },
+    feedbackDialog: { type: Object as PropType<FeedbackDialog>, required: true },
     openButton: { type: Object as PropType<HTMLElement>, required: true },
   },
   data(): Data {

@@ -33,3 +33,7 @@ export const DefaultLinkRow: LinkRow = {
 };
 
 export type SelectionType = 'section' | 'case' | 'both';
+
+export interface FeedbackDialog {
+  launch: unknown;
+}

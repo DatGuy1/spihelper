@@ -46,10 +46,10 @@ mw.loader.using(['vue', '@wikimedia/codex', 'mediawiki.api', 'mediawiki.util', '
   const Vue = require('vue') as typeof VueType;
   const Codex = require('@wikimedia/codex') as typeof CodexType;
 
-  // For some reason mw.Feedback isn't typed
-  // @ts-expect-error - mw.Feedback exists at runtime but not in type definitions
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-call
-  const feedbackDialog = new mw.Feedback(FeedbackConfig);
+    // For some reason mw.Feedback isn't typed
+    // @ts-expect-error - mw.Feedback exists at runtime but not in type definitions
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-call
+    const feedbackDialog: FeedbackDialog = new mw.Feedback(FeedbackConfig);
 
   // @ts-expect-error Ignore __MODE__ not existing error because Bun should replace it on compile
   if (__MODE__ === 'live') {

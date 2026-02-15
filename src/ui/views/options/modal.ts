@@ -15,6 +15,7 @@ import { getFullLogPage } from '../../../options/utils.ts';
 import type { ScriptSettings } from '../../../options/types.ts';
 import type { ChipInputItem, MenuItemData, MenuItemValue } from '@wikimedia/codex';
 import { CASE_ACTION_NAMES, type CaseActionName } from '../../../types/spi.ts';
+import type { FeedbackDialog } from '../../../types/vue.ts';
 
 interface Data {
   open: boolean;
@@ -41,7 +42,7 @@ interface Data {
 
 export const OptionsComponent = defineComponent({
   props: {
-    feedbackDialog: { type: Object as PropType<{ launch: unknown }>, required: true },
+    feedbackDialog: { type: Object as PropType<FeedbackDialog>, required: true },
     openButton: { type: Object as PropType<HTMLElement>, required: true },
   },
   data: function (): Data {
