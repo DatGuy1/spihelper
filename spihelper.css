@@ -15,7 +15,7 @@
   align-self: baseline;
 }
 
-#spiHelper-topView-Card {
+.spiHelper-mainCard {
   background-color: var(--background-color-base, #fff);
   border: 1px solid var(--border-color-base, #a2a9b1);
   border-radius: 2px;
@@ -34,16 +34,16 @@
   top: 60px;
 }
 
-#spiHelper-vue-mount-point.unpinned #spiHelper-topView-Card {
+#spiHelper-vue-mount-point.unpinned .spiHelper-mainCard {
   position: absolute;
   width: 97.35%;
 }
 
-#spiHelper-topView-Header {
+.spiHelper-mainCard-Header {
   position: relative;
 }
 
-#spiHelper-topView-Header .header-buttons {
+.spiHelper-mainCard-Header .header-buttons {
   position: absolute;
   top: 0;
   right: 0;
@@ -243,4 +243,14 @@
   box-sizing: border-box;
   width: 100%;
   padding-right: 40px;
+}
+
+#spihelper-CaseLoader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#spihelper-CaseLoader .cdx-text-input {
+  max-width: 200px;
 }

@@ -160,6 +160,23 @@
     const $link = $("<a>").attr("href", mw.util.getUrl(title)).attr("title", title).text(text);
     return $link.prop("outerHTML");
   }
+  function buildUserActionLogMessage(opts) {
+    const { blockedUsers, taggedUsers, lockedUsers } = opts;
+    let logMessage = "";
+    if (blockedUsers.length > 0) {
+      logMessage += `
+** blocked ` + blockedUsers.filter(Boolean).join(", ");
+    }
+    if (taggedUsers.length > 0) {
+      logMessage += `
+** tagged ` + taggedUsers.filter(Boolean).join(", ");
+    }
+    if (lockedUsers.length > 0) {
+      logMessage += `
+** requested locks for ` + lockedUsers.map((user) => `{{noping|1=${user}}}`).join(", ");
+    }
+    return logMessage;
+  }
 
   // src/operations.ts
   var activeOperations = new Map;
@@ -206,12 +223,12 @@
     },
     clerk: true,
     iUnderstandSectionMoves: false,
-    tickArchiveWhenCaseClosed: true,
+    tickArchiveWhenCaseClosed: false,
     useCheckuserblockAccount: mw.config.get("wgUserGroups")?.includes("checkuser") ?? false,
     useLookup: true,
     defaultActions: ["comment"],
     interface: {
-      defaultBlockDuration: "",
+      defaultBlockDuration: "indefinite",
       displayIPv6As64: true,
       pinned: true,
       buttonLayout: true
@@ -264,6 +281,35 @@
   });
 
   // src/api.ts
+  async function spiHelperGetUserBlockSettings(user) {
+    const api = spiHelperGetAPI();
+    const request = {
+      action: "query",
+      list: "blocks",
+      bklimit: 1,
+      bkusers: user,
+      bkprop: ["user", "reason", "flags", "expiry"],
+      formatversion: "2"
+    };
+    try {
+      const response = await api.get(request);
+      const [firstBlock] = response.query.blocks;
+      if (!firstBlock) {
+        return null;
+      }
+      return {
+        username: user,
+        duration: firstBlock.expiry,
+        acb: firstBlock.nocreate,
+        abao: firstBlock.autoblock || firstBlock.anononly,
+        ntp: !firstBlock.allowusertalk,
+        nem: firstBlock.noemail,
+        reason: firstBlock.reason
+      };
+    } catch {
+      return null;
+    }
+  }
   async function spiHelperGetBulkPageText(titles) {
     if (titles.length === 0) {
       return new Map;
@@ -755,7 +801,8 @@
       summary: summary + spiHelperAdvert,
       text: newText,
       title: finalTitle,
-      createonly
+      createonly,
+      formatversion: "2"
     };
     if (sectionId) {
       request.section = sectionId.toString();
@@ -767,10 +814,10 @@
       request.baserevid = baseRevId;
     }
     try {
-      await api.postWithToken("csrf", request);
+      const response = await api.postWithToken("csrf", request);
       message.update({ type: "success", content: "Saved " + linkHtml, isHtml: true });
       finishOp(activeOpKey, "success" /* Success */);
-      return true;
+      return response.edit.newrevid;
     } catch (error) {
       message.update({
         type: "error",
@@ -779,7 +826,7 @@
       });
       console.error(error);
       finishOp(activeOpKey, "failed" /* Failed */);
-      return false;
+      return null;
     }
   }
   async function spiHelperGetPageText(title, show, sectionId) {
@@ -954,9 +1001,10 @@
   function cleanPageName(pageName) {
     return pageName.replaceAll(/_/g, " ");
   }
-  var rawPageName = mw.config.get("wgPageName");
-  var pageName = cleanPageName(rawPageName);
-  var context = new SpiPageContext(pageName, true);
+  var context;
+  function setContext(pageName) {
+    context = new SpiPageContext(cleanPageName(pageName), pageName === mw.config.get("wgPageName"));
+  }
 
   // src/state.ts
   class CaseState {
@@ -1721,7 +1769,8 @@
             lockHideNames: false
           },
           accounts: [],
-          userlocks: new Map,
+          userLocks: new Map,
+          userBlocks: new Map,
           master: context.caseName,
           altmaster: context.caseName,
           lockcomment: ""
@@ -1884,6 +1933,84 @@
     <div v-if="enabled && !empty">
       <slot />
     </div>
+  `
+  });
+  // src/ui/views/top/actionContent.ts
+  var ActionContentComponent = defineComponent({
+    props: {
+      name: { type: String, required: true },
+      caseActions: { type: Object, required: true },
+      state: { type: Object, required: true },
+      menuItems: { type: Array, required: true },
+      currentStatus: { type: String, required: true }
+    },
+    emits: [
+      "update-section-selection",
+      "block-username-change",
+      "link-username-change",
+      "link-username-selected",
+      "remove-rows",
+      "add-row",
+      "fetch-rows"
+    ],
+    methods: {
+      handleUpdateSectionSelection(selection) {
+        this.$emit("update-section-selection", selection);
+      },
+      handleBlockUsernameChange(username, index) {
+        this.$emit("block-username-change", username, index);
+      },
+      handleLinkUsernameChange(username, index) {
+        this.$emit("link-username-change", username, index);
+      },
+      handleLinkUsernameSelected(data, index) {
+        this.$emit("link-username-selected", data, index);
+      },
+      handleRemoveRows(indexes) {
+        this.$emit("remove-rows", indexes);
+      },
+      handleAddRow(row) {
+        this.$emit("add-row", row);
+      },
+      handleFetchRows() {
+        this.$emit("fetch-rows");
+      }
+    },
+    computed: {
+      caseName() {
+        return context.caseName;
+      }
+    },
+    template: `
+    <!-- Sections special case -->
+    <div v-if="name === 'sections'">
+      <cdx-select :menu-items="menuItems" v-model:selected="caseActions.sections.data.section"
+                  @update:selected="handleUpdateSectionSelection" />
+    </div>
+
+    <!-- Other actions -->
+    <comment-action v-else-if="name === 'comment'" v-model:enabled="caseActions.comment.enabled"
+                    v-model:text="caseActions.comment.data.text" />
+    <change-status-action v-else-if="name === 'status'" v-model:enabled="caseActions.status.enabled"
+                          :old-status="caseActions.status.data.old" v-model:new-status="caseActions.status.data.new" />
+    <block-action v-else-if="name === 'block'" v-model:enabled="caseActions.block.enabled"
+                  v-model="caseActions.block.data.accounts" v-model:block-options="caseActions.block.data.options"
+                  :user-locks="caseActions.block.data.userLocks" :user-blocks="caseActions.block.data.userBlocks"
+                  @username-changed="handleBlockUsernameChange"
+                  @remove-rows="handleRemoveRows" @add-row="handleAddRow"
+                  @fetch-rows="handleFetchRows" />
+    <link-action v-else-if="name === 'link'" v-model:enabled="caseActions.link.enabled"
+                 v-model="caseActions.link.data.rows" :case-name="caseName"
+                 @user-selected="handleLinkUsernameSelected" @username-changed="handleLinkUsernameChange"
+                 @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
+    <management-action v-else-if="name === 'management'" v-model:enabled="caseActions.management.enabled"
+                       v-model:flags="caseActions.management.data.flags" />
+    <move-action v-else-if="name === 'move'" v-model:enabled="caseActions.move.enabled"
+                 v-model:target="caseActions.move.data.target"
+                 :selection="state.selectedSection" :archive-enabled="caseActions.archive.enabled" />
+    <archive-action v-else-if="name === 'archive'" v-model:enabled="caseActions.archive.enabled"
+                    :selection="caseActions.sections.data.section"
+                    :status="currentStatus" />
   `
   });
   // src/ui/views/userLookup.ts
@@ -2136,13 +2263,16 @@
       pageText = `<noinclude>__TOC__</noinclude>
 ` + archiveNoticeText + pageText;
     }
-    await spiHelperEditPage({
-      title: context.pageName,
+    const newRevId = await context.edit({
       newText: pageText,
       summary: "Adding archive notice",
       watch: spiHelperSettings.watch.case,
-      watchExpiry: spiHelperSettings.expiry.case
+      watchExpiry: spiHelperSettings.expiry.case,
+      baseRevId: context.startingRevId
     });
+    if (newRevId !== null) {
+      context.startingRevId = newRevId;
+    }
   }
 
   // src/ui/utils.ts
@@ -2286,6 +2416,26 @@
     return row;
   }
   var isMenuGroupData = (item) => ("items" in item);
+  async function setSockRowBlock(opts) {
+    const { sock, block: blockSetting, userPage, defaultBlock, state } = opts;
+    const row = updateSockRowSettings({
+      row: sock,
+      defaultBlock,
+      currentBlock: blockSetting,
+      currentTags: userPage
+    });
+    let isLocked = null;
+    const globalUser = await spiHelperGetGlobalUser(row.username);
+    if (globalUser) {
+      isLocked = globalUser.locked;
+      if (isLocked || state.archiveNotice?.crosswiki) {
+        row.lock = true;
+      } else {
+        row.lock = false;
+      }
+    }
+    return { row, isLocked };
+  }
 
   // src/ui/views/top/utils/archive.ts
   function getManagementFlagsFromArchiveNotice(archiveNotice) {
@@ -2308,7 +2458,7 @@
     return flags;
   }
   // src/ui/views/top/utils/section.ts
-  async function prefetchSockRowsForSelection(selection, state, userlocks) {
+  async function prefetchSockRowsForSelection(selection, state, userLocks, userBlocks) {
     if (!selection) {
       return [];
     }
@@ -2326,24 +2476,22 @@
     ]);
     const userPromises = [...likelySocks, ...possibleSocks].map(async (sock) => {
       const blockSetting = blockSettings.get(sock.username);
-      const userPage = userPages.get(`User:${sock.username}`);
-      const row = updateSockRowSettings({
-        row: sock,
-        defaultBlock: likelySet.has(sock),
-        currentBlock: blockSetting,
-        currentTags: userPage
-      });
-      const globalUser = await spiHelperGetGlobalUser(row.username);
-      if (globalUser) {
-        const locked = globalUser.locked;
-        userlocks.set(sock.username, locked);
-        if (locked) {
-          row.lock = true;
-        } else if (!state.archiveNotice?.crosswiki) {
-          row.lock = false;
-        }
+      if (blockSetting !== undefined) {
+        userBlocks.set(sock.username, blockSetting);
       }
-      return row;
+      const userPage = userPages.get(`User:${sock.username}`);
+      const defaultBlock = likelySet.has(sock);
+      const { row: newRow, isLocked } = await setSockRowBlock({
+        sock,
+        block: blockSetting,
+        defaultBlock,
+        userPage,
+        state
+      });
+      if (isLocked !== null) {
+        userLocks.set(sock.username, isLocked);
+      }
+      return newRow;
     });
     return await Promise.all(userPromises);
   }
@@ -2840,7 +2988,7 @@ $2`);
       createonly: false,
       watch: spiHelperSettings.watch.tagged,
       watchExpiry: spiHelperSettings.expiry.tagged
-    });
+    }).then((result) => result !== null);
   }
   async function createSockCategories(opts) {
     const { sockRows, master, altmaster } = opts;
@@ -2941,6 +3089,13 @@ $2`);
   }
   async function spiHelperProcessBlockRow(opts) {
     const { sock, userBlock, userTalkContent, blockOptions, noticeType, sockmaster } = opts;
+    if (userBlock !== undefined && !blockOptions.override) {
+      new VueMessage({
+        type: "warning",
+        content: `Block target ${sock.username} is already blocked. Check the "override existing blocks" box to re-block them`
+      }).show();
+      return true;
+    }
     const blockReason = userBlock?.reason;
     if (!spiHelperIsCheckuser() && blockOptions.override && blockReason && spiHelperCUBlockRegex.exec(blockReason)) {
       const prompt = "User " + sock.username + ` is CheckUser-blocked, are you SURE you want to re-block them?
@@ -3077,7 +3232,7 @@ $2`);
       summary: `${summaryPrefix} from [[${context.prefixedName}]]`,
       watch: spiHelperSettings.watch.archive,
       watchExpiry: spiHelperSettings.expiry.archive
-    });
+    }) !== null;
     if (!archiveSuccess) {
       new VueMessage({ type: "error", content: "Failed to update archive, not removing sections from case page" }).show();
       return;
@@ -3122,7 +3277,7 @@ $2`);
       createonly: false,
       watch: spiHelperSettings.watch.archive,
       watchExpiry: spiHelperSettings.expiry.archive
-    });
+    }) !== null;
     if (!archiveSuccess) {
       message.content = "Failed to update archive, not removing section from case page";
       message.show();
@@ -3198,7 +3353,7 @@ $1`);
       summary: `Global lock request for ${heading}`,
       createonly: false,
       watch: "nochange"
-    });
+    }) !== null;
     if (editSuccess) {
       const linkHtml = buildTitleLinkHtml(`meta:Steward requests/Global#${headingText}`, "filed");
       new VueMessage({ type: "success", content: `Global lock request ${linkHtml} successfully!`, isHtml: true }).show();
@@ -3332,7 +3487,7 @@ $1`);
     if (!context.isArchive && targetText !== startText) {
       const sectionId = state.selectedSection.type === "all" ? null : state.selectedSection.section.id;
       const editSummary = formatEditSummary(editSummaryActions);
-      const editSucceeded = await context.edit({
+      const newRevId = await context.edit({
         newText: targetText,
         summary: editSummary,
         watch: spiHelperSettings.watch.case,
@@ -3340,11 +3495,12 @@ $1`);
         baseRevId: context.startingRevId,
         sectionId
       });
-      if (!editSucceeded) {
+      if (newRevId === null) {
         new VueMessage({ type: "error", content: "Failed to save edit" }).show();
+      } else {
+        context.startingRevId = newRevId;
       }
     }
-    await context.refreshRevId();
     if (actions.archive.enabled) {
       switch (state.selectedSection.type) {
         case "all": {
@@ -3381,18 +3537,7 @@ $1`);
     }
     const [blockedUsers, taggedUsers, lockedUsers] = await userActionsPromise;
     if (spiHelperSettings.log.enabled) {
-      if (blockedUsers.length > 0) {
-        logMessage += `
-** blocked ` + blockedUsers.filter(Boolean).join(", ");
-      }
-      if (taggedUsers.length > 0) {
-        logMessage += `
-** tagged ` + taggedUsers.filter(Boolean).join(", ");
-      }
-      if (lockedUsers.length > 0) {
-        logMessage += `
-** requested locks for ` + lockedUsers.map((user) => `{{noping|1=${user}}}`).join(", ");
-      }
+      logMessage += buildUserActionLogMessage({ blockedUsers, taggedUsers, lockedUsers });
       await spiHelperLog(logMessage);
     }
     await spiHelperPurgePage(context.pageName);
@@ -3493,7 +3638,7 @@ ${comment}
     const tagPromises = [];
     let lockPromise = Promise.resolve([]);
     const {
-      userlocks: userLocks,
+      userLocks,
       options: blockOptions,
       lockcomment: lockComment,
       master,
@@ -3505,12 +3650,12 @@ ${comment}
     const blockAvailable = spiHelperIsAdmin() && !blockOptions.noBlock;
     const allUsernames = sockRows.map((user) => user.username);
     const allUserTalkPages = allUsernames.map((username) => `User talk:${username}`);
-    const fetchMessage = new VueMessage({ type: "notice", content: "Fetching user blocks and talkpages" }).show();
+    const fetchMessage = new VueMessage({ type: "notice", content: "Fetching user blocks and userpages" }).show();
     const [userBlocks, userTalkPages] = await Promise.all([
       spiHelperGetBulkUserBlockSettings(allUsernames),
       spiHelperGetBulkPageText(allUserTalkPages)
     ]);
-    fetchMessage.update({ type: "success", content: "Got previous blocks and talkpages " });
+    fetchMessage.update({ type: "success", content: "Got previous blocks and userpages" });
     const tagSock = async (sockRow, blocked) => {
       const tagSuccess = await spiHelperTagUser({
         sock: sockRow,
@@ -3653,8 +3798,8 @@ ${comment}
       }
     },
     template: `
-    <div id="spiHelper-topView-Card" v-if="open">
-      <div id="spiHelper-topView-Header">
+    <div id="spiHelper-topView" class="spiHelper-mainCard" v-if="open">
+      <div id="spiHelper-topView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
           <cdx-button aria-label="Give feedback" weight="quiet" @click="feedbackDialog.launch()">
             <cdx-icon :icon="cdxIconFeedback" />
@@ -3733,8 +3878,8 @@ ${comment}
       </div>
       <submit-form v-if="caseActions.sections.data.section !== null" v-model:socks="caseActions.block.data.accounts"
                    v-model:master="caseActions.block.data.master" v-model:altmaster="caseActions.block.data.altmaster"
-                   v-model:lock-comment="caseActions.block.data.lockcomment" :locks="caseActions.block.data.userlocks"
-                   :all-disabled="allDisabled" :state="state"
+                   v-model:lock-comment="caseActions.block.data.lockcomment" :locks="caseActions.block.data.userLocks"
+                   :all-disabled="allDisabled" :state="state" :action-name="'mainActions'" :check-conflict="true"
                    @on-submit="onSubmitActions" />
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
       <div id="messageRow">
@@ -3761,25 +3906,9 @@ ${comment}
         }
         spiHelperSettings.interface.pinned = !newVal;
       },
-      open(newVal) {
+      async open(newVal) {
         if (newVal) {
-          if (!this.state.archiveNotice) {
-            spiHelperParseArchiveNotice(context.pageName.replace(/\/Archive/, "")).then((archiveNoticeResult) => {
-              if (archiveNoticeResult === null) {
-                this.state.archiveNotice = new ParsedArchiveNotice({ username: context.caseName });
-                new VueMessage({
-                  type: "warning",
-                  content: "Can't find archivenotice template! Automatically adding the archive notice to the page."
-                }).show();
-                spiHelperAddArchiveNotice(this.state);
-              } else {
-                this.state.archiveNotice = archiveNoticeResult;
-              }
-              this.handleAddRow();
-            }).catch(() => {
-              console.error("topView failed in spiHelperParseArchiveNotice");
-            });
-          }
+          await this.ensureArchiveNotice();
         } else {
           saveOptions();
         }
@@ -3789,6 +3918,7 @@ ${comment}
           const firstSection = newValue[0];
           if (firstSection) {
             this.caseActions.sections.data.section = firstSection.id;
+            await this.ensureArchiveNotice();
             await this.loadNewSection(firstSection);
           }
         }
@@ -3883,7 +4013,7 @@ ${comment}
           return acc;
         }, []);
         this.handleRemoveRows(removeIndexes);
-        const allRows = await prefetchSockRowsForSelection(selection, this.state, this.caseActions.block.data.userlocks);
+        const allRows = await prefetchSockRowsForSelection(selection, this.state, this.caseActions.block.data.userLocks, this.caseActions.block.data.userBlocks);
         this.sectionAccountNames = new Set(this.massAddSockRows(allRows).map((row) => row.username));
       },
       async onSubmitActions() {
@@ -3964,6 +4094,19 @@ ${comment}
           }
         });
         return filteredRows;
+      },
+      async ensureArchiveNotice() {
+        const archiveNoticeResult = await spiHelperParseArchiveNotice(context.pageName.replace(/\/Archive/, ""), this.state);
+        if (archiveNoticeResult === null) {
+          this.state.archiveNotice = new ParsedArchiveNotice({ username: context.caseName });
+          new VueMessage({
+            type: "warning",
+            content: "Can't find archivenotice template! Automatically adding the archive notice to the page."
+          }).show();
+          spiHelperAddArchiveNotice(this.state);
+        } else {
+          this.state.archiveNotice = archiveNoticeResult;
+        }
       }
     },
     mounted() {
@@ -4003,6 +4146,398 @@ ${comment}
       }
       if (this._beforeUnloadHandler) {
         window.removeEventListener("beforeunload", this._beforeUnloadHandler);
+      }
+    }
+  });
+  // src/ui/views/top/actions/archiveAction.ts
+  var ArchiveActionComponent = defineComponent({
+    props: {
+      enabled: { type: Boolean, required: true },
+      status: { type: String, required: true },
+      selection: { type: Object, required: true }
+    },
+    emits: ["update:enabled"],
+    template: `
+    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event);" :empty="true" :disabled="badStatus" />
+    <cdx-message v-if="badStatus" type="warning" :inline="true">
+      The selected section status is '{{ status }}'. If you'd like to archive, please change it to 'closed'
+    </cdx-message>
+  `,
+    computed: {
+      badStatus() {
+        return this.selection !== "all" && this.status !== "closed";
+      }
+    }
+  });
+  // src/ui/views/top/actions/blockAction.ts
+  var BlockActionComponent = defineComponent({
+    props: {
+      modelValue: { type: Array, required: true },
+      blockOptions: { type: Object, required: true },
+      userLocks: { type: Map, required: true },
+      userBlocks: { type: Map, required: true },
+      allowFetch: { type: Boolean, default: true },
+      enabled: { type: Boolean, required: true }
+    },
+    data() {
+      const columns = [
+        { id: "username", label: "Username" },
+        { id: "tag", label: "Tag" },
+        { id: "altmaster", label: "Alternate Master Tag" },
+        { id: "lock", label: "Request Lock" }
+      ];
+      const isAdmin = spiHelperIsAdmin();
+      const isCheckuser = spiHelperIsCheckuser();
+      const isClerk = spiHelperIsClerk();
+      if (isAdmin) {
+        columns.splice(1, 0, ...[
+          { id: "block", label: "Block" },
+          { id: "duration", label: "Duration" },
+          { id: "acb", label: "ACB" },
+          { id: "abao", label: "AB/AO" },
+          { id: "ntp", label: "NTP" },
+          { id: "nem", label: "NEM" }
+        ]);
+      }
+      const tagOptions = [
+        { value: "none", label: "None" },
+        {
+          label: "Sock",
+          items: [
+            { value: "Ssuspected", label: "S-Suspected" },
+            { value: "Sproven", label: "S-Proven" },
+            { value: "Sconfirmed", label: "S-Confirmed" }
+          ]
+        },
+        {
+          label: "Master",
+          items: [
+            { value: "Mblocked", label: "M-Blocked" },
+            { value: "Mconfirmed", label: "M-Confirmed" },
+            { value: "Mbanned", label: "M-3X Banned" }
+          ]
+        }
+      ];
+      const altmasterOptions = [
+        { value: "none", label: "None" },
+        { value: "suspected", label: "Suspected" },
+        { value: "proven", label: "Proven" }
+      ];
+      const allTagSelections = {
+        tag: "none",
+        altmaster: "none"
+      };
+      const selectedRows = [];
+      const topButtonActions = { copied: false, fetched: false };
+      return {
+        columns,
+        tagOptions,
+        altmasterOptions,
+        allTagSelections,
+        selectedRows,
+        topButtonActions,
+        isAdmin,
+        isCheckuser,
+        isClerk,
+        cdxIconCopy: p4,
+        cdxIconDownload: u4,
+        cdxIconTrash: F8
+      };
+    },
+    emits: ["update:enabled", "update:modelValue", "update:blockOptions", "removeRows", "addRow", "userSelected", "usernameChanged", "fetchRows"],
+    template: `
+    <!--suppress VueUnrecognizedDirective, VueUnrecognizedSlot -->
+    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
+      <div role="group" aria-labelledby="spiHelper-blockoptions-group-label" class="spiHelper-blockoptions-group">
+        <cdx-label id="spiHelper-blockoptions-group-label">
+          {{ isAdmin ? 'Block Options' : 'Tag Options' }}
+        </cdx-label>
+
+        <cdx-checkbox v-model="blockOptions.noBlock" v-if="isAdmin">
+          Do not make any blocks
+        </cdx-checkbox>
+        <cdx-checkbox v-model="blockOptions.override" v-if="isAdmin" :disabled="blockOptions.noBlock">
+          Override any existing blocks
+        </cdx-checkbox>
+        <cdx-checkbox v-model="blockOptions.tagUnattached" v-if="isClerk">
+          Tag accounts without an attached local account
+        </cdx-checkbox>
+        <cdx-checkbox v-model="blockOptions.cuBlock" v-if="isCheckuser">
+          Mark blocks as Checkuser blocks
+        </cdx-checkbox>
+        <cdx-checkbox v-model="blockOptions.cuBlockOnly" v-if="isCheckuser" :disabled="!blockOptions.cuBlock">
+          <span v-pre>
+            Suppress the usual block summary and only use {{checkuserblock-account}} and {{checkuserblock}}
+          </span>
+        </cdx-checkbox>
+        <cdx-checkbox v-model="blockOptions.addMasterNotice" v-if="isAdmin">
+          Add talk page notice when (re)blocking the sockmaster
+        </cdx-checkbox>
+        <cdx-checkbox v-model="blockOptions.addSockNotice" v-if="isAdmin">
+          Add talk page notice when blocking socks
+        </cdx-checkbox>
+        <cdx-checkbox v-model="blockOptions.blankTalk" v-if="isAdmin">
+          Blank the talk page when adding talk notices
+        </cdx-checkbox>
+        <cdx-checkbox v-model="blockOptions.lockHideNames">
+          Hide usernames when requesting global locks
+        </cdx-checkbox>
+      </div>
+      <cdx-table caption="Socks" :show-vertical-borders="true" :use-row-selection="true"
+                 :columns="columns" :data="modelValue" v-model:selected-rows="selectedRows"
+                 class="spiHelper-sockTable">
+        <template #header>
+          <div class="header-content">
+            <span>
+              {{ selectedRows.length }} sock{{ selectedRows.length === 1 ? '' : 's' }} selected
+            </span>
+            <span class="header-content-buttons">
+              <cdx-button @click="copySocks" aria-label="Copy socks">
+                <cdx-icon :icon="cdxIconCopy" />
+              </cdx-button>
+              <cdx-message v-if="topButtonActions.copied" type="success" :fade-in="true" :auto-dismiss="2000"
+                           @user-dismissed="onMessageDismissed('copied')" @auto-dismissed="onMessageDismissed('copied')"
+                           :inline="true">Copied!</cdx-message>
+              <cdx-button v-if="allowFetch" @click="fetchSocks" aria-label="Fetch socks from comment">
+                <cdx-icon :icon="cdxIconDownload" />
+              </cdx-button>
+              <cdx-message v-if="topButtonActions.fetched" type="success" :fade-in="true" :auto-dismiss="2000"
+                           @user-dismissed="onMessageDismissed('fetched')"
+                           @auto-dismissed="onMessageDismissed('fetched')"
+                           :inline="true">Fetched from comment!</cdx-message>
+              <cdx-button @click="removeSocks" action="destructive" aria-label="Remove selected rows">
+                <cdx-icon :icon="cdxIconTrash" />
+              </cdx-button>
+            </span>
+          </div>
+        </template>
+        <template #thead>
+          <thead>
+          <tr>
+            <th class="cdx-table__table__select-rows" :rowspan="isAdmin ? 2 : 1">
+              <cdx-checkbox
+                  v-model="selectAll"
+                  :hide-label="true"
+                  :indeterminate="selectAllIndeterminate"
+                  @update:model-value="handleSelectAll"
+              >
+                Select all
+              </cdx-checkbox>
+            </th>
+            <th scope="col" :rowspan="isAdmin ? 2 : 1">Username</th>
+            <th scope="col" rowspan="2" v-if="isAdmin" class="checkboxHeader">Block</th>
+            <th scope="col" rowspan="2" v-if="isAdmin" style="width: 300px;">Duration</th>
+            <th scope="colgroup" colspan="4" v-if="isAdmin">Block Settings</th>
+            <th scope="col" :rowspan="isAdmin ? 2 : 1" class="selectHeader">Tag</th>
+            <th scope="col" :rowspan="isAdmin ? 2 : 1" class="selectHeader">Alternate Master Tag</th>
+            <th scope="col" :rowspan="isAdmin ? 2 : 1" class="checkboxHeader">Lock</th>
+          </tr>
+          <tr v-if="isAdmin" class="blockSettingsRow">
+            <th scope="col" v-tooltip="'Account Creation Blocked'"
+                class="spihelper-hovertext cdx-table__table__cell--align-center">
+              ACB
+            </th>
+            <th scope="col" class="spihelper-hovertext cdx-table__table__cell--align-center">
+              <span v-tooltip="'Autoblock (for logged-in users)'">AB</span>
+              /
+              <span v-tooltip="'Anonymous-only (for IPs)'">AO</span>
+            </th>
+            <th scope="col" v-tooltip="'Disable talkpage access'"
+                class="spihelper-hovertext cdx-table__table__cell--align-center">
+              NTP
+            </th>
+            <th scope="col" v-tooltip="'Disable email'"
+                class="spihelper-hovertext cdx-table__table__cell--align-center">
+              NEM
+            </th>
+          </tr>
+          <tr class="setAllRow">
+            <th scope="col" style="border-right: none;" />
+            <!-- Do this instead of rowspan="2" to align it properly -->
+            <th scope="col" style="min-width: 150px;">(all users)</th>
+            <th scope="col" v-if="isAdmin">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAll('block', $event)">
+                Set all block
+              </cdx-checkbox>
+            </th>
+            <th scope="col" v-if="isAdmin">
+              <expiry-input placeholder="Duration" @update:model-value="setAll('duration', $event)" />
+            </th>
+
+            <th scope="col" v-if="isAdmin">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAll('acb', $event)">
+                Set all account creation blocked
+              </cdx-checkbox>
+            </th>
+            <th scope="col" v-if="isAdmin">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAll('abao', $event)">
+                Set all autoblock/anon-only
+              </cdx-checkbox>
+            </th>
+            <th scope="col" v-if="isAdmin">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAll('ntp', $event)">
+                Set all no talk page
+              </cdx-checkbox>
+            </th>
+            <th scope="col" v-if="isAdmin">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAll('nem', $event)">
+                Set all no email
+              </cdx-checkbox>
+            </th>
+
+            <th scope="col" class="selectTagOptions">
+              <cdx-select :menu-items="tagOptions" v-model:selected="allTagSelections.tag"
+                          @update:selected="setAll('tag', $event)" />
+            </th>
+            <th scope="col" class="selectTagOptions">
+              <cdx-select :menu-items="altmasterOptions" v-model:selected="allTagSelections.altmaster"
+                          @update:selected="setAll('altmaster', $event)" />
+            </th>
+
+            <th scope="col">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAll('lock', $event)">
+                Set all request locks
+              </cdx-checkbox>
+            </th>
+          </tr>
+          </thead>
+        </template>
+        <template #item-username="{ item, row }">
+          <user-lookup v-model="row.username" @user-selected="handleUserSelected($event, row)"
+                       @update:model-value="handleUsernameChange($event, row)" />
+        </template>
+
+        <template #item-block="{ item, row }">
+          <cdx-checkbox :hide-label="true" v-model="row.block" :disabled="blockOptions.noBlock || userBlocks.get(row.username) !== undefined">Block</cdx-checkbox>
+        </template>
+
+        <template #item-duration="{ item, row }">
+          <expiry-input v-model="row.duration" :shortened="true" :auto-dismiss="true" placeholder="Duration" />
+        </template>
+
+        <template #item-acb="{ item, row }">
+          <cdx-checkbox :hide-label="true" v-model="row.acb" :disabled="!blockOptions.override && userBlocks.get(row.username)?.acb">Account creation blocked</cdx-checkbox>
+        </template>
+        <template #item-abao="{ item, row }">
+          <cdx-checkbox :hide-label="true" v-model="row.abao" :disabled="!blockOptions.override && userBlocks.get(row.username)?.abao">Autoblock/Anon-only</cdx-checkbox>
+        </template>
+        <template #item-ntp="{ item, row }">
+          <cdx-checkbox :hide-label="true" v-model="row.ntp" :disabled="!blockOptions.override && userBlocks.get(row.username)?.ntp">No talk page</cdx-checkbox>
+        </template>
+        <template #item-nem="{ item, row }">
+          <cdx-checkbox :hide-label="true" v-model="row.nem" :disabled="!blockOptions.override && userBlocks.get(row.username)?.nem">No email</cdx-checkbox>
+        </template>
+
+        <template #item-tag="{ item, row }">
+          <cdx-select :menu-items="tagOptions" v-model:selected="row.tag"
+                      :disabled="isNonRegisteredAccount(row.username)" class="tagOptions" />
+        </template>
+
+        <template #item-altmaster="{ item, row }">
+          <cdx-select :menu-items="altmasterOptions" v-model:selected="row.altmaster"
+                      :disabled="isNonRegisteredAccount(row.username)" />
+        </template>
+
+        <template #item-lock="{ item, row }">
+          <cdx-checkbox :hide-label="true" v-model="row.lock"
+                        :disabled="isNonRegisteredAccount(row.username) || userLocks.get(row.username) === true">
+            Request lock
+          </cdx-checkbox>
+        </template>
+
+        <template #footer>
+          <cdx-button @click="addDefaultRow">Add Row</cdx-button>
+        </template>
+      </cdx-table>
+    </action-container>
+  `,
+    computed: {
+      selectAll() {
+        return this.selectedRows.length === this.modelValue.length;
+      },
+      selectAllIndeterminate() {
+        if (this.selectedRows.length === this.modelValue.length) {
+          return false;
+        } else
+          return this.selectedRows.length !== 0;
+      }
+    },
+    methods: {
+      isNonRegisteredAccount,
+      async copySocks() {
+        if (this.selectedRows.length === 0) {
+          return;
+        }
+        let text = "{{sock list";
+        this.selectedRows.forEach((row, index) => {
+          const rowData = this.modelValue[row];
+          if (!rowData)
+            return;
+          text += `|${index + 1}=${rowData.username}`;
+        });
+        text += "}}";
+        await navigator.clipboard.writeText(text);
+        this.topButtonActions.copied = true;
+      },
+      onMessageDismissed(actionType) {
+        setTimeout(() => {
+          this.topButtonActions[actionType] = false;
+        }, 200);
+      },
+      removeSocks() {
+        this.$emit("removeRows", this.selectedRows);
+        this.selectedRows = [];
+      },
+      addDefaultRow() {
+        this.$emit("addRow");
+      },
+      handleSelectAll(newValue) {
+        this.selectAllIndeterminate = false;
+        if (newValue) {
+          this.selectedRows = this.modelValue.map((_row, index) => index);
+        } else {
+          this.selectedRows = [];
+        }
+      },
+      handleUserSelected(data, row) {
+        if (data.blockid !== undefined) {
+          const ABAO = mw.util.isIPAddress(data.name) ? data.blockanononly : data.blockautoblocking;
+          this.userBlocks.set(row.username, {
+            username: row.username,
+            duration: data.blockexpiry ?? "",
+            abao: ABAO ?? false,
+            acb: data.blocknocreate ?? false,
+            ntp: data.blockowntalk ?? false,
+            nem: data.blockemail ?? false,
+            reason: ""
+          });
+        }
+        HandleUserSelected(data, row);
+      },
+      handleUsernameChange(username, row) {
+        this.$emit("usernameChanged", username, this.modelValue.findIndex((item) => item.username === row.username));
+      },
+      setAll(key, value) {
+        for (const row of this.modelValue) {
+          if (key === "lock" && this.userLocks.get(row.username) === true) {
+            continue;
+          } else if (key === "block" && this.userBlocks.get(row.username) !== undefined) {
+            continue;
+          } else if (key === "acb" && this.userBlocks.get(row.username)?.acb) {
+            continue;
+          } else if (key === "abao" && this.userBlocks.get(row.username)?.abao) {
+            continue;
+          } else if (key === "ntp" && this.userBlocks.get(row.username)?.ntp) {
+            continue;
+          } else if (key === "nem" && this.userBlocks.get(row.username)?.nem) {
+            continue;
+          }
+          row[key] = value;
+        }
+      },
+      fetchSocks() {
+        this.topButtonActions.fetched = true;
+        this.$emit("fetchRows");
       }
     }
   });
@@ -4277,365 +4812,17 @@ ${comment}
     },
     methods: {}
   });
-  // src/ui/views/top/actions/blockAction.ts
-  var BlockActionComponent = defineComponent({
-    props: {
-      modelValue: { type: Array, required: true },
-      blockOptions: { type: Object, required: true },
-      userLocks: { type: Map, required: true },
-      enabled: { type: Boolean, required: true }
-    },
-    data() {
-      const columns = [
-        { id: "username", label: "Username" },
-        { id: "tag", label: "Tag" },
-        { id: "altmaster", label: "Alternate Master Tag" },
-        { id: "lock", label: "Request Lock" }
-      ];
-      const isAdmin = spiHelperIsAdmin();
-      const isCheckuser = spiHelperIsCheckuser();
-      const isClerk = spiHelperIsClerk();
-      if (isAdmin) {
-        columns.splice(1, 0, ...[
-          { id: "block", label: "Block" },
-          { id: "duration", label: "Duration" },
-          { id: "acb", label: "ACB" },
-          { id: "abao", label: "AB/AO" },
-          { id: "ntp", label: "NTP" },
-          { id: "nem", label: "NEM" }
-        ]);
-      }
-      const tagOptions = [
-        { value: "none", label: "None" },
-        {
-          label: "Sock",
-          items: [
-            { value: "Ssuspected", label: "S-Suspected" },
-            { value: "Sproven", label: "S-Proven" },
-            { value: "Sconfirmed", label: "S-Confirmed" }
-          ]
-        },
-        {
-          label: "Master",
-          items: [
-            { value: "Mblocked", label: "M-Blocked" },
-            { value: "Mconfirmed", label: "M-Confirmed" },
-            { value: "Mbanned", label: "M-3X Banned" }
-          ]
-        }
-      ];
-      const altmasterOptions = [
-        { value: "none", label: "None" },
-        { value: "suspected", label: "Suspected" },
-        { value: "proven", label: "Proven" }
-      ];
-      const allTagSelections = {
-        tag: "none",
-        altmaster: "none"
-      };
-      const selectedRows = [];
-      const topButtonActions = { copied: false, fetched: false };
-      return {
-        columns,
-        tagOptions,
-        altmasterOptions,
-        allTagSelections,
-        selectedRows,
-        topButtonActions,
-        isAdmin,
-        isCheckuser,
-        isClerk,
-        cdxIconCopy: p4,
-        cdxIconDownload: u4,
-        cdxIconTrash: F8
-      };
-    },
-    emits: ["update:enabled", "update:modelValue", "update:blockOptions", "removeRows", "addRow", "userSelected", "usernameChanged", "fetchRows"],
-    template: `
-    <!--suppress VueUnrecognizedDirective, VueUnrecognizedSlot -->
-    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
-      <div role="group" aria-labelledby="spiHelper-blockoptions-group-label" class="spiHelper-blockoptions-group">
-        <cdx-label id="spiHelper-blockoptions-group-label">
-          {{ isAdmin ? 'Block Options' : 'Tag Options' }}
-        </cdx-label>
-
-        <cdx-checkbox v-model="blockOptions.noBlock" v-if="isAdmin">
-          Do not make any blocks
-        </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.override" v-if="isAdmin" :disabled="blockOptions.noBlock">
-          Override any existing blocks
-        </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.tagUnattached" v-if="isClerk">
-          Tag accounts without an attached local account
-        </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.cuBlock" v-if="isCheckuser">
-          Mark blocks as Checkuser blocks
-        </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.cuBlockOnly" v-if="isCheckuser" :disabled="!blockOptions.cuBlock">
-          <span v-pre>
-            Suppress the usual block summary and only use {{checkuserblock-account}} and {{checkuserblock}}
-          </span>
-        </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.addMasterNotice" v-if="isAdmin">
-          Add talk page notice when (re)blocking the sockmaster
-        </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.addSockNotice" v-if="isAdmin">
-          Add talk page notice when blocking socks
-        </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.blankTalk" v-if="isAdmin">
-          Blank the talk page when adding talk notices
-        </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.lockHideNames">
-          Hide usernames when requesting global locks
-        </cdx-checkbox>
-      </div>
-      <cdx-table caption="Socks" :show-vertical-borders="true" :use-row-selection="true"
-                 :columns="columns" :data="modelValue" v-model:selected-rows="selectedRows"
-                 class="spiHelper-sockTable">
-        <template #header>
-          <div class="header-content">
-            <span>
-              {{ selectedRows.length }} sock{{ selectedRows.length === 1 ? '' : 's' }} selected
-            </span>
-            <span class="header-content-buttons">
-              <cdx-button @click="copySocks" aria-label="Copy socks">
-                <cdx-icon :icon="cdxIconCopy" />
-              </cdx-button>
-              <cdx-message v-if="topButtonActions.copied" type="success" :fade-in="true" :auto-dismiss="2000"
-                           @user-dismissed="onMessageDismissed('copied')" @auto-dismissed="onMessageDismissed('copied')"
-                           :inline="true">Copied!</cdx-message>
-              <cdx-button @click="fetchSocks" aria-label="Fetch socks from comment">
-                <cdx-icon :icon="cdxIconDownload" />
-              </cdx-button>
-              <cdx-message v-if="topButtonActions.fetched" type="success" :fade-in="true" :auto-dismiss="2000"
-                           @user-dismissed="onMessageDismissed('fetched')"
-                           @auto-dismissed="onMessageDismissed('fetched')"
-                           :inline="true">Fetched from comment!</cdx-message>
-              <cdx-button @click="removeSocks" action="destructive" aria-label="Remove selected rows">
-                <cdx-icon :icon="cdxIconTrash" />
-              </cdx-button>
-            </span>
-          </div>
-        </template>
-        <template #thead>
-          <thead>
-          <tr>
-            <th class="cdx-table__table__select-rows" :rowspan="isAdmin ? 2 : 1">
-              <cdx-checkbox
-                  v-model="selectAll"
-                  :hide-label="true"
-                  :indeterminate="selectAllIndeterminate"
-                  @update:model-value="handleSelectAll"
-              >
-                Select all
-              </cdx-checkbox>
-            </th>
-            <th scope="col" :rowspan="isAdmin ? 2 : 1">Username</th>
-            <th scope="col" rowspan="2" v-if="isAdmin" class="checkboxHeader">Block</th>
-            <th scope="col" rowspan="2" v-if="isAdmin" style="width: 300px;">Duration</th>
-            <th scope="colgroup" colspan="4" v-if="isAdmin">Block Settings</th>
-            <th scope="col" :rowspan="isAdmin ? 2 : 1" class="selectHeader">Tag</th>
-            <th scope="col" :rowspan="isAdmin ? 2 : 1" class="selectHeader">Alternate Master Tag</th>
-            <th scope="col" :rowspan="isAdmin ? 2 : 1" class="checkboxHeader">Lock</th>
-          </tr>
-          <tr v-if="isAdmin" class="blockSettingsRow">
-            <th scope="col" v-tooltip="'Account Creation Blocked'"
-                class="spihelper-hovertext cdx-table__table__cell--align-center">
-              ACB
-            </th>
-            <th scope="col" class="spihelper-hovertext cdx-table__table__cell--align-center">
-              <span v-tooltip="'Autoblock (for logged-in users)'">AB</span>
-              /
-              <span v-tooltip="'Anonymous-only (for IPs)'">AO</span>
-            </th>
-            <th scope="col" v-tooltip="'Disable talkpage access'"
-                class="spihelper-hovertext cdx-table__table__cell--align-center">
-              NTP
-            </th>
-            <th scope="col" v-tooltip="'Disable email'"
-                class="spihelper-hovertext cdx-table__table__cell--align-center">
-              NEM
-            </th>
-          </tr>
-          <tr class="setAllRow">
-            <th scope="col" style="border-right: none;" />
-            <!-- Do this instead of rowspan="2" to align it properly -->
-            <th scope="col" style="min-width: 150px;">(all users)</th>
-            <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAll('block', $event)">
-                Set all block
-              </cdx-checkbox>
-            </th>
-            <th scope="col" v-if="isAdmin">
-              <expiry-input placeholder="Duration" @update:model-value="setAll('duration', $event)" />
-            </th>
-
-            <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAll('acb', $event)">
-                Set all account creation blocked
-              </cdx-checkbox>
-            </th>
-            <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAll('abao', $event)">
-                Set all autoblock/anon-only
-              </cdx-checkbox>
-            </th>
-            <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAll('ntp', $event)">
-                Set all no talk page
-              </cdx-checkbox>
-            </th>
-            <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAll('nem', $event)">
-                Set all no email
-              </cdx-checkbox>
-            </th>
-
-            <th scope="col" class="selectTagOptions">
-              <cdx-select :menu-items="tagOptions" v-model:selected="allTagSelections.tag"
-                          @update:selected="setAll('tag', $event)" />
-            </th>
-            <th scope="col" class="selectTagOptions">
-              <cdx-select :menu-items="altmasterOptions" v-model:selected="allTagSelections.altmaster"
-                          @update:selected="setAll('altmaster', $event)" />
-            </th>
-
-            <th scope="col">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAll('lock', $event)">
-                Set all request locks
-              </cdx-checkbox>
-            </th>
-          </tr>
-          </thead>
-        </template>
-        <template #item-username="{ item, row }">
-          <user-lookup v-model="row.username" @user-selected="handleUserSelected($event, row)"
-                       @update:model-value="handleUsernameChange($event, row)" />
-        </template>
-
-        <template #item-block="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.block" :disabled="blockOptions.noBlock">Block</cdx-checkbox>
-        </template>
-
-        <template #item-duration="{ item, row }">
-          <expiry-input v-model="row.duration" :shortened="true" :auto-dismiss="true" placeholder="Duration" />
-        </template>
-
-        <template #item-acb="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.acb">Account creation blocked</cdx-checkbox>
-        </template>
-        <template #item-abao="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.abao">Autoblock/Anon-only</cdx-checkbox>
-        </template>
-        <template #item-ntp="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.ntp">No talk page</cdx-checkbox>
-        </template>
-        <template #item-nem="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.nem">No email</cdx-checkbox>
-        </template>
-
-        <template #item-tag="{ item, row }">
-          <cdx-select :menu-items="tagOptions" v-model:selected="row.tag"
-                      :disabled="isNonRegisteredAccount(row.username)" class="tagOptions" />
-        </template>
-
-        <template #item-altmaster="{ item, row }">
-          <cdx-select :menu-items="altmasterOptions" v-model:selected="row.altmaster"
-                      :disabled="isNonRegisteredAccount(row.username)" />
-        </template>
-
-        <template #item-lock="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.lock"
-                        :disabled="isNonRegisteredAccount(row.username) || userLocks.get(row.username) === true">
-            Request lock
-          </cdx-checkbox>
-        </template>
-
-        <template #footer>
-          <cdx-button @click="addDefaultRow">Add Row</cdx-button>
-        </template>
-      </cdx-table>
-    </action-container>
-  `,
-    computed: {
-      selectAll() {
-        return this.selectedRows.length === this.modelValue.length;
-      },
-      selectAllIndeterminate() {
-        if (this.selectedRows.length === this.modelValue.length) {
-          return false;
-        } else
-          return this.selectedRows.length !== 0;
-      }
-    },
-    methods: {
-      isNonRegisteredAccount,
-      async copySocks() {
-        if (this.selectedRows.length === 0) {
-          return;
-        }
-        let text = "{{sock list";
-        this.selectedRows.forEach((row, index) => {
-          const rowData = this.modelValue[row];
-          if (!rowData)
-            return;
-          text += `|${index + 1}=${rowData.username}`;
-        });
-        text += "}}";
-        await navigator.clipboard.writeText(text);
-        this.topButtonActions.copied = true;
-      },
-      onMessageDismissed(actionType) {
-        setTimeout(() => {
-          this.topButtonActions[actionType] = false;
-        }, 200);
-      },
-      removeSocks() {
-        this.$emit("removeRows", this.selectedRows);
-        this.selectedRows = [];
-      },
-      addDefaultRow() {
-        this.$emit("addRow");
-      },
-      handleSelectAll(newValue) {
-        this.selectAllIndeterminate = false;
-        if (newValue) {
-          this.selectedRows = this.modelValue.map((_row, index) => index);
-        } else {
-          this.selectedRows = [];
-        }
-      },
-      handleUserSelected(data, row) {
-        HandleUserSelected(data, row);
-      },
-      handleUsernameChange(username, row) {
-        this.$emit("usernameChanged", username, this.modelValue.findIndex((item) => item.username === row.username));
-      },
-      setAll(key, value) {
-        for (const row of this.modelValue) {
-          if (key === "lock" && this.userLocks.get(row.username) === true) {
-            continue;
-          }
-          row[key] = value;
-        }
-      },
-      fetchSocks() {
-        this.topButtonActions.fetched = true;
-        this.$emit("fetchRows");
-      }
-    }
-  });
   // src/constants/linkview.ts
   var spiHelperLinkViewURLFormats = {
     editorInteractionAnalyser: {
-      baseUrl: new URL("https://sigma.toolforge.org/editorinteract.py"),
+      baseUrl: (_caseName) => new URL("https://sigma.toolforge.org/editorinteract.py"),
       userQueryStringKey: "users",
       userQueryStringSeparator: "&",
       userQueryStringWrapper: "",
       multipleUserQueryStringKeys: true
     },
     interactionTimeline: {
-      baseUrl: new URL("https://interaction-timeline.toolforge.org"),
+      baseUrl: (_caseName) => new URL("https://interaction-timeline.toolforge.org"),
       startingParams: new URLSearchParams("wiki=enwiki"),
       userQueryStringKey: "user",
       userQueryStringSeparator: "&",
@@ -4644,21 +4831,21 @@ ${comment}
     },
     SPITools: {
       timecard: {
-        baseUrl: new URL("https://spi-tools.toolforge.org/spi/timecard/" + context.caseName),
+        baseUrl: (caseName) => new URL("https://spi-tools.toolforge.org/spi/timecard/" + caseName),
         userQueryStringKey: "users",
         userQueryStringSeparator: "&",
         userQueryStringWrapper: "",
         multipleUserQueryStringKeys: true
       },
       consolidatedTimeline: {
-        baseUrl: new URL("https://spi-tools.toolforge.org/spi/timeline/" + context.caseName),
+        baseUrl: (caseName) => new URL("https://spi-tools.toolforge.org/spi/timeline/" + caseName),
         userQueryStringKey: "users",
         userQueryStringSeparator: "&",
         userQueryStringWrapper: "",
         multipleUserQueryStringKeys: true
       },
       pages: {
-        baseUrl: new URL("https://spi-tools.toolforge.org/spi/pages/" + context.caseName),
+        baseUrl: (caseName) => new URL("https://spi-tools.toolforge.org/spi/pages/" + caseName),
         userQueryStringKey: "users",
         userQueryStringSeparator: "&",
         userQueryStringWrapper: "",
@@ -4667,28 +4854,28 @@ ${comment}
     },
     sandals: {
       timecard: {
-        baseUrl: new URL("https://sandals.toolforge.org/timecard"),
+        baseUrl: (_caseName) => new URL("https://sandals.toolforge.org/timecard"),
         userQueryStringKey: "users",
         userQueryStringSeparator: "|",
         userQueryStringWrapper: "",
         multipleUserQueryStringKeys: false
       },
       consolidatedTimeline: {
-        baseUrl: new URL("https://sandals.toolforge.org/timeline"),
+        baseUrl: (_caseName) => new URL("https://sandals.toolforge.org/timeline"),
         userQueryStringKey: "users",
         userQueryStringSeparator: "|",
         userQueryStringWrapper: "",
         multipleUserQueryStringKeys: false
       },
       pages: {
-        baseUrl: new URL("https://sandals.toolforge.org/pages"),
+        baseUrl: (_caseName) => new URL("https://sandals.toolforge.org/pages"),
         userQueryStringKey: "users",
         userQueryStringSeparator: "|",
         userQueryStringWrapper: "",
         multipleUserQueryStringKeys: false
       },
       summaries: {
-        baseUrl: new URL("https://sandals.toolforge.org/summaries"),
+        baseUrl: (_caseName) => new URL("https://sandals.toolforge.org/summaries"),
         userQueryStringKey: "users",
         userQueryStringSeparator: "|",
         userQueryStringWrapper: "",
@@ -4696,7 +4883,7 @@ ${comment}
       }
     },
     checkUserWikiSearch: {
-      baseUrl: new URL("https://checkuser.wikimedia.org/w/index.php"),
+      baseUrl: (_caseName) => new URL("https://checkuser.wikimedia.org/w/index.php"),
       startingParams: new URLSearchParams("ns0=1"),
       userQueryStringKey: "search",
       userQueryStringSeparator: " OR ",
@@ -4709,6 +4896,7 @@ ${comment}
   var LinkActionComponent = defineComponent({
     props: {
       modelValue: { type: Array, required: true },
+      caseName: { type: String, required: true },
       enabled: { type: Boolean, required: true }
     },
     data() {
@@ -4933,7 +5121,7 @@ ${comment}
             console.error("Couldn't find link format for", linkColumn.id);
             continue;
           }
-          const resultUrl = new URL(linkFormat.baseUrl.href);
+          const resultUrl = linkFormat.baseUrl(this.caseName);
           const includedUsers = this.modelValue.reduce((accumulator, row) => {
             if (row[linkColumn.id]) {
               accumulator.push(linkFormat.userQueryStringWrapper + row.username + linkFormat.userQueryStringWrapper);
@@ -4996,6 +5184,78 @@ ${comment}
         set(newValue) {
           this.$emit("update:flags", new Set(newValue));
         }
+      }
+    }
+  });
+  // src/ui/views/top/actions/moveAction.ts
+  var MoveActionComponent = defineComponent({
+    props: {
+      enabled: { type: Boolean, required: true },
+      target: { type: String, required: true },
+      selection: { type: Object, required: true },
+      archiveEnabled: { type: Boolean, required: true }
+    },
+    emits: ["update:enabled", "update:target"],
+    template: `
+    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event);"
+                    :disabled="disabled">
+      <h3>Moving {{ moveTitle }}</h3>
+      <page-lookup :model-value="target" @update:model-value="$emit('update:target', $event)"
+                   :namespace="4" prefix="Sockpuppet investigations/"
+                   placeholder="Title" label="New Case Name" />
+      <cdx-message v-if="isSectionMove" type="notice" :allow-user-dismiss="true" style="margin-top: 16px;">
+        <p><strong>You are moving a section</strong></p>
+        <p>Make sure you are expecting to only move the section and not the entire case.</p>
+      </cdx-message>
+    </action-container>
+    <cdx-message v-if="isSectionMove && !allowSectionMoves" type="error" :inline="true">
+      You do not yet understand section moves. You probably want to move the entire case.
+    </cdx-message>
+    <cdx-message v-if="archiveEnabled" type="warning" :inline="true">
+      Archival is enabled, which overrides moving.
+    </cdx-message>
+  `,
+    computed: {
+      allowSectionMoves() {
+        return this.selectionType === "all" || this.isSectionMove && spiHelperSettings.iUnderstandSectionMoves;
+      },
+      isSectionMove() {
+        return this.selectionType === "specific";
+      },
+      moveTitle() {
+        if (!this.selection) {
+          return "ERROR";
+        }
+        if (this.selection.type === "all") {
+          return "entire case";
+        }
+        return "section " + this.selection.section.name;
+      },
+      disabled() {
+        return this.archiveEnabled || this.isSectionMove && !this.allowSectionMoves;
+      },
+      selectionType() {
+        return this.selection?.type ?? null;
+      }
+    },
+    watch: {
+      selectionType: {
+        handler(newType) {
+          if (newType === "specific") {
+            if (!this.allowSectionMoves) {
+              this.$emit("update:enabled", false);
+            }
+          }
+        },
+        immediate: true
+      },
+      archiveEnabled: {
+        handler(enabled) {
+          if (enabled) {
+            this.$emit("update:enabled", false);
+          }
+        },
+        immediate: true
       }
     }
   });
@@ -5067,101 +5327,6 @@ ${comment}
       }
     }
   });
-
-  // src/ui/views/top/actions/archiveAction.ts
-  var ArchiveActionComponent = defineComponent({
-    props: {
-      enabled: { type: Boolean, required: true },
-      status: { type: String, required: true },
-      selection: { type: Object, required: true }
-    },
-    emits: ["update:enabled"],
-    template: `
-    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event);" :empty="true" :disabled="badStatus" />
-    <cdx-message v-if="badStatus" type="warning" :inline="true">
-      The selected section status is '{{ status }}'. If you'd like to archive, please change it to 'closed'
-    </cdx-message>
-  `,
-    computed: {
-      badStatus() {
-        return this.selection !== "all" && this.status !== "closed";
-      }
-    }
-  });
-
-  // src/ui/views/top/actions/moveAction.ts
-  var MoveActionComponent = defineComponent({
-    props: {
-      enabled: { type: Boolean, required: true },
-      target: { type: String, required: true },
-      selection: { type: Object, required: true },
-      archiveEnabled: { type: Boolean, required: true }
-    },
-    emits: ["update:enabled", "update:target"],
-    template: `
-    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event);"
-                    :disabled="disabled">
-      <h3>Moving {{ moveTitle }}</h3>
-      <page-lookup :model-value="this.target" @update:model-value="this.$emit('update:target', $event)"
-                   :namespace="4" prefix="Sockpuppet investigations/"
-                   placeholder="Title" label="New Case Name" />
-      <cdx-message v-if="isSectionMove" type="notice" :allow-user-dismiss="true" style="margin-top: 16px;">
-        <p><strong>You are moving a section</strong></p>
-        <p>Make sure you are expecting to only move the section and not the entire case.</p>
-      </cdx-message>
-    </action-container>
-    <cdx-message v-if="isSectionMove && !allowSectionMoves" type="error" :inline="true">
-      You do not yet understand section moves. You probably want to move the entire case.
-    </cdx-message>
-    <cdx-message v-if="archiveEnabled" type="warning" :inline="true">
-      Archival is enabled, which overrides moving.
-    </cdx-message>
-  `,
-    computed: {
-      allowSectionMoves() {
-        return this.selectionType === "all" || this.isSectionMove && spiHelperSettings.iUnderstandSectionMoves;
-      },
-      isSectionMove() {
-        return this.selectionType === "specific";
-      },
-      moveTitle() {
-        if (!this.selection) {
-          return "ERROR";
-        }
-        if (this.selection.type === "all") {
-          return "entire case";
-        }
-        return "section " + this.selection.section.name;
-      },
-      disabled() {
-        return this.archiveEnabled || this.isSectionMove && !this.allowSectionMoves;
-      },
-      selectionType() {
-        return this.selection?.type ?? null;
-      }
-    },
-    watch: {
-      selectionType: {
-        handler(newType) {
-          if (newType === "specific") {
-            if (!this.allowSectionMoves) {
-              this.$emit("update:enabled", false);
-            }
-          }
-        },
-        immediate: true
-      },
-      archiveEnabled: {
-        handler(enabled) {
-          if (enabled) {
-            this.$emit("update:enabled", false);
-          }
-        },
-        immediate: true
-      }
-    }
-  });
-
   // src/ui/views/pageLookup.ts
   var ITEM_LIMIT2 = 10;
   var PageLookupComponent = defineComponent({
@@ -5294,10 +5459,11 @@ ${comment}
       }
     }
   });
-
-  // src/ui/views/top/submitForm.ts
+  // src/ui/views/submitForm.ts
   var SubmitFormComponent = defineComponent({
     props: {
+      actionName: { type: String, required: true },
+      checkConflict: { type: Boolean, required: true },
       state: { type: Object, required: true },
       socks: { type: Array, required: true },
       locks: { type: Map, required: true },
@@ -5353,7 +5519,7 @@ ${comment}
         return this.socks.some((sock) => sock.lock && !isNonRegisteredAccount(sock.username) && this.locks.get(sock.username) !== true);
       },
       disableButton() {
-        return isOpRunning("mainActions") || this.allDisabled || this.needsSockmaster && !this.master || this.needsAltmaster && !this.altmaster;
+        return isOpRunning(this.actionName) || this.allDisabled || this.needsSockmaster && !this.master || this.needsAltmaster && !this.altmaster;
       },
       masterValue: {
         get() {
@@ -5382,11 +5548,15 @@ ${comment}
     },
     methods: {
       async onSubmit() {
-        this.popover.revId = await spiHelperGetPageRev(context.pageName);
-        if (this.popover.revId === context.startingRevId) {
-          this.$emit("onSubmit");
+        if (this.checkConflict) {
+          this.popover.revId = await spiHelperGetPageRev(context.pageName);
+          if (this.popover.revId === context.startingRevId) {
+            this.$emit("onSubmit");
+          } else {
+            this.popover.show = true;
+          }
         } else {
-          this.popover.show = true;
+          this.$emit("onSubmit");
         }
       },
       confirmSubmit() {
@@ -5400,81 +5570,6 @@ ${comment}
       this.submitElement = this.$refs.submitElement;
     }
   });
-
-  // src/ui/views/top/actionContent.ts
-  var ActionContentComponent = defineComponent({
-    props: {
-      name: { type: String, required: true },
-      caseActions: { type: Object, required: true },
-      state: { type: Object, required: true },
-      menuItems: { type: Array, required: true },
-      currentStatus: { type: String, required: true }
-    },
-    emits: [
-      "update-section-selection",
-      "block-username-change",
-      "link-username-change",
-      "link-username-selected",
-      "remove-rows",
-      "add-row",
-      "fetch-rows"
-    ],
-    methods: {
-      handleUpdateSectionSelection(selection) {
-        this.$emit("update-section-selection", selection);
-      },
-      handleBlockUsernameChange(username, index) {
-        this.$emit("block-username-change", username, index);
-      },
-      handleLinkUsernameChange(username, index) {
-        this.$emit("link-username-change", username, index);
-      },
-      handleLinkUsernameSelected(data, index) {
-        this.$emit("link-username-selected", data, index);
-      },
-      handleRemoveRows(indexes) {
-        this.$emit("remove-rows", indexes);
-      },
-      handleAddRow(row) {
-        this.$emit("add-row", row);
-      },
-      handleFetchRows() {
-        this.$emit("fetch-rows");
-      }
-    },
-    template: `
-    <!-- Sections special case -->
-    <div v-if="name === 'sections'">
-      <cdx-select :menu-items="menuItems" v-model:selected="caseActions.sections.data.section"
-                  @update:selected="handleUpdateSectionSelection" />
-    </div>
-
-    <!-- Other actions -->
-    <comment-action v-else-if="name === 'comment'" v-model:enabled="caseActions.comment.enabled"
-                    v-model:text="caseActions.comment.data.text" />
-    <change-status-action v-else-if="name === 'status'" v-model:enabled="caseActions.status.enabled"
-                          :old-status="caseActions.status.data.old" v-model:new-status="caseActions.status.data.new" />
-    <block-action v-else-if="name === 'block'" v-model:enabled="caseActions.block.enabled"
-                  v-model="caseActions.block.data.accounts" v-model:block-options="caseActions.block.data.options"
-                  :user-locks="caseActions.block.data.userlocks"
-                  @username-changed="handleBlockUsernameChange"
-                  @remove-rows="handleRemoveRows" @add-row="handleAddRow"
-                  @fetch-rows="handleFetchRows" />
-    <link-action v-else-if="name === 'link'" v-model:enabled="caseActions.link.enabled"
-                 v-model="caseActions.link.data.rows"
-                 @user-selected="handleLinkUsernameSelected" @username-changed="handleLinkUsernameChange"
-                 @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
-    <management-action v-else-if="name === 'management'" v-model:enabled="caseActions.management.enabled"
-                       v-model:flags="caseActions.management.data.flags" />
-    <move-action v-else-if="name === 'move'" v-model:enabled="caseActions.move.enabled"
-                 v-model:target="caseActions.move.data.target"
-                 :selection="state.selectedSection" :archive-enabled="caseActions.archive.enabled" />
-    <archive-action v-else-if="name === 'archive'" v-model:enabled="caseActions.archive.enabled"
-                    :selection="caseActions.sections.data.section"
-                    :status="currentStatus" />
-  `
-  });
-
   // src/ui/views/OCAModal.ts
   var OneClickArchivalComponent = defineComponent({
     props: {
@@ -5520,57 +5615,338 @@ ${comment}
       }
     }
   });
-
+  // src/ui/views/checkuserView.ts
+  var CheckUserViewComponent = defineComponent({
+    props: {
+      state: { type: Object, required: true },
+      feedbackDialog: { type: Object, required: true },
+      openButton: { type: Object, required: true }
+    },
+    data() {
+      const blockData = {
+        options: {
+          noBlock: false,
+          override: false,
+          tagUnattached: true,
+          cuBlock: false,
+          cuBlockOnly: false,
+          addMasterNotice: true,
+          addSockNotice: true,
+          blankTalk: false,
+          lockHideNames: false
+        },
+        accounts: [],
+        userLocks: new Map,
+        userBlocks: new Map,
+        master: "",
+        altmaster: "",
+        lockcomment: ""
+      };
+      return {
+        open: false,
+        _openHandler: null,
+        _beforeUnloadHandler: null,
+        caseLoaded: false,
+        caseLoading: false,
+        targetCase: "",
+        blockData,
+        linkRows: [],
+        actionsRunning: false,
+        unpinned: !spiHelperSettings.interface.pinned,
+        messages,
+        cdxIconFeedback: q4,
+        cdxIconPushPin: y7
+      };
+    },
+    template: `
+    <div id="spiHelper-checkuserView" class="spiHelper-mainCard" v-if="open">
+      <div id="spiHelper-checkuserView-Header" class="spiHelper-mainCard-Header">
+        <div class="header-buttons">
+          <cdx-button aria-label="Give feedback" weight="quiet" @click="feedbackDialog.launch()">
+            <cdx-icon :icon="cdxIconFeedback" />
+          </cdx-button>
+          <cdx-button :action="unpinned ? 'default': 'progressive'" aria-label="Toggle pin"
+                      weight="quiet" @click="unpinned = !unpinned">
+            <cdx-icon :icon="cdxIconPushPin" />
+          </cdx-button>
+        </div>
+      </div>
+      <div id="spiHelper-CaseLoader">
+        <page-lookup v-model="targetCase"
+                     :namespace="4" prefix="Sockpuppet investigations/"
+                     placeholder="Case" label="Case title" />
+        <div style="display: flex; gap: 10px;">
+          <cdx-button weight="primary" action="progressive" @click="loadCase">Load</cdx-button>
+          <cdx-progress-indicator v-show="caseLoading">Loading case</cdx-progress-indicator>
+        </div>
+      </div>
+      <div id="spiHelper-checkuserView-Content" v-if="caseLoaded">
+        <div>
+          <h4>Link</h4>
+          <link-action :enabled="true" :case-name="targetCase"
+                       v-model="linkRows"
+                       @user-selected="handleLinkUsernameSelected" @username-changed="handleLinkUsernameChange"
+                       @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
+        </div>
+        <div>
+          <h4>Block</h4>
+          <block-action :enabled="true" :allow-fetch="false"
+                        v-model="blockData.accounts" v-model:block-options="blockData.options"
+                        :user-locks="blockData.userLocks" :user-blocks="blockData.userBlocks"
+                        @username-changed="handleBlockUsernameChange"
+                        @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
+        </div>
+      </div>
+      <div v-if="caseLoaded">
+        <submit-form v-model:socks="blockData.accounts" v-model:master="blockData.master"
+                     v-model:altmaster="blockData.altmaster" v-model:lock-comment="blockData.lockcomment"
+                     :locks="blockData.userLocks" :state="state" :action-name="'checkuserActions'"
+                     :check-conflict="false" :all-disabled="false"
+                     @on-submit="onSubmitActions" />
+      </div>
+      <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
+      <div id="messageRow">
+        <cdx-message v-for="(message, index) in messages" :key="index" :type="message.type" :fade-in="true"
+                     :allow-user-dismiss="true">
+          <span v-if="message.isHtml" v-html="message.content" />
+          <span v-else>
+            {{ message.content }}
+          </span>
+        </cdx-message>
+      </div>
+    </div>
+  `,
+    computed: {
+      mountPoint() {
+        return this.$el.parentElement;
+      },
+      pageName() {
+        return `Wikipedia:Sockpuppet investigations/${this.targetCase}`;
+      }
+    },
+    watch: {
+      unpinned(newVal) {
+        if (!this.mountPoint) {
+          console.error("CheckUserView unpinned: Could not find mountPoint");
+          return;
+        }
+        if (newVal) {
+          this.mountPoint.classList.add("unpinned");
+        } else {
+          this.mountPoint.classList.remove("unpinned");
+        }
+        spiHelperSettings.interface.pinned = !newVal;
+      }
+    },
+    methods: {
+      handleBlockUsernameChange(newUsername, index) {
+        if (this.linkRows.length < index + 1) {
+          console.error("handleBlockUsernameChange: Index", index, "doesn't exist in table");
+          return;
+        }
+        this.linkRows[index].username = newUsername;
+      },
+      handleLinkUsernameChange(newUsername, index) {
+        if (this.blockData.accounts.length < index + 1) {
+          console.error("handleLinkUsernameChange: Index", index, "doesn't exist in table");
+          return;
+        }
+        this.blockData.accounts[index].username = newUsername;
+      },
+      handleLinkUsernameSelected(data, index) {
+        if (this.blockData.accounts.length < index + 1) {
+          console.error("handleLinkUsernameSelected: Index", index, "doesn't exist in table");
+          return;
+        }
+        HandleUserSelected(data, this.blockData.accounts[index]);
+      },
+      handleAddRow(row) {
+        row ??= getDefaultSockRow(this.state.archiveNotice);
+        this.blockData.accounts = [
+          ...this.blockData.accounts,
+          row
+        ];
+        this.linkRows = [
+          ...this.linkRows,
+          { ...DefaultLinkRow, username: row.username }
+        ];
+      },
+      handleRemoveRows(indexes) {
+        this.blockData.accounts = this.blockData.accounts.filter((_row, index) => !indexes.includes(index));
+        this.linkRows = this.linkRows.filter((_row, index) => !indexes.includes(index));
+      },
+      async loadCase() {
+        this.caseLoading = true;
+        setContext(this.pageName);
+        const archiveNoticeResult = await spiHelperParseArchiveNotice(this.pageName, this.state);
+        if (archiveNoticeResult === null) {
+          this.state.archiveNotice = new ParsedArchiveNotice({ username: this.targetCase });
+        } else {
+          this.state.archiveNotice = archiveNoticeResult;
+        }
+        const userBlock = await spiHelperGetUserBlockSettings(this.targetCase);
+        if (userBlock !== null) {
+          this.blockData.userBlocks.set(this.targetCase, userBlock);
+        }
+        const userPageText = await spiHelperGetPageText(this.targetCase, false);
+        const { row, isLocked } = await setSockRowBlock({
+          sock: generateSockRow(this.targetCase, this.state),
+          block: userBlock,
+          userPage: userPageText,
+          defaultBlock: true,
+          state: this.state
+        });
+        if (isLocked !== null) {
+          this.blockData.userLocks.set(this.targetCase, isLocked);
+        }
+        this.handleAddRow(row);
+        this.blockData.master = this.targetCase;
+        this.blockData.altmaster = this.targetCase;
+        this.caseLoading = false;
+        this.caseLoaded = true;
+      },
+      async onSubmitActions() {
+        if (isOpRunning("checkuserActions")) {
+          return;
+        }
+        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "submit_checkuser" });
+        startOp("checkuserActions");
+        this.actionsRunning = true;
+        let blockPromises = [];
+        let tagPromises = [];
+        let lockPromise = Promise.resolve([]);
+        ({ blockPromises, tagPromises, lockPromise } = await spiHelperHandleBlocks(this.blockData));
+        const userActionsPromise = Promise.all([
+          Promise.all(blockPromises),
+          Promise.all(tagPromises),
+          lockPromise
+        ]);
+        const [blockedUsers, taggedUsers, lockedUsers] = await userActionsPromise;
+        if (spiHelperSettings.log.enabled) {
+          const logMessage = `* [[:User:${context.userName}]]` + buildUserActionLogMessage({ blockedUsers, taggedUsers, lockedUsers });
+          await spiHelperLog(logMessage);
+        }
+        new VueMessage({ type: "success", content: "Done!" }).show();
+        finishOp("checkuserActions", "success" /* Success */);
+        this.actionsRunning = false;
+      }
+    },
+    mounted() {
+      if (!this.mountPoint) {
+        console.error("CheckUserViewComponent mounted: Could not find mountPoint");
+        return;
+      }
+      if (this.unpinned) {
+        this.mountPoint.classList.add("unpinned");
+      } else {
+        this.mountPoint.classList.remove("unpinned");
+      }
+      this._beforeUnloadHandler = (e) => {
+        const opState = getOpState("checkuserActions");
+        if (opState !== "success" /* Success */) {
+          e.preventDefault();
+        }
+      };
+      this._openHandler = () => {
+        this.open = !this.open;
+        if (this.open) {
+          mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "open_checkuser" });
+        }
+        if (this._beforeUnloadHandler) {
+          if (this.open) {
+            window.addEventListener("beforeunload", this._beforeUnloadHandler);
+          } else {
+            window.removeEventListener("beforeunload", this._beforeUnloadHandler);
+          }
+        }
+      };
+      this.openButton.addEventListener("click", this._openHandler);
+    },
+    beforeUnmount() {
+      if (this._openHandler) {
+        this.openButton.removeEventListener("click", this._openHandler);
+      }
+      if (this._beforeUnloadHandler) {
+        window.removeEventListener("beforeunload", this._beforeUnloadHandler);
+      }
+    }
+  });
   // src/spihelper.ts
-  mw.loader.using(["vue", "@wikimedia/codex", "mediawiki.api", "mediawiki.util", "mediawiki.user", "mediawiki.feedback"], (require2) => {
-    if (!mw.config.get("wgPageName").includes("Wikipedia:Sockpuppet_investigations/")) {
-      return;
-    }
-    const Vue = require2("vue");
-    const Codex = require2("@wikimedia/codex");
-    const feedbackDialog = new mw.Feedback(FeedbackConfig);
-    if (false) {} else if (true) {
-      importStylesheet("User:DatGuy/spihelper.dev.css");
-    } else {}
-    const caseState = Vue.reactive(new CaseState);
-    refreshSections(caseState);
-    const loadedOptions = loadOptions();
-    if (loadedOptions) {
-      Object.assign(spiHelperSettings, loadedOptions);
-    } else {
-      (async () => {
-        await migrateOptions();
-        saveOptions();
-      })();
-    }
-    const initLink = mw.util.addPortletLink("p-cactions", "#", "SPI-Beta", "ca-spiHelper", "Run spiHelper");
-    if (initLink) {
-      const mountPoint = document.createElement("div");
-      mountPoint.setAttribute("id", "spiHelper-vue-mount-point");
-      mw.util.$content.prepend(mountPoint);
-      Vue.createMwApp(TopViewComponent, { state: caseState, feedbackDialog, openButton: initLink }).component("cdx-tabs", Codex.CdxTabs).component("cdx-tab", Codex.CdxTab).component("cdx-select", Codex.CdxSelect).component("cdx-card", Codex.CdxCard).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-text-area", Codex.CdxTextArea).component("cdx-toggle-button", Codex.CdxToggleButton).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("cdx-button-group", Codex.CdxButtonGroup).component("cdx-button", Codex.CdxButton).component("cdx-icon", Codex.CdxIcon).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-lookup", Codex.CdxLookup).component("cdx-field", Codex.CdxField).component("cdx-message", Codex.CdxMessage).component("cdx-progress-bar", Codex.CdxProgressBar).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-accordion", Codex.CdxAccordion).component("cdx-label", Codex.CdxLabel).component("cdx-popover", Codex.CdxPopover).component("action-accordion", ActionAccordionComponent).component("action-button", ActionButtonComponent).component("action-container", ActionContainerComponent).component("action-content", ActionContentComponent).component("submit-form", SubmitFormComponent).component("comment-action", CommentActionComponent).component("change-status-action", ChangeStatusActionComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("management-action", ManagementActionComponent).component("archive-action", ArchiveActionComponent).component("move-action", MoveActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
-    }
+  if (mw.config.get("wgPageName").includes("Wikipedia:Sockpuppet_investigations/")) {
+    bootstrap("spi");
+  } else if (mw.config.get("wgCanonicalSpecialPageName") === "CheckUser") {
+    bootstrap("checkuser");
+  }
+  function bootstrap(pageType) {
+    mw.loader.using(["vue", "@wikimedia/codex", "mediawiki.api", "mediawiki.util", "mediawiki.user", "mediawiki.feedback"], (require2) => {
+      const Vue = require2("vue");
+      const Codex = require2("@wikimedia/codex");
+      const feedbackDialog = new mw.Feedback(FeedbackConfig);
+      if (false) {} else if (true) {
+        importStylesheet("User:DatGuy/spihelper.dev.css");
+      } else {}
+      const caseState = Vue.reactive(new CaseState);
+      if (pageType === "spi") {
+        const rawPageName = mw.config.get("wgPageName");
+        setContext(rawPageName);
+        refreshSections(caseState);
+      }
+      const loadedOptions = loadOptions();
+      if (loadedOptions) {
+        Object.assign(spiHelperSettings, loadedOptions);
+      } else {
+        (async () => {
+          await migrateOptions();
+          saveOptions();
+        })();
+      }
+      const initLink = mw.util.addPortletLink("p-cactions", "#", "SPI-Beta", "ca-spiHelper", "Run spiHelper");
+      if (initLink) {
+        const mountPoint = document.createElement("div");
+        mountPoint.setAttribute("id", "spiHelper-vue-mount-point");
+        mw.util.$content.prepend(mountPoint);
+        if (pageType === "spi") {
+          Vue.createMwApp(TopViewComponent, {
+            state: caseState,
+            feedbackDialog,
+            openButton: initLink
+          }).component("cdx-tabs", Codex.CdxTabs).component("cdx-tab", Codex.CdxTab).component("cdx-select", Codex.CdxSelect).component("cdx-card", Codex.CdxCard).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-text-area", Codex.CdxTextArea).component("cdx-toggle-button", Codex.CdxToggleButton).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("cdx-button-group", Codex.CdxButtonGroup).component("cdx-button", Codex.CdxButton).component("cdx-icon", Codex.CdxIcon).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-lookup", Codex.CdxLookup).component("cdx-field", Codex.CdxField).component("cdx-message", Codex.CdxMessage).component("cdx-progress-bar", Codex.CdxProgressBar).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-accordion", Codex.CdxAccordion).component("cdx-label", Codex.CdxLabel).component("cdx-popover", Codex.CdxPopover).component("action-accordion", ActionAccordionComponent).component("action-button", ActionButtonComponent).component("action-container", ActionContainerComponent).component("action-content", ActionContentComponent).component("submit-form", SubmitFormComponent).component("comment-action", CommentActionComponent).component("change-status-action", ChangeStatusActionComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("management-action", ManagementActionComponent).component("archive-action", ArchiveActionComponent).component("move-action", MoveActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
+        } else {
+          Vue.createMwApp(CheckUserViewComponent, {
+            state: caseState,
+            feedbackDialog,
+            openButton: initLink
+          }).component("cdx-button", Codex.CdxButton).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-field", Codex.CdxField).component("cdx-icon", Codex.CdxIcon).component("cdx-label", Codex.CdxLabel).component("cdx-lookup", Codex.CdxLookup).component("cdx-message", Codex.CdxMessage).component("cdx-popover", Codex.CdxPopover).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-select", Codex.CdxSelect).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("submit-form", SubmitFormComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
+        }
+      }
+      createSettingsLink(Vue, Codex, feedbackDialog);
+      if (mw.config.get("wgCategories").includes("SPI cases awaiting archive") && spiHelperIsClerk()) {
+        createOCALink(Vue, Codex, caseState);
+      }
+      window.addEventListener("beforeunload", (e) => {
+        if (hasRunningOps()) {
+          e.preventDefault();
+        }
+      });
+    });
+  }
+  function createSettingsLink(Vue, Codex, feedbackDialog) {
     const settingsLink = mw.util.addPortletLink("p-cactions", "#", "SPI-Beta-Options", "ca-spiHelperOpts", "Modify spiHelper settings");
     if (settingsLink) {
       const mountPoint = document.body.appendChild(document.createElement("div"));
       Vue.createMwApp(OptionsComponent, { feedbackDialog, openButton: settingsLink }).component("cdx-button", Codex.CdxButton).component("cdx-dialog", Codex.CdxDialog).component("cdx-field", Codex.CdxField).component("cdx-select", Codex.CdxSelect).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-accordion", Codex.CdxAccordion).component("cdx-text-input", Codex.CdxTextInput).component("cdx-icon", Codex.CdxIcon).component("cdx-message", Codex.CdxMessage).component("cdx-multiselect-lookup", Codex.CdxMultiselectLookup).component("watch-setting", WatchSettingComponent).component("expiry-setting", ExpirySettingComponent).component("expiry-input", ExpiryInputComponent).component("log-page-setting", LogPageSettingComponent).mount(mountPoint);
     }
-    if (mw.config.get("wgCategories").includes("SPI cases awaiting archive") && spiHelperIsClerk()) {
-      const oneClickArchiveLink = mw.util.addPortletLink("p-cactions", "#", "SPI-Beta-Archive", "ca-spiHelperArchive", "Run one click archival");
-      if (oneClickArchiveLink) {
-        const mountPoint = document.body.appendChild(document.createElement("div"));
-        Vue.createMwApp(OneClickArchivalComponent, {
-          state: caseState,
-          activateButton: oneClickArchiveLink
-        }).component("cdx-dialog", Codex.CdxDialog).component("cdx-message", Codex.CdxMessage).component("cdx-progress-bar", Codex.CdxProgressBar).mount(mountPoint);
-      }
+  }
+  function createOCALink(Vue, Codex, caseState) {
+    const oneClickArchiveLink = mw.util.addPortletLink("p-cactions", "#", "SPI-Beta-Archive", "ca-spiHelperArchive", "Run one click archival");
+    if (oneClickArchiveLink) {
+      const mountPoint = document.body.appendChild(document.createElement("div"));
+      Vue.createMwApp(OneClickArchivalComponent, {
+        state: caseState,
+        activateButton: oneClickArchiveLink
+      }).component("cdx-dialog", Codex.CdxDialog).component("cdx-message", Codex.CdxMessage).component("cdx-progress-bar", Codex.CdxProgressBar).mount(mountPoint);
     }
-    window.addEventListener("beforeunload", (e) => {
-      if (hasRunningOps()) {
-        e.preventDefault();
-      }
-    });
-  });
+  }
 })();
 
 // </nowiki>
