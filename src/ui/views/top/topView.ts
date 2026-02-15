@@ -233,40 +233,22 @@ export const TopViewComponent = defineComponent({
       }
       spiHelperSettings.interface.pinned = !newVal;
     },
-    open(newVal: boolean) {
+    async open(newVal: boolean) {
       if (newVal) {
-        if (!this.state.archiveNotice) {
-          // Load archivenotice params
-          spiHelperParseArchiveNotice(context.pageName.replace(/\/Archive/, '')).then((archiveNoticeResult) => {
-            if (archiveNoticeResult === null) {
-              // No archive notice was found, initialise default and add it
-              this.state.archiveNotice = new ParsedArchiveNotice({ username: context.caseName });
-              new VueMessage({
-                type: 'warning',
-                content: 'Can\'t find archivenotice template! Automatically adding the archive notice to the page.',
-              }).show();
-              void spiHelperAddArchiveNotice(this.state);
-            }
-            else {
-              this.state.archiveNotice = archiveNoticeResult;
-            }
-            this.handleAddRow();
-          })
-            .catch(() => {
-              console.error('topView failed in spiHelperParseArchiveNotice');
-            });
-        }
+        await this.ensureArchiveNotice();
       }
       else {
         void saveOptions();
       }
     },
+    // Do we even want to load the section before user input?
     async stateSections(newValue: SectionEntry[]) {
       // Put it in watch in case our state loads after we open our form
       if (this.caseActions.sections.data.section === null) {
         const firstSection = newValue[0];
         if (firstSection) {
           this.caseActions.sections.data.section = firstSection.id;
+          await this.ensureArchiveNotice();
           await this.loadNewSection(firstSection);
         }
       }
@@ -476,6 +458,22 @@ export const TopViewComponent = defineComponent({
         }
       });
       return filteredRows;
+    },
+    async ensureArchiveNotice() {
+      // Load archivenotice params
+      const archiveNoticeResult = await spiHelperParseArchiveNotice(context.pageName.replace(/\/Archive/, ''), this.state);
+      if (archiveNoticeResult === null) {
+        // No archive notice was found, initialise default and add it
+        this.state.archiveNotice = new ParsedArchiveNotice({ username: context.caseName });
+        new VueMessage({
+          type: 'warning',
+          content: 'Can\'t find archivenotice template! Automatically adding the archive notice to the page.',
+        }).show();
+        void spiHelperAddArchiveNotice(this.state);
+      }
+      else {
+        this.state.archiveNotice = archiveNoticeResult;
+      }
     },
   },
   mounted() {
