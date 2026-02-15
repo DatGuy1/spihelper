@@ -1,18 +1,19 @@
 import type { CaseState, SectionSelection } from '../../../../state.ts';
 import { loadCaseText, loadSectionText } from '../../../../state.ts';
-import { getSockEntries, updateSockRowSettings } from '../../../utils.ts';
+import { getSockEntries, setSockRowBlock } from '../../../utils.ts';
 import {
   spiHelperGetBulkPageText,
   spiHelperGetBulkUserBlockSettings,
-  spiHelperGetGlobalUser,
 } from '../../../../api.ts';
 import type { SockRow } from '../../../../types/spi.ts';
 import { isNonRegisteredAccount } from '../../../../utils.ts';
+import type { BlockEntry } from '../../../../types/api.ts';
 
 export async function prefetchSockRowsForSelection(
   selection: SectionSelection | null,
   state: CaseState,
-  userlocks: Map<string, boolean>,
+  userLocks: Map<string, boolean>,
+  userBlocks: Map<string, BlockEntry>,
 ): Promise<SockRow[]> {
   if (!selection) {
     return [];
@@ -42,28 +43,19 @@ export async function prefetchSockRowsForSelection(
 
   const userPromises = [...likelySocks, ...possibleSocks].map(async (sock) => {
     const blockSetting = blockSettings.get(sock.username);
-    const userPage = userPages.get(`User:${sock.username}`);
-
-    const row = updateSockRowSettings({
-      row: sock,
-      defaultBlock: likelySet.has(sock),
-      currentBlock: blockSetting,
-      currentTags: userPage,
-    });
-
-    const globalUser = await spiHelperGetGlobalUser(row.username);
-    if (globalUser) {
-      const locked = globalUser.locked;
-      userlocks.set(sock.username, locked);
-      if (locked) {
-        row.lock = true;
-      }
-      else if (!state.archiveNotice?.crosswiki) {
-        row.lock = false;
-      }
+    if (blockSetting !== undefined) {
+      userBlocks.set(sock.username, blockSetting);
     }
 
-    return row;
+    const userPage = userPages.get(`User:${sock.username}`);
+    const defaultBlock = likelySet.has(sock);
+    const { row: newRow, isLocked } = await setSockRowBlock({
+      sock, block: blockSetting, defaultBlock, userPage, state,
+    });
+    if (isLocked !== null) {
+      userLocks.set(sock.username, isLocked);
+    }
+    return newRow;
   });
 
   return await Promise.all(userPromises);

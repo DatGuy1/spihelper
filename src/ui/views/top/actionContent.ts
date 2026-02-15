@@ -58,7 +58,7 @@ export const ActionContentComponent = defineComponent({
                           :old-status="caseActions.status.data.old" v-model:new-status="caseActions.status.data.new" />
     <block-action v-else-if="name === 'block'" v-model:enabled="caseActions.block.enabled"
                   v-model="caseActions.block.data.accounts" v-model:block-options="caseActions.block.data.options"
-                  :user-locks="caseActions.block.data.userlocks"
+                  :user-locks="caseActions.block.data.userLocks" :user-blocks="caseActions.block.data.userBlocks"
                   @username-changed="handleBlockUsernameChange"
                   @remove-rows="handleRemoveRows" @add-row="handleAddRow"
                   @fetch-rows="handleFetchRows" />

@@ -2,7 +2,7 @@ import {
   ParsedArchiveNotice,
   type SockRow,
 } from '../types/spi.ts';
-import type { CaseState } from '../state.ts';
+import { type CaseState } from '../state.ts';
 import { DefaultSockRow } from '../types/vue.ts';
 import { spiHelperNormalizeUsername } from '../utils.ts';
 import { spiHelperSettings } from '../options';
@@ -10,6 +10,7 @@ import { fetchTemplateArguments, parseTemplates } from '../template.ts';
 import { context } from '../context.ts';
 import type { MenuGroupData, MenuItemData } from '@wikimedia/codex';
 import type { BlockEntry } from '../types/api.ts';
+import { spiHelperGetGlobalUser } from '../api.ts';
 
 export function getSockEntries(opts: {
   text: string;
@@ -58,7 +59,7 @@ export function getSockEntries(opts: {
   return [likelySocks, possibleSocks, Array.from(allUsernames)];
 }
 
-function generateSockRow(username: string, state: CaseState): SockRow {
+export function generateSockRow(username: string, state: CaseState): SockRow {
   if (mw.util.isIPAddress(username, true)) {
     if (spiHelperSettings.interface.displayIPv6As64 && mw.util.isIPv6Address(username, false)) {
       return {
@@ -102,7 +103,7 @@ export function getDefaultSockRow(archiveNotice: ParsedArchiveNotice | null) {
  */
 export function updateSockRowSettings(opts: {
   row: SockRow;
-  currentBlock?: BlockEntry;
+  currentBlock?: BlockEntry | null;
   currentTags?: string;
   defaultBlock: boolean;
 }): SockRow {
@@ -183,3 +184,34 @@ export function updateSockRowSettings(opts: {
 }
 
 export const isMenuGroupData = (item: MenuItemData | MenuGroupData): item is MenuGroupData => 'items' in item;
+
+export async function setSockRowBlock(opts: {
+  sock: SockRow;
+  block: BlockEntry | null | undefined;
+  userPage?: string;
+  defaultBlock: boolean;
+  state: CaseState;
+}) {
+  const { sock, block: blockSetting, userPage, defaultBlock, state } = opts;
+  const row = updateSockRowSettings({
+    row: sock,
+    defaultBlock,
+    currentBlock: blockSetting,
+    currentTags: userPage,
+  });
+
+  let isLocked: boolean | null = null;
+  const globalUser = await spiHelperGetGlobalUser(row.username);
+  if (globalUser) {
+    isLocked = globalUser.locked;
+    // noinspection RedundantIfStatementJS
+    if (isLocked || state.archiveNotice?.crosswiki) {
+      row.lock = true;
+    }
+    else {
+      row.lock = false;
+    }
+  }
+
+  return { row, isLocked };
+}

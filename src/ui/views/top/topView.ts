@@ -379,7 +379,8 @@ export const TopViewComponent = defineComponent({
       const allRows = await prefetchSockRowsForSelection(
         selection,
         this.state,
-        this.caseActions.block.data.userlocks,
+        this.caseActions.block.data.userLocks,
+        this.caseActions.block.data.userBlocks,
       );
       this.sectionAccountNames = new Set(this.massAddSockRows(allRows).map(row => row.username));
     },

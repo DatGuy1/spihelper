@@ -344,7 +344,7 @@ function spiHelperHandleStatus(newStatus: string, targetText: string) {
   return { newStatus, summaryItem, targetText };
 }
 
-async function spiHelperHandleBlocks(opts: BlockActionData): Promise<{
+export async function spiHelperHandleBlocks(opts: BlockActionData): Promise<{
   blockPromises: Promise<string | null>[];
   tagPromises: Promise<string | null>[];
   lockPromise: Promise<string[]>;
@@ -354,7 +354,7 @@ async function spiHelperHandleBlocks(opts: BlockActionData): Promise<{
   let lockPromise: Promise<string[]> = Promise.resolve([]);
 
   const {
-    userlocks: userLocks,
+    userLocks,
     options: blockOptions,
     lockcomment: lockComment,
     master,
@@ -369,12 +369,13 @@ async function spiHelperHandleBlocks(opts: BlockActionData): Promise<{
 
   const allUsernames = sockRows.map(user => user.username);
   const allUserTalkPages = allUsernames.map(username => `User talk:${username}`);
-  const fetchMessage = new VueMessage({ type: 'notice', content: 'Fetching user blocks and talkpages' }).show();
+  const fetchMessage = new VueMessage({ type: 'notice', content: 'Fetching user blocks and userpages' }).show();
+  // Don't reuse userBlocks because they might not have all our users
   const [userBlocks, userTalkPages] = await Promise.all([
     spiHelperGetBulkUserBlockSettings(allUsernames),
     spiHelperGetBulkPageText(allUserTalkPages),
   ]);
-  fetchMessage.update({ type: 'success', content: 'Got previous blocks and talkpages ' });
+  fetchMessage.update({ type: 'success', content: 'Got previous blocks and userpages' });
   const tagSock = async (sockRow: SockRow, blocked: boolean): Promise<string | null> => {
     const tagSuccess = await spiHelperTagUser({
       sock: sockRow,

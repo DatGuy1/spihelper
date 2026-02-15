@@ -1,6 +1,6 @@
 import { type PropType, defineComponent } from 'vue';
 import { cdxIconCopy, cdxIconDownload, cdxIconTrash } from '@wikimedia/codex-icons';
-import type { AllUser } from '../../../../types/api.ts';
+import type { AllUser, BlockEntry } from '../../../../types/api.ts';
 import { spiHelperIsAdmin, spiHelperIsCheckuser, spiHelperIsClerk } from '../../../../role.ts';
 import { HandleUserSelected } from '../../userLookup.ts';
 import type { AltmasterTag, BlockOptions, SockRow, Tag } from '../../../../types/spi.ts';
@@ -14,6 +14,8 @@ export const BlockActionComponent = defineComponent({
     modelValue: { type: Array as PropType<SockRow[]>, required: true },
     blockOptions: { type: Object as PropType<BlockOptions>, required: true },
     userLocks: { type: Map as PropType<Map<string, boolean>>, required: true },
+    userBlocks: { type: Map as PropType<Map<string, BlockEntry>>, required: true },
+    allowFetch: { type: Boolean, default: true },
     enabled: { type: Boolean, required: true },
   },
   data() {
@@ -141,7 +143,7 @@ export const BlockActionComponent = defineComponent({
               <cdx-message v-if="topButtonActions.copied" type="success" :fade-in="true" :auto-dismiss="2000"
                            @user-dismissed="onMessageDismissed('copied')" @auto-dismissed="onMessageDismissed('copied')"
                            :inline="true">Copied!</cdx-message>
-              <cdx-button @click="fetchSocks" aria-label="Fetch socks from comment">
+              <cdx-button v-if="allowFetch" @click="fetchSocks" aria-label="Fetch socks from comment">
                 <cdx-icon :icon="cdxIconDownload" />
               </cdx-button>
               <cdx-message v-if="topButtonActions.fetched" type="success" :fade-in="true" :auto-dismiss="2000"
@@ -251,7 +253,7 @@ export const BlockActionComponent = defineComponent({
         </template>
 
         <template #item-block="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.block" :disabled="blockOptions.noBlock">Block</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.block" :disabled="blockOptions.noBlock || userBlocks.get(row.username) !== undefined">Block</cdx-checkbox>
         </template>
 
         <template #item-duration="{ item, row }">
@@ -259,16 +261,16 @@ export const BlockActionComponent = defineComponent({
         </template>
 
         <template #item-acb="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.acb">Account creation blocked</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.acb" :disabled="!blockOptions.override && userBlocks.get(row.username)?.acb">Account creation blocked</cdx-checkbox>
         </template>
         <template #item-abao="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.abao">Autoblock/Anon-only</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.abao" :disabled="!blockOptions.override && userBlocks.get(row.username)?.abao">Autoblock/Anon-only</cdx-checkbox>
         </template>
         <template #item-ntp="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.ntp">No talk page</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.ntp" :disabled="!blockOptions.override && userBlocks.get(row.username)?.ntp">No talk page</cdx-checkbox>
         </template>
         <template #item-nem="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.nem">No email</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.nem" :disabled="!blockOptions.override && userBlocks.get(row.username)?.nem">No email</cdx-checkbox>
         </template>
 
         <template #item-tag="{ item, row }">
@@ -352,6 +354,18 @@ export const BlockActionComponent = defineComponent({
       }
     },
     handleUserSelected(data: AllUser, row: SockRow) {
+      if (data.blockid !== undefined) {
+        const ABAO = mw.util.isIPAddress(data.name) ? data.blockanononly : data.blockautoblocking;
+        this.userBlocks.set(row.username, {
+          username: row.username,
+          duration: data.blockexpiry ?? '',
+          abao: ABAO ?? false,
+          acb: data.blocknocreate ?? false,
+          ntp: data.blockowntalk ?? false,
+          nem: data.blockemail ?? false,
+          reason: '',
+        });
+      }
       HandleUserSelected(data, row);
     },
     handleUsernameChange(username: string, row: SockRow) {
@@ -360,6 +374,21 @@ export const BlockActionComponent = defineComponent({
     setAll<K extends keyof SockRow>(key: K, value: SockRow[K]) {
       for (const row of this.modelValue) {
         if (key === 'lock' && this.userLocks.get(row.username) === true) {
+          continue;
+        }
+        else if (key === 'block' && this.userBlocks.get(row.username) !== undefined) {
+          continue;
+        }
+        else if (key === 'acb' && this.userBlocks.get(row.username)?.acb) {
+          continue;
+        }
+        else if (key === 'abao' && this.userBlocks.get(row.username)?.abao) {
+          continue;
+        }
+        else if (key === 'ntp' && this.userBlocks.get(row.username)?.ntp) {
+          continue;
+        }
+        else if (key === 'nem' && this.userBlocks.get(row.username)?.nem) {
           continue;
         }
         row[key] = value;

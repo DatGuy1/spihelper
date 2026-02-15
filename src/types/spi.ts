@@ -1,4 +1,5 @@
 import { context } from '../context.ts';
+import type { BlockEntry } from './api.ts';
 
 export class ParsedArchiveNotice {
   username: string;
@@ -90,7 +91,8 @@ export interface CaseActions {
 export interface BlockActionData {
   accounts: SockRow[];
   options: BlockOptions;
-  userlocks: Map<string, boolean>;
+  userLocks: Map<string, boolean>;
+  userBlocks: Map<string, BlockEntry>;
   master: string;
   altmaster: string;
   lockcomment: string;
