@@ -1,12 +1,12 @@
 import { type ComponentPublicInstance, type PropType, defineComponent } from 'vue';
-import type { SockRow } from '../../../types/spi.ts';
-import { isNonRegisteredAccount } from '../../../utils.ts';
-import { isOpRunning } from '../../../operations.ts';
-import { spiHelperGetPageRev } from '../../../api.ts';
-import { context } from '../../../context.ts';
+import type { SockRow } from '../../types/spi.ts';
+import { isNonRegisteredAccount } from '../../utils.ts';
+import { isOpRunning } from '../../operations.ts';
+import { spiHelperGetPageRev } from '../../api.ts';
+import { context } from '../../context.ts';
 import { cdxIconUpdate } from '@wikimedia/codex-icons';
 import { type ModalAction, type PrimaryModalAction } from '@wikimedia/codex';
-import { CaseState, loadCaseText, loadSectionText } from '../../../state.ts';
+import { CaseState, loadCaseText, loadSectionText } from '../../state.ts';
 
 interface Data {
   popover: {
@@ -21,6 +21,8 @@ interface Data {
 
 export const SubmitFormComponent = defineComponent({
   props: {
+    actionName: { type: String, required: true },
+    checkConflict: { type: Boolean, required: true },
     state: { type: Object as PropType<CaseState>, required: true },
     socks: { type: Array as PropType<SockRow[]>, required: true },
     locks: { type: Map as PropType<Map<string, boolean>>, required: true },
@@ -81,7 +83,7 @@ export const SubmitFormComponent = defineComponent({
       );
     },
     disableButton() {
-      return isOpRunning('mainActions')
+      return isOpRunning(this.actionName)
         || this.allDisabled
         || (this.needsSockmaster && !this.master)
         || (this.needsAltmaster && !this.altmaster);
@@ -114,13 +116,18 @@ export const SubmitFormComponent = defineComponent({
   methods: {
     // Should this be in topView.ts?
     async onSubmit() {
-      // Store it in order to prevent calling spiHelperGetPageRev() again
-      this.popover.revId = await spiHelperGetPageRev(context.pageName);
-      if (this.popover.revId === context.startingRevId) {
-        this.$emit('onSubmit');
+      if (this.checkConflict) {
+        // Store it in order to prevent calling spiHelperGetPageRev() again
+        this.popover.revId = await spiHelperGetPageRev(context.pageName);
+        if (this.popover.revId === context.startingRevId) {
+          this.$emit('onSubmit');
+        }
+        else {
+          this.popover.show = true;
+        }
       }
       else {
-        this.popover.show = true;
+        this.$emit('onSubmit');
       }
     },
     confirmSubmit() {
