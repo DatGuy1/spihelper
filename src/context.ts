@@ -52,7 +52,7 @@ export class SpiPageContext {
     watchExpiry?: string;
     baseRevId?: number;
     sectionId?: number | null;
-  }): Promise<boolean> {
+  }): Promise<number | null> {
     return spiHelperEditPage({
       title: this.pageName,
       newText: opts.newText,

@@ -183,7 +183,7 @@ export async function spiHelperPerformActions(opts: {
       : state.selectedSection.section.id;
 
     const editSummary = formatEditSummary(editSummaryActions);
-    const editSucceeded = await context.edit({
+    const newRevId = await context.edit({
       newText: targetText,
       summary: editSummary,
       watch: spiHelperSettings.watch.case,
@@ -191,9 +191,12 @@ export async function spiHelperPerformActions(opts: {
       baseRevId: context.startingRevId,
       sectionId: sectionId,
     });
-    if (!editSucceeded) {
+    if (newRevId === null) {
       // Page edit failed (probably an edit conflict)
       new VueMessage({ type: 'error', content: 'Failed to save edit' }).show();
+    }
+    else {
+      context.startingRevId = newRevId;
     }
   }
 

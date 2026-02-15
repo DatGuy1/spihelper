@@ -127,7 +127,7 @@ export async function spiHelperTagUser(opts: {
     createonly: false,
     watch: spiHelperSettings.watch.tagged,
     watchExpiry: spiHelperSettings.expiry.tagged,
-  });
+  }).then(result => result !== null);
 }
 
 export async function createSockCategories(opts: {

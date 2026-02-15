@@ -215,6 +215,12 @@ export interface FlaggedResponse {
   };
 }
 
+export interface EditResponse {
+  edit: {
+    newrevid: number;
+  };
+}
+
 export interface Restrictions {
   types: string[];
   levels: string[];

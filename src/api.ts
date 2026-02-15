@@ -29,6 +29,7 @@ import type {
   BlockEntry,
   BlocksResponse,
   CategoriesResponse,
+  EditResponse,
   FlaggedResponse,
   GlobalAllUsersResponse,
   InfoResponse,
@@ -785,7 +786,7 @@ export async function spiHelperMovePage(opts: {
 export async function spiHelperEditPage(opts: {
   title: string; newText: string; summary: string; createonly?: boolean;
   watch: WatchOption; watchExpiry?: string; baseRevId?: number; sectionId?: number | null;
-}): Promise<boolean> {
+}): Promise<number | null> {
   const {
     title,
     newText,
@@ -818,6 +819,7 @@ export async function spiHelperEditPage(opts: {
     text: newText,
     title: finalTitle,
     createonly: createonly,
+    formatversion: '2',
   };
   if (sectionId) {
     request.section = sectionId.toString();
@@ -829,10 +831,10 @@ export async function spiHelperEditPage(opts: {
     request.baserevid = baseRevId;
   }
   try {
-    await api.postWithToken('csrf', request);
+    const response = await api.postWithToken('csrf', request) as EditResponse;
     message.update({ type: 'success', content: 'Saved ' + linkHtml, isHtml: true });
     finishOp(activeOpKey, OpState.Success);
-    return true;
+    return response.edit.newrevid;
   }
   catch (error) {
     message.update({
@@ -842,7 +844,7 @@ export async function spiHelperEditPage(opts: {
     });
     console.error(error);
     finishOp(activeOpKey, OpState.Failed);
-    return false;
+    return null;
   }
 }
 

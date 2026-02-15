@@ -104,7 +104,7 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
     summary: `${summaryPrefix} from [[${context.prefixedName}]]`,
     watch: spiHelperSettings.watch.archive,
     watchExpiry: spiHelperSettings.expiry.archive,
-  });
+  }) !== null;
 
   if (!archiveSuccess) {
     new VueMessage({ type: 'error', content: 'Failed to update archive, not removing sections from case page' }).show();
@@ -159,7 +159,7 @@ export async function spiHelperArchiveCaseSection(section: SectionEntry): Promis
     createonly: false,
     watch: spiHelperSettings.watch.archive,
     watchExpiry: spiHelperSettings.expiry.archive,
-  });
+  }) !== null;
 
   if (!archiveSuccess) {
     message.content = 'Failed to update archive, not removing section from case page';

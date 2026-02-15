@@ -1,5 +1,5 @@
 import { ParsedArchiveNotice } from './types/spi.ts';
-import { spiHelperEditPage, spiHelperGetPageText } from './api.ts';
+import { spiHelperGetPageText } from './api.ts';
 import { spiHelperPriorCasesRegex } from './constants/regex.ts';
 import { context } from './context.ts';
 import { spiHelperSettings } from './options';
@@ -74,11 +74,14 @@ export async function spiHelperAddArchiveNotice(state: CaseState) {
     // Add TOC and archive notice at the top
     pageText = '<noinclude>__TOC__</noinclude>\n' + archiveNoticeText + pageText;
   }
-  await spiHelperEditPage({
-    title: context.pageName,
+  const newRevId = await context.edit({
     newText: pageText,
     summary: 'Adding archive notice',
     watch: spiHelperSettings.watch.case,
     watchExpiry: spiHelperSettings.expiry.case,
+    baseRevId: context.startingRevId,
   });
+  if (newRevId !== null) {
+    context.startingRevId = newRevId;
+  }
 }

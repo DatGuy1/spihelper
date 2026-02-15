@@ -79,7 +79,7 @@ export async function spiHelperRequestLocks(opts: {
     summary: `Global lock request for ${heading}`,
     createonly: false,
     watch: 'nochange',
-  });
+  }) !== null;
   if (editSuccess) {
     const linkHtml = buildTitleLinkHtml(`meta:Steward requests/Global#${headingText}`, 'filed');
     new VueMessage({ type: 'success', content: `Global lock request ${linkHtml} successfully!`, isHtml: true }).show();
