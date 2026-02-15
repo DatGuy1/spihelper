@@ -124,8 +124,8 @@ export const TopViewComponent = defineComponent({
     },
   },
   template: `
-    <div id="spiHelper-topView-Card" v-if="open">
-      <div id="spiHelper-topView-Header">
+    <div id="spiHelper-topView" class="spiHelper-mainCard" v-if="open">
+      <div id="spiHelper-topView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
           <cdx-button aria-label="Give feedback" weight="quiet" @click="feedbackDialog.launch()">
             <cdx-icon :icon="cdxIconFeedback" />

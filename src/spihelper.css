@@ -12,7 +12,7 @@
     align-self: baseline;
 }
 
-#spiHelper-topView-Card {
+.spiHelper-mainCard {
     background-color: var(--background-color-base, #fff);
     border: 1px solid var(--border-color-base, #a2a9b1);
     border-radius: 2px;
@@ -31,12 +31,12 @@
     z-index: 5;
 }
 
-#spiHelper-vue-mount-point.unpinned #spiHelper-topView-Card {
+#spiHelper-vue-mount-point.unpinned .spiHelper-mainCard {
     position: absolute;
     width: 97.35%;
 }
 
-#spiHelper-topView-Header {
+.spiHelper-mainCard-Header {
     position: relative;
 
     .header-buttons {
