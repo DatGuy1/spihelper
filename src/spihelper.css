@@ -243,3 +243,13 @@
         box-sizing: border-box
     }
 }
+
+#spihelper-CaseLoader {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    .cdx-text-input {
+        max-width: 200px;
+    }
+}
