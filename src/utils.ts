@@ -180,3 +180,22 @@ export function buildTitleLinkHtml(title: string, text?: string): string {
   const $link = $('<a>').attr('href', mw.util.getUrl(title)).attr('title', title).text(text);
   return $link.prop('outerHTML') as string;
 }
+
+export function buildUserActionLogMessage(opts: {
+  blockedUsers: (string | null)[];
+  taggedUsers: (string | null)[];
+  lockedUsers: (string | null)[];
+}): string {
+  const { blockedUsers, taggedUsers, lockedUsers } = opts;
+  let logMessage = '';
+  if (blockedUsers.length > 0) {
+    logMessage += '\n** blocked ' + blockedUsers.filter(Boolean).join(', ');
+  }
+  if (taggedUsers.length > 0) {
+    logMessage += '\n** tagged ' + taggedUsers.filter(Boolean).join(', ');
+  }
+  if (lockedUsers.length > 0) {
+    logMessage += '\n** requested locks for ' + lockedUsers.map(user => `{{noping|1=${user}}}`).join(', ');
+  }
+  return logMessage;
+}

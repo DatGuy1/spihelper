@@ -14,7 +14,12 @@ import {
 import { spiHelperSettings } from './options';
 import { spiHelperLog } from './actions/log.ts';
 import { type CaseState, loadCaseText, loadSectionText, refreshSections } from './state.ts';
-import { addSignature, isNonRegisteredAccount, spiHelperNormalizeUsername } from './utils.ts';
+import {
+  addSignature,
+  buildUserActionLogMessage,
+  isNonRegisteredAccount,
+  spiHelperNormalizeUsername,
+} from './utils.ts';
 import {
   type BlockActionData, type CaseAction,
   type CaseActions,
@@ -200,8 +205,6 @@ export async function spiHelperPerformActions(opts: {
     }
   }
 
-  // Update to the latest revision ID
-  await context.refreshRevId();
   if (actions.archive.enabled) {
     switch (state.selectedSection.type) {
       case 'all': {
@@ -239,15 +242,7 @@ export async function spiHelperPerformActions(opts: {
 
   const [blockedUsers, taggedUsers, lockedUsers] = await userActionsPromise;
   if (spiHelperSettings.log.enabled) {
-    if (blockedUsers.length > 0) {
-      logMessage += '\n** blocked ' + blockedUsers.filter(Boolean).join(', ');
-    }
-    if (taggedUsers.length > 0) {
-      logMessage += '\n** tagged ' + taggedUsers.filter(Boolean).join(', ');
-    }
-    if (lockedUsers.length > 0) {
-      logMessage += '\n** requested locks for ' + lockedUsers.map(user => `{{noping|1=${user}}}`).join(', ');
-    }
+    logMessage += buildUserActionLogMessage({ blockedUsers, taggedUsers, lockedUsers });
     await spiHelperLog(logMessage);
   }
 
