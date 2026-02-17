@@ -245,12 +245,12 @@
   padding-right: 40px;
 }
 
-#spihelper-CaseLoader {
+#spiHelper-CaseLoader {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-#spihelper-CaseLoader .cdx-text-input {
+#spiHelper-CaseLoader .cdx-text-input {
   max-width: 200px;
 }

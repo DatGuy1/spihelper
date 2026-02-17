@@ -16,6 +16,39 @@
   var spiHelperHiddenCharNormRegex = /\u200E/g;
   var spiHelperSignatureRegex = /(?<!~)~~~~(?!~)/;
 
+  // src/ui/messages.ts
+  class VueMessage {
+    type;
+    content;
+    isHtml;
+    _index;
+    constructor(opts) {
+      this.type = opts.type;
+      this.content = opts.content;
+      this.isHtml = opts.isHtml;
+    }
+    show() {
+      const index = messages.length;
+      messages.push(this);
+      this._index = index;
+      return this;
+    }
+    update(opts) {
+      Object.assign(this, opts);
+      if (this._index === undefined) {
+        this.show();
+      } else {
+        messages[this._index] = this;
+      }
+      return this;
+    }
+  }
+  var messages = [];
+  mw.loader.using(["vue"], (require2) => {
+    const Vue = require2("vue");
+    messages = Vue.reactive(messages);
+  });
+
   // src/utils.ts
   function spiHelperStripXWikiPrefix(title) {
     if (title.startsWith("m:") || title.startsWith("meta:")) {
@@ -177,6 +210,76 @@
     }
     return logMessage;
   }
+  function getSectionText(text, startIndex = 0, nextSectionTitle) {
+    let endIndex = text.length;
+    if (nextSectionTitle) {
+      const nextHeaderPattern = new RegExp(`^===\\s*${nextSectionTitle}\\s*===\\s*$`, "m");
+      const nextMatch = text.slice(startIndex + 1).match(nextHeaderPattern);
+      if (nextMatch?.index !== undefined) {
+        endIndex = startIndex + nextMatch.index;
+      }
+    }
+    return text.slice(startIndex, endIndex).trim();
+  }
+  function rebuildArchiveText(originalText, sections) {
+    sections.sort((a, b) => a.header.getTime() - b.header.getTime());
+    const headerText = originalText.slice(0, getContentStartIndex(originalText));
+    return headerText + `
+` + sections.map((section) => section.fullText).join(`
+`);
+  }
+  function getContentStartIndex(archiveText) {
+    const headerEndMatch = spiHelperPriorCasesRegex.exec(archiveText);
+    if (headerEndMatch) {
+      return headerEndMatch.index + headerEndMatch[0].length;
+    }
+    return 0;
+  }
+  function parseArchiveSections(archiveText, sectionEntries) {
+    const sectionsResult = [];
+    if (sectionEntries.length === 0) {
+      return sectionsResult;
+    }
+    const contentStartIndex = getContentStartIndex(archiveText);
+    let contentText = archiveText.slice(contentStartIndex);
+    for (let i = 0;i < sectionEntries.length; i++) {
+      const sectionEntry = sectionEntries[i];
+      if (!sectionEntry) {
+        continue;
+      }
+      const sectionName = sectionEntry.name;
+      const headerPattern = new RegExp(`^===\\s*${sectionName}\\s*===\\s*$`, "m");
+      const headerMatch = contentText.match(headerPattern);
+      if (!headerMatch) {
+        continue;
+      }
+      const sectionStartIndex = headerMatch.index;
+      if (sectionStartIndex === undefined) {
+        continue;
+      }
+      const fullText = getSectionText(contentText, sectionStartIndex, sectionEntries[i + 1]?.name);
+      if (fullText) {
+        const sectionDate = parseSectionDate(sectionName);
+        if (sectionDate === null) {
+          new VueMessage({
+            type: "error",
+            content: `Failed to parse date from section header "${sectionName}" in archive`
+          }).show();
+          return null;
+        }
+        sectionsResult.push({ header: sectionDate, fullText });
+      }
+      contentText = contentText.slice(fullText.length);
+    }
+    return sectionsResult;
+  }
+  function parseSectionDate(sectionTitle) {
+    const parsedDate = new Date(sectionTitle);
+    if (!isNaN(parsedDate.getTime())) {
+      return parsedDate;
+    }
+    return null;
+  }
 
   // src/operations.ts
   var activeOperations = new Map;
@@ -246,39 +349,6 @@
     showUseragentCheckbox: true,
     useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
   };
-
-  // src/ui/messages.ts
-  class VueMessage {
-    type;
-    content;
-    isHtml;
-    _index;
-    constructor(opts) {
-      this.type = opts.type;
-      this.content = opts.content;
-      this.isHtml = opts.isHtml;
-    }
-    show() {
-      const index = messages.length;
-      messages.push(this);
-      this._index = index;
-      return this;
-    }
-    update(opts) {
-      Object.assign(this, opts);
-      if (this._index === undefined) {
-        this.show();
-      } else {
-        messages[this._index] = this;
-      }
-      return this;
-    }
-  }
-  var messages = [];
-  mw.loader.using(["vue"], (require2) => {
-    const Vue = require2("vue");
-    messages = Vue.reactive(messages);
-  });
 
   // src/api.ts
   async function spiHelperGetUserBlockSettings(user) {
@@ -507,16 +577,25 @@
       return "";
     }
   }
-  async function spiHelperGetInvestigationSectionIDs(pageName) {
+  async function spiHelperGetInvestigationSections(opts) {
+    const { pageName, content } = opts;
     const request = {
       action: "parse",
-      prop: "tocdata",
-      page: pageName
+      prop: "tocdata"
     };
+    if (pageName !== undefined) {
+      request.page = pageName;
+    } else if (content !== undefined) {
+      request.text = content;
+      request.contentmodel = "wikitext";
+    } else {
+      console.error("spiHelperGetInvestigationSections: No page name or content provided");
+      return [];
+    }
     const api = spiHelperGetAPI();
     const response = await api.get(request);
     if (!response.parse) {
-      console.error("spiHelperGetInvestigationSectionIDs: Could not parse sections");
+      console.error("spiHelperGetInvestigationSections: Could not parse sections");
       return [];
     }
     const dateSections = [];
@@ -935,6 +1014,23 @@
       return "";
     }
   }
+  async function spiHelperGetCategoryMembers(category) {
+    const api = spiHelperGetAPI();
+    const request = {
+      action: "query",
+      list: "categorymembers",
+      cmtitle: category,
+      cmlimit: "max",
+      cmnamespace: 2,
+      formatversion: "2"
+    };
+    try {
+      const response = await api.get(request);
+      return response.query.categorymembers.map((member) => member.title);
+    } catch {
+      return [];
+    }
+  }
   var userAgent = `MediaWiki-JS/${mw.config.get("wgVersion")} spihelper/${"3.0.0-beta.3"}`;
   var APIs = {
     meta: new mw.ForeignApi("https://meta.wikimedia.org/w/api.php", { userAgent }),
@@ -1048,7 +1144,7 @@
     return state._text;
   }
   async function refreshSections(state) {
-    state.sections = await spiHelperGetInvestigationSectionIDs(context.pageName);
+    state.sections = await spiHelperGetInvestigationSections({ pageName: context.pageName });
   }
   async function loadSectionText(section, opts = {}) {
     const { purge = false, show = false } = opts;
@@ -2417,7 +2513,7 @@
   }
   var isMenuGroupData = (item) => ("items" in item);
   async function setSockRowBlock(opts) {
-    const { sock, block: blockSetting, userPage, defaultBlock, state } = opts;
+    const { sock, block: blockSetting, userPage, defaultBlock, checkLock, state } = opts;
     const row = updateSockRowSettings({
       row: sock,
       defaultBlock,
@@ -2425,13 +2521,15 @@
       currentTags: userPage
     });
     let isLocked = null;
-    const globalUser = await spiHelperGetGlobalUser(row.username);
-    if (globalUser) {
-      isLocked = globalUser.locked;
-      if (isLocked || state.archiveNotice?.crosswiki) {
-        row.lock = true;
-      } else {
-        row.lock = false;
+    if (checkLock) {
+      const globalUser = await spiHelperGetGlobalUser(row.username);
+      if (globalUser) {
+        isLocked = globalUser.locked;
+        if (isLocked || state.archiveNotice?.crosswiki) {
+          row.lock = true;
+        } else {
+          row.lock = false;
+        }
       }
     }
     return { row, isLocked };
@@ -2458,34 +2556,28 @@
     return flags;
   }
   // src/ui/views/top/utils/section.ts
-  async function prefetchSockRowsForSelection(selection, state, userLocks, userBlocks) {
-    if (!selection) {
-      return [];
-    }
-    const searchText = await (selection.type === "all" ? loadCaseText(state) : loadSectionText(selection.section));
-    const [likelySocks, possibleSocks, allUsernames] = getSockEntries({
-      text: searchText,
-      fullSearch: true,
-      state
-    });
+  async function prefetchSockRows(opts) {
+    const { likelySocks, possibleSocks, allUsernames, userBlocks, userLocks, state } = opts;
     const likelySet = new Set(likelySocks);
     const validUsernames = allUsernames.filter((name) => !isNonRegisteredAccount(name)).map((name) => `User:${name}`);
     const [blockSettings, userPages] = await Promise.all([
       spiHelperGetBulkUserBlockSettings(allUsernames),
       spiHelperGetBulkPageText(validUsernames)
     ]);
+    const checkLock = allUsernames.length < 7;
     const userPromises = [...likelySocks, ...possibleSocks].map(async (sock) => {
       const blockSetting = blockSettings.get(sock.username);
       if (blockSetting !== undefined) {
         userBlocks.set(sock.username, blockSetting);
       }
-      const userPage = userPages.get(`User:${sock.username}`);
+      const userPage = userPages.get(sock.username);
       const defaultBlock = likelySet.has(sock);
       const { row: newRow, isLocked } = await setSockRowBlock({
         sock,
         block: blockSetting,
         defaultBlock,
         userPage,
+        checkLock,
         state
       });
       if (isLocked !== null) {
@@ -2727,16 +2819,26 @@
         sourceArchiveText = sourceArchiveText.replace(/^\n*/, "");
         targetArchiveText += `
 ` + sourceArchiveText;
-        await spiHelperEditPage({
-          title: newContext.archiveName,
-          newText: targetArchiveText,
-          summary: `Copying archives from [[${oldContext.prefixedName}]], see page history for attribution`,
-          createonly: false,
-          watch: spiHelperSettings.watch.archive,
-          watchExpiry: spiHelperSettings.expiry.archive
-        });
-        await spiHelperDeletePage(oldContext.archiveName, "Deleting copied archive");
-        archivesCopied = true;
+        const archiveSections = await spiHelperGetInvestigationSections({ content: targetArchiveText });
+        const parsedSections = parseArchiveSections(targetArchiveText, archiveSections);
+        if (parsedSections) {
+          targetArchiveText = rebuildArchiveText(targetArchiveText, parsedSections);
+          await spiHelperEditPage({
+            title: newContext.archiveName,
+            newText: targetArchiveText,
+            summary: `Merging archives from [[${oldContext.prefixedName}]], see page history for attribution`,
+            createonly: false,
+            watch: spiHelperSettings.watch.archive,
+            watchExpiry: spiHelperSettings.expiry.archive
+          });
+          await spiHelperDeletePage(oldContext.archiveName, "Deleting copied archive");
+          archivesCopied = true;
+        } else {
+          new VueMessage({
+            type: "error",
+            content: "Could not parse the archive. Please merge the archives manually"
+          }).show();
+        }
       }
       const siteRestrictions = await spiHelperGetSiteRestrictionInformation();
       const newProtection = await getNewProtection(oldContext.pageName, newContext.pageName, siteRestrictions);
@@ -3205,6 +3307,12 @@ $2`);
       newArchiveText = newArchiveText.replace(/<br\s*\/>\s*{{SPIpriorcases}}/gi, `
 {{SPIpriorcases}}`);
     }
+    const archiveSectionEntries = await spiHelperGetInvestigationSections({ pageName: context.archiveName });
+    const parsedArchiveSections = parseArchiveSections(newArchiveText, archiveSectionEntries);
+    if (!parsedArchiveSections) {
+      new VueMessage({ type: "notice", content: "Failed to parse existing archive sections, aborting archival" }).show();
+      return;
+    }
     let sectionsAdded = 0;
     for (const section of sectionsToArchive) {
       const sectionText = await loadSectionText(section);
@@ -3215,15 +3323,22 @@ $2`);
         new VueMessage({ type: "warning", content: `Section ${section.name} already exists in the archive` }).show();
         continue;
       }
-      newArchiveText += `
-`;
-      newArchiveText += cleanSectionText;
+      const parsedDate = parseSectionDate(section.name);
+      if (!parsedDate) {
+        new VueMessage({
+          type: "error",
+          content: `Failed to parse date from section header "${section.name}", aborting archival`
+        }).show();
+        return;
+      }
+      parsedArchiveSections.push({ header: parsedDate, fullText: cleanSectionText });
       sectionsAdded++;
     }
     if (sectionsAdded === 0) {
       new VueMessage({ type: "warning", content: "Nothing to archive" }).show();
       return;
     }
+    newArchiveText = rebuildArchiveText(newArchiveText, parsedArchiveSections);
     const usePlural = sectionsAdded > 1;
     const summaryPrefix = `Archiving ${sectionsAdded} section${usePlural ? "s" : ""}`;
     const archiveSuccess = await spiHelperEditPage({
@@ -3250,7 +3365,6 @@ $2`);
   async function spiHelperArchiveCaseSection(section) {
     let sectionText = await loadSectionText(section);
     sectionText = sectionText.replace(spiHelperCaseStatusRegex, "");
-    const newArchiveText = sectionText.slice(sectionText.search(spiHelperSectionRegex));
     let archiveText = await spiHelperGetPageText(context.archiveName, true);
     const message = new VueMessage({ type: "error", content: "" });
     if (archiveText.includes(sectionText)) {
@@ -3268,8 +3382,25 @@ $2`);
       archiveText = archiveText.replace(/<br\s*\/>\s*{{SPIpriorcases}}/gi, `
 {{SPIpriorcases}}`);
     }
-    archiveText += `
-` + newArchiveText;
+    const investigationMessage = new VueMessage({ type: "notice", content: "Loading archive sections" }).show();
+    const archiveSectionEntries = await spiHelperGetInvestigationSections({ pageName: context.archiveName });
+    const parsedArchiveSections = parseArchiveSections(archiveText, archiveSectionEntries);
+    if (parsedArchiveSections) {
+      investigationMessage.update({ type: "success", content: "Archive sections loaded" });
+      const sectionDate = parseSectionDate(section.name);
+      if (!sectionDate) {
+        new VueMessage({ type: "error", content: "Failed to parse date from section header" }).show();
+        return;
+      }
+      parsedArchiveSections.push({ header: sectionDate, fullText: sectionText });
+    } else {
+      investigationMessage.update({
+        type: "error",
+        content: "Failed to parse existing archive sections, aborting archival"
+      });
+      return;
+    }
+    archiveText = rebuildArchiveText(archiveText, parsedArchiveSections);
     const archiveSuccess = await spiHelperEditPage({
       title: context.archiveName,
       newText: archiveText,
@@ -4013,7 +4144,20 @@ ${comment}
           return acc;
         }, []);
         this.handleRemoveRows(removeIndexes);
-        const allRows = await prefetchSockRowsForSelection(selection, this.state, this.caseActions.block.data.userLocks, this.caseActions.block.data.userBlocks);
+        const searchText = await (selection.type === "all" ? loadCaseText(this.state) : loadSectionText(selection.section));
+        const [likelySocks, possibleSocks, allUsernames] = getSockEntries({
+          text: searchText,
+          fullSearch: true,
+          state: this.state
+        });
+        const allRows = await prefetchSockRows({
+          likelySocks,
+          possibleSocks,
+          allUsernames,
+          userBlocks: this.caseActions.block.data.userBlocks,
+          userLocks: this.caseActions.block.data.userLocks,
+          state: this.state
+        });
         this.sectionAccountNames = new Set(this.massAddSockRows(allRows).map((row) => row.username));
       },
       async onSubmitActions() {
@@ -5615,12 +5759,14 @@ ${comment}
       }
     }
   });
-  // src/ui/views/checkuserView.ts
-  var CheckUserViewComponent = defineComponent({
+  // src/ui/views/alternateView.ts
+  var AlternateViewComponent = defineComponent({
     props: {
       state: { type: Object, required: true },
       feedbackDialog: { type: Object, required: true },
-      openButton: { type: Object, required: true }
+      openButton: { type: Object, required: true },
+      defaultCase: { type: String, required: false, default: "" },
+      categoryView: { type: Boolean, default: false }
     },
     data() {
       const blockData = {
@@ -5648,7 +5794,7 @@ ${comment}
         _beforeUnloadHandler: null,
         caseLoaded: false,
         caseLoading: false,
-        targetCase: "",
+        targetCase: this.defaultCase,
         blockData,
         linkRows: [],
         actionsRunning: false,
@@ -5659,8 +5805,8 @@ ${comment}
       };
     },
     template: `
-    <div id="spiHelper-checkuserView" class="spiHelper-mainCard" v-if="open">
-      <div id="spiHelper-checkuserView-Header" class="spiHelper-mainCard-Header">
+    <div id="spiHelper-alternateView" class="spiHelper-mainCard" v-if="open">
+      <div id="spiHelper-alternateView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
           <cdx-button aria-label="Give feedback" weight="quiet" @click="feedbackDialog.launch()">
             <cdx-icon :icon="cdxIconFeedback" />
@@ -5676,11 +5822,11 @@ ${comment}
                      :namespace="4" prefix="Sockpuppet investigations/"
                      placeholder="Case" label="Case title" />
         <div style="display: flex; gap: 10px;">
-          <cdx-button weight="primary" action="progressive" @click="loadCase">Load</cdx-button>
+          <cdx-button weight="primary" action="progressive" @click="loadCase(true)">Load</cdx-button>
           <cdx-progress-indicator v-show="caseLoading">Loading case</cdx-progress-indicator>
         </div>
       </div>
-      <div id="spiHelper-checkuserView-Content" v-if="caseLoaded">
+      <div id="spiHelper-alternateView-Content" v-if="caseLoaded">
         <div>
           <h4>Link</h4>
           <link-action :enabled="true" :case-name="targetCase"
@@ -5700,7 +5846,7 @@ ${comment}
       <div v-if="caseLoaded">
         <submit-form v-model:socks="blockData.accounts" v-model:master="blockData.master"
                      v-model:altmaster="blockData.altmaster" v-model:lock-comment="blockData.lockcomment"
-                     :locks="blockData.userLocks" :state="state" :action-name="'checkuserActions'"
+                     :locks="blockData.userLocks" :state="state" :action-name="'alternateActions'"
                      :check-conflict="false" :all-disabled="false"
                      @on-submit="onSubmitActions" />
       </div>
@@ -5727,7 +5873,7 @@ ${comment}
     watch: {
       unpinned(newVal) {
         if (!this.mountPoint) {
-          console.error("CheckUserView unpinned: Could not find mountPoint");
+          console.error("AlternateView unpinned: Could not find mountPoint");
           return;
         }
         if (newVal) {
@@ -5775,7 +5921,16 @@ ${comment}
         this.blockData.accounts = this.blockData.accounts.filter((_row, index) => !indexes.includes(index));
         this.linkRows = this.linkRows.filter((_row, index) => !indexes.includes(index));
       },
-      async loadCase() {
+      massAddSockRows(newRows) {
+        const sockRows = this.blockData.accounts;
+        const existingUsernames = new Set(sockRows.map((s) => s.username));
+        newRows.forEach((newRow) => {
+          if (!existingUsernames.has(newRow.username)) {
+            this.handleAddRow(newRow);
+          }
+        });
+      },
+      async loadCase(addRow) {
         this.caseLoading = true;
         setContext(this.pageName);
         const archiveNoticeResult = await spiHelperParseArchiveNotice(this.pageName, this.state);
@@ -5784,33 +5939,36 @@ ${comment}
         } else {
           this.state.archiveNotice = archiveNoticeResult;
         }
-        const userBlock = await spiHelperGetUserBlockSettings(this.targetCase);
-        if (userBlock !== null) {
-          this.blockData.userBlocks.set(this.targetCase, userBlock);
+        if (addRow) {
+          const userBlock = await spiHelperGetUserBlockSettings(this.targetCase);
+          if (userBlock !== null) {
+            this.blockData.userBlocks.set(this.targetCase, userBlock);
+          }
+          const userPageText = await spiHelperGetPageText(`User:${this.targetCase}`, false);
+          const { row, isLocked } = await setSockRowBlock({
+            sock: generateSockRow(this.targetCase, this.state),
+            block: userBlock,
+            userPage: userPageText,
+            defaultBlock: true,
+            checkLock: false,
+            state: this.state
+          });
+          if (isLocked !== null) {
+            this.blockData.userLocks.set(this.targetCase, isLocked);
+          }
+          this.handleAddRow(row);
         }
-        const userPageText = await spiHelperGetPageText(this.targetCase, false);
-        const { row, isLocked } = await setSockRowBlock({
-          sock: generateSockRow(this.targetCase, this.state),
-          block: userBlock,
-          userPage: userPageText,
-          defaultBlock: true,
-          state: this.state
-        });
-        if (isLocked !== null) {
-          this.blockData.userLocks.set(this.targetCase, isLocked);
-        }
-        this.handleAddRow(row);
         this.blockData.master = this.targetCase;
         this.blockData.altmaster = this.targetCase;
         this.caseLoading = false;
         this.caseLoaded = true;
       },
       async onSubmitActions() {
-        if (isOpRunning("checkuserActions")) {
+        if (isOpRunning("alternateActions")) {
           return;
         }
-        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "submit_checkuser" });
-        startOp("checkuserActions");
+        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "submit_alternate" });
+        startOp("alternateActions");
         this.actionsRunning = true;
         let blockPromises = [];
         let tagPromises = [];
@@ -5827,13 +5985,38 @@ ${comment}
           await spiHelperLog(logMessage);
         }
         new VueMessage({ type: "success", content: "Done!" }).show();
-        finishOp("checkuserActions", "success" /* Success */);
+        finishOp("alternateActions", "success" /* Success */);
         this.actionsRunning = false;
+      },
+      async initialiseCategoryView() {
+        if (this.defaultCase === "" || this.caseLoading || this.caseLoaded) {
+          return;
+        }
+        const [, suspectedMembers, confirmedMembers] = await Promise.all([
+          this.loadCase(false),
+          spiHelperGetCategoryMembers(`Category:Suspected Wikipedia sockpuppets of ${this.targetCase}`),
+          spiHelperGetCategoryMembers(`Category:Wikipedia sockpuppets of ${this.targetCase}`)
+        ]);
+        const BuildSockRow = (member, likely) => {
+          return { ...generateSockRow(member.replace("User:", ""), this.state), tag: likely ? "none" : "Ssuspected" };
+        };
+        const likelySocks = [...confirmedMembers, `User:${this.targetCase}`].map((member) => BuildSockRow(member, true));
+        const possibleSocks = suspectedMembers.map((member) => BuildSockRow(member, false));
+        const allUsernames = [...likelySocks, ...possibleSocks].map((sock) => sock.username);
+        const allRows = await prefetchSockRows({
+          likelySocks,
+          possibleSocks,
+          allUsernames,
+          userBlocks: this.blockData.userBlocks,
+          userLocks: this.blockData.userLocks,
+          state: this.state
+        });
+        this.massAddSockRows(allRows);
       }
     },
     mounted() {
       if (!this.mountPoint) {
-        console.error("CheckUserViewComponent mounted: Could not find mountPoint");
+        console.error("AlternateViewComponent mounted: Could not find mountPoint");
         return;
       }
       if (this.unpinned) {
@@ -5842,7 +6025,7 @@ ${comment}
         this.mountPoint.classList.remove("unpinned");
       }
       this._beforeUnloadHandler = (e) => {
-        const opState = getOpState("checkuserActions");
+        const opState = getOpState("alternateActions");
         if (opState !== "success" /* Success */) {
           e.preventDefault();
         }
@@ -5850,7 +6033,13 @@ ${comment}
       this._openHandler = () => {
         this.open = !this.open;
         if (this.open) {
-          mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "open_checkuser" });
+          mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "open_alternate" });
+          if (this.categoryView) {
+            this.initialiseCategoryView();
+          }
+          if (this.defaultCase !== "" && !this.caseLoaded) {
+            this.initialiseCategoryView();
+          }
         }
         if (this._beforeUnloadHandler) {
           if (this.open) {
@@ -5876,6 +6065,8 @@ ${comment}
     bootstrap("spi");
   } else if (mw.config.get("wgCanonicalSpecialPageName") === "CheckUser") {
     bootstrap("checkuser");
+  } else if (mw.config.get("wgNamespaceNumber") === 14 && ["Suspected Wikipedia sockpuppets", "Wikipedia sockpuppets"].some((cat) => mw.config.get("wgCategories").includes(cat))) {
+    bootstrap("category");
   }
   function bootstrap(pageType) {
     mw.loader.using(["vue", "@wikimedia/codex", "mediawiki.api", "mediawiki.util", "mediawiki.user", "mediawiki.feedback"], (require2) => {
@@ -5885,11 +6076,17 @@ ${comment}
       if (false) {} else if (true) {
         importStylesheet("User:DatGuy/spihelper.dev.css");
       } else {}
+      let targetSock;
       const caseState = Vue.reactive(new CaseState);
       if (pageType === "spi") {
         const rawPageName = mw.config.get("wgPageName");
         setContext(rawPageName);
         refreshSections(caseState);
+      } else if (pageType === "category") {
+        targetSock = /Category:(?:Suspected )?Wikipedia sockpuppets of (.*)/.exec(mw.config.get("wgPageName").replaceAll("_", " "));
+        if (!targetSock?.[1]) {
+          return;
+        }
       }
       const loadedOptions = loadOptions();
       if (loadedOptions) {
@@ -5905,18 +6102,37 @@ ${comment}
         const mountPoint = document.createElement("div");
         mountPoint.setAttribute("id", "spiHelper-vue-mount-point");
         mw.util.$content.prepend(mountPoint);
-        if (pageType === "spi") {
-          Vue.createMwApp(TopViewComponent, {
-            state: caseState,
-            feedbackDialog,
-            openButton: initLink
-          }).component("cdx-tabs", Codex.CdxTabs).component("cdx-tab", Codex.CdxTab).component("cdx-select", Codex.CdxSelect).component("cdx-card", Codex.CdxCard).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-text-area", Codex.CdxTextArea).component("cdx-toggle-button", Codex.CdxToggleButton).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("cdx-button-group", Codex.CdxButtonGroup).component("cdx-button", Codex.CdxButton).component("cdx-icon", Codex.CdxIcon).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-lookup", Codex.CdxLookup).component("cdx-field", Codex.CdxField).component("cdx-message", Codex.CdxMessage).component("cdx-progress-bar", Codex.CdxProgressBar).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-accordion", Codex.CdxAccordion).component("cdx-label", Codex.CdxLabel).component("cdx-popover", Codex.CdxPopover).component("action-accordion", ActionAccordionComponent).component("action-button", ActionButtonComponent).component("action-container", ActionContainerComponent).component("action-content", ActionContentComponent).component("submit-form", SubmitFormComponent).component("comment-action", CommentActionComponent).component("change-status-action", ChangeStatusActionComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("management-action", ManagementActionComponent).component("archive-action", ArchiveActionComponent).component("move-action", MoveActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
-        } else {
-          Vue.createMwApp(CheckUserViewComponent, {
-            state: caseState,
-            feedbackDialog,
-            openButton: initLink
-          }).component("cdx-button", Codex.CdxButton).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-field", Codex.CdxField).component("cdx-icon", Codex.CdxIcon).component("cdx-label", Codex.CdxLabel).component("cdx-lookup", Codex.CdxLookup).component("cdx-message", Codex.CdxMessage).component("cdx-popover", Codex.CdxPopover).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-select", Codex.CdxSelect).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("submit-form", SubmitFormComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
+        switch (pageType) {
+          case "spi": {
+            Vue.createMwApp(TopViewComponent, {
+              state: caseState,
+              feedbackDialog,
+              openButton: initLink
+            }).component("cdx-tabs", Codex.CdxTabs).component("cdx-tab", Codex.CdxTab).component("cdx-select", Codex.CdxSelect).component("cdx-card", Codex.CdxCard).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-text-area", Codex.CdxTextArea).component("cdx-toggle-button", Codex.CdxToggleButton).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("cdx-button-group", Codex.CdxButtonGroup).component("cdx-button", Codex.CdxButton).component("cdx-icon", Codex.CdxIcon).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-lookup", Codex.CdxLookup).component("cdx-field", Codex.CdxField).component("cdx-message", Codex.CdxMessage).component("cdx-progress-bar", Codex.CdxProgressBar).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-accordion", Codex.CdxAccordion).component("cdx-label", Codex.CdxLabel).component("cdx-popover", Codex.CdxPopover).component("action-accordion", ActionAccordionComponent).component("action-button", ActionButtonComponent).component("action-container", ActionContainerComponent).component("action-content", ActionContentComponent).component("submit-form", SubmitFormComponent).component("comment-action", CommentActionComponent).component("change-status-action", ChangeStatusActionComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("management-action", ManagementActionComponent).component("archive-action", ArchiveActionComponent).component("move-action", MoveActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
+            break;
+          }
+          case "checkuser": {
+            Vue.createMwApp(AlternateViewComponent, {
+              state: caseState,
+              feedbackDialog,
+              openButton: initLink
+            }).component("cdx-button", Codex.CdxButton).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-field", Codex.CdxField).component("cdx-icon", Codex.CdxIcon).component("cdx-label", Codex.CdxLabel).component("cdx-lookup", Codex.CdxLookup).component("cdx-message", Codex.CdxMessage).component("cdx-popover", Codex.CdxPopover).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-select", Codex.CdxSelect).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("submit-form", SubmitFormComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
+            break;
+          }
+          case "category": {
+            if (!targetSock?.[1]) {
+              console.error("spiHelper bootstrap: expected targetSock");
+              return;
+            }
+            Vue.createMwApp(AlternateViewComponent, {
+              state: caseState,
+              feedbackDialog,
+              openButton: initLink,
+              categoryView: true,
+              defaultCase: targetSock[1]
+            }).component("cdx-button", Codex.CdxButton).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-field", Codex.CdxField).component("cdx-icon", Codex.CdxIcon).component("cdx-label", Codex.CdxLabel).component("cdx-lookup", Codex.CdxLookup).component("cdx-message", Codex.CdxMessage).component("cdx-popover", Codex.CdxPopover).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-select", Codex.CdxSelect).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("submit-form", SubmitFormComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
+            break;
+          }
         }
       }
       createSettingsLink(Vue, Codex, feedbackDialog);
