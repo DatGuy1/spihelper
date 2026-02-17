@@ -1,7 +1,13 @@
 import { type PropType, defineComponent } from 'vue';
 import { cdxIconCollapse, cdxIconExpand, cdxIconFeedback, cdxIconPushPin } from '@wikimedia/codex-icons';
 import { DefaultLinkRow, type FeedbackDialog } from '../../../types/vue.ts';
-import { type CaseState, type SectionEntry, type SectionSelection, loadSectionText } from '../../../state.ts';
+import {
+  type CaseState,
+  type SectionEntry,
+  type SectionSelection,
+  loadCaseText,
+  loadSectionText,
+} from '../../../state.ts';
 import type { MenuItemData } from '@wikimedia/codex';
 import { saveOptions, spiHelperSettings } from '../../../options';
 import { HandleUserSelected } from '../userLookup.ts';
@@ -21,7 +27,7 @@ import {
   getActionButtons,
   getInitialCaseActions,
   getManagementFlagsFromArchiveNotice,
-  prefetchSockRowsForSelection,
+  prefetchSockRows,
   updateCommentWithStatus,
 } from './utils';
 import { spiHelperCaseStatusRegex } from '../../../constants/regex.ts';
@@ -358,12 +364,24 @@ export const TopViewComponent = defineComponent({
         return acc;
       }, []);
       this.handleRemoveRows(removeIndexes);
-      const allRows = await prefetchSockRowsForSelection(
-        selection,
-        this.state,
-        this.caseActions.block.data.userLocks,
-        this.caseActions.block.data.userBlocks,
-      );
+      // Prefill block and link tables
+      const searchText = await (selection.type === 'all'
+        ? loadCaseText(this.state)
+        : loadSectionText(selection.section));
+
+      const [likelySocks, possibleSocks, allUsernames] = getSockEntries({
+        text: searchText,
+        fullSearch: true,
+        state: this.state,
+      });
+      const allRows = await prefetchSockRows({
+        likelySocks,
+        possibleSocks,
+        allUsernames,
+        userBlocks: this.caseActions.block.data.userBlocks,
+        userLocks: this.caseActions.block.data.userLocks,
+        state: this.state,
+      });
       this.sectionAccountNames = new Set(this.massAddSockRows(allRows).map(row => row.username));
     },
     async onSubmitActions() {

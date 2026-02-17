@@ -190,9 +190,10 @@ export async function setSockRowBlock(opts: {
   block: BlockEntry | null | undefined;
   userPage?: string;
   defaultBlock: boolean;
+  checkLock: boolean;
   state: CaseState;
 }) {
-  const { sock, block: blockSetting, userPage, defaultBlock, state } = opts;
+  const { sock, block: blockSetting, userPage, defaultBlock, checkLock, state } = opts;
   const row = updateSockRowSettings({
     row: sock,
     defaultBlock,
@@ -201,15 +202,17 @@ export async function setSockRowBlock(opts: {
   });
 
   let isLocked: boolean | null = null;
-  const globalUser = await spiHelperGetGlobalUser(row.username);
-  if (globalUser) {
-    isLocked = globalUser.locked;
-    // noinspection RedundantIfStatementJS
-    if (isLocked || state.archiveNotice?.crosswiki) {
-      row.lock = true;
-    }
-    else {
-      row.lock = false;
+  if (checkLock) {
+    const globalUser = await spiHelperGetGlobalUser(row.username);
+    if (globalUser) {
+      isLocked = globalUser.locked;
+      // noinspection RedundantIfStatementJS
+      if (isLocked || state.archiveNotice?.crosswiki) {
+        row.lock = true;
+      }
+      else {
+        row.lock = false;
+      }
     }
   }
 

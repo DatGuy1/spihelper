@@ -234,6 +234,16 @@ export interface SiteInfoResponse {
   };
 }
 
+export interface CategoryMembersResponse {
+  query: {
+    categorymembers: {
+      pageid: number;
+      ns: number;
+      title: string;
+    }[];
+  };
+}
+
 export type RelativeExpiry = string & { __type: 'RelativeExpiry' };
 export type AbsoluteExpiry = string & { __type: 'AbsoluteExpiry' };
 export type NoExpiry = 'infinite' | 'indefinite' | 'infinity' | 'never';

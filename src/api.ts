@@ -11,6 +11,7 @@ import type {
   ApiQueryBacklinksParams,
   ApiQueryBlocksParams,
   ApiQueryCategoriesParams,
+  ApiQueryCategoryMembersParams,
   ApiQueryFlaggedParams,
   ApiQueryInfoParams,
   ApiQueryRevisionsParams,
@@ -29,6 +30,7 @@ import type {
   BlockEntry,
   BlocksResponse,
   CategoriesResponse,
+  CategoryMembersResponse,
   EditResponse,
   FlaggedResponse,
   GlobalAllUsersResponse,
@@ -1013,6 +1015,25 @@ export async function spiHelperParseWikitext(wikitext: string) {
   }
   catch {
     return '';
+  }
+}
+
+export async function spiHelperGetCategoryMembers(category: string): Promise<string[]> {
+  const api = spiHelperGetAPI();
+  const request: ApiQueryCategoryMembersParams = {
+    action: 'query',
+    list: 'categorymembers',
+    cmtitle: category,
+    cmlimit: 'max',
+    cmnamespace: 2,
+    formatversion: '2',
+  };
+  try {
+    const response = await api.get(request) as CategoryMembersResponse;
+    return response.query.categorymembers.map(member => member.title);
+  }
+  catch {
+    return [];
   }
 }
 

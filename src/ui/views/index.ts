@@ -3,4 +3,4 @@ export { UserLookupComponent } from './userLookup';
 export { PageLookupComponent } from './pageLookup';
 export { SubmitFormComponent } from './submitForm';
 export { OneClickArchivalComponent } from './OCAModal';
-export { CheckUserViewComponent } from './checkuserView';
+export { AlternateViewComponent } from './alternateView.ts';

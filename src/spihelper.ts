@@ -25,7 +25,7 @@ import {
   TopViewComponent,
 } from './ui/views/top';
 import {
-  CheckUserViewComponent,
+  AlternateViewComponent,
   ExpiryInputComponent,
   OneClickArchivalComponent,
   PageLookupComponent,
@@ -48,8 +48,14 @@ if (mw.config.get('wgPageName').includes('Wikipedia:Sockpuppet_investigations/')
 else if (mw.config.get('wgCanonicalSpecialPageName') === 'CheckUser') {
   bootstrap('checkuser');
 }
+else if (
+  mw.config.get('wgNamespaceNumber') === 14
+  && ['Suspected Wikipedia sockpuppets', 'Wikipedia sockpuppets'].some(cat => mw.config.get('wgCategories').includes(cat))
+) {
+  bootstrap('category');
+}
 
-function bootstrap(pageType: 'spi' | 'checkuser') {
+function bootstrap(pageType: 'spi' | 'checkuser' | 'category') {
   mw.loader.using(['vue', '@wikimedia/codex', 'mediawiki.api', 'mediawiki.util', 'mediawiki.user', 'mediawiki.feedback'], (require) => {
     const Vue = require('vue') as typeof VueType;
     const Codex = require('@wikimedia/codex') as typeof CodexType;
@@ -71,11 +77,18 @@ function bootstrap(pageType: 'spi' | 'checkuser') {
       importStylesheet('User:DatGuy/spihelper.css');
     }
 
+    let targetSock;
     const caseState = Vue.reactive(new CaseState()) as CaseState;
     if (pageType === 'spi') {
       const rawPageName = mw.config.get('wgPageName');
       setContext(rawPageName);
       void refreshSections(caseState);
+    }
+    else if (pageType === 'category') {
+      targetSock = /Category:(?:Suspected )?Wikipedia sockpuppets of (.*)/.exec(mw.config.get('wgPageName').replaceAll('_', ' '));
+      if (!targetSock?.[1]) {
+        return;
+      }
     }
     const loadedOptions = loadOptions();
     if (loadedOptions) {
@@ -95,74 +108,109 @@ function bootstrap(pageType: 'spi' | 'checkuser') {
       mountPoint.setAttribute('id', 'spiHelper-vue-mount-point');
       mw.util.$content.prepend(mountPoint);
 
-      if (pageType === 'spi') {
-        Vue.createMwApp(TopViewComponent, {
-          state: caseState, feedbackDialog, openButton: initLink,
-        })
-          .component('cdx-tabs', Codex.CdxTabs)
-          .component('cdx-tab', Codex.CdxTab)
-          .component('cdx-select', Codex.CdxSelect)
-          .component('cdx-card', Codex.CdxCard)
-          .component('cdx-toggle-switch', Codex.CdxToggleSwitch)
-          .component('cdx-text-area', Codex.CdxTextArea)
-          .component('cdx-toggle-button', Codex.CdxToggleButton)
-          .component('cdx-toggle-button-group', Codex.CdxToggleButtonGroup)
-          .component('cdx-button-group', Codex.CdxButtonGroup)
-          .component('cdx-button', Codex.CdxButton)
-          .component('cdx-icon', Codex.CdxIcon)
-          .component('cdx-table', Codex.CdxTable)
-          .component('cdx-text-input', Codex.CdxTextInput)
-          .component('cdx-checkbox', Codex.CdxCheckbox)
-          .component('cdx-lookup', Codex.CdxLookup)
-          .component('cdx-field', Codex.CdxField)
-          .component('cdx-message', Codex.CdxMessage)
-          .component('cdx-progress-bar', Codex.CdxProgressBar)
-          .component('cdx-progress-indicator', Codex.CdxProgressIndicator)
-          .component('cdx-accordion', Codex.CdxAccordion)
-          .component('cdx-label', Codex.CdxLabel)
-          .component('cdx-popover', Codex.CdxPopover)
-          .component('action-accordion', ActionAccordionComponent)
-          .component('action-button', ActionButtonComponent)
-          .component('action-container', ActionContainerComponent)
-          .component('action-content', ActionContentComponent)
-          .component('submit-form', SubmitFormComponent)
-          .component('comment-action', CommentActionComponent)
-          .component('change-status-action', ChangeStatusActionComponent)
-          .component('block-action', BlockActionComponent)
-          .component('link-action', LinkActionComponent)
-          .component('management-action', ManagementActionComponent)
-          .component('archive-action', ArchiveActionComponent)
-          .component('move-action', MoveActionComponent)
-          .component('user-lookup', UserLookupComponent)
-          .component('page-lookup', PageLookupComponent)
-          .component('expiry-input', ExpiryInputComponent)
-          .directive('tooltip', Codex.CdxTooltip)
-          .mount(mountPoint);
-      }
-      else {
-        Vue.createMwApp(CheckUserViewComponent, {
-          state: caseState, feedbackDialog, openButton: initLink,
-        })
-          .component('cdx-button', Codex.CdxButton)
-          .component('cdx-checkbox', Codex.CdxCheckbox)
-          .component('cdx-field', Codex.CdxField)
-          .component('cdx-icon', Codex.CdxIcon)
-          .component('cdx-label', Codex.CdxLabel)
-          .component('cdx-lookup', Codex.CdxLookup)
-          .component('cdx-message', Codex.CdxMessage)
-          .component('cdx-popover', Codex.CdxPopover)
-          .component('cdx-progress-indicator', Codex.CdxProgressIndicator)
-          .component('cdx-select', Codex.CdxSelect)
-          .component('cdx-table', Codex.CdxTable)
-          .component('cdx-text-input', Codex.CdxTextInput)
-          .component('submit-form', SubmitFormComponent)
-          .component('block-action', BlockActionComponent)
-          .component('link-action', LinkActionComponent)
-          .component('user-lookup', UserLookupComponent)
-          .component('page-lookup', PageLookupComponent)
-          .component('expiry-input', ExpiryInputComponent)
-          .directive('tooltip', Codex.CdxTooltip)
-          .mount(mountPoint);
+      switch (pageType) {
+        case 'spi': {
+          Vue.createMwApp(TopViewComponent, {
+            state: caseState, feedbackDialog, openButton: initLink,
+          })
+            .component('cdx-tabs', Codex.CdxTabs)
+            .component('cdx-tab', Codex.CdxTab)
+            .component('cdx-select', Codex.CdxSelect)
+            .component('cdx-card', Codex.CdxCard)
+            .component('cdx-toggle-switch', Codex.CdxToggleSwitch)
+            .component('cdx-text-area', Codex.CdxTextArea)
+            .component('cdx-toggle-button', Codex.CdxToggleButton)
+            .component('cdx-toggle-button-group', Codex.CdxToggleButtonGroup)
+            .component('cdx-button-group', Codex.CdxButtonGroup)
+            .component('cdx-button', Codex.CdxButton)
+            .component('cdx-icon', Codex.CdxIcon)
+            .component('cdx-table', Codex.CdxTable)
+            .component('cdx-text-input', Codex.CdxTextInput)
+            .component('cdx-checkbox', Codex.CdxCheckbox)
+            .component('cdx-lookup', Codex.CdxLookup)
+            .component('cdx-field', Codex.CdxField)
+            .component('cdx-message', Codex.CdxMessage)
+            .component('cdx-progress-bar', Codex.CdxProgressBar)
+            .component('cdx-progress-indicator', Codex.CdxProgressIndicator)
+            .component('cdx-accordion', Codex.CdxAccordion)
+            .component('cdx-label', Codex.CdxLabel)
+            .component('cdx-popover', Codex.CdxPopover)
+            .component('action-accordion', ActionAccordionComponent)
+            .component('action-button', ActionButtonComponent)
+            .component('action-container', ActionContainerComponent)
+            .component('action-content', ActionContentComponent)
+            .component('submit-form', SubmitFormComponent)
+            .component('comment-action', CommentActionComponent)
+            .component('change-status-action', ChangeStatusActionComponent)
+            .component('block-action', BlockActionComponent)
+            .component('link-action', LinkActionComponent)
+            .component('management-action', ManagementActionComponent)
+            .component('archive-action', ArchiveActionComponent)
+            .component('move-action', MoveActionComponent)
+            .component('user-lookup', UserLookupComponent)
+            .component('page-lookup', PageLookupComponent)
+            .component('expiry-input', ExpiryInputComponent)
+            .directive('tooltip', Codex.CdxTooltip)
+            .mount(mountPoint);
+          break;
+        }
+        case 'checkuser': {
+          Vue.createMwApp(AlternateViewComponent, {
+            state: caseState, feedbackDialog, openButton: initLink,
+          })
+            .component('cdx-button', Codex.CdxButton)
+            .component('cdx-checkbox', Codex.CdxCheckbox)
+            .component('cdx-field', Codex.CdxField)
+            .component('cdx-icon', Codex.CdxIcon)
+            .component('cdx-label', Codex.CdxLabel)
+            .component('cdx-lookup', Codex.CdxLookup)
+            .component('cdx-message', Codex.CdxMessage)
+            .component('cdx-popover', Codex.CdxPopover)
+            .component('cdx-progress-indicator', Codex.CdxProgressIndicator)
+            .component('cdx-select', Codex.CdxSelect)
+            .component('cdx-table', Codex.CdxTable)
+            .component('cdx-text-input', Codex.CdxTextInput)
+            .component('submit-form', SubmitFormComponent)
+            .component('block-action', BlockActionComponent)
+            .component('link-action', LinkActionComponent)
+            .component('user-lookup', UserLookupComponent)
+            .component('page-lookup', PageLookupComponent)
+            .component('expiry-input', ExpiryInputComponent)
+            .directive('tooltip', Codex.CdxTooltip)
+            .mount(mountPoint);
+          break;
+        }
+        case 'category': {
+          if (!targetSock?.[1]) {
+            console.error('spiHelper bootstrap: expected targetSock');
+            return;
+          }
+          Vue.createMwApp(AlternateViewComponent, {
+            state: caseState, feedbackDialog, openButton: initLink,
+            categoryView: true, defaultCase: targetSock[1],
+          })
+            .component('cdx-button', Codex.CdxButton)
+            .component('cdx-checkbox', Codex.CdxCheckbox)
+            .component('cdx-field', Codex.CdxField)
+            .component('cdx-icon', Codex.CdxIcon)
+            .component('cdx-label', Codex.CdxLabel)
+            .component('cdx-lookup', Codex.CdxLookup)
+            .component('cdx-message', Codex.CdxMessage)
+            .component('cdx-popover', Codex.CdxPopover)
+            .component('cdx-progress-indicator', Codex.CdxProgressIndicator)
+            .component('cdx-select', Codex.CdxSelect)
+            .component('cdx-table', Codex.CdxTable)
+            .component('cdx-text-input', Codex.CdxTextInput)
+            .component('submit-form', SubmitFormComponent)
+            .component('block-action', BlockActionComponent)
+            .component('link-action', LinkActionComponent)
+            .component('user-lookup', UserLookupComponent)
+            .component('page-lookup', PageLookupComponent)
+            .component('expiry-input', ExpiryInputComponent)
+            .directive('tooltip', Codex.CdxTooltip)
+            .mount(mountPoint);
+          break;
+        }
       }
     }
     createSettingsLink(Vue, Codex, feedbackDialog);

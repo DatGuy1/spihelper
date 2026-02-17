@@ -14,7 +14,8 @@ import { spiHelperLog } from '../../actions/log.ts';
 import { context, setContext } from '../../context.ts';
 import { buildUserActionLogMessage } from '../../utils.ts';
 import { spiHelperParseArchiveNotice } from '../../archivenotice.ts';
-import { spiHelperGetPageText, spiHelperGetUserBlockSettings } from '../../api.ts';
+import { spiHelperGetCategoryMembers, spiHelperGetPageText, spiHelperGetUserBlockSettings } from '../../api.ts';
+import { prefetchSockRows } from './top/utils';
 
 interface Data {
   open: boolean;
@@ -32,11 +33,13 @@ interface Data {
   messages: VueMessage[];
 }
 
-export const CheckUserViewComponent = defineComponent({
+export const AlternateViewComponent = defineComponent({
   props: {
     state: { type: Object as PropType<CaseState>, required: true },
     feedbackDialog: { type: Object as PropType<FeedbackDialog>, required: true },
     openButton: { type: Object as PropType<HTMLElement>, required: true },
+    defaultCase: { type: String, required: false, default: '' },
+    categoryView: { type: Boolean, default: false },
   },
   data(): Data {
     const blockData: BlockActionData = {
@@ -64,7 +67,7 @@ export const CheckUserViewComponent = defineComponent({
       _beforeUnloadHandler: null,
       caseLoaded: false,
       caseLoading: false,
-      targetCase: '',
+      targetCase: this.defaultCase,
       blockData,
       linkRows: [],
       actionsRunning: false,
@@ -75,8 +78,8 @@ export const CheckUserViewComponent = defineComponent({
     };
   },
   template: `
-    <div id="spiHelper-checkuserView" class="spiHelper-mainCard" v-if="open">
-      <div id="spiHelper-checkuserView-Header" class="spiHelper-mainCard-Header">
+    <div id="spiHelper-alternateView" class="spiHelper-mainCard" v-if="open">
+      <div id="spiHelper-alternateView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
           <cdx-button aria-label="Give feedback" weight="quiet" @click="feedbackDialog.launch()">
             <cdx-icon :icon="cdxIconFeedback" />
@@ -92,11 +95,11 @@ export const CheckUserViewComponent = defineComponent({
                      :namespace="4" prefix="Sockpuppet investigations/"
                      placeholder="Case" label="Case title" />
         <div style="display: flex; gap: 10px;">
-          <cdx-button weight="primary" action="progressive" @click="loadCase">Load</cdx-button>
+          <cdx-button weight="primary" action="progressive" @click="loadCase(true)">Load</cdx-button>
           <cdx-progress-indicator v-show="caseLoading">Loading case</cdx-progress-indicator>
         </div>
       </div>
-      <div id="spiHelper-checkuserView-Content" v-if="caseLoaded">
+      <div id="spiHelper-alternateView-Content" v-if="caseLoaded">
         <div>
           <h4>Link</h4>
           <link-action :enabled="true" :case-name="targetCase"
@@ -116,7 +119,7 @@ export const CheckUserViewComponent = defineComponent({
       <div v-if="caseLoaded">
         <submit-form v-model:socks="blockData.accounts" v-model:master="blockData.master"
                      v-model:altmaster="blockData.altmaster" v-model:lock-comment="blockData.lockcomment"
-                     :locks="blockData.userLocks" :state="state" :action-name="'checkuserActions'"
+                     :locks="blockData.userLocks" :state="state" :action-name="'alternateActions'"
                      :check-conflict="false" :all-disabled="false"
                      @on-submit="onSubmitActions" />
       </div>
@@ -143,7 +146,7 @@ export const CheckUserViewComponent = defineComponent({
   watch: {
     unpinned(newVal) {
       if (!this.mountPoint) {
-        console.error('CheckUserView unpinned: Could not find mountPoint');
+        console.error('AlternateView unpinned: Could not find mountPoint');
         return;
       }
       if (newVal) {
@@ -196,7 +199,17 @@ export const CheckUserViewComponent = defineComponent({
         (_row, index) => !indexes.includes(index),
       );
     },
-    async loadCase() {
+    massAddSockRows(newRows: SockRow[]) {
+      const sockRows = this.blockData.accounts;
+
+      const existingUsernames = new Set(sockRows.map(s => s.username));
+      newRows.forEach((newRow) => {
+        if (!existingUsernames.has(newRow.username)) {
+          this.handleAddRow(newRow);
+        }
+      });
+    },
+    async loadCase(addRow: boolean) {
       this.caseLoading = true;
 
       // Set context
@@ -211,22 +224,25 @@ export const CheckUserViewComponent = defineComponent({
         this.state.archiveNotice = archiveNoticeResult;
       }
 
-      const userBlock = await spiHelperGetUserBlockSettings(this.targetCase);
-      if (userBlock !== null) {
-        this.blockData.userBlocks.set(this.targetCase, userBlock);
+      if (addRow) {
+        const userBlock = await spiHelperGetUserBlockSettings(this.targetCase);
+        if (userBlock !== null) {
+          this.blockData.userBlocks.set(this.targetCase, userBlock);
+        }
+        const userPageText = await spiHelperGetPageText(`User:${this.targetCase}`, false);
+        const { row, isLocked } = await setSockRowBlock({
+          sock: generateSockRow(this.targetCase, this.state),
+          block: userBlock,
+          userPage: userPageText,
+          defaultBlock: true,
+          checkLock: false,
+          state: this.state,
+        });
+        if (isLocked !== null) {
+          this.blockData.userLocks.set(this.targetCase, isLocked);
+        }
+        this.handleAddRow(row);
       }
-      const userPageText = await spiHelperGetPageText(this.targetCase, false);
-      const { row, isLocked } = await setSockRowBlock({
-        sock: generateSockRow(this.targetCase, this.state),
-        block: userBlock,
-        userPage: userPageText,
-        defaultBlock: true,
-        state: this.state,
-      });
-      if (isLocked !== null) {
-        this.blockData.userLocks.set(this.targetCase, isLocked);
-      }
-      this.handleAddRow(row);
       this.blockData.master = this.targetCase;
       this.blockData.altmaster = this.targetCase;
 
@@ -234,11 +250,11 @@ export const CheckUserViewComponent = defineComponent({
       this.caseLoaded = true;
     },
     async onSubmitActions() {
-      if (isOpRunning('checkuserActions')) {
+      if (isOpRunning('alternateActions')) {
         return;
       }
-      mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'submit_checkuser' });
-      startOp('checkuserActions');
+      mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'submit_alternate' });
+      startOp('alternateActions');
       this.actionsRunning = true;
       let blockPromises: Promise<string | null>[] = [];
       let tagPromises: Promise<string | null>[] = [];
@@ -257,14 +273,45 @@ export const CheckUserViewComponent = defineComponent({
       }
 
       new VueMessage({ type: 'success', content: 'Done!' }).show();
-      finishOp('checkuserActions', OpState.Success);
+      finishOp('alternateActions', OpState.Success);
       this.actionsRunning = false;
+    },
+    async initialiseCategoryView() {
+      if (this.defaultCase === '' || this.caseLoading || this.caseLoaded) {
+        return;
+      }
+
+      const [, suspectedMembers, confirmedMembers] = await Promise.all([
+        this.loadCase(false),
+        spiHelperGetCategoryMembers(`Category:Suspected Wikipedia sockpuppets of ${this.targetCase}`),
+        spiHelperGetCategoryMembers(`Category:Wikipedia sockpuppets of ${this.targetCase}`),
+      ]);
+
+      const BuildSockRow = (member: string, likely: boolean): SockRow => {
+        return { ...generateSockRow(member.replace('User:', ''), this.state), tag: likely ? 'none' : 'Ssuspected' };
+      };
+      const likelySocks = [...confirmedMembers, `User:${this.targetCase}`].map(
+        member => BuildSockRow(member, true),
+      );
+      const possibleSocks = suspectedMembers.map(
+        member => BuildSockRow(member, false),
+      );
+      const allUsernames = [...likelySocks, ...possibleSocks].map(sock => sock.username);
+      const allRows = await prefetchSockRows({
+        likelySocks,
+        possibleSocks,
+        allUsernames,
+        userBlocks: this.blockData.userBlocks,
+        userLocks: this.blockData.userLocks,
+        state: this.state,
+      });
+      this.massAddSockRows(allRows);
     },
   },
   mounted() {
     // Access the parent mount element
     if (!this.mountPoint) {
-      console.error('CheckUserViewComponent mounted: Could not find mountPoint');
+      console.error('AlternateViewComponent mounted: Could not find mountPoint');
       return;
     }
     if (this.unpinned) {
@@ -275,7 +322,7 @@ export const CheckUserViewComponent = defineComponent({
     }
 
     this._beforeUnloadHandler = (e) => {
-      const opState = getOpState('checkuserActions');
+      const opState = getOpState('alternateActions');
       // If we have the form open, and we haven't completed successfully, warn the user
       if (opState !== OpState.Success) {
         e.preventDefault();
@@ -285,7 +332,13 @@ export const CheckUserViewComponent = defineComponent({
     this._openHandler = () => {
       this.open = !this.open;
       if (this.open) {
-        mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'open_checkuser' });
+        mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'open_alternate' });
+        if (this.categoryView) {
+          void this.initialiseCategoryView();
+        }
+        if (this.defaultCase !== '' && !this.caseLoaded) {
+          void this.initialiseCategoryView();
+        }
       }
       if (this._beforeUnloadHandler) {
         if (this.open) {
