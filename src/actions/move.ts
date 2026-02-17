@@ -4,14 +4,14 @@ import {
   spiHelperConfigurePendingChanges,
   spiHelperDeletePage,
   spiHelperEditPage,
+  spiHelperGetInvestigationSections,
   spiHelperGetPageText,
   spiHelperGetProtectionInformation,
   spiHelperGetSPIBacklinks,
   spiHelperGetSiteRestrictionInformation,
   spiHelperGetStabilisationSettings,
   spiHelperMovePage,
-  spiHelperProtectPage,
-  spiHelperUndeletePage,
+  spiHelperProtectPage, spiHelperUndeletePage,
 } from '../api.ts';
 import {
   spiHelperArchiveNoticeRegex,
@@ -24,7 +24,7 @@ import type { NewPendingChanges, Protection, Restrictions } from '../types/api.t
 import { spiHelperParseArchiveNotice } from '../archivenotice.ts';
 import { type SectionEntry, loadSectionText } from '../state.ts';
 import { VueMessage } from '../ui/messages.ts';
-import { isAbsoluteExpiry } from '../utils.ts';
+import { isAbsoluteExpiry, parseArchiveSections, rebuildArchiveText } from '../utils.ts';
 
 async function getNewProtection(
   oldTitle: string, newTitle: string, siteRestrictions: Restrictions,
@@ -178,16 +178,29 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
       // Strip leading newlines
       sourceArchiveText = sourceArchiveText.replace(/^\n*/, '');
       targetArchiveText += '\n' + sourceArchiveText;
-      await spiHelperEditPage({
-        title: newContext.archiveName,
-        newText: targetArchiveText,
-        summary: `Copying archives from [[${oldContext.prefixedName}]], see page history for attribution`,
-        createonly: false,
-        watch: spiHelperSettings.watch.archive,
-        watchExpiry: spiHelperSettings.expiry.archive,
-      });
-      await spiHelperDeletePage(oldContext.archiveName, 'Deleting copied archive');
-      archivesCopied = true;
+      const archiveSections = await spiHelperGetInvestigationSections(
+        { content: targetArchiveText },
+      );
+      const parsedSections = parseArchiveSections(targetArchiveText, archiveSections);
+      if (parsedSections) {
+        targetArchiveText = rebuildArchiveText(targetArchiveText, parsedSections);
+        await spiHelperEditPage({
+          title: newContext.archiveName,
+          newText: targetArchiveText,
+          summary: `Merging archives from [[${oldContext.prefixedName}]], see page history for attribution`,
+          createonly: false,
+          watch: spiHelperSettings.watch.archive,
+          watchExpiry: spiHelperSettings.expiry.archive,
+        });
+        await spiHelperDeletePage(oldContext.archiveName, 'Deleting copied archive');
+        archivesCopied = true;
+      }
+      else {
+        new VueMessage({
+          type: 'error',
+          content: 'Could not parse the archive. Please merge the archives manually',
+        }).show();
+      }
     }
     const siteRestrictions = await spiHelperGetSiteRestrictionInformation();
     // Now get existing protection levels on the target and existing page.

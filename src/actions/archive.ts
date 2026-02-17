@@ -1,9 +1,20 @@
 import { type CaseState, SectionEntry, loadCaseText, loadSectionText, refreshSections } from '../state.ts';
 import { context } from '../context.ts';
-import { spiHelperGetInterwikiPrefix, spiHelperGetMaxPostExpandSize } from '../utils.ts';
-import { spiHelperCaseClosedRegex, spiHelperCaseStatusRegex, spiHelperSectionRegex } from '../constants/regex.ts';
+import {
+  parseArchiveSections,
+  parseSectionDate,
+  rebuildArchiveText,
+  spiHelperGetInterwikiPrefix,
+  spiHelperGetMaxPostExpandSize,
+} from '../utils.ts';
+import {
+  spiHelperCaseClosedRegex,
+  spiHelperCaseStatusRegex,
+  spiHelperSectionRegex,
+} from '../constants/regex.ts';
 import {
   spiHelperEditPage,
+  spiHelperGetInvestigationSections,
   spiHelperGetPageText,
   spiHelperGetPostExpandSize,
   spiHelperMovePage,
@@ -74,6 +85,16 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
     newArchiveText = newArchiveText.replace(/<br\s*\/>\s*{{SPIpriorcases}}/gi, '\n{{SPIpriorcases}}');
   }
 
+  // Get archive sections list once for efficient insertion
+  const archiveSectionEntries = await spiHelperGetInvestigationSections(
+    { pageName: context.archiveName },
+  );
+  const parsedArchiveSections = parseArchiveSections(newArchiveText, archiveSectionEntries);
+  if (!parsedArchiveSections) {
+    new VueMessage({ type: 'notice', content: 'Failed to parse existing archive sections, aborting archival' }).show();
+    return;
+  }
+
   let sectionsAdded = 0;
   for (const section of sectionsToArchive) {
     // Should be instant
@@ -87,14 +108,22 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
       new VueMessage({ type: 'warning', content: `Section ${section.name} already exists in the archive` }).show();
       continue;
     }
-    newArchiveText += '\n';
-    newArchiveText += cleanSectionText;
+    const parsedDate = parseSectionDate(section.name);
+    if (!parsedDate) {
+      new VueMessage({
+        type: 'error',
+        content: `Failed to parse date from section header "${section.name}", aborting archival`,
+      }).show();
+      return;
+    }
+    parsedArchiveSections.push({ header: parsedDate, fullText: cleanSectionText });
     sectionsAdded++;
   }
   if (sectionsAdded === 0) {
     new VueMessage({ type: 'warning', content: 'Nothing to archive' }).show();
     return;
   }
+  newArchiveText = rebuildArchiveText(newArchiveText, parsedArchiveSections);
 
   const usePlural = sectionsAdded > 1;
   const summaryPrefix = `Archiving ${sectionsAdded} section${usePlural ? 's' : ''}`;
@@ -132,7 +161,6 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
 export async function spiHelperArchiveCaseSection(section: SectionEntry): Promise<void> {
   let sectionText = await loadSectionText(section);
   sectionText = sectionText.replace(spiHelperCaseStatusRegex, '');
-  const newArchiveText = sectionText.slice(sectionText.search(spiHelperSectionRegex));
   let archiveText = await spiHelperGetPageText(context.archiveName, true);
 
   const message = new VueMessage({ type: 'error', content: '' });
@@ -151,7 +179,30 @@ export async function spiHelperArchiveCaseSection(section: SectionEntry): Promis
   else {
     archiveText = archiveText.replace(/<br\s*\/>\s*{{SPIpriorcases}}/gi, '\n{{SPIpriorcases}}');
   }
-  archiveText += '\n' + newArchiveText;
+  // Insert section in chronological order
+  const investigationMessage = new VueMessage({ type: 'notice', content: 'Loading archive sections' }).show();
+  const archiveSectionEntries = await spiHelperGetInvestigationSections(
+    { pageName: context.archiveName },
+  );
+  const parsedArchiveSections = parseArchiveSections(archiveText, archiveSectionEntries);
+  if (parsedArchiveSections) {
+    investigationMessage.update({ type: 'success', content: 'Archive sections loaded' });
+    const sectionDate = parseSectionDate(section.name);
+    if (!sectionDate) {
+      new VueMessage({ type: 'error', content: 'Failed to parse date from section header' }).show();
+      return;
+    }
+    parsedArchiveSections.push({ header: sectionDate, fullText: sectionText });
+  }
+  else {
+    investigationMessage.update({
+      type: 'error',
+      content: 'Failed to parse existing archive sections, aborting archival',
+    });
+    return;
+  }
+  archiveText = rebuildArchiveText(archiveText, parsedArchiveSections);
+
   const archiveSuccess = await spiHelperEditPage({
     title: context.archiveName,
     newText: archiveText,

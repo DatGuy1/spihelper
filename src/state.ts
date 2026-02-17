@@ -1,6 +1,6 @@
 // src/state.ts
 import { context } from './context';
-import { spiHelperGetInvestigationSectionIDs, spiHelperGetPageText } from './api';
+import { spiHelperGetInvestigationSections, spiHelperGetPageText } from './api';
 import { type ParsedArchiveNotice } from './types/spi.ts';
 
 export type SectionSelection = | { type: 'all' } | { type: 'specific'; section: SectionEntry };
@@ -62,7 +62,7 @@ export async function loadCaseText(
 }
 
 export async function refreshSections(state: CaseState) {
-  state.sections = await spiHelperGetInvestigationSectionIDs(context.pageName);
+  state.sections = await spiHelperGetInvestigationSections({ pageName: context.pageName });
 }
 
 export async function loadSectionText(

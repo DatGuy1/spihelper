@@ -132,3 +132,8 @@ export interface LinkRow {
   summary: boolean;
   cuwiki: boolean;
 }
+
+export interface ArchiveSection {
+  header: Date;
+  fullText: string;
+}

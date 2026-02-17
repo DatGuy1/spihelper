@@ -392,23 +392,33 @@ export async function spiHelperRenderText(title: string, text: string): Promise<
  *
  * @return An array of section objects, each section is a separate investigation
  */
-export async function spiHelperGetInvestigationSectionIDs(
-  pageName: string,
-): Promise<SectionEntry[]> {
+export async function spiHelperGetInvestigationSections(opts: {
+  pageName?: string; content?: string;
+}): Promise<SectionEntry[]> {
+  const { pageName, content } = opts;
   // Uses the parse API to get page sections, then find the investigation
   // sections (should all be level-3 headers)
-
   const request: ApiParseParams = {
     action: 'parse',
     // @ts-expect-error - Latest MediaWiki deprecated 'section'
     // Remove me at next types-mediawiki release
     prop: 'tocdata',
-    page: pageName,
   };
+  if (pageName !== undefined) {
+    request.page = pageName;
+  }
+  else if (content !== undefined) {
+    request.text = content;
+    request.contentmodel = 'wikitext';
+  }
+  else {
+    console.error('spiHelperGetInvestigationSections: No page name or content provided');
+    return [];
+  }
   const api = spiHelperGetAPI();
   const response = await api.get(request) as ParseResponse<'toc'>;
   if (!response.parse) {
-    console.error('spiHelperGetInvestigationSectionIDs: Could not parse sections');
+    console.error('spiHelperGetInvestigationSections: Could not parse sections');
     return [];
   }
   const dateSections: SectionEntry[] = [];
