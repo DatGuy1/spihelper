@@ -6061,7 +6061,7 @@ ${comment}
     }
   });
   // src/spihelper.ts
-  if (mw.config.get("wgPageName").includes("Wikipedia:Sockpuppet_investigations/")) {
+  if (mw.config.get("wgPageName").includes("Wikipedia:Sockpuppet_investigations/") && !mw.config.get("wgPageName").includes("Wikipedia:Sockpuppet_investigations/SPI/")) {
     bootstrap("spi");
   } else if (mw.config.get("wgCanonicalSpecialPageName") === "CheckUser") {
     bootstrap("checkuser");
