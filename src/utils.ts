@@ -273,6 +273,7 @@ export function parseArchiveSections(
     if (fullText) {
       const sectionDate = parseSectionDate(sectionName);
       if (sectionDate === null) {
+        // I would like to move this out of utils
         new VueMessage({
           type: 'error',
           content: `Failed to parse date from section header "${sectionName}" in archive`,

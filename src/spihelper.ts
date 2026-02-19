@@ -42,7 +42,7 @@ import { setContext } from './context.ts';
 // DatGuy's rewrite of GeneralNotability's rewrite of Tim's SPI helper script
 // With additional contributions from 0xDeadbeef, Dreamy Jazz,
 // L235, Tamzin, TheresNoTime, and Xiplus
-if (mw.config.get('wgPageName').includes('Wikipedia:Sockpuppet_investigations/')) {
+if (mw.config.get('wgPageName').includes('Wikipedia:Sockpuppet_investigations/') && !mw.config.get('wgPageName').includes('Wikipedia:Sockpuppet_investigations/SPI/')) {
   bootstrap('spi');
 }
 else if (mw.config.get('wgCanonicalSpecialPageName') === 'CheckUser') {
