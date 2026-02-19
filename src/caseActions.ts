@@ -412,9 +412,10 @@ export async function spiHelperHandleBlocks(opts: BlockActionData): Promise<{
         noticeType = 'sock';
       }
 
+      const maxJitter = Math.max(500, sockRows.length * 100);
       blockPromises.push((async () => {
-        // jitter: 0–500 ms. remove me when T260838 is fixed
-        await new Promise(r => setTimeout(r, Math.random() * 500));
+        // jitter. remove me when T260838 is fixed
+        await new Promise(r => setTimeout(r, Math.random() * maxJitter));
 
         const blockSuccess = await spiHelperProcessBlockRow({
           sock: sockRow,
