@@ -68,11 +68,11 @@ export async function spiHelperAddArchiveNotice(state: CaseState) {
   if (tocMatch) {
     // Insert after existing TOC
     const tocEnd = tocMatch.index + tocMatch[0].length;
-    pageText = pageText.slice(0, tocEnd) + '\n' + archiveNoticeText + pageText.slice(tocEnd);
+    pageText = pageText.slice(0, tocEnd) + '\n' + archiveNoticeText + '\n' + pageText.slice(tocEnd);
   }
   else {
     // Add TOC and archive notice at the top
-    pageText = '<noinclude>__TOC__</noinclude>\n' + archiveNoticeText + pageText;
+    pageText = '<noinclude>__TOC__</noinclude>\n' + archiveNoticeText + '\n' + pageText;
   }
   const newRevId = await context.edit({
     newText: pageText,

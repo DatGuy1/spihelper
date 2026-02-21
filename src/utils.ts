@@ -226,7 +226,7 @@ export function rebuildArchiveText(originalText: string, sections: ArchiveSectio
   sections.sort((a, b) => a.header.getTime() - b.header.getTime());
   // Build new text
   const headerText = originalText.slice(0, getContentStartIndex(originalText));
-  return headerText + '\n' + sections.map(section => section.fullText).join('\n');
+  return headerText + '\n' + sections.map(section => section.fullText).join('\n\n');
 }
 
 export function getContentStartIndex(archiveText: string) {
