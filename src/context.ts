@@ -3,7 +3,7 @@ import type { WatchOption } from './types/api.ts';
 import { spiHelperGetInterwikiPrefix, spiHelperNormalizeUsername } from './utils.ts';
 
 export class SpiPageContext {
-  // Name of the SPI page in wiki title form, "Wikipedia:Sockpuppet investigations/Foo"
+  // Name of the page in wiki title form, "Wikipedia:Sockpuppet investigations/Foo"
   readonly pageName: string;
   // Full name including interwiki prefix, "w:Wikipedia:Sockpuppet investigations/Foo"
   readonly prefixedName: string;
@@ -11,6 +11,8 @@ export class SpiPageContext {
   readonly caseName: string;
   readonly userName: string;
   readonly archiveName: string;
+  // Since pageName can be an archive, casePageName is the non-archive version
+  readonly casePageName: string;
   readonly isArchive: boolean;
   // used to check if the page has been edited since we opened it to prevent edit conflicts
   startingRevId: number;
@@ -23,6 +25,7 @@ export class SpiPageContext {
     this.isArchive = /Wikipedia:Sockpuppet investigations\/.+\/Archive/.test(pageName);
     this.caseName = extractCaseName(pageName, this.isArchive);
     this.userName = spiHelperNormalizeUsername(this.caseName);
+    this.casePageName = 'Wikipedia:Sockpuppet investigations/' + this.caseName;
     this.archiveName = pageName + '/Archive';
     if (currentPage) {
       this.startingRevId = mw.config.get('wgCurRevisionId');

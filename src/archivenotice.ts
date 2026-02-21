@@ -1,5 +1,5 @@
 import { ParsedArchiveNotice } from './types/spi.ts';
-import { spiHelperGetPageText } from './api.ts';
+import { spiHelperEditPage, spiHelperGetPageText } from './api.ts';
 import { spiHelperPriorCasesRegex } from './constants/regex.ts';
 import { context } from './context.ts';
 import { spiHelperSettings } from './options';
@@ -56,8 +56,14 @@ export async function spiHelperParseArchiveNotice(
   return new ParsedArchiveNotice({ username: username, ...flags });
 }
 
-export async function spiHelperAddArchiveNotice(state: CaseState) {
-  let pageText = await loadCaseText(state);
+export async function spiHelperAddArchiveNotice(page: string, state: CaseState) {
+  let pageText: string;
+  if (page === context.pageName) {
+    pageText = await loadCaseText(state);
+  }
+  else {
+    pageText = await spiHelperGetPageText(page, false);
+  }
   if (spiHelperPriorCasesRegex.exec(pageText) === null) {
     pageText = '{{SPIpriorcases}}\n' + pageText;
   }
@@ -74,14 +80,25 @@ export async function spiHelperAddArchiveNotice(state: CaseState) {
     // Add TOC and archive notice at the top
     pageText = '<noinclude>__TOC__</noinclude>\n' + archiveNoticeText + '\n' + pageText;
   }
-  const newRevId = await context.edit({
-    newText: pageText,
-    summary: 'Adding archive notice',
-    watch: spiHelperSettings.watch.case,
-    watchExpiry: spiHelperSettings.expiry.case,
-    baseRevId: context.startingRevId,
-  });
-  if (newRevId !== null) {
-    context.startingRevId = newRevId;
+  if (page === context.pageName) {
+    const newRevId = await context.edit({
+      newText: pageText,
+      summary: 'Adding archive notice',
+      watch: spiHelperSettings.watch.case,
+      watchExpiry: spiHelperSettings.expiry.case,
+      baseRevId: context.startingRevId,
+    });
+    if (newRevId !== null) {
+      context.startingRevId = newRevId;
+    }
+  }
+  else {
+    await spiHelperEditPage({
+      title: page,
+      newText: pageText,
+      summary: 'Adding archive notice',
+      watch: spiHelperSettings.watch.case,
+      watchExpiry: spiHelperSettings.expiry.case,
+    });
   }
 }

@@ -479,7 +479,9 @@ export const TopViewComponent = defineComponent({
     },
     async ensureArchiveNotice() {
       // Load archivenotice params
-      const archiveNoticeResult = await spiHelperParseArchiveNotice(context.pageName.replace(/\/Archive/, ''), this.state);
+      const archiveNoticeResult = await spiHelperParseArchiveNotice(
+        context.casePageName, this.state,
+      );
       if (archiveNoticeResult === null) {
         // No archive notice was found, initialise default and add it
         this.state.archiveNotice = new ParsedArchiveNotice({ username: context.caseName });
@@ -487,7 +489,8 @@ export const TopViewComponent = defineComponent({
           type: 'warning',
           content: 'Can\'t find archivenotice template! Automatically adding the archive notice to the page.',
         }).show();
-        void spiHelperAddArchiveNotice(this.state);
+        mw.notify('Can\'t find archivenotice template! Adding the archive notice to the page', { type: 'warn' });
+        void spiHelperAddArchiveNotice(context.casePageName, this.state);
       }
       else {
         this.state.archiveNotice = archiveNoticeResult;
