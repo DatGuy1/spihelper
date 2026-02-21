@@ -226,6 +226,7 @@
     const headerText = originalText.slice(0, getContentStartIndex(originalText));
     return headerText + `
 ` + sections.map((section) => section.fullText).join(`
+
 `);
   }
   function getContentStartIndex(archiveText) {
@@ -1051,6 +1052,7 @@
     caseName;
     userName;
     archiveName;
+    casePageName;
     isArchive;
     startingRevId;
     _text = null;
@@ -1060,6 +1062,7 @@
       this.isArchive = /Wikipedia:Sockpuppet investigations\/.+\/Archive/.test(pageName);
       this.caseName = extractCaseName(pageName, this.isArchive);
       this.userName = spiHelperNormalizeUsername(this.caseName);
+      this.casePageName = "Wikipedia:Sockpuppet investigations/" + this.caseName;
       this.archiveName = pageName + "/Archive";
       if (currentPage) {
         this.startingRevId = mw.config.get("wgCurRevisionId");
@@ -2342,8 +2345,13 @@
     }
     return new ParsedArchiveNotice({ username, ...flags });
   }
-  async function spiHelperAddArchiveNotice(state) {
-    let pageText = await loadCaseText(state);
+  async function spiHelperAddArchiveNotice(page, state) {
+    let pageText;
+    if (page === context.pageName) {
+      pageText = await loadCaseText(state);
+    } else {
+      pageText = await spiHelperGetPageText(page, false);
+    }
     if (spiHelperPriorCasesRegex.exec(pageText) === null) {
       pageText = `{{SPIpriorcases}}
 ` + pageText;
@@ -2354,20 +2362,32 @@
     if (tocMatch) {
       const tocEnd = tocMatch.index + tocMatch[0].length;
       pageText = pageText.slice(0, tocEnd) + `
-` + archiveNoticeText + pageText.slice(tocEnd);
+` + archiveNoticeText + `
+` + pageText.slice(tocEnd);
     } else {
       pageText = `<noinclude>__TOC__</noinclude>
-` + archiveNoticeText + pageText;
+` + archiveNoticeText + `
+` + pageText;
     }
-    const newRevId = await context.edit({
-      newText: pageText,
-      summary: "Adding archive notice",
-      watch: spiHelperSettings.watch.case,
-      watchExpiry: spiHelperSettings.expiry.case,
-      baseRevId: context.startingRevId
-    });
-    if (newRevId !== null) {
-      context.startingRevId = newRevId;
+    if (page === context.pageName) {
+      const newRevId = await context.edit({
+        newText: pageText,
+        summary: "Adding archive notice",
+        watch: spiHelperSettings.watch.case,
+        watchExpiry: spiHelperSettings.expiry.case,
+        baseRevId: context.startingRevId
+      });
+      if (newRevId !== null) {
+        context.startingRevId = newRevId;
+      }
+    } else {
+      await spiHelperEditPage({
+        title: page,
+        newText: pageText,
+        summary: "Adding archive notice",
+        watch: spiHelperSettings.watch.case,
+        watchExpiry: spiHelperSettings.expiry.case
+      });
     }
   }
 
@@ -3817,8 +3837,9 @@ ${comment}
         } else if (blockOptions.addSockNotice) {
           noticeType = "sock";
         }
+        const maxJitter = Math.max(500, sockRows.length * 100);
         blockPromises.push((async () => {
-          await new Promise((r) => setTimeout(r, Math.random() * 500));
+          await new Promise((r) => setTimeout(r, Math.random() * maxJitter));
           const blockSuccess = await spiHelperProcessBlockRow({
             sock: sockRow,
             userBlock: userBlocks.get(sockRow.username),
@@ -4240,14 +4261,15 @@ ${comment}
         return filteredRows;
       },
       async ensureArchiveNotice() {
-        const archiveNoticeResult = await spiHelperParseArchiveNotice(context.pageName.replace(/\/Archive/, ""), this.state);
+        const archiveNoticeResult = await spiHelperParseArchiveNotice(context.casePageName, this.state);
         if (archiveNoticeResult === null) {
           this.state.archiveNotice = new ParsedArchiveNotice({ username: context.caseName });
           new VueMessage({
             type: "warning",
             content: "Can't find archivenotice template! Automatically adding the archive notice to the page."
           }).show();
-          spiHelperAddArchiveNotice(this.state);
+          mw.notify("Can't find archivenotice template! Adding the archive notice to the page", { type: "warn" });
+          spiHelperAddArchiveNotice(context.casePageName, this.state);
         } else {
           this.state.archiveNotice = archiveNoticeResult;
         }
