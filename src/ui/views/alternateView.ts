@@ -253,7 +253,7 @@ export const AlternateViewComponent = defineComponent({
       if (isOpRunning('alternateActions')) {
         return;
       }
-      mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'submit_alternate' });
+      mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'submit', type: 'alternate' });
       startOp('alternateActions');
       this.actionsRunning = true;
       let blockPromises: Promise<string | null>[] = [];
@@ -332,7 +332,7 @@ export const AlternateViewComponent = defineComponent({
     this._openHandler = () => {
       this.open = !this.open;
       if (this.open) {
-        mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'open_alternate' });
+        mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'open', type: 'alternate' });
         if (this.categoryView) {
           void this.initialiseCategoryView();
         }
