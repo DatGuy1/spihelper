@@ -418,18 +418,24 @@ export async function spiHelperGetInvestigationSections(opts: {
     return [];
   }
   const api = spiHelperGetAPI();
-  const response = await api.get(request) as ParseResponse<'toc'>;
-  if (!response.parse) {
-    console.error('spiHelperGetInvestigationSections: Could not parse sections');
+  try {
+    const response = await api.get(request) as ParseResponse<'toc'>;
+    if (!response.parse) {
+      console.error('spiHelperGetInvestigationSections: Could not parse sections');
+      return [];
+    }
+    const dateSections: SectionEntry[] = [];
+    for (const section of response.parse.tocdata.sections) {
+      if (parseInt(section.hLevel) === 3) {
+        dateSections.push(new SectionEntry(parseInt(section.index), section.line));
+      }
+    }
+    return dateSections;
+  }
+  catch (error) {
+    console.warn('spiHelperGetInvestigationSections API error:', error);
     return [];
   }
-  const dateSections: SectionEntry[] = [];
-  for (const section of response.parse.tocdata.sections) {
-    if (parseInt(section.hLevel) === 3) {
-      dateSections.push(new SectionEntry(parseInt(section.index), section.line));
-    }
-  }
-  return dateSections;
 }
 
 /**

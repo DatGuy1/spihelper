@@ -77,18 +77,19 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
       watch: 'nochange',
     });
   }
+  const archiveExists = newArchiveText !== '';
   // Update the archive
-  if (newArchiveText === '') {
-    newArchiveText = `__TOC__\n{{SPI archive notice|1=${context.caseName}}}\n{{SPIpriorcases}}\n`;
+  if (archiveExists) {
+    newArchiveText = newArchiveText.replace(/<br\s*\/>\s*{{SPIpriorcases}}/gi, '\n{{SPIpriorcases}}');
   }
   else {
-    newArchiveText = newArchiveText.replace(/<br\s*\/>\s*{{SPIpriorcases}}/gi, '\n{{SPIpriorcases}}');
+    newArchiveText = `__TOC__\n{{SPI archive notice|1=${context.caseName}}}\n{{SPIpriorcases}}\n\n`;
   }
 
   // Get archive sections list once for efficient insertion
-  const archiveSectionEntries = await spiHelperGetInvestigationSections(
-    { pageName: context.archiveName },
-  );
+  const archiveSectionEntries = archiveExists
+    ? await spiHelperGetInvestigationSections({ pageName: context.archiveName })
+    : [];
   const parsedArchiveSections = parseArchiveSections(newArchiveText, archiveSectionEntries);
   if (!parsedArchiveSections) {
     new VueMessage({ type: 'notice', content: 'Failed to parse existing archive sections, aborting archival' }).show();
