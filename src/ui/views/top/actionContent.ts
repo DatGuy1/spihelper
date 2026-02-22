@@ -15,6 +15,7 @@ export const ActionContentComponent = defineComponent({
   },
   emits: [
     'update-section-selection',
+    'update-status',
     'block-username-change',
     'link-username-change',
     'link-username-selected',
@@ -25,6 +26,9 @@ export const ActionContentComponent = defineComponent({
   methods: {
     handleUpdateSectionSelection(selection: number | 'all' | null) {
       this.$emit('update-section-selection', selection);
+    },
+    handleUpdateStatus(newStatus: string) {
+      this.$emit('update-status', newStatus);
     },
     handleBlockUsernameChange(username: string, index: number) {
       this.$emit('block-username-change', username, index);
@@ -61,7 +65,8 @@ export const ActionContentComponent = defineComponent({
     <comment-action v-else-if="name === 'comment'" v-model:enabled="caseActions.comment.enabled"
                     v-model:text="caseActions.comment.data.text" />
     <change-status-action v-else-if="name === 'status'" v-model:enabled="caseActions.status.enabled"
-                          :old-status="caseActions.status.data.old" v-model:new-status="caseActions.status.data.new" />
+                          :old-status="caseActions.status.data.old" v-model:new-status="caseActions.status.data.new"
+                          @update:new-status="handleUpdateStatus" />
     <block-action v-else-if="name === 'block'" v-model:enabled="caseActions.block.enabled"
                   v-model="caseActions.block.data.accounts" v-model:block-options="caseActions.block.data.options"
                   :user-locks="caseActions.block.data.userLocks" :user-blocks="caseActions.block.data.userBlocks"

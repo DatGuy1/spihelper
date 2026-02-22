@@ -170,6 +170,7 @@ export const TopViewComponent = defineComponent({
                 :menu-items="menuItems"
                 :current-status="currentStatus"
                 @update-section-selection="onUpdateSectionSelection"
+                @update-status="onUpdateNewStatus"
                 @block-username-change="handleBlockUsernameChange"
                 @link-username-change="handleLinkUsernameChange"
                 @link-username-selected="handleLinkUsernameSelected"
@@ -199,6 +200,7 @@ export const TopViewComponent = defineComponent({
               :menu-items="menuItems"
               :current-status="currentStatus"
               @update-section-selection="onUpdateSectionSelection"
+              @update-status="onUpdateNewStatus"
               @block-username-change="handleBlockUsernameChange"
               @link-username-change="handleLinkUsernameChange"
               @link-username-selected="handleLinkUsernameSelected"
@@ -275,13 +277,6 @@ export const TopViewComponent = defineComponent({
         }
         caseAction.enabled = spiHelperSettings.defaultActions.includes(caseAN);
       }
-    },
-    // Changes the case status in the comment box
-    'caseActions.status.data.new'(newStatus: string) {
-      this.caseActions.comment.data.text = updateCommentWithStatus(
-        this.caseActions.comment.data.text,
-        newStatus,
-      );
     },
   },
   methods: {
@@ -383,6 +378,13 @@ export const TopViewComponent = defineComponent({
         state: this.state,
       });
       this.sectionAccountNames = new Set(this.massAddSockRows(allRows).map(row => row.username));
+    },
+    // Changes the case status in the comment box
+    onUpdateNewStatus(newStatus: string) {
+      this.caseActions.comment.data.text = updateCommentWithStatus(
+        this.caseActions.comment.data.text,
+        newStatus,
+      );
     },
     async onSubmitActions() {
       if (isOpRunning('mainActions')) {
