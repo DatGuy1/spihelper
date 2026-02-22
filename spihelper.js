@@ -594,18 +594,23 @@
       return [];
     }
     const api = spiHelperGetAPI();
-    const response = await api.get(request);
-    if (!response.parse) {
-      console.error("spiHelperGetInvestigationSections: Could not parse sections");
+    try {
+      const response = await api.get(request);
+      if (!response.parse) {
+        console.error("spiHelperGetInvestigationSections: Could not parse sections");
+        return [];
+      }
+      const dateSections = [];
+      for (const section of response.parse.tocdata.sections) {
+        if (parseInt(section.hLevel) === 3) {
+          dateSections.push(new SectionEntry(parseInt(section.index), section.line));
+        }
+      }
+      return dateSections;
+    } catch (error) {
+      console.warn("spiHelperGetInvestigationSections API error:", error);
       return [];
     }
-    const dateSections = [];
-    for (const section of response.parse.tocdata.sections) {
-      if (parseInt(section.hLevel) === 3) {
-        dateSections.push(new SectionEntry(parseInt(section.index), section.line));
-      }
-    }
-    return dateSections;
   }
   async function spiHelperGetSPIBacklinks(casePageName) {
     const api = spiHelperGetAPI();
@@ -2045,6 +2050,7 @@
     },
     emits: [
       "update-section-selection",
+      "update-status",
       "block-username-change",
       "link-username-change",
       "link-username-selected",
@@ -2055,6 +2061,9 @@
     methods: {
       handleUpdateSectionSelection(selection) {
         this.$emit("update-section-selection", selection);
+      },
+      handleUpdateStatus(newStatus) {
+        this.$emit("update-status", newStatus);
       },
       handleBlockUsernameChange(username, index) {
         this.$emit("block-username-change", username, index);
@@ -2091,7 +2100,8 @@
     <comment-action v-else-if="name === 'comment'" v-model:enabled="caseActions.comment.enabled"
                     v-model:text="caseActions.comment.data.text" />
     <change-status-action v-else-if="name === 'status'" v-model:enabled="caseActions.status.enabled"
-                          :old-status="caseActions.status.data.old" v-model:new-status="caseActions.status.data.new" />
+                          :old-status="caseActions.status.data.old" v-model:new-status="caseActions.status.data.new"
+                          @update:new-status="handleUpdateStatus" />
     <block-action v-else-if="name === 'block'" v-model:enabled="caseActions.block.enabled"
                   v-model="caseActions.block.data.accounts" v-model:block-options="caseActions.block.data.options"
                   :user-locks="caseActions.block.data.userLocks" :user-blocks="caseActions.block.data.userBlocks"
@@ -3318,16 +3328,18 @@ $2`);
         watch: "nochange"
       });
     }
-    if (newArchiveText === "") {
+    const archiveExists = newArchiveText !== "";
+    if (archiveExists) {
+      newArchiveText = newArchiveText.replace(/<br\s*\/>\s*{{SPIpriorcases}}/gi, `
+{{SPIpriorcases}}`);
+    } else {
       newArchiveText = `__TOC__
 {{SPI archive notice|1=${context.caseName}}}
 {{SPIpriorcases}}
+
 `;
-    } else {
-      newArchiveText = newArchiveText.replace(/<br\s*\/>\s*{{SPIpriorcases}}/gi, `
-{{SPIpriorcases}}`);
     }
-    const archiveSectionEntries = await spiHelperGetInvestigationSections({ pageName: context.archiveName });
+    const archiveSectionEntries = archiveExists ? await spiHelperGetInvestigationSections({ pageName: context.archiveName }) : [];
     const parsedArchiveSections = parseArchiveSections(newArchiveText, archiveSectionEntries);
     if (!parsedArchiveSections) {
       new VueMessage({ type: "notice", content: "Failed to parse existing archive sections, aborting archival" }).show();
@@ -3990,6 +4002,7 @@ ${comment}
                 :menu-items="menuItems"
                 :current-status="currentStatus"
                 @update-section-selection="onUpdateSectionSelection"
+                @update-status="onUpdateNewStatus"
                 @block-username-change="handleBlockUsernameChange"
                 @link-username-change="handleLinkUsernameChange"
                 @link-username-selected="handleLinkUsernameSelected"
@@ -4019,6 +4032,7 @@ ${comment}
               :menu-items="menuItems"
               :current-status="currentStatus"
               @update-section-selection="onUpdateSectionSelection"
+              @update-status="onUpdateNewStatus"
               @block-username-change="handleBlockUsernameChange"
               @link-username-change="handleLinkUsernameChange"
               @link-username-selected="handleLinkUsernameSelected"
@@ -4089,9 +4103,6 @@ ${comment}
           }
           caseAction.enabled = spiHelperSettings.defaultActions.includes(caseAN);
         }
-      },
-      "caseActions.status.data.new"(newStatus) {
-        this.caseActions.comment.data.text = updateCommentWithStatus(this.caseActions.comment.data.text, newStatus);
       }
     },
     methods: {
@@ -4181,11 +4192,14 @@ ${comment}
         });
         this.sectionAccountNames = new Set(this.massAddSockRows(allRows).map((row) => row.username));
       },
+      onUpdateNewStatus(newStatus) {
+        this.caseActions.comment.data.text = updateCommentWithStatus(this.caseActions.comment.data.text, newStatus);
+      },
       async onSubmitActions() {
         if (isOpRunning("mainActions")) {
           return;
         }
-        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "submit" });
+        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "submit", type: "top" });
         startOp("mainActions");
         this.actionsRunning = true;
         await spiHelperPerformActions({
@@ -4294,7 +4308,7 @@ ${comment}
       this._openHandler = () => {
         this.open = !this.open;
         if (this.open) {
-          mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "open" });
+          mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "open", type: "top" });
         }
         if (this._beforeUnloadHandler) {
           if (this.open) {
@@ -5768,7 +5782,7 @@ ${comment}
         messages.length = 0;
         this.open = true;
         this.archiving = true;
-        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "oneclickarchive" });
+        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "submit", type: "oca" });
         spiHelperOneClickArchive(this.state).then(() => {
           this.archiving = false;
         }, () => {});
@@ -5989,7 +6003,7 @@ ${comment}
         if (isOpRunning("alternateActions")) {
           return;
         }
-        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "submit_alternate" });
+        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "submit", type: "alternate" });
         startOp("alternateActions");
         this.actionsRunning = true;
         let blockPromises = [];
@@ -6055,7 +6069,7 @@ ${comment}
       this._openHandler = () => {
         this.open = !this.open;
         if (this.open) {
-          mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "open_alternate" });
+          mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "open", type: "alternate" });
           if (this.categoryView) {
             this.initialiseCategoryView();
           }
