@@ -89,6 +89,7 @@ export function getInitialCaseActions(): CaseActions {
         accounts: [],
         userLocks: new Map(),
         userBlocks: new Map(),
+        userTags: new Map(),
         master: context.caseName,
         altmaster: context.caseName,
         lockcomment: '',

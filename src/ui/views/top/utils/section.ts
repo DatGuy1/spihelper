@@ -4,7 +4,7 @@ import {
   spiHelperGetBulkPageText,
   spiHelperGetBulkUserBlockSettings,
 } from '../../../../api.ts';
-import type { SockRow } from '../../../../types/spi.ts';
+import type { SockRow, Tag } from '../../../../types/spi.ts';
 import { isNonRegisteredAccount } from '../../../../utils.ts';
 import type { BlockEntry } from '../../../../types/api.ts';
 
@@ -14,18 +14,19 @@ export async function prefetchSockRows(opts: {
   allUsernames: string[];
   userBlocks: Map<string, BlockEntry>;
   userLocks: Map<string, boolean>;
+  userTags: Map<string, Tag>;
   state: CaseState;
 }) {
-  const { likelySocks, possibleSocks, allUsernames, userBlocks, userLocks, state } = opts;
+  const { likelySocks, possibleSocks, allUsernames, userBlocks, userLocks, userTags, state } = opts;
   // For the minute time complexity gains
   const likelySet = new Set(likelySocks);
 
-  const validUsernames = allUsernames.filter(name => !isNonRegisteredAccount(name))
+  const validUserPages = allUsernames.filter(name => !isNonRegisteredAccount(name))
     .map(name => `User:${name}`);
 
   const [blockSettings, userPages] = await Promise.all([
     spiHelperGetBulkUserBlockSettings(allUsernames),
-    spiHelperGetBulkPageText(validUsernames),
+    spiHelperGetBulkPageText(validUserPages),
   ]);
   const checkLock = allUsernames.length < 7;
 
@@ -43,6 +44,7 @@ export async function prefetchSockRows(opts: {
     if (isLocked !== null) {
       userLocks.set(sock.username, isLocked);
     }
+    userTags.set(sock.username, newRow.tag);
     return newRow;
   });
 

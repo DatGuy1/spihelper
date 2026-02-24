@@ -91,8 +91,9 @@ export interface CaseActions {
 export interface BlockActionData {
   accounts: SockRow[];
   options: BlockOptions;
-  userLocks: Map<string, boolean>;
   userBlocks: Map<string, BlockEntry>;
+  userLocks: Map<string, boolean>;
+  userTags: Map<string, Tag>;
   master: string;
   altmaster: string;
   lockcomment: string;

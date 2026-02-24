@@ -55,8 +55,9 @@ export const AlternateViewComponent = defineComponent({
         lockHideNames: false,
       },
       accounts: [],
-      userLocks: new Map(),
       userBlocks: new Map(),
+      userLocks: new Map(),
+      userTags: new Map(),
       master: '',
       altmaster: '',
       lockcomment: '',
@@ -303,6 +304,7 @@ export const AlternateViewComponent = defineComponent({
         allUsernames,
         userBlocks: this.blockData.userBlocks,
         userLocks: this.blockData.userLocks,
+        userTags: this.blockData.userTags,
         state: this.state,
       });
       this.massAddSockRows(allRows);

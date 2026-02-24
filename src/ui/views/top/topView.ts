@@ -375,6 +375,7 @@ export const TopViewComponent = defineComponent({
         allUsernames,
         userBlocks: this.caseActions.block.data.userBlocks,
         userLocks: this.caseActions.block.data.userLocks,
+        userTags: this.caseActions.block.data.userTags,
         state: this.state,
       });
       this.sectionAccountNames = new Set(this.massAddSockRows(allRows).map(row => row.username));

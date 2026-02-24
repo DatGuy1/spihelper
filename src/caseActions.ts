@@ -353,6 +353,7 @@ export async function spiHelperHandleBlocks(opts: BlockActionData): Promise<{
 
   const {
     userLocks,
+    userTags,
     options: blockOptions,
     lockcomment: lockComment,
     master,
@@ -367,14 +368,17 @@ export async function spiHelperHandleBlocks(opts: BlockActionData): Promise<{
 
   const allUsernames = sockRows.map(user => user.username);
   const allUserTalkPages = allUsernames.map(username => `User talk:${username}`);
-  const fetchMessage = new VueMessage({ type: 'notice', content: 'Fetching user blocks and userpages' }).show();
+  const fetchMessage = new VueMessage({ type: 'notice', content: 'Fetching user blocks and tags' }).show();
   // Don't reuse userBlocks because they might not have all our users
   const [userBlocks, userTalkPages] = await Promise.all([
     spiHelperGetBulkUserBlockSettings(allUsernames),
     spiHelperGetBulkPageText(allUserTalkPages),
   ]);
-  fetchMessage.update({ type: 'success', content: 'Got previous blocks and userpages' });
+  fetchMessage.update({ type: 'success', content: 'Got previous blocks and tags' });
   const tagSock = async (sockRow: SockRow, blocked: boolean): Promise<string | null> => {
+    if (sockRow.tag === userTags.get(sockRow.username)) {
+      return null;
+    }
     const tagSuccess = await spiHelperTagUser({
       sock: sockRow,
       tagNonLocalAccounts: blockOptions.tagUnattached,
