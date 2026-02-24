@@ -1,6 +1,7 @@
 import { spiHelperIsAdmin } from '../../../../role.ts';
 import type { ActionLabel, CaseActionName, CaseActions } from '../../../../types/spi.ts';
 import { context } from '../../../../context.ts';
+import { setupBlockActionData } from '../../../../utils.ts';
 
 type ActionButton
   = | { label: string; selectionType: 'case' | 'section' }
@@ -74,26 +75,7 @@ export function getInitialCaseActions(): CaseActions {
     },
     block: {
       enabled: false,
-      data: {
-        options: {
-          noBlock: false,
-          override: false,
-          tagUnattached: true,
-          cuBlock: false,
-          cuBlockOnly: false,
-          addMasterNotice: true,
-          addSockNotice: true,
-          blankTalk: false,
-          lockHideNames: false,
-        },
-        accounts: [],
-        userLocks: new Map(),
-        userBlocks: new Map(),
-        userTags: new Map(),
-        master: context.caseName,
-        altmaster: context.caseName,
-        lockcomment: '',
-      },
+      data: setupBlockActionData(context.caseName, context.caseName),
     },
     link: {
       enabled: false,

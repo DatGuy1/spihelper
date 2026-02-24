@@ -5,7 +5,7 @@ import {
 import type { AbsoluteExpiry, Expiry, NoExpiry, RelativeExpiry } from './types/api.ts';
 import { SectionEntry } from './state.ts';
 import { VueMessage } from './ui/messages.ts';
-import type { ArchiveSection } from './types/spi.ts';
+import type { ArchiveSection, BlockActionData } from './types/spi.ts';
 
 /**
  * Removes the interwiki prefix from a page title
@@ -303,4 +303,27 @@ export function parseSectionDate(sectionTitle: string): Date | null {
 
   // If all parsing fails, return null
   return null;
+}
+
+export function setupBlockActionData(masterName = '', altmasterName = ''): BlockActionData {
+  return {
+    options: {
+      noBlock: false,
+      override: false,
+      tagUnattached: true,
+      cuBlock: false,
+      cuBlockOnly: false,
+      addMasterNotice: true,
+      addSockNotice: true,
+      blankTalk: false,
+      lockHideNames: false,
+    },
+    accounts: [],
+    userLocks: new Map(),
+    userBlocks: new Map(),
+    userTags: new Map(),
+    master: masterName,
+    altmaster: altmasterName,
+    lockcomment: '',
+  };
 }

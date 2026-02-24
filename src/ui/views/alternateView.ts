@@ -12,7 +12,7 @@ import { generateSockRow, getDefaultSockRow, setSockRowBlock } from '../utils.ts
 import { spiHelperHandleBlocks } from '../../caseActions.ts';
 import { spiHelperLog } from '../../actions/log.ts';
 import { context, setContext } from '../../context.ts';
-import { buildUserActionLogMessage } from '../../utils.ts';
+import { buildUserActionLogMessage, setupBlockActionData } from '../../utils.ts';
 import { spiHelperParseArchiveNotice } from '../../archivenotice.ts';
 import { spiHelperGetCategoryMembers, spiHelperGetPageText, spiHelperGetUserBlockSettings } from '../../api.ts';
 import { prefetchSockRows } from './top/utils';
@@ -42,26 +42,6 @@ export const AlternateViewComponent = defineComponent({
     categoryView: { type: Boolean, default: false },
   },
   data(): Data {
-    const blockData: BlockActionData = {
-      options: {
-        noBlock: false,
-        override: false,
-        tagUnattached: true,
-        cuBlock: false,
-        cuBlockOnly: false,
-        addMasterNotice: true,
-        addSockNotice: true,
-        blankTalk: false,
-        lockHideNames: false,
-      },
-      accounts: [],
-      userBlocks: new Map(),
-      userLocks: new Map(),
-      userTags: new Map(),
-      master: '',
-      altmaster: '',
-      lockcomment: '',
-    };
     return {
       open: false,
       _openHandler: null,
@@ -69,7 +49,7 @@ export const AlternateViewComponent = defineComponent({
       caseLoaded: false,
       caseLoading: false,
       targetCase: this.defaultCase,
-      blockData,
+      blockData: setupBlockActionData(),
       linkRows: [],
       actionsRunning: false,
       unpinned: !spiHelperSettings.interface.pinned,
