@@ -281,6 +281,28 @@
     }
     return null;
   }
+  function setupBlockActionData(masterName = "", altmasterName = "") {
+    return {
+      options: {
+        noBlock: false,
+        override: false,
+        tagUnattached: true,
+        cuBlock: false,
+        cuBlockOnly: false,
+        addMasterNotice: true,
+        addSockNotice: true,
+        blankTalk: false,
+        lockHideNames: false
+      },
+      accounts: [],
+      userLocks: new Map,
+      userBlocks: new Map,
+      userTags: new Map,
+      master: masterName,
+      altmaster: altmasterName,
+      lockcomment: ""
+    };
+  }
 
   // src/operations.ts
   var activeOperations = new Map;
@@ -1860,25 +1882,7 @@
       },
       block: {
         enabled: false,
-        data: {
-          options: {
-            noBlock: false,
-            override: false,
-            tagUnattached: true,
-            cuBlock: false,
-            cuBlockOnly: false,
-            addMasterNotice: true,
-            addSockNotice: true,
-            blankTalk: false,
-            lockHideNames: false
-          },
-          accounts: [],
-          userLocks: new Map,
-          userBlocks: new Map,
-          master: context.caseName,
-          altmaster: context.caseName,
-          lockcomment: ""
-        }
+        data: setupBlockActionData(context.caseName, context.caseName)
       },
       link: {
         enabled: false,
@@ -2587,12 +2591,12 @@
   }
   // src/ui/views/top/utils/section.ts
   async function prefetchSockRows(opts) {
-    const { likelySocks, possibleSocks, allUsernames, userBlocks, userLocks, state } = opts;
+    const { likelySocks, possibleSocks, allUsernames, userBlocks, userLocks, userTags, state } = opts;
     const likelySet = new Set(likelySocks);
-    const validUsernames = allUsernames.filter((name) => !isNonRegisteredAccount(name)).map((name) => `User:${name}`);
+    const validUserPages = allUsernames.filter((name) => !isNonRegisteredAccount(name)).map((name) => `User:${name}`);
     const [blockSettings, userPages] = await Promise.all([
       spiHelperGetBulkUserBlockSettings(allUsernames),
-      spiHelperGetBulkPageText(validUsernames)
+      spiHelperGetBulkPageText(validUserPages)
     ]);
     const checkLock = allUsernames.length < 7;
     const userPromises = [...likelySocks, ...possibleSocks].map(async (sock) => {
@@ -2613,6 +2617,7 @@
       if (isLocked !== null) {
         userLocks.set(sock.username, isLocked);
       }
+      userTags.set(sock.username, newRow.tag);
       return newRow;
     });
     return await Promise.all(userPromises);
@@ -3802,6 +3807,7 @@ ${comment}
     let lockPromise = Promise.resolve([]);
     const {
       userLocks,
+      userTags,
       options: blockOptions,
       lockcomment: lockComment,
       master,
@@ -3813,13 +3819,16 @@ ${comment}
     const blockAvailable = spiHelperIsAdmin() && !blockOptions.noBlock;
     const allUsernames = sockRows.map((user) => user.username);
     const allUserTalkPages = allUsernames.map((username) => `User talk:${username}`);
-    const fetchMessage = new VueMessage({ type: "notice", content: "Fetching user blocks and userpages" }).show();
+    const fetchMessage = new VueMessage({ type: "notice", content: "Fetching user blocks and tags" }).show();
     const [userBlocks, userTalkPages] = await Promise.all([
       spiHelperGetBulkUserBlockSettings(allUsernames),
       spiHelperGetBulkPageText(allUserTalkPages)
     ]);
-    fetchMessage.update({ type: "success", content: "Got previous blocks and userpages" });
+    fetchMessage.update({ type: "success", content: "Got previous blocks and tags" });
     const tagSock = async (sockRow, blocked) => {
+      if (sockRow.tag === userTags.get(sockRow.username)) {
+        return null;
+      }
       const tagSuccess = await spiHelperTagUser({
         sock: sockRow,
         tagNonLocalAccounts: blockOptions.tagUnattached,
@@ -4188,6 +4197,7 @@ ${comment}
           allUsernames,
           userBlocks: this.caseActions.block.data.userBlocks,
           userLocks: this.caseActions.block.data.userLocks,
+          userTags: this.caseActions.block.data.userTags,
           state: this.state
         });
         this.sectionAccountNames = new Set(this.massAddSockRows(allRows).map((row) => row.username));
@@ -5805,25 +5815,6 @@ ${comment}
       categoryView: { type: Boolean, default: false }
     },
     data() {
-      const blockData = {
-        options: {
-          noBlock: false,
-          override: false,
-          tagUnattached: true,
-          cuBlock: false,
-          cuBlockOnly: false,
-          addMasterNotice: true,
-          addSockNotice: true,
-          blankTalk: false,
-          lockHideNames: false
-        },
-        accounts: [],
-        userLocks: new Map,
-        userBlocks: new Map,
-        master: "",
-        altmaster: "",
-        lockcomment: ""
-      };
       return {
         open: false,
         _openHandler: null,
@@ -5831,7 +5822,7 @@ ${comment}
         caseLoaded: false,
         caseLoading: false,
         targetCase: this.defaultCase,
-        blockData,
+        blockData: setupBlockActionData(),
         linkRows: [],
         actionsRunning: false,
         unpinned: !spiHelperSettings.interface.pinned,
@@ -6045,6 +6036,7 @@ ${comment}
           allUsernames,
           userBlocks: this.blockData.userBlocks,
           userLocks: this.blockData.userLocks,
+          userTags: this.blockData.userTags,
           state: this.state
         });
         this.massAddSockRows(allRows);
