@@ -318,12 +318,12 @@ export function setupBlockActionData(masterName = '', altmasterName = ''): Block
       blankTalk: false,
       lockHideNames: false,
     },
-    accounts: [],
     userLocks: new Map(),
     userBlocks: new Map(),
     userTags: new Map(),
     master: masterName,
     altmaster: altmasterName,
     lockcomment: '',
+    skipCUVerifyUsers: new Set<string>(),
   };
 }

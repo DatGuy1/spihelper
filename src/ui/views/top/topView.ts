@@ -1,6 +1,6 @@
 import { type PropType, defineComponent } from 'vue';
 import { cdxIconCollapse, cdxIconExpand, cdxIconFeedback, cdxIconPushPin } from '@wikimedia/codex-icons';
-import { DefaultLinkRow, type FeedbackDialog } from '../../../types/vue.ts';
+import { type FeedbackDialog } from '../../../types/vue.ts';
 import {
   type CaseState,
   type SectionEntry,
@@ -10,18 +10,17 @@ import {
 } from '../../../state.ts';
 import type { MenuItemData } from '@wikimedia/codex';
 import { saveOptions, spiHelperSettings } from '../../../options';
-import { HandleUserSelected } from '../userLookup.ts';
+import { UpdateUserAllUserData } from '../userLookup.ts';
 import type { AllUser } from '../../../types/api.ts';
 import { spiHelperAddArchiveNotice, spiHelperParseArchiveNotice } from '../../../archivenotice.ts';
 import { context } from '../../../context.ts';
 import {
   type CaseActionName,
   type CaseActionSection, type CaseActions,
-  type LinkRow,
   ParsedArchiveNotice,
-  type SockRow,
+  type UserRow,
 } from '../../../types/spi.ts';
-import { getDefaultSockRow, getSockEntries, updateSockRowSettings } from '../../utils.ts';
+import { getDefaultUserRow, getSockEntries, updateUserBlockDataSettings } from '../../utils.ts';
 import {
   type ActionButtons,
   getActionButtons,
@@ -52,6 +51,7 @@ interface Data {
   actionButtons: ActionButtons;
   actionButtonKeys: CaseActionName[];
   caseActions: CaseActions;
+  accounts: UserRow[];
   messages: VueMessage[];
 }
 
@@ -77,6 +77,7 @@ export const TopViewComponent = defineComponent({
       actionButtonKeys,
       sectionAccountNames: new Set<string>(),
       caseActions: getInitialCaseActions(),
+      accounts: [],
       messages,
       cdxIconPushPin,
       cdxIconCollapse,
@@ -166,14 +167,13 @@ export const TopViewComponent = defineComponent({
             <action-content
                 :name="name"
                 :case-actions="caseActions"
+                :accounts="accounts"
                 :state="state"
                 :menu-items="menuItems"
                 :current-status="currentStatus"
                 @update-section-selection="onUpdateSectionSelection"
                 @update-status="onUpdateNewStatus"
-                @block-username-change="handleBlockUsernameChange"
-                @link-username-change="handleLinkUsernameChange"
-                @link-username-selected="handleLinkUsernameSelected"
+                @user-selected="handleUserSelected"
                 @remove-rows="handleRemoveRows"
                 @add-row="handleAddRow"
                 @fetch-rows="handleFetchRows"
@@ -196,23 +196,25 @@ export const TopViewComponent = defineComponent({
           <action-content
               :name="name"
               :case-actions="caseActions"
+              :accounts="accounts"
               :state="state"
               :menu-items="menuItems"
               :current-status="currentStatus"
               @update-section-selection="onUpdateSectionSelection"
               @update-status="onUpdateNewStatus"
-              @block-username-change="handleBlockUsernameChange"
-              @link-username-change="handleLinkUsernameChange"
-              @link-username-selected="handleLinkUsernameSelected"
+              @user-selected="handleUserSelected"
               @remove-rows="handleRemoveRows"
               @add-row="handleAddRow"
               @fetch-rows="handleFetchRows"
           />
         </action-accordion>
       </div>
-      <submit-form v-if="caseActions.sections.data.section !== null" v-model:socks="caseActions.block.data.accounts"
+      <submit-form v-if="caseActions.sections.data.section !== null" :accounts="accounts"
                    v-model:master="caseActions.block.data.master" v-model:altmaster="caseActions.block.data.altmaster"
-                   v-model:lock-comment="caseActions.block.data.lockcomment" :locks="caseActions.block.data.userLocks"
+                   v-model:lock-comment="caseActions.block.data.lockcomment"
+                   v-model:skipCUVerifyUsers="caseActions.block.data.skipCUVerifyUsers"
+                   :block-options="caseActions.block.data.options"
+                   :locks="caseActions.block.data.userLocks" :blocks="caseActions.block.data.userBlocks"
                    :all-disabled="allDisabled" :state="state" :action-name="'mainActions'" :check-conflict="true"
                    @on-submit="onSubmitActions" />
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
@@ -352,13 +354,7 @@ export const TopViewComponent = defineComponent({
       void this.loadSectionAccounts(this.state.selectedSection);
     },
     async loadSectionAccounts(selection: SectionSelection) {
-      const removeIndexes = this.caseActions.block.data.accounts.reduce<number[]>((acc, row, i) => {
-        if (this.sectionAccountNames.has(row.username)) {
-          acc.push(i);
-        }
-        return acc;
-      }, []);
-      this.handleRemoveRows(removeIndexes);
+      this.accounts = this.accounts.filter(row => !this.sectionAccountNames.has(row.username));
       // Prefill block and link tables
       const searchText = await (selection.type === 'all'
         ? loadCaseText(this.state)
@@ -378,7 +374,7 @@ export const TopViewComponent = defineComponent({
         userTags: this.caseActions.block.data.userTags,
         state: this.state,
       });
-      this.sectionAccountNames = new Set(this.massAddSockRows(allRows).map(row => row.username));
+      this.sectionAccountNames = new Set(this.massAddUserRows(allRows).map(row => row.username));
     },
     // Changes the case status in the comment box
     onUpdateNewStatus(newStatus: string) {
@@ -397,6 +393,7 @@ export const TopViewComponent = defineComponent({
       this.actionsRunning = true;
       await spiHelperPerformActions({
         actions: this.caseActions,
+        accounts: this.accounts,
         state: this.state,
       });
       finishOp('mainActions', OpState.Success);
@@ -410,74 +407,56 @@ export const TopViewComponent = defineComponent({
       });
       const likelySet = new Set(likelySocks);
 
-      const allRows = [...likelySocks, ...possibleSocks].map(sock => updateSockRowSettings({
-        row: sock,
+      const allRows = [...likelySocks, ...possibleSocks].map(sock => updateUserBlockDataSettings({
+        userRow: sock,
         defaultBlock: likelySet.has(sock),
       }));
-      this.massAddSockRows(allRows);
+      this.massAddUserRows(allRows);
     },
-    handleBlockUsernameChange(newUsername: string, index: number) {
-      if (this.caseActions.link.data.rows.length < index + 1) {
-        console.error('handleBlockUsernameChange: Index', index, 'doesn\'t exist in table');
+    handleUserSelected(data: AllUser, rowId: string) {
+      const userRow = this.accounts.find(r => r.id === rowId);
+      if (!userRow) {
         return;
       }
-      (this.caseActions.link.data.rows[index] as LinkRow).username = newUsername;
-    },
-    handleLinkUsernameChange(newUsername: string, index: number) {
-      if (this.caseActions.block.data.accounts.length < index + 1) {
-        console.error('handleLinkUsernameChange: Index', index, 'doesn\'t exist in table');
-        return;
+      if (data.blockid !== undefined
+        && !this.caseActions.block.data.userBlocks.has(userRow.username)) {
+        const ABAO = mw.util.isIPAddress(data.name) ? data.blockanononly : data.blockautoblocking;
+        this.caseActions.block.data.userBlocks.set(userRow.username, {
+          username: userRow.username,
+          duration: data.blockexpiry ?? '',
+          abao: ABAO ?? false,
+          acb: data.blocknocreate ?? false,
+          ntp: data.blockowntalk ?? false,
+          nem: data.blockemail ?? false,
+          reason: '',
+        });
       }
-      (this.caseActions.block.data.accounts[index] as SockRow).username = newUsername;
+      UpdateUserAllUserData(data, userRow);
     },
-    handleLinkUsernameSelected(data: AllUser, index: number) {
-      if (this.caseActions.block.data.accounts.length < index + 1) {
-        console.error('handleLinkUsernameSelected: Index', index, 'doesn\'t exist in table');
-        return;
-      }
-      HandleUserSelected(data, (this.caseActions.block.data.accounts[index] as SockRow));
+    handleAddRow(row?: UserRow) {
+      row ??= getDefaultUserRow(this.state.archiveNotice);
+      this.accounts.push(row);
     },
-    handleAddRow(row?: SockRow) {
-      row ??= getDefaultSockRow(this.state.archiveNotice);
-      this.caseActions.block.data.accounts = [
-        ...this.caseActions.block.data.accounts,
-        row,
-      ];
-      this.caseActions.link.data.rows = [
-        ...this.caseActions.link.data.rows,
-        { ...DefaultLinkRow, username: row.username },
-      ];
+    handleRemoveRows(rowIds: string[]) {
+      this.accounts = this.accounts.filter(row => !rowIds.includes(row.id));
     },
-    handleRemoveRows(indexes: number[]) {
-      this.caseActions.block.data.accounts = this.caseActions.block.data.accounts.filter(
-        (_row, index) => !indexes.includes(index),
-      );
-      this.caseActions.link.data.rows = this.caseActions.link.data.rows.filter(
-        (_row, index) => !indexes.includes(index),
-      );
-    },
-    massAddSockRows(newRows: SockRow[]) {
-      // Aliases
-      const sockRows = this.caseActions.block.data.accounts;
-      const linkRows = this.caseActions.link.data.rows;
-
+    massAddUserRows(newRows: UserRow[]) {
       // Check if the last row is an empty row
-      const withDefault = sockRows.at(-1)?.username === '';
+      const withDefault = this.accounts.at(-1)?.username === '';
       // Used to filter out duplicates
-      const existingUsernames = new Set(sockRows.map(s => s.username));
-      const filteredRows: SockRow[] = newRows.filter(
+      const existingUsernames = new Set(this.accounts.map(s => s.username));
+      const filteredRows: UserRow[] = newRows.filter(
         newRow => !existingUsernames.has(newRow.username),
       );
-      filteredRows.forEach((newRow) => {
-        // If last row is the default, insert in ^1st slot
-        if (withDefault) {
-          sockRows.splice(sockRows.length - 1, 0, newRow);
-          linkRows.splice(linkRows.length - 1, 0, { ...DefaultLinkRow, username: newRow.username });
-        }
-        else {
-          this.handleAddRow(newRow);
-        }
-      });
+      // If last row is the default, insert in ^1st slot
+      if (withDefault) {
+        filteredRows.forEach((newRow) => {
+          this.accounts.splice(this.accounts.length - 1, 0, newRow);
+        });
+      }
+      else {
+        this.accounts = this.accounts.concat(filteredRows);
+      }
       return filteredRows;
     },
     async ensureArchiveNotice() {

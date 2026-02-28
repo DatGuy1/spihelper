@@ -1,5 +1,5 @@
 import { type ComponentPublicInstance, type PropType, defineComponent } from 'vue';
-import type { SockRow } from '../../types/spi.ts';
+import type { BlockOptions, UserRow } from '../../types/spi.ts';
 import { isNonRegisteredAccount } from '../../utils.ts';
 import { isOpRunning } from '../../operations.ts';
 import { spiHelperGetPageRev } from '../../api.ts';
@@ -7,6 +7,9 @@ import { context } from '../../context.ts';
 import { cdxIconUpdate } from '@wikimedia/codex-icons';
 import { type ModalAction, type PrimaryModalAction } from '@wikimedia/codex';
 import { CaseState, loadCaseText, loadSectionText } from '../../state.ts';
+import type { BlockEntry } from '../../types/api.ts';
+import { spiHelperIsCheckuser } from '../../role.ts';
+import { spiHelperCUBlockRegex } from '../../constants/regex.ts';
 
 interface Data {
   popover: {
@@ -24,11 +27,14 @@ export const SubmitFormComponent = defineComponent({
     actionName: { type: String, required: true },
     checkConflict: { type: Boolean, required: true },
     state: { type: Object as PropType<CaseState>, required: true },
-    socks: { type: Array as PropType<SockRow[]>, required: true },
+    accounts: { type: Array as PropType<UserRow[]>, required: true },
+    blockOptions: { type: Object as PropType<BlockOptions>, required: true },
+    blocks: { type: Map as PropType<Map<string, BlockEntry>>, required: true },
     locks: { type: Map as PropType<Map<string, boolean>>, required: true },
     master: { type: String, required: true },
     altmaster: { type: String, required: true },
     lockComment: { type: String, required: true },
+    skipCUVerifyUsers: { type: Set as PropType<Set<string>>, required: true },
     allDisabled: { type: Boolean, required: true },
   },
   data(): Data {
@@ -45,7 +51,7 @@ export const SubmitFormComponent = defineComponent({
       cdxIconUpdate,
     };
   },
-  emits: ['update:master', 'update:altmaster', 'update:lockComment', 'onSubmit'],
+  emits: ['update:master', 'update:altmaster', 'update:lockComment', 'update:skipCUVerifyUsers', 'onSubmit'],
   template: `
     <div class="spiHelper-submitForm">
       <user-lookup v-if="needsSockmaster" label="Master" v-model="masterValue" />
@@ -55,6 +61,13 @@ export const SubmitFormComponent = defineComponent({
         <template #description>Optional comment to include in the global lock request</template>
         <cdx-text-input v-model="lockCommentValue" placeholder="Comment" />
       </cdx-field>
+      <cdx-checkbox v-if="cuBlockConfirmationsNeeded.size > 0"
+                    v-model="cuBlockOverrideChecked" :indeterminate="cuBlockOverrideIndeterminate">
+        Confirm CU-block overriding
+        <template #description>You are currently set to override the following CU blocks:
+          {{ [...cuBlockConfirmationsNeeded].join(', ') }}
+        </template>
+      </cdx-checkbox>
       <cdx-button ref="submitElement" action="progressive" weight="primary" @click="onSubmit" :disabled="disableButton">
         Submit
       </cdx-button>
@@ -69,18 +82,49 @@ export const SubmitFormComponent = defineComponent({
   `,
   computed: {
     needsAltmaster() {
-      return this.socks.some(sock => sock.altmaster !== 'none' && !isNonRegisteredAccount(sock.username));
+      return this.accounts.some(sock => sock.block.altmaster !== 'none' && !isNonRegisteredAccount(sock.username));
     },
     needsSockmaster() {
-      return this.socks.some(sock => sock.tag.startsWith('S') && !isNonRegisteredAccount(sock.username));
+      return this.accounts.some(sock => sock.block.tag.startsWith('S') && !isNonRegisteredAccount(sock.username));
     },
     needsLockComment() {
       // Also check that our user isn't already locked because we'd skip them eventually
-      return this.socks.some(sock =>
-        sock.lock
+      return this.accounts.some(sock =>
+        sock.block.lock
         && !isNonRegisteredAccount(sock.username)
         && this.locks.get(sock.username) !== true,
       );
+    },
+    cuBlockConfirmationsNeeded(): Set<string> {
+      // If you're not a checkuser, we've asked to overwrite existing blocks, and the block
+      // target has a CU block on them, check whether that was intended
+      const neededUsers = new Set<string>();
+      if (spiHelperIsCheckuser() || !this.blockOptions.override || this.blockOptions.noBlock) {
+        return neededUsers;
+      }
+
+      for (const userRow of this.accounts) {
+        if (!userRow.block.block) {
+          continue;
+        }
+        const blockReason = this.blocks.get(userRow.username)?.reason;
+        if (blockReason && spiHelperCUBlockRegex.exec(blockReason)) {
+          neededUsers.add(userRow.username);
+        }
+      }
+      return neededUsers;
+    },
+    cuBlockOverrideChecked: {
+      get() {
+        return this.skipCUVerifyUsers.size === this.cuBlockConfirmationsNeeded.size;
+      },
+      set(newValue: boolean) {
+        this.$emit('update:skipCUVerifyUsers', newValue ? this.cuBlockConfirmationsNeeded : new Set());
+      },
+    },
+    cuBlockOverrideIndeterminate(): boolean {
+      const skipCount = this.skipCUVerifyUsers.size;
+      return skipCount > 0 && skipCount < this.cuBlockConfirmationsNeeded.size;
     },
     disableButton() {
       return isOpRunning(this.actionName)
@@ -114,6 +158,7 @@ export const SubmitFormComponent = defineComponent({
     },
   },
   methods: {
+
     // Should this be in topView.ts?
     async onSubmit() {
       if (this.checkConflict) {
