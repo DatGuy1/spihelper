@@ -1,25 +1,25 @@
 import type { CaseState } from '../../../../state.ts';
-import { setSockRowBlock } from '../../../utils.ts';
+import { setUserRowBlockData } from '../../../utils.ts';
 import {
   spiHelperGetBulkPageText,
   spiHelperGetBulkUserBlockSettings,
 } from '../../../../api.ts';
-import type { SockRow, Tag } from '../../../../types/spi.ts';
+import type { Tag, UserRow } from '../../../../types/spi.ts';
 import { isNonRegisteredAccount } from '../../../../utils.ts';
 import type { BlockEntry } from '../../../../types/api.ts';
 
 export async function prefetchSockRows(opts: {
-  likelySocks: SockRow[];
-  possibleSocks: SockRow[];
+  likelySocks: UserRow[];
+  possibleSocks: UserRow[];
   allUsernames: string[];
   userBlocks: Map<string, BlockEntry>;
   userLocks: Map<string, boolean>;
   userTags: Map<string, Tag>;
   state: CaseState;
-}) {
+}): Promise<UserRow[]> {
   const { likelySocks, possibleSocks, allUsernames, userBlocks, userLocks, userTags, state } = opts;
   // For the minute time complexity gains
-  const likelySet = new Set(likelySocks);
+  const likelySet = new Set(likelySocks.map(sock => sock.id));
 
   const validUserPages = allUsernames.filter(name => !isNonRegisteredAccount(name))
     .map(name => `User:${name}`);
@@ -30,21 +30,21 @@ export async function prefetchSockRows(opts: {
   ]);
   const checkLock = allUsernames.length < 7;
 
-  const userPromises = [...likelySocks, ...possibleSocks].map(async (sock) => {
-    const blockSetting = blockSettings.get(sock.username);
+  const userPromises = [...likelySocks, ...possibleSocks].map(async (userRow) => {
+    const blockSetting = blockSettings.get(userRow.username);
     if (blockSetting !== undefined) {
-      userBlocks.set(sock.username, blockSetting);
+      userBlocks.set(userRow.username, blockSetting);
     }
 
-    const userPage = userPages.get(sock.username);
-    const defaultBlock = likelySet.has(sock);
-    const { row: newRow, isLocked } = await setSockRowBlock({
-      sock, block: blockSetting, defaultBlock, userPage, checkLock, state,
+    const userPage = userPages.get(userRow.username);
+    const defaultBlock = likelySet.has(userRow.id);
+    const { userRow: newRow, isLocked } = await setUserRowBlockData({
+      userRow, block: blockSetting, defaultBlock, userPage, checkLock, state,
     });
     if (isLocked !== null) {
-      userLocks.set(sock.username, isLocked);
+      userLocks.set(userRow.username, isLocked);
     }
-    userTags.set(sock.username, newRow.tag);
+    userTags.set(userRow.username, userRow.block.tag);
     return newRow;
   });
 

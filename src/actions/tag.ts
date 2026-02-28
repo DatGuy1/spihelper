@@ -1,4 +1,4 @@
-import type { SockRow } from '../types/spi.ts';
+import type { UserRow } from '../types/spi.ts';
 import { spiHelperSettings } from '../options';
 import {
   spiHelperEditPage,
@@ -22,14 +22,14 @@ function createCategoryPage(title: string) {
 
 /**
  * Given a tag entry, runs the required logic and tags the user
- * @param {SockRow} opts.sock Sock to run the logic for
+ * @param {UserRow} opts.sock Sock to run the logic for
  * @param {boolean} opts.tagNonLocalAccounts Whether to tag accounts that don't exist locally
  * @param {string} opts.sockmaster The username of the sockmaster to tag for
  * @param {string} opts.altmaster The username of the alternate master to tag for
  * @return {Promise<boolean>} Whether the tag was successfully applied
  */
 export async function spiHelperTagUser(opts: {
-  sock: SockRow;
+  sock: UserRow;
   tagNonLocalAccounts: boolean;
   master: string;
   altmaster: string;
@@ -59,9 +59,9 @@ export async function spiHelperTagUser(opts: {
   }
 
   let tagText = '';
-  const isMaster = sock.tag.startsWith('M');
+  const isMaster = sock.block.tag.startsWith('M');
   let tag: string;
-  switch (sock.tag) {
+  switch (sock.block.tag) {
     case 'Mblocked':
       tag = 'blocked';
       break;
@@ -81,7 +81,7 @@ export async function spiHelperTagUser(opts: {
       tag = 'confirmed';
       break;
     default:
-      console.error('spiHelperTagUser: Unexpected tag value', sock.tag);
+      console.error('spiHelperTagUser: Unexpected tag value', sock.block.tag);
       return false;
   }
 
@@ -91,22 +91,22 @@ export async function spiHelperTagUser(opts: {
     tagText += `{{sockpuppeteer
 | 1 = ${tag}
 | locked = ${userInfo.locked ? 'yes' : 'no'}`;
-    if (sock.tag === 'Mconfirmed' || sock.tag === 'Mbanned') {
+    if (sock.block.tag === 'Mconfirmed' || sock.block.tag === 'Mbanned') {
       tagText += '\n| checked = yes';
     }
     tagText += '\n}}';
   }
-  const tagAltmaster = sock.altmaster !== 'none';
+  const tagAltmaster = sock.block.altmaster !== 'none';
   // Not if-else because we tag something as both sock and master if they're a
   // sockmaster and have a suspected altmaster
   if (!isMaster || tagAltmaster) {
     let altmasterParam = tagAltmaster ? altmaster : '';
-    let altmasterStatusParam = tagAltmaster ? sock.altmaster : '';
+    let altmasterStatusParam = tagAltmaster ? sock.block.altmaster : '';
     let sockmasterName = master;
     if (tagAltmaster && isMaster) {
       // If we have an altmaster and we're the master, swap a few values around
       sockmasterName = altmaster;
-      tag = sock.altmaster === 'suspected' ? 'blocked' : sock.altmaster;
+      tag = sock.block.altmaster === 'suspected' ? 'blocked' : sock.block.altmaster;
       altmasterParam = '';
       altmasterStatusParam = '';
       tagText += '\n';
@@ -131,18 +131,18 @@ export async function spiHelperTagUser(opts: {
 }
 
 export async function createSockCategories(opts: {
-  sockRows: SockRow[];
+  userRows: UserRow[];
   master: string;
   altmaster: string;
 }): Promise<boolean> {
-  const { sockRows, master, altmaster } = opts;
+  const { userRows, master, altmaster } = opts;
   // Whether we should purge sock pages (needed when we create a category)
   let needsPurge = false;
   // Check if we need to validate our categories to reduce API calls
-  const checkConfirmedCat = sockRows.some(sock => sock.tag === 'Sproven' || sock.tag === 'Sconfirmed');
-  const checkSuspectedCat = sockRows.some(sock => sock.tag === 'Ssuspected');
-  const checkAltSuspectedCat = sockRows.some(sock => sock.altmaster === 'suspected');
-  const checkAltProvenCat = sockRows.some(sock => sock.altmaster === 'proven');
+  const checkConfirmedCat = userRows.some(sock => sock.block.tag === 'Sproven' || sock.block.tag === 'Sconfirmed');
+  const checkSuspectedCat = userRows.some(sock => sock.block.tag === 'Ssuspected');
+  const checkAltSuspectedCat = userRows.some(sock => sock.block.altmaster === 'suspected');
+  const checkAltProvenCat = userRows.some(sock => sock.block.altmaster === 'proven');
 
   if (checkAltProvenCat) {
     const catName = `Category:Wikipedia sockpuppets of ${altmaster}`;

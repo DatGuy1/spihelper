@@ -1,14 +1,18 @@
 import { type PropType, defineComponent } from 'vue';
 import { type CaseState } from '../../state.ts';
-import { DefaultLinkRow, type FeedbackDialog } from '../../types/vue.ts';
+import { type FeedbackDialog } from '../../types/vue.ts';
 import { spiHelperSettings } from '../../options';
 import { VueMessage, messages } from '../messages.ts';
 import { cdxIconFeedback, cdxIconPushPin } from '@wikimedia/codex-icons';
-import { type BlockActionData, type LinkRow, ParsedArchiveNotice, type SockRow } from '../../types/spi.ts';
+import {
+  type BlockActionData,
+  ParsedArchiveNotice,
+  type UserRow,
+} from '../../types/spi.ts';
 import { OpState, finishOp, getOpState, isOpRunning, startOp } from '../../operations.ts';
 import type { AllUser } from '../../types/api.ts';
-import { HandleUserSelected } from './userLookup.ts';
-import { generateSockRow, getDefaultSockRow, setSockRowBlock } from '../utils.ts';
+import { UpdateUserAllUserData } from './userLookup.ts';
+import { generateUserRow, getDefaultUserRow, setUserRowBlockData } from '../utils.ts';
 import { spiHelperHandleBlocks } from '../../caseActions.ts';
 import { spiHelperLog } from '../../actions/log.ts';
 import { context, setContext } from '../../context.ts';
@@ -25,7 +29,7 @@ interface Data {
   caseLoading: boolean;
   targetCase: string;
   blockData: BlockActionData;
-  linkRows: LinkRow[];
+  accounts: UserRow[];
   actionsRunning: boolean;
   cdxIconFeedback: typeof cdxIconFeedback;
   cdxIconPushPin: typeof cdxIconPushPin;
@@ -50,7 +54,7 @@ export const AlternateViewComponent = defineComponent({
       caseLoading: false,
       targetCase: this.defaultCase,
       blockData: setupBlockActionData(),
-      linkRows: [],
+      accounts: [],
       actionsRunning: false,
       unpinned: !spiHelperSettings.interface.pinned,
       messages,
@@ -84,22 +88,23 @@ export const AlternateViewComponent = defineComponent({
         <div>
           <h4>Link</h4>
           <link-action :enabled="true" :case-name="targetCase"
-                       v-model="linkRows"
-                       @user-selected="handleLinkUsernameSelected" @username-changed="handleLinkUsernameChange"
+                       :accounts="accounts"
+                       @user-selected="handleUserSelected"
                        @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
         </div>
         <div>
           <h4>Block</h4>
           <block-action :enabled="true" :allow-fetch="false"
-                        v-model="blockData.accounts" v-model:block-options="blockData.options"
+                        :accounts="accounts" v-model:block-options="blockData.options"
                         :user-locks="blockData.userLocks" :user-blocks="blockData.userBlocks"
-                        @username-changed="handleBlockUsernameChange"
+                        @user-selected="handleUserSelected"
                         @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
         </div>
       </div>
       <div v-if="caseLoaded">
-        <submit-form v-model:socks="blockData.accounts" v-model:master="blockData.master"
-                     v-model:altmaster="blockData.altmaster" v-model:lock-comment="blockData.lockcomment"
+        <submit-form :accounts="accounts" v-model:master="blockData.master" v-model:altmaster="blockData.altmaster"
+                     v-model:lock-comment="blockData.lockcomment" v-model:skipCUVerifyUsers="blockData.skipCUVerifyUsers"
+                     :block-options="blockData.options" :blocks="blockData.userBlocks"
                      :locks="blockData.userLocks" :state="state" :action-name="'alternateActions'"
                      :check-conflict="false" :all-disabled="false"
                      @on-submit="onSubmitActions" />
@@ -140,50 +145,35 @@ export const AlternateViewComponent = defineComponent({
     },
   },
   methods: {
-    handleBlockUsernameChange(newUsername: string, index: number) {
-      if (this.linkRows.length < index + 1) {
-        console.error('handleBlockUsernameChange: Index', index, 'doesn\'t exist in table');
+    handleUserSelected(data: AllUser, rowId: string) {
+      const userRow = this.accounts.find(r => r.id === rowId);
+      if (!userRow) {
         return;
       }
-      (this.linkRows[index] as LinkRow).username = newUsername;
-    },
-    handleLinkUsernameChange(newUsername: string, index: number) {
-      if (this.blockData.accounts.length < index + 1) {
-        console.error('handleLinkUsernameChange: Index', index, 'doesn\'t exist in table');
-        return;
+      if (data.blockid !== undefined
+        && !this.blockData.userBlocks.has(userRow.username)) {
+        const ABAO = mw.util.isIPAddress(data.name) ? data.blockanononly : data.blockautoblocking;
+        this.blockData.userBlocks.set(userRow.username, {
+          username: userRow.username,
+          duration: data.blockexpiry ?? '',
+          abao: ABAO ?? false,
+          acb: data.blocknocreate ?? false,
+          ntp: data.blockowntalk ?? false,
+          nem: data.blockemail ?? false,
+          reason: '',
+        });
       }
-      (this.blockData.accounts[index] as SockRow).username = newUsername;
+      UpdateUserAllUserData(data, userRow);
     },
-    handleLinkUsernameSelected(data: AllUser, index: number) {
-      if (this.blockData.accounts.length < index + 1) {
-        console.error('handleLinkUsernameSelected: Index', index, 'doesn\'t exist in table');
-        return;
-      }
-      HandleUserSelected(data, (this.blockData.accounts[index] as SockRow));
+    handleAddRow(row?: UserRow) {
+      row ??= getDefaultUserRow(this.state.archiveNotice);
+      this.accounts.push(row);
     },
-    handleAddRow(row?: SockRow) {
-      row ??= getDefaultSockRow(this.state.archiveNotice);
-      this.blockData.accounts = [
-        ...this.blockData.accounts,
-        row,
-      ];
-      this.linkRows = [
-        ...this.linkRows,
-        { ...DefaultLinkRow, username: row.username },
-      ];
+    handleRemoveRows(rowIds: string[]) {
+      this.accounts = this.accounts.filter(row => !rowIds.includes(row.id));
     },
-    handleRemoveRows(indexes: number[]) {
-      this.blockData.accounts = this.blockData.accounts.filter(
-        (_row, index) => !indexes.includes(index),
-      );
-      this.linkRows = this.linkRows.filter(
-        (_row, index) => !indexes.includes(index),
-      );
-    },
-    massAddSockRows(newRows: SockRow[]) {
-      const sockRows = this.blockData.accounts;
-
-      const existingUsernames = new Set(sockRows.map(s => s.username));
+    massAddUserRows(newRows: UserRow[]) {
+      const existingUsernames = new Set(this.accounts.map(s => s.username));
       newRows.forEach((newRow) => {
         if (!existingUsernames.has(newRow.username)) {
           this.handleAddRow(newRow);
@@ -211,8 +201,8 @@ export const AlternateViewComponent = defineComponent({
           this.blockData.userBlocks.set(this.targetCase, userBlock);
         }
         const userPageText = await spiHelperGetPageText(`User:${this.targetCase}`, false);
-        const { row, isLocked } = await setSockRowBlock({
-          sock: generateSockRow(this.targetCase, this.state),
+        const { userRow, isLocked } = await setUserRowBlockData({
+          userRow: generateUserRow(this.targetCase, this.state),
           block: userBlock,
           userPage: userPageText,
           defaultBlock: true,
@@ -222,7 +212,7 @@ export const AlternateViewComponent = defineComponent({
         if (isLocked !== null) {
           this.blockData.userLocks.set(this.targetCase, isLocked);
         }
-        this.handleAddRow(row);
+        this.handleAddRow(userRow);
       }
       this.blockData.master = this.targetCase;
       this.blockData.altmaster = this.targetCase;
@@ -240,7 +230,10 @@ export const AlternateViewComponent = defineComponent({
       let blockPromises: Promise<string | null>[] = [];
       let tagPromises: Promise<string | null>[] = [];
       let lockPromise: Promise<string[]> = Promise.resolve([]);
-      ({ blockPromises, tagPromises, lockPromise } = await spiHelperHandleBlocks(this.blockData));
+      ({ blockPromises, tagPromises, lockPromise } = await spiHelperHandleBlocks({
+        accounts: this.accounts,
+        blockData: this.blockData,
+      }));
       const userActionsPromise = Promise.all([
         Promise.all(blockPromises),
         Promise.all(tagPromises),
@@ -268,14 +261,16 @@ export const AlternateViewComponent = defineComponent({
         spiHelperGetCategoryMembers(`Category:Wikipedia sockpuppets of ${this.targetCase}`),
       ]);
 
-      const BuildSockRow = (member: string, likely: boolean): SockRow => {
-        return { ...generateSockRow(member.replace('User:', ''), this.state), tag: likely ? 'none' : 'Ssuspected' };
+      const BuildUserRow = (member: string, likely: boolean): UserRow => {
+        const userRow = { ...generateUserRow(member.replace('User:', ''), this.state) };
+        userRow.block.tag = likely ? 'none' : 'Ssuspected';
+        return userRow;
       };
       const likelySocks = [...confirmedMembers, `User:${this.targetCase}`].map(
-        member => BuildSockRow(member, true),
+        member => BuildUserRow(member, true),
       );
       const possibleSocks = suspectedMembers.map(
-        member => BuildSockRow(member, false),
+        member => BuildUserRow(member, false),
       );
       const allUsernames = [...likelySocks, ...possibleSocks].map(sock => sock.username);
       const allRows = await prefetchSockRows({
@@ -287,7 +282,7 @@ export const AlternateViewComponent = defineComponent({
         userTags: this.blockData.userTags,
         state: this.state,
       });
-      this.massAddSockRows(allRows);
+      this.massAddUserRows(allRows);
     },
   },
   mounted() {

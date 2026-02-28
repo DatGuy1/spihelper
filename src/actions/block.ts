@@ -2,16 +2,13 @@ import {
   spiHelperBlockUser,
   spiHelperEditPage,
 } from '../api.ts';
-import { spiHelperCUBlockRegex } from '../constants/regex.ts';
 import { spiHelperSettings } from '../options';
-import type { BlockOptions, SockRow } from '../types/spi.ts';
+import type { BlockOptions, UserRow } from '../types/spi.ts';
 import { spiHelperIsCheckuser } from '../role.ts';
 import { isNoExpiry, spiHelperNormalizeUsername } from '../utils.ts';
 import { context } from '../context.ts';
-import type { BlockEntry } from '../types/api.ts';
-import { VueMessage } from '../ui/messages.ts';
 
-function buildTalkNotice(sock: SockRow, noticeType: 'master' | 'sock', sockmaster: string, cuBlock: boolean) {
+function buildTalkNotice(sock: UserRow, noticeType: 'master' | 'sock', sockmaster: string, cuBlock: boolean) {
   let newText: string;
   let isSock = noticeType === 'sock';
   // Hacky workaround for when we didn't make a master tag
@@ -31,16 +28,16 @@ function buildTalkNotice(sock: SockRow, noticeType: 'master' | 'sock', sockmaste
     newText += '{{subst:uw-sockblock|sig=yes';
   }
   newText += '|spi=' + context.caseName;
-  if (isNoExpiry(sock.duration)) {
+  if (isNoExpiry(sock.block.duration)) {
     newText += '|indef=yes';
   }
   else {
-    newText += '|time=' + sock.duration;
+    newText += '|time=' + sock.block.duration;
     if (cuBlock) {
       newText += '|indef=no';
     }
   }
-  if (sock.ntp) {
+  if (sock.block.ntp) {
     newText += '|notalk=yes';
   }
   if (isSock) {
@@ -77,58 +74,26 @@ function buildBlockSummary(
  * Given a sock row, runs the required logic and blocks the user
  */
 export async function spiHelperProcessBlockRow(opts: {
-  sock: SockRow;
-  userBlock: BlockEntry | undefined;
+  sock: UserRow;
   userTalkContent: string | undefined;
   blockOptions: BlockOptions;
   noticeType: 'master' | 'sock' | null;
   sockmaster: string;
 }): Promise<boolean> {
-  const { sock, userBlock, userTalkContent, blockOptions, noticeType, sockmaster } = opts;
-  if (userBlock !== undefined && !blockOptions.override) {
-    // If the user is already blocked, and we haven't asked
-    // to override, exit before we get to API block error
-    new VueMessage({
-      type: 'warning',
-      content: `Block target ${sock.username} is already blocked. Check the "override existing blocks" box to re-block them`,
-    }).show();
-    // Return true because end result is the same
-    return true;
-  }
-  const blockReason = userBlock?.reason;
-  if (
-    !spiHelperIsCheckuser() && blockOptions.override
-    && blockReason && spiHelperCUBlockRegex.exec(blockReason)
-  ) {
-    // If you're not a checkuser, we've asked to overwrite existing blocks, and the block
-    // target has a CU block on them, check whether that was intended
-    const prompt = 'User ' + sock.username + ' is CheckUser-blocked, are you SURE you want to re-block them?\n'
-      + 'Current block message:\n' + blockReason;
-    if (!confirm(prompt)) {
-      return false;
-    }
-  }
-  if (!sock.duration) {
-    // Exit before we get to API block error
-    new VueMessage({
-      type: 'error',
-      content: `Block target ${sock.username} does not have an intended duration`,
-    }).show();
-    return false;
-  }
+  const { sock, userTalkContent, blockOptions, noticeType, sockmaster } = opts;
   const isIP = mw.util.isIPAddress(sock.username, true);
   const isIPRange = isIP && !mw.util.isIPAddress(sock.username, false);
-  const blockSummary = buildBlockSummary(blockOptions, isIP, isIPRange, sock.acb);
+  const blockSummary = buildBlockSummary(blockOptions, isIP, isIPRange, sock.block.acb);
   const blockSuccess = await spiHelperBlockUser({
     user: sock.username,
-    duration: sock.duration,
+    duration: sock.block.duration,
     reason: blockSummary,
     reblock: blockOptions.override,
-    anononly: (isIP ? sock.abao : false),
-    accountcreation: sock.acb,
-    autoblock: (isIP ? false : sock.abao),
-    notalkpage: sock.ntp,
-    noemail: sock.nem,
+    anononly: (isIP ? sock.block.abao : false),
+    accountcreation: sock.block.acb,
+    autoblock: (isIP ? false : sock.block.abao),
+    notalkpage: sock.block.ntp,
+    noemail: sock.block.nem,
     watchBlockedUser: spiHelperSettings.watch.blocked,
     watchExpiry: spiHelperSettings.expiry.blocked,
   });

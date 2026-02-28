@@ -1,9 +1,9 @@
 import {
   ParsedArchiveNotice,
-  type SockRow,
+  type UserRow,
 } from '../types/spi.ts';
 import { type CaseState } from '../state.ts';
-import { DefaultSockRow } from '../types/vue.ts';
+import { DefaultBlockRowData, DefaultLinkRowData } from '../types/vue.ts';
 import { spiHelperNormalizeUsername } from '../utils.ts';
 import { spiHelperSettings } from '../options';
 import { fetchTemplateArguments, parseTemplates } from '../template.ts';
@@ -16,10 +16,10 @@ export function getSockEntries(opts: {
   text: string;
   fullSearch: boolean;
   state: CaseState;
-}): [SockRow[], SockRow[], string[]] {
+}): [UserRow[], UserRow[], string[]] {
   const { text, fullSearch, state } = opts;
-  const likelySocks: SockRow[] = fullSearch ? [generateSockRow(context.caseName, state)] : [];
-  const possibleSocks: SockRow[] = [];
+  const likelySocks: UserRow[] = fullSearch ? [generateUserRow(context.caseName, state)] : [];
+  const possibleSocks: UserRow[] = [];
   const allUsernames: Set<string> = fullSearch ? new Set([context.caseName]) : new Set();
 
   if (fullSearch) {
@@ -34,7 +34,7 @@ export function getSockEntries(opts: {
       if (allUsernames.has(username)) {
         continue;
       }
-      likelySocks.push(generateSockRow(username, state));
+      likelySocks.push(generateUserRow(username, state));
       allUsernames.add(username);
     }
   }
@@ -49,7 +49,7 @@ export function getSockEntries(opts: {
       for (const templateUsername of templateUsernames) {
         const username = spiHelperNormalizeUsername(templateUsername);
         if (!allUsernames.has(username)) {
-          possibleSocks.push(generateSockRow(username, state));
+          possibleSocks.push(generateUserRow(username, state));
           allUsernames.add(username);
         }
       }
@@ -59,20 +59,20 @@ export function getSockEntries(opts: {
   return [likelySocks, possibleSocks, Array.from(allUsernames)];
 }
 
-export function generateSockRow(username: string, state: CaseState): SockRow {
+export function generateUserRow(username: string, state: CaseState): UserRow {
   if (mw.util.isIPAddress(username, true)) {
     if (spiHelperSettings.interface.displayIPv6As64 && mw.util.isIPv6Address(username, false)) {
       return {
-        ...getDefaultSockRow(state.archiveNotice),
+        ...getDefaultUserRow(state.archiveNotice),
         username: buildIPBlock(username),
       };
     }
     else {
-      return { ...getDefaultSockRow(state.archiveNotice), username: username };
+      return { ...getDefaultUserRow(state.archiveNotice), username: username };
     }
   }
   else {
-    return { ...getDefaultSockRow(state.archiveNotice), username: username };
+    return { ...getDefaultUserRow(state.archiveNotice), username: username };
   }
 }
 
@@ -83,43 +83,48 @@ function buildIPBlock(fullIP: string): string {
   return fullIP.split(':').slice(0, 4).concat('0', '0', '0', '0').join(':') + '/64';
 }
 
-export function getDefaultSockRow(archiveNotice: ParsedArchiveNotice | null) {
-  const newRow = { ...DefaultSockRow };
+export function getDefaultUserRow(archiveNotice: ParsedArchiveNotice | null): UserRow {
+  const newRow: UserRow = {
+    id: crypto.randomUUID(),
+    username: '',
+    block: { ...DefaultBlockRowData },
+    link: { ...DefaultLinkRowData },
+  };
   if (archiveNotice) {
     if (archiveNotice.crosswiki) {
-      newRow.lock = true;
+      newRow.block.lock = true;
     }
     if (archiveNotice.notalk) {
-      newRow.nem = true;
-      newRow.ntp = true;
+      newRow.block.nem = true;
+      newRow.block.ntp = true;
     }
   }
-  newRow.duration = spiHelperSettings.interface.defaultBlockDuration;
+  newRow.block.duration = spiHelperSettings.interface.defaultBlockDuration;
   return newRow;
 }
 
 /**
  * Updates block table based on block settings, tags, and defaultBlock
  */
-export function updateSockRowSettings(opts: {
-  row: SockRow;
+export function updateUserBlockDataSettings(opts: {
+  userRow: UserRow;
   currentBlock?: BlockEntry | null;
   currentTags?: string;
   defaultBlock: boolean;
-}): SockRow {
-  const { row, currentBlock, currentTags, defaultBlock } = opts;
+}): UserRow {
+  const { userRow, currentBlock, currentTags, defaultBlock } = opts;
   if (currentBlock) {
-    row.block = true;
-    row.acb = currentBlock.acb;
-    row.abao = currentBlock.abao;
-    row.ntp = currentBlock.ntp;
-    row.nem = currentBlock.nem;
-    row.duration = currentBlock.duration;
+    userRow.block.block = true;
+    userRow.block.acb = currentBlock.acb;
+    userRow.block.abao = currentBlock.abao;
+    userRow.block.ntp = currentBlock.ntp;
+    userRow.block.nem = currentBlock.nem;
+    userRow.block.duration = currentBlock.duration;
   }
   else {
-    row.block = defaultBlock;
-    if (mw.util.isIPAddress(row.username, true)) {
-      row.duration = '1 week';
+    userRow.block.block = defaultBlock;
+    if (mw.util.isIPAddress(userRow.username, true)) {
+      userRow.block.duration = '1 week';
     }
   }
 
@@ -129,33 +134,33 @@ export function updateSockRowSettings(opts: {
       if (['sockpuppeteer', 'sockmaster'].includes(template.name)) {
         const firstParam = template.params['1'] ?? template.positional[0];
         if (firstParam === 'banned') {
-          row.tag = 'Mbanned';
+          userRow.block.tag = 'Mbanned';
         }
         else if (firstParam === 'blocked') {
-          row.tag = template.params.checked?.toLowerCase() === 'yes'
+          userRow.block.tag = template.params.checked?.toLowerCase() === 'yes'
             ? 'Mconfirmed'
             : 'Mblocked';
         }
         else {
-          console.warn('Unrecognised master status', firstParam, 'for', row.username);
+          console.warn('Unrecognised master status', firstParam, 'for', userRow.username);
         }
       }
       else if (['sockpuppet', 'sock'].includes(template.name)) {
         const blockParam = template.params['2'] ?? template.positional[1];
         switch (blockParam) {
           case 'blocked':
-            row.tag = 'Ssuspected';
+            userRow.block.tag = 'Ssuspected';
             break;
           case 'proven':
-            row.tag = 'Sproven';
+            userRow.block.tag = 'Sproven';
             break;
           case 'confirmed':
           case 'nbconfirmed':
           case 'cuconfirmed':
-            row.tag = 'Sconfirmed';
+            userRow.block.tag = 'Sconfirmed';
             break;
           default:
-            console.warn('Unrecognised sock status', blockParam, 'for', row.username);
+            console.warn('Unrecognised sock status', blockParam, 'for', userRow.username);
             break;
         }
 
@@ -163,39 +168,39 @@ export function updateSockRowSettings(opts: {
           const altmasterStatus = template.params['altmaster-status'];
           switch (altmasterStatus) {
             case undefined:
-              row.altmaster = 'none';
+              userRow.block.altmaster = 'none';
               break;
             case 'suspect':
             case 'suspected':
-              row.altmaster = 'suspected';
+              userRow.block.altmaster = 'suspected';
               break;
             case 'proven':
-              row.altmaster = 'proven';
+              userRow.block.altmaster = 'proven';
               break;
             default:
-              console.warn('Unrecognised altmaster status', altmasterStatus, 'for', row.username);
+              console.warn('Unrecognised altmaster status', altmasterStatus, 'for', userRow.username);
           }
         }
       }
     }
   }
 
-  return row;
+  return userRow;
 }
 
 export const isMenuGroupData = (item: MenuItemData | MenuGroupData): item is MenuGroupData => 'items' in item;
 
-export async function setSockRowBlock(opts: {
-  sock: SockRow;
+export async function setUserRowBlockData(opts: {
+  userRow: UserRow;
   block: BlockEntry | null | undefined;
   userPage?: string;
   defaultBlock: boolean;
   checkLock: boolean;
   state: CaseState;
 }) {
-  const { sock, block: blockSetting, userPage, defaultBlock, checkLock, state } = opts;
-  const row = updateSockRowSettings({
-    row: sock,
+  const { block: blockSetting, userPage, defaultBlock, checkLock, state } = opts;
+  const userRow = updateUserBlockDataSettings({
+    userRow: opts.userRow,
     defaultBlock,
     currentBlock: blockSetting,
     currentTags: userPage,
@@ -203,18 +208,18 @@ export async function setSockRowBlock(opts: {
 
   let isLocked: boolean | null = null;
   if (checkLock) {
-    const globalUser = await spiHelperGetGlobalUser(row.username);
+    const globalUser = await spiHelperGetGlobalUser(userRow.username);
     if (globalUser) {
       isLocked = globalUser.locked;
       // noinspection RedundantIfStatementJS
-      if (isLocked || state.archiveNotice?.crosswiki) {
-        row.lock = true;
+      if (globalUser.locked || state.archiveNotice?.crosswiki) {
+        userRow.block.lock = true;
       }
       else {
-        row.lock = false;
+        userRow.block.lock = false;
       }
     }
   }
 
-  return { row, isLocked };
+  return { userRow, isLocked };
 }

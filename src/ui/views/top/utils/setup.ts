@@ -79,9 +79,6 @@ export function getInitialCaseActions(): CaseActions {
     },
     link: {
       enabled: false,
-      data: {
-        rows: [],
-      },
     },
     management: {
       enabled: false,

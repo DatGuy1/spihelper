@@ -1,5 +1,5 @@
 import { type PropType, defineComponent } from 'vue';
-import type { CaseActionName, CaseActions, SockRow } from '../../../types/spi.ts';
+import type { CaseActionName, CaseActions, UserRow } from '../../../types/spi.ts';
 import type { MenuItemData } from '@wikimedia/codex';
 import type { CaseState } from '../../../state.ts';
 import type { AllUser } from '../../../types/api.ts';
@@ -9,6 +9,10 @@ export const ActionContentComponent = defineComponent({
   props: {
     name: { type: String as PropType<CaseActionName>, required: true },
     caseActions: { type: Object as PropType<CaseActions>, required: true },
+    // "As a best practice, you should avoid such mutations
+    // unless the parent and child are tightly coupled by design"
+    // https://vuejs.org/guide/components/props.html#one-way-data-flow
+    accounts: { type: Array as PropType<UserRow[]>, required: true },
     state: { type: Object as PropType<CaseState>, required: true },
     menuItems: { type: Array as PropType<MenuItemData[]>, required: true },
     currentStatus: { type: String, required: true },
@@ -16,9 +20,7 @@ export const ActionContentComponent = defineComponent({
   emits: [
     'update-section-selection',
     'update-status',
-    'block-username-change',
-    'link-username-change',
-    'link-username-selected',
+    'user-selected',
     'remove-rows',
     'add-row',
     'fetch-rows',
@@ -30,19 +32,13 @@ export const ActionContentComponent = defineComponent({
     handleUpdateStatus(newStatus: string) {
       this.$emit('update-status', newStatus);
     },
-    handleBlockUsernameChange(username: string, index: number) {
-      this.$emit('block-username-change', username, index);
+    handleUserSelected(data: AllUser, rowId: string) {
+      this.$emit('user-selected', data, rowId);
     },
-    handleLinkUsernameChange(username: string, index: number) {
-      this.$emit('link-username-change', username, index);
+    handleRemoveRows(rowIds: string[]) {
+      this.$emit('remove-rows', rowIds);
     },
-    handleLinkUsernameSelected(data: AllUser, index: number) {
-      this.$emit('link-username-selected', data, index);
-    },
-    handleRemoveRows(indexes: number[]) {
-      this.$emit('remove-rows', indexes);
-    },
-    handleAddRow(row?: SockRow) {
+    handleAddRow(row?: UserRow) {
       this.$emit('add-row', row);
     },
     handleFetchRows() {
@@ -68,14 +64,14 @@ export const ActionContentComponent = defineComponent({
                           :old-status="caseActions.status.data.old" v-model:new-status="caseActions.status.data.new"
                           @update:new-status="handleUpdateStatus" />
     <block-action v-else-if="name === 'block'" v-model:enabled="caseActions.block.enabled"
-                  v-model="caseActions.block.data.accounts" v-model:block-options="caseActions.block.data.options"
+                  v-model:block-options="caseActions.block.data.options" :accounts="accounts"
                   :user-locks="caseActions.block.data.userLocks" :user-blocks="caseActions.block.data.userBlocks"
-                  @username-changed="handleBlockUsernameChange"
+                  @user-selected="handleUserSelected"
                   @remove-rows="handleRemoveRows" @add-row="handleAddRow"
                   @fetch-rows="handleFetchRows" />
     <link-action v-else-if="name === 'link'" v-model:enabled="caseActions.link.enabled"
-                 v-model="caseActions.link.data.rows" :case-name="caseName"
-                 @user-selected="handleLinkUsernameSelected" @username-changed="handleLinkUsernameChange"
+                 :accounts="accounts" :case-name="caseName"
+                 @user-selected="handleUserSelected"
                  @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
     <management-action v-else-if="name === 'management'" v-model:enabled="caseActions.management.enabled"
                        v-model:flags="caseActions.management.data.flags" />

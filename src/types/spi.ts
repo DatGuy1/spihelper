@@ -72,6 +72,13 @@ export type CaseActionName = typeof CASE_ACTION_NAMES[number];
 
 export interface ActionLabel { case: string; section: string }
 
+export interface UserRow {
+  id: string;
+  username: string;
+  link: LinkRowData;
+  block: BlockRowData;
+}
+
 export interface CaseAction<T> {
   enabled: boolean;
   data: T;
@@ -82,14 +89,13 @@ export interface CaseActions {
   comment: CaseAction<{ text: string }>;
   status: CaseAction<{ old: string; new: string }>;
   block: CaseAction<BlockActionData>;
-  link: CaseAction<{ rows: LinkRow[] }>;
+  link: { enabled: boolean };
   management: CaseAction<{ flags: Set<ManagementFlag> }>;
   move: CaseAction<{ target: string }>;
   archive: { enabled: boolean };
 }
 
 export interface BlockActionData {
-  accounts: SockRow[];
   options: BlockOptions;
   userBlocks: Map<string, BlockEntry>;
   userLocks: Map<string, boolean>;
@@ -97,6 +103,7 @@ export interface BlockActionData {
   master: string;
   altmaster: string;
   lockcomment: string;
+  skipCUVerifyUsers: Set<string>;
 }
 
 export interface BlockOptions {
@@ -111,8 +118,7 @@ export interface BlockOptions {
   lockHideNames: boolean;
 }
 
-export interface SockRow {
-  username: string;
+export interface BlockRowData {
   block: boolean;
   duration: string;
   acb: boolean;
@@ -124,8 +130,7 @@ export interface SockRow {
   lock: boolean;
 }
 
-export interface LinkRow {
-  username: string;
+export interface LinkRowData {
   analyser: boolean;
   timeline: boolean;
   timecard: boolean;

@@ -2,8 +2,7 @@ import { type PropType, defineComponent } from 'vue';
 import { cdxIconCopy, cdxIconDownload, cdxIconTrash } from '@wikimedia/codex-icons';
 import type { AllUser, BlockEntry } from '../../../../types/api.ts';
 import { spiHelperIsAdmin, spiHelperIsCheckuser, spiHelperIsClerk } from '../../../../role.ts';
-import { HandleUserSelected } from '../../userLookup.ts';
-import type { AltmasterTag, BlockOptions, SockRow, Tag } from '../../../../types/spi.ts';
+import type { AltmasterTag, BlockOptions, BlockRowData, Tag, UserRow } from '../../../../types/spi.ts';
 import { isNonRegisteredAccount } from '../../../../utils.ts';
 
 interface TagOption { value: Tag; label: string }
@@ -11,7 +10,7 @@ type TagOptions = (TagOption | { label: string; items: TagOption[] })[];
 
 export const BlockActionComponent = defineComponent({
   props: {
-    modelValue: { type: Array as PropType<SockRow[]>, required: true },
+    accounts: { type: Array as PropType<UserRow[]>, required: true },
     blockOptions: { type: Object as PropType<BlockOptions>, required: true },
     userLocks: { type: Map as PropType<Map<string, boolean>>, required: true },
     userBlocks: { type: Map as PropType<Map<string, BlockEntry>>, required: true },
@@ -129,7 +128,7 @@ export const BlockActionComponent = defineComponent({
         </cdx-checkbox>
       </div>
       <cdx-table caption="Socks" :show-vertical-borders="true" :use-row-selection="true"
-                 :columns="columns" :data="modelValue" v-model:selected-rows="selectedRows"
+                 :columns="columns" :data="accounts" v-model:selected-rows="selectedRows"
                  class="spiHelper-sockTable">
         <template #header>
           <div class="header-content">
@@ -201,46 +200,46 @@ export const BlockActionComponent = defineComponent({
             <!-- Do this instead of rowspan="2" to align it properly -->
             <th scope="col" style="min-width: 150px;">(all users)</th>
             <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAll('block', $event)">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('block', $event)">
                 Set all block
               </cdx-checkbox>
             </th>
             <th scope="col" v-if="isAdmin">
-              <expiry-input placeholder="Duration" @update:model-value="setAll('duration', $event)" />
+              <expiry-input placeholder="Duration" @update:model-value="setAllBlockFields('duration', $event)" />
             </th>
 
             <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAll('acb', $event)">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('acb', $event)">
                 Set all account creation blocked
               </cdx-checkbox>
             </th>
             <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAll('abao', $event)">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('abao', $event)">
                 Set all autoblock/anon-only
               </cdx-checkbox>
             </th>
             <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAll('ntp', $event)">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('ntp', $event)">
                 Set all no talk page
               </cdx-checkbox>
             </th>
             <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAll('nem', $event)">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('nem', $event)">
                 Set all no email
               </cdx-checkbox>
             </th>
 
             <th scope="col" class="selectTagOptions">
               <cdx-select :menu-items="tagOptions" v-model:selected="allTagSelections.tag"
-                          @update:selected="setAll('tag', $event)" />
+                          @update:selected="setAllBlockFields('tag', $event)" />
             </th>
             <th scope="col" class="selectTagOptions">
               <cdx-select :menu-items="altmasterOptions" v-model:selected="allTagSelections.altmaster"
-                          @update:selected="setAll('altmaster', $event)" />
+                          @update:selected="setAllBlockFields('altmaster', $event)" />
             </th>
 
             <th scope="col">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAll('lock', $event)">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('lock', $event)">
                 Set all request locks
               </cdx-checkbox>
             </th>
@@ -248,43 +247,42 @@ export const BlockActionComponent = defineComponent({
           </thead>
         </template>
         <template #item-username="{ item, row }">
-          <user-lookup v-model="row.username" @user-selected="handleUserSelected($event, row)"
-                       @update:model-value="handleUsernameChange($event, row)" />
+          <user-lookup v-model="row.username" @user-selected="handleUserSelected($event, row)" />
         </template>
 
         <template #item-block="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.block" :disabled="blockOptions.noBlock || userBlocks.get(row.username) !== undefined">Block</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.block.block" :disabled="blockOptions.noBlock || userBlocks.get(row.username) !== undefined">Block</cdx-checkbox>
         </template>
 
         <template #item-duration="{ item, row }">
-          <expiry-input v-model="row.duration" :shortened="true" :auto-dismiss="true" placeholder="Duration" />
+          <expiry-input v-model="row.block.duration" :shortened="true" :auto-dismiss="true" placeholder="Duration" />
         </template>
 
         <template #item-acb="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.acb" :disabled="!blockOptions.override && userBlocks.get(row.username)?.acb">Account creation blocked</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.block.acb" :disabled="!blockOptions.override && userBlocks.get(row.username)?.acb">Account creation blocked</cdx-checkbox>
         </template>
         <template #item-abao="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.abao" :disabled="!blockOptions.override && userBlocks.get(row.username)?.abao">Autoblock/Anon-only</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.block.abao" :disabled="!blockOptions.override && userBlocks.get(row.username)?.abao">Autoblock/Anon-only</cdx-checkbox>
         </template>
         <template #item-ntp="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.ntp" :disabled="!blockOptions.override && userBlocks.get(row.username)?.ntp">No talk page</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.block.ntp" :disabled="!blockOptions.override && userBlocks.get(row.username)?.ntp">No talk page</cdx-checkbox>
         </template>
         <template #item-nem="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.nem" :disabled="!blockOptions.override && userBlocks.get(row.username)?.nem">No email</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.block.nem" :disabled="!blockOptions.override && userBlocks.get(row.username)?.nem">No email</cdx-checkbox>
         </template>
 
         <template #item-tag="{ item, row }">
-          <cdx-select :menu-items="tagOptions" v-model:selected="row.tag"
+          <cdx-select :menu-items="tagOptions" v-model:selected="row.block.tag"
                       :disabled="isNonRegisteredAccount(row.username)" class="tagOptions" />
         </template>
 
         <template #item-altmaster="{ item, row }">
-          <cdx-select :menu-items="altmasterOptions" v-model:selected="row.altmaster"
+          <cdx-select :menu-items="altmasterOptions" v-model:selected="row.block.altmaster"
                       :disabled="isNonRegisteredAccount(row.username)" />
         </template>
 
         <template #item-lock="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.lock"
+          <cdx-checkbox :hide-label="true" v-model="row.block.lock"
                         :disabled="isNonRegisteredAccount(row.username) || userLocks.get(row.username) === true">
             Request lock
           </cdx-checkbox>
@@ -298,13 +296,18 @@ export const BlockActionComponent = defineComponent({
   `,
   computed: {
     selectAll(): boolean {
-      return this.selectedRows.length === this.modelValue.length;
+      return this.selectedRows.length === this.accounts.length;
     },
     selectAllIndeterminate(): boolean {
-      if (this.selectedRows.length === this.modelValue.length) {
+      if (this.selectedRows.length === this.accounts.length) {
         return false;
       }
       else return this.selectedRows.length !== 0;
+    },
+    selectedRowIDs(): string[] {
+      return this.selectedRows
+        .map(index => this.accounts[index]?.id)
+        .filter((id): id is string => !!id);
     },
   },
   methods: {
@@ -314,10 +317,11 @@ export const BlockActionComponent = defineComponent({
         return;
       }
       let text = '{{sock list';
-      this.selectedRows.forEach((row, index) => {
-        const rowData = this.modelValue[row];
+      let i = 0;
+      this.selectedRows.forEach((row) => {
+        const rowData = this.accounts[row];
         if (!rowData) return;
-        text += `|${index + 1}=${rowData.username}`;
+        text += `|${++i}=${rowData.username}`;
       });
       text += '}}';
       await navigator.clipboard.writeText(text);
@@ -330,7 +334,7 @@ export const BlockActionComponent = defineComponent({
       }, 200);
     },
     removeSocks() {
-      this.$emit('removeRows', this.selectedRows);
+      this.$emit('removeRows', this.selectedRowIDs);
       this.selectedRows = [];
     },
     addDefaultRow() {
@@ -347,32 +351,17 @@ export const BlockActionComponent = defineComponent({
       this.selectAllIndeterminate = false;
 
       if (newValue) {
-        this.selectedRows = this.modelValue.map((_row, index) => index);
+        this.selectedRows = [...this.accounts.keys()];
       }
       else {
         this.selectedRows = [];
       }
     },
-    handleUserSelected(data: AllUser, row: SockRow) {
-      if (data.blockid !== undefined) {
-        const ABAO = mw.util.isIPAddress(data.name) ? data.blockanononly : data.blockautoblocking;
-        this.userBlocks.set(row.username, {
-          username: row.username,
-          duration: data.blockexpiry ?? '',
-          abao: ABAO ?? false,
-          acb: data.blocknocreate ?? false,
-          ntp: data.blockowntalk ?? false,
-          nem: data.blockemail ?? false,
-          reason: '',
-        });
-      }
-      HandleUserSelected(data, row);
+    handleUserSelected(data: AllUser, row: UserRow) {
+      this.$emit('userSelected', data, row.id);
     },
-    handleUsernameChange(username: string, row: SockRow) {
-      this.$emit('usernameChanged', username, this.modelValue.findIndex((item: SockRow) => item.username === row.username));
-    },
-    setAll<K extends keyof SockRow>(key: K, value: SockRow[K]) {
-      for (const row of this.modelValue) {
+    setAllBlockFields<K extends keyof BlockRowData>(key: K, value: BlockRowData[K]) {
+      for (const row of this.accounts) {
         if (key === 'lock' && this.userLocks.get(row.username) === true) {
           continue;
         }
@@ -391,7 +380,7 @@ export const BlockActionComponent = defineComponent({
         else if (key === 'nem' && this.userBlocks.get(row.username)?.nem) {
           continue;
         }
-        row[key] = value;
+        row.block[key] = value;
       }
     },
     fetchSocks() {

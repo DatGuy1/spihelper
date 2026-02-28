@@ -8,6 +8,7 @@ import { context } from './context.ts';
 import {
   spiHelperAdminSectionWithPrecedingNewlinesRegex,
   spiHelperArchiveNoticeRegex,
+  spiHelperCUBlockRegex,
   spiHelperCaseStatusRegex,
   spiHelperSectionRegex,
 } from './constants/regex.ts';
@@ -21,12 +22,13 @@ import {
   spiHelperNormalizeUsername,
 } from './utils.ts';
 import {
-  type BlockActionData, type CaseAction,
+  type BlockActionData,
+  type CaseAction,
   type CaseActions,
   ParsedArchiveNotice,
-  type SockRow,
+  type UserRow,
 } from './types/spi.ts';
-import { spiHelperIsAdmin, spiHelperIsClerk } from './role.ts';
+import { spiHelperIsAdmin, spiHelperIsCheckuser, spiHelperIsClerk } from './role.ts';
 import { spiHelperMoveCase, spiHelperMoveCaseSection } from './actions/move.ts';
 import { createSockCategories, spiHelperTagUser } from './actions/tag.ts';
 import { spiHelperProcessBlockRow } from './actions/block.ts';
@@ -64,9 +66,9 @@ export async function spiHelperOneClickArchive(state: CaseState): Promise<void> 
  * Goes through the action selections and executes them
  */
 export async function spiHelperPerformActions(opts: {
-  actions: CaseActions; state: CaseState;
+  actions: CaseActions; accounts: UserRow[]; state: CaseState;
 }) {
-  const { actions, state } = opts;
+  const { actions, accounts, state } = opts;
 
   if (Object.values(actions).every((action: CaseAction<never>) => !action.enabled)) {
     new VueMessage({ type: 'warning', content: 'No actions are enabled' }).show();
@@ -121,7 +123,10 @@ export async function spiHelperPerformActions(opts: {
   let tagPromises: Promise<string | null>[] = [];
   let lockPromise: Promise<string[]> = Promise.resolve([]);
   if (actions.block.enabled) {
-    ({ blockPromises, tagPromises, lockPromise } = await spiHelperHandleBlocks(actions.block.data));
+    ({ blockPromises, tagPromises, lockPromise } = await spiHelperHandleBlocks({
+      accounts,
+      blockData: actions.block.data,
+    }));
   }
   const userActionsPromise = Promise.all([
     Promise.all(blockPromises),
@@ -342,7 +347,10 @@ function spiHelperHandleStatus(newStatus: string, targetText: string) {
   return { newStatus, summaryItem, targetText };
 }
 
-export async function spiHelperHandleBlocks(opts: BlockActionData): Promise<{
+export async function spiHelperHandleBlocks(opts: {
+  accounts: UserRow[];
+  blockData: BlockActionData;
+}): Promise<{
   blockPromises: Promise<string | null>[];
   tagPromises: Promise<string | null>[];
   lockPromise: Promise<string[]>;
@@ -358,15 +366,16 @@ export async function spiHelperHandleBlocks(opts: BlockActionData): Promise<{
     lockcomment: lockComment,
     master,
     altmaster,
-  } = opts;
-  const sockRows = opts.accounts.filter(sock => sock.username !== '');
+    skipCUVerifyUsers,
+  } = opts.blockData;
+  const userRows = opts.accounts.filter(userRow => userRow.username !== '');
 
   const lockTargets: string[] = [];
-  const needsPurge = await createSockCategories({ sockRows, master, altmaster });
+  const needsPurge = await createSockCategories({ userRows: userRows, master, altmaster });
 
   const blockAvailable = spiHelperIsAdmin() && !blockOptions.noBlock;
 
-  const allUsernames = sockRows.map(user => user.username);
+  const allUsernames = userRows.map(user => user.username);
   const allUserTalkPages = allUsernames.map(username => `User talk:${username}`);
   const fetchMessage = new VueMessage({ type: 'notice', content: 'Fetching user blocks and tags' }).show();
   // Don't reuse userBlocks because they might not have all our users
@@ -375,12 +384,12 @@ export async function spiHelperHandleBlocks(opts: BlockActionData): Promise<{
     spiHelperGetBulkPageText(allUserTalkPages),
   ]);
   fetchMessage.update({ type: 'success', content: 'Got previous blocks and tags' });
-  const tagSock = async (sockRow: SockRow, blocked: boolean): Promise<string | null> => {
-    if (sockRow.tag === userTags.get(sockRow.username)) {
+  const tagSock = async (userRow: UserRow, blocked: boolean): Promise<string | null> => {
+    if (userRow.block.tag === userTags.get(userRow.username)) {
       return null;
     }
     const tagSuccess = await spiHelperTagUser({
-      sock: sockRow,
+      sock: userRow,
       tagNonLocalAccounts: blockOptions.tagUnattached,
       blocked,
       master,
@@ -391,24 +400,24 @@ export async function spiHelperHandleBlocks(opts: BlockActionData): Promise<{
       // the issue where the page says "click here to create category"
       // when the category was created after the page
       if (needsPurge) {
-        await spiHelperPurgePage(`User:${sockRow.username}`);
+        await spiHelperPurgePage(`User:${userRow.username}`);
       }
     }
 
-    return tagSuccess ? sockRow.username : null;
+    return tagSuccess ? userRow.username : null;
   };
-  for (const sockRow of sockRows) {
+  for (const userRow of userRows) {
     // do not support locking IPs or TAs
-    if (sockRow.lock && !isNonRegisteredAccount(sockRow.username)) {
+    if (userRow.block.lock && !isNonRegisteredAccount(userRow.username)) {
       // If we already know we're locked. Explicit true check because it can be false or undefined
-      if (userLocks.get(sockRow.username) !== true) {
-        lockTargets.push(sockRow.username);
+      if (userLocks.get(userRow.username) !== true) {
+        lockTargets.push(userRow.username);
       }
     }
-    const username = spiHelperNormalizeUsername(sockRow.username);
-    if (blockAvailable && sockRow.block) {
+    const username = spiHelperNormalizeUsername(userRow.username);
+    if (blockAvailable && userRow.block.block) {
       let noticeType: 'master' | 'sock' | null = null;
-      const masterTag = sockRow.tag.includes('master') || context.userName === username;
+      const masterTag = userRow.block.tag.includes('master') || context.userName === username;
       if (blockOptions.addMasterNotice && masterTag) {
         noticeType = 'master';
       }
@@ -416,15 +425,45 @@ export async function spiHelperHandleBlocks(opts: BlockActionData): Promise<{
         noticeType = 'sock';
       }
 
-      const maxJitter = Math.max(500, sockRows.length * 100);
+      const maxJitter = Math.max(500, userRows.length * 100);
       blockPromises.push((async () => {
+        const userBlock = userBlocks.get(userRow.username);
+        if (userBlock !== undefined && !blockOptions.override) {
+          // If the user is already blocked, and we haven't asked
+          // to override, exit before we get to API block error
+          new VueMessage({
+            type: 'warning',
+            content: `Block target ${userRow.username} is already blocked. Check the "override existing blocks" box to re-block them`,
+          }).show();
+          return null;
+        }
+        const blockReason = userBlock?.reason;
+        if (
+          !spiHelperIsCheckuser() && !skipCUVerifyUsers.has(userRow.username)
+          && blockOptions.override && blockReason && spiHelperCUBlockRegex.exec(blockReason)
+        ) {
+          // If you're not a checkuser, we've asked to overwrite existing blocks, and the block
+          // target has a CU block on them, check whether that was intended
+          const prompt = 'User ' + userRow.username + ' is CheckUser-blocked, are you SURE you want to re-block them?\n'
+            + 'Current block message:\n' + blockReason;
+          if (!confirm(prompt)) {
+            return null;
+          }
+        }
+        if (!userRow.block.duration) {
+          // Exit before we get to API block error
+          new VueMessage({
+            type: 'error',
+            content: `Block target ${userRow.username} does not have an intended duration`,
+          }).show();
+          return null;
+        }
         // jitter. remove me when T260838 is fixed
         await new Promise(r => setTimeout(r, Math.random() * maxJitter));
 
         const blockSuccess = await spiHelperProcessBlockRow({
-          sock: sockRow,
-          userBlock: userBlocks.get(sockRow.username),
-          userTalkContent: userTalkPages.get(sockRow.username),
+          sock: userRow,
+          userTalkContent: userTalkPages.get(userRow.username),
           blockOptions: blockOptions,
           noticeType: noticeType,
           sockmaster: master,
@@ -433,14 +472,14 @@ export async function spiHelperHandleBlocks(opts: BlockActionData): Promise<{
           return null;
         }
 
-        if (sockRow.tag !== 'none' || sockRow.altmaster !== 'none') {
-          tagPromises.push(tagSock(sockRow, true));
+        if (userRow.block.tag !== 'none' || userRow.block.altmaster !== 'none') {
+          tagPromises.push(tagSock(userRow, true));
         }
-        return sockRow.username;
+        return userRow.username;
       })());
     }
-    else if (sockRow.tag !== 'none' || sockRow.altmaster !== 'none') {
-      tagPromises.push(tagSock(sockRow, userBlocks.get(sockRow.username) !== undefined));
+    else if (userRow.block.tag !== 'none' || userRow.block.altmaster !== 'none') {
+      tagPromises.push(tagSock(userRow, userBlocks.get(userRow.username) !== undefined));
     }
   }
 

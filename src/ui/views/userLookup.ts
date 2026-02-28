@@ -3,35 +3,35 @@ import { spiHelperGetUsers } from '../../api.ts';
 import { type MenuItemData, type ValidationStatusType } from '@wikimedia/codex';
 import type { AllUser } from '../../types/api.ts';
 import { spiHelperSettings } from '../../options';
-import type { SockRow } from '../../types/spi.ts';
+import type { UserRow } from '../../types/spi.ts';
 
 const ITEM_LIMIT = 10;
 
-export function HandleUserSelected(data: AllUser, row: SockRow) {
+export function UpdateUserAllUserData(data: AllUser, row: UserRow) {
   if (data.blockid !== undefined) {
-    row.block = true;
+    row.block.block = true;
   }
   if (data.blocknocreate !== undefined) {
-    row.acb = data.blocknocreate;
+    row.block.acb = data.blocknocreate;
   }
   if (data.blockemail !== undefined) {
-    row.nem = data.blockemail;
+    row.block.nem = data.blockemail;
   }
   if (mw.util.isIPAddress(data.name)) {
     if (data.blockanononly !== undefined) {
-      row.abao = data.blockanononly;
+      row.block.abao = data.blockanononly;
     }
   }
   else {
     if (data.blockautoblocking !== undefined) {
-      row.abao = data.blockautoblocking;
+      row.block.abao = data.blockautoblocking;
     }
   }
   if (data.blockowntalk !== undefined) {
-    row.ntp = data.blockowntalk;
+    row.block.ntp = data.blockowntalk;
   }
   if (data.blockexpiry) {
-    row.duration = data.blockexpiry;
+    row.block.duration = data.blockexpiry;
   }
 }
 

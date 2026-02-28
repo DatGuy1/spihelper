@@ -2,7 +2,7 @@ import { type PropType, defineComponent } from 'vue';
 import { cdxIconAdd, cdxIconTrash } from '@wikimedia/codex-icons';
 import type { AllUser } from '../../../../types/api.ts';
 import { spiHelperLinkViewURLFormats } from '../../../../constants/linkview.ts';
-import type { LinkRow, SockRow } from '../../../../types/spi.ts';
+import type { UserRow } from '../../../../types/spi.ts';
 
 type ColumnId = 'analyser' | 'timeline' | 'timecard' | 'pages' | 'summary' | 'cuwiki';
 type LinkRecord = Record<ColumnId, { url: URL; label: string }>;
@@ -10,7 +10,7 @@ type LinkRecord = Record<ColumnId, { url: URL; label: string }>;
 // noinspection DuplicatedCode
 export const LinkActionComponent = defineComponent({
   props: {
-    modelValue: { type: Array as PropType<LinkRow[]>, required: true },
+    accounts: { type: Array as PropType<UserRow[]>, required: true },
     caseName: { type: String, required: true },
     enabled: { type: Boolean, required: true },
   },
@@ -42,7 +42,7 @@ export const LinkActionComponent = defineComponent({
     <!--suppress VueUnrecognizedDirective -->
     <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
       <cdx-table :hide-caption="false" caption="Links" :use-row-selection="true"
-                 :columns="columns" :data="modelValue" v-model:selected-rows="selectedRows"
+                 :columns="columns" :data="accounts" v-model:selected-rows="selectedRows"
                  class="spiHelper-sockTable linkTable">
         <template #header>
           <div class="header-content">
@@ -98,31 +98,30 @@ export const LinkActionComponent = defineComponent({
           </thead>
         </template>
         <template #item-username="{ item, row }">
-          <user-lookup v-model="row.username" @user-selected="handleUserSelected($event, row)"
-                       @update:model-value="handleUsernameChange($event, row)" />
+          <user-lookup v-model="row.username" @user-selected="handleUserSelected($event, row)" />
         </template>
 
         <template #item-analyser="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.analyser">Editor interaction analyser</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.link.analyser">Editor interaction analyser</cdx-checkbox>
         </template>
         <template #item-timeline="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.timeline">Consolidated timeline</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.link.timeline">Consolidated timeline</cdx-checkbox>
         </template>
         <template #item-timecard="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.timecard">Timecard</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.link.timecard">Timecard</cdx-checkbox>
         </template>
         <template #item-pages="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.pages">Pages</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.link.pages">Pages</cdx-checkbox>
         </template>
         <template #item-summary="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.summary">Summaries</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.link.summary">Summaries</cdx-checkbox>
         </template>
         <template #item-cuwiki="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.cuwiki">CheckUser wiki</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.link.cuwiki">CheckUser wiki</cdx-checkbox>
         </template>
       </cdx-table>
       <ul>
-        <li v-for="linkItem in linkItems" :key="linkItem.label">
+        <li v-for="[columnId, linkItem] in Object.entries(linkItems)" :key="columnId">
           <a :href="linkItem.url.href">{{ linkItem.label }}</a>
         </li>
       </ul>
@@ -135,7 +134,7 @@ export const LinkActionComponent = defineComponent({
       const newSet = new Set(newValue);
 
       const toggle = (index: number, enabled: boolean) => {
-        const row = this.modelValue[index];
+        const row = this.accounts[index];
         if (row) this.toggleRow(row, enabled);
       };
 
@@ -149,7 +148,6 @@ export const LinkActionComponent = defineComponent({
     },
   },
   methods: {
-    // Taken from https://github.com/wikimedia/design-codex/blob/main/packages/codex/src/components/table/Table.vue
     /**
      * Handle "select all" changes.
      *
@@ -157,28 +155,25 @@ export const LinkActionComponent = defineComponent({
      */
     handleSelectAll(newValue: boolean) {
       if (newValue) {
-        this.selectedRows = this.modelValue.map((_row, index) => index);
+        this.selectedRows = [...this.accounts.keys()];
       }
       else {
         this.selectedRows = [];
       }
     },
-    handleUserSelected(data: AllUser, row: SockRow) {
-      this.$emit('userSelected', data, this.modelValue.findIndex((item: LinkRow) => item.username === row.username));
-    },
-    handleUsernameChange(username: string, row: SockRow) {
-      this.$emit('usernameChanged', username, this.modelValue.findIndex((item: LinkRow) => item.username === row.username));
+    handleUserSelected(data: AllUser, row: UserRow) {
+      this.$emit('userSelected', data, row.id);
     },
     addDefaultRow() {
       this.$emit('addRow');
     },
     removeRows() {
-      this.$emit('removeRows', this.selectedRows);
+      this.$emit('removeRows', this.selectedRowIDs);
       this.selectedRows = [];
     },
     toggleColumn(key: ColumnId, value: boolean) {
-      for (const row of this.modelValue) {
-        row[key] = value;
+      for (const row of this.accounts) {
+        row.link[key] = value;
       }
     },
     toggleAllColumns(value: boolean) {
@@ -186,9 +181,9 @@ export const LinkActionComponent = defineComponent({
         this.toggleColumn(column.id, value);
       }
     },
-    toggleRow(row: LinkRow, value: boolean) {
+    toggleRow(row: UserRow, value: boolean) {
       for (const col of this.optionColumns) {
-        row[col.id] = value;
+        row.link[col.id] = value;
       }
     },
     getLinkFormat(columnId: ColumnId) {
@@ -212,7 +207,7 @@ export const LinkActionComponent = defineComponent({
   },
   computed: {
     columnState() {
-      const rows = this.modelValue;
+      const rows = this.accounts;
       const state: Record<ColumnId, {
         checked: boolean;
         indeterminate: boolean;
@@ -227,7 +222,7 @@ export const LinkActionComponent = defineComponent({
           continue;
         }
 
-        const values = rows.map(r => r[column.id]);
+        const values = rows.map(r => r.link[column.id]);
         const all = values.every(Boolean);
         const none = values.every(v => !v);
 
@@ -240,7 +235,7 @@ export const LinkActionComponent = defineComponent({
       return state;
     },
     allColumnsChecked(): boolean {
-      return this.modelValue.length > 0
+      return this.accounts.length > 0
         && this.optionColumns.every(k => this.columnState[k.id].checked);
     },
     allColumnsIndeterminate(): boolean {
@@ -251,7 +246,6 @@ export const LinkActionComponent = defineComponent({
       return checkedCount > 0 && checkedCount < this.optionColumns.length;
     },
     linkItems(): Partial<LinkRecord> {
-      // We could ask them if they want to use spitools or sandals in the settings
       const result: Partial<LinkRecord> = {};
       for (const linkColumn of this.optionColumns) {
         const linkFormat = this.getLinkFormat(linkColumn.id);
@@ -261,8 +255,8 @@ export const LinkActionComponent = defineComponent({
         }
 
         const resultUrl = linkFormat.baseUrl(this.caseName);
-        const includedUsers: string[] = this.modelValue.reduce((accumulator: string[], row) => {
-          if (row[linkColumn.id]) {
+        const includedUsers: string[] = this.accounts.reduce((accumulator: string[], row) => {
+          if (row.link[linkColumn.id]) {
             accumulator.push(
               linkFormat.userQueryStringWrapper + row.username + linkFormat.userQueryStringWrapper,
             );
@@ -288,13 +282,18 @@ export const LinkActionComponent = defineComponent({
       return result;
     },
     selectAll(): boolean {
-      return this.modelValue.length > 0 && this.selectedRows.length === this.modelValue.length;
+      return this.accounts.length > 0 && this.selectedRows.length === this.accounts.length;
     },
     selectAllIndeterminate(): boolean {
-      if (this.selectedRows.length === this.modelValue.length) {
+      if (this.selectedRows.length === this.accounts.length) {
         return false;
       }
       else return this.selectedRows.length !== 0;
+    },
+    selectedRowIDs(): string[] {
+      return this.selectedRows
+        .map(index => this.accounts[index]?.id)
+        .filter((id): id is string => !!id);
     },
   },
 });

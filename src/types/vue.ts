@@ -1,4 +1,4 @@
-import type { LinkRow, SockRow } from './spi.ts';
+import type { BlockRowData, LinkRowData } from './spi.ts';
 
 export const WatchOptionsSelect = [
   { label: 'Follow preferences', value: 'preferences' },
@@ -9,8 +9,7 @@ export const WatchOptionsSelect = [
 
 export const WatchOptions = ['preferences', 'watch', 'nochange', 'unwatch'];
 
-export const DefaultSockRow: SockRow = {
-  username: '',
+export const DefaultBlockRowData: BlockRowData = {
   block: false,
   duration: '',
   acb: true,
@@ -22,8 +21,7 @@ export const DefaultSockRow: SockRow = {
   lock: false,
 };
 
-export const DefaultLinkRow: LinkRow = {
-  username: '',
+export const DefaultLinkRowData: LinkRowData = {
   analyser: false,
   timeline: false,
   timecard: false,
