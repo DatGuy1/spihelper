@@ -19,10 +19,10 @@ import type { FeedbackDialog } from '../../../types/vue.ts';
 
 interface Data {
   open: boolean;
-  _openHandler: ((e: Event) => void) | null;
+  openHandler: ((e: Event) => void) | null;
   showExtra: boolean;
   showExtraMessage: boolean;
-  _showExtraHandler: ((e: KeyboardEvent) => void) | null;
+  showExtraHandler: ((e: KeyboardEvent) => void) | null;
   logPrefix: string;
   caseActionMenuItems: MenuItemData[];
   selectedChipItems: MenuItemValue[];
@@ -65,10 +65,10 @@ export const OptionsComponent = defineComponent({
 
     return {
       open: false,
-      _openHandler: null,
+      openHandler: null,
       showExtra: spiHelperSettings.debug.enabled || spiHelperSettings.iUnderstandSectionMoves,
       showExtraMessage: false,
-      _showExtraHandler: null,
+      showExtraHandler: null,
       logPrefix,
       caseActionMenuItems,
       selectedChipItems: spiHelperSettings.defaultActions,
@@ -111,24 +111,24 @@ export const OptionsComponent = defineComponent({
   watch: {
     open(newVal: boolean) {
       if (newVal) {
-        if (!this.showExtra && this._showExtraHandler) {
-          window.addEventListener('keydown', this._showExtraHandler);
+        if (!this.showExtra && this.showExtraHandler) {
+          window.addEventListener('keydown', this.showExtraHandler);
         }
       }
       else {
         void saveOptions();
-        if (this._showExtraHandler) {
-          window.removeEventListener('keydown', this._showExtraHandler);
+        if (this.showExtraHandler) {
+          window.removeEventListener('keydown', this.showExtraHandler);
         }
       }
     },
   },
   mounted() {
-    this._openHandler = () => {
+    this.openHandler = () => {
       this.open = true;
       mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'options' });
     };
-    this.openButton.addEventListener('click', this._openHandler);
+    this.openButton.addEventListener('click', this.openHandler);
 
     // https://discord.com/channels/1373700739951624272/1447651346508415110/1447681331634110575
     // "SPIhelper won't let you do merges until you learn how to merge.
@@ -143,14 +143,14 @@ export const OptionsComponent = defineComponent({
     ];
     let i = 0;
 
-    this._showExtraHandler = (e: KeyboardEvent) => {
+    this.showExtraHandler = (e: KeyboardEvent) => {
       if (e.key === konami[i]) {
         i++;
         if (i === konami.length) {
           this.showExtra = true;
           this.showExtraMessage = true;
-          if (this._showExtraHandler) {
-            window.removeEventListener('keydown', this._showExtraHandler);
+          if (this.showExtraHandler) {
+            window.removeEventListener('keydown', this.showExtraHandler);
           }
           i = 0;
         }
@@ -161,8 +161,8 @@ export const OptionsComponent = defineComponent({
     };
   },
   beforeUnmount() {
-    if (this._openHandler) {
-      this.openButton.removeEventListener('click', this._openHandler);
+    if (this.openHandler) {
+      this.openButton.removeEventListener('click', this.openHandler);
     }
   },
   methods: {

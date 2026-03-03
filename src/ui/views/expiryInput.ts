@@ -12,7 +12,7 @@ export const ExpiryInputComponent = defineComponent({
   inheritAttrs: false,
   props: {
     modelValue: { type: String, required: false, default: '' },
-    label: { type: String, required: false },
+    label: { type: String, required: false, default: '' },
     touched: { type: Boolean, default: false },
     shortened: { type: Boolean, default: false },
     autoDismiss: { type: Boolean, default: false },

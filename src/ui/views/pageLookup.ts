@@ -64,33 +64,32 @@ export const PageLookupComponent = defineComponent({
         return;
       }
 
-      await this.$nextTick(() => {
-        spiHelperGetPages(this.fullPagename, 4, ITEM_LIMIT)
-          .then((pages) => {
-            // Make sure this data is still relevant first.
-            if (this.pagename !== value) {
-              return;
-            }
+      await this.$nextTick();
+      spiHelperGetPages(this.fullPagename, 4, ITEM_LIMIT)
+        .then((pages) => {
+          // Make sure this data is still relevant first.
+          if (this.pagename !== value) {
+            return;
+          }
 
-            // Reset the menu items if there are no results.
-            if (pages.length === 0) {
-              this.pageSuggestions = [];
-              return;
-            }
-
-            // Update the suggestions
-            this.pageSuggestions = pages
-              .filter(page => !page.title.includes('/Archive'))
-              .map(page => ({
-                label: this.stripTitle(page.title),
-                value: page.pageid.toString(),
-              }));
-          })
-          .catch(() => {
-            // On error, set results to empty.
+          // Reset the menu items if there are no results.
+          if (pages.length === 0) {
             this.pageSuggestions = [];
-          });
-      });
+            return;
+          }
+
+          // Update the suggestions
+          this.pageSuggestions = pages
+            .filter(page => !page.title.includes('/Archive'))
+            .map(page => ({
+              label: this.stripTitle(page.title),
+              value: page.pageid.toString(),
+            }));
+        })
+        .catch(() => {
+          // On error, set results to empty.
+          this.pageSuggestions = [];
+        });
     },
     onLoadMore() {
       if (!this.pagename) {
@@ -114,17 +113,16 @@ export const PageLookupComponent = defineComponent({
         );
     },
     async validateInstantly() {
-      await this.$nextTick(() => {
-        if (this.pagename.length === 0) {
-          this.lookupStatus = 'default';
-          return;
-        }
-        const selection = this.pageSuggestions.find(item => item.label === this.pagename) ?? null;
-        if (selection !== null) {
-          (this.selection) = selection.value;
-        }
-        this.lookupStatus = this.selection === null ? 'warning' : 'success';
-      });
+      await this.$nextTick();
+      if (this.pagename.length === 0) {
+        this.lookupStatus = 'default';
+        return;
+      }
+      const selection = this.pageSuggestions.find(item => item.label === this.pagename) ?? null;
+      if (selection !== null) {
+        (this.selection) = selection.value;
+      }
+      this.lookupStatus = this.selection === null ? 'warning' : 'success';
     },
     onSelection(newSelection: string | number | null) {
       if (newSelection !== null) {

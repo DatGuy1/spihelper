@@ -4,7 +4,7 @@ import { spiHelperOneClickArchive } from '../../caseActions.ts';
 import type { CaseState } from '../../state.ts';
 
 interface Data {
-  _activateHandler: ((e: Event) => void) | null;
+  activateHandler: ((e: Event) => void) | null;
   open: boolean;
   archiving: boolean;
   messages: VueMessage[];
@@ -17,14 +17,14 @@ export const OneClickArchivalComponent = defineComponent({
   },
   data(): Data {
     return {
-      _activateHandler: null,
+      activateHandler: null,
       open: false,
       archiving: false,
       messages,
     };
   },
   mounted() {
-    this._activateHandler = () => {
+    this.activateHandler = () => {
       // Clear any messages we have in-place to maintain reactivity
       messages.length = 0;
       this.open = true;
@@ -35,11 +35,11 @@ export const OneClickArchivalComponent = defineComponent({
         () => { /* empty */ },
       );
     };
-    this.activateButton.addEventListener('click', this._activateHandler);
+    this.activateButton.addEventListener('click', this.activateHandler);
   },
   beforeUnmount() {
-    if (this._activateHandler) {
-      this.activateButton.removeEventListener('click', this._activateHandler);
+    if (this.activateHandler) {
+      this.activateButton.removeEventListener('click', this.activateHandler);
     }
   },
   template: `

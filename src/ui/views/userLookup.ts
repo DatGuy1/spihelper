@@ -47,7 +47,7 @@ interface Data {
 export const UserLookupComponent = defineComponent({
   props: {
     modelValue: { type: String, required: true },
-    label: { type: String, required: false },
+    label: { type: String, required: false, default: '' },
   },
   emits: ['update:modelValue', 'user-selected'],
   data(): Data {
@@ -136,20 +136,19 @@ export const UserLookupComponent = defineComponent({
     async validateInstantly() {
       // Await nextTick in case the user has selected a menu item via the Enter key - this
       // will ensure the selection ref has been updated.
-      await this.$nextTick(() => {
-        // Set 'warning' status if there's input but no selection. This might happen if a
-        // user types something but doesn't select an item from the menu.
-        if (this.username.length === 0 || mw.util.isIPAddress(this.username)) {
-          this.lookupStatus = 'default';
-          return;
-        }
-        const selection = this.userSuggestions.find(item => item.label === this.username) ?? null;
-        if (selection !== null) {
-          this.$emit('user-selected', selection.customData);
-          (this.selection) = selection.value;
-        }
-        this.lookupStatus = this.selection === null ? 'warning' : 'success';
-      });
+      await this.$nextTick();
+      // Set 'warning' status if there's input but no selection. This might happen if a
+      // user types something but doesn't select an item from the menu.
+      if (this.username.length === 0 || mw.util.isIPAddress(this.username)) {
+        this.lookupStatus = 'default';
+        return;
+      }
+      const selection = this.userSuggestions.find(item => item.label === this.username) ?? null;
+      if (selection !== null) {
+        this.$emit('user-selected', selection.customData);
+        (this.selection) = selection.value;
+      }
+      this.lookupStatus = this.selection === null ? 'warning' : 'success';
     },
     onSelection(newSelection: string | null) {
       if (newSelection !== null) {

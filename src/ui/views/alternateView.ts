@@ -23,8 +23,8 @@ import { prefetchSockRows } from './top/utils';
 
 interface Data {
   open: boolean;
-  _openHandler: ((e: Event) => void) | null;
-  _beforeUnloadHandler: ((e: Event) => void) | null;
+  openHandler: ((e: Event) => void) | null;
+  beforeUnloadHandler: ((e: Event) => void) | null;
   caseLoaded: boolean;
   caseLoading: boolean;
   targetCase: string;
@@ -48,8 +48,8 @@ export const AlternateViewComponent = defineComponent({
   data(): Data {
     return {
       open: false,
-      _openHandler: null,
-      _beforeUnloadHandler: null,
+      openHandler: null,
+      beforeUnloadHandler: null,
       caseLoaded: false,
       caseLoading: false,
       targetCase: this.defaultCase,
@@ -98,7 +98,7 @@ export const AlternateViewComponent = defineComponent({
       this.mountPoint.classList.remove('unpinned');
     }
 
-    this._beforeUnloadHandler = (e) => {
+    this.beforeUnloadHandler = (e) => {
       const opState = getOpState('alternateActions');
       // If we have the form open, and we haven't completed successfully, warn the user
       if (opState !== OpState.Success) {
@@ -106,7 +106,7 @@ export const AlternateViewComponent = defineComponent({
       }
     };
 
-    this._openHandler = () => {
+    this.openHandler = () => {
       this.open = !this.open;
       if (this.open) {
         mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'open', type: 'alternate' });
@@ -117,23 +117,23 @@ export const AlternateViewComponent = defineComponent({
           void this.initialiseCategoryView();
         }
       }
-      if (this._beforeUnloadHandler) {
+      if (this.beforeUnloadHandler) {
         if (this.open) {
-          window.addEventListener('beforeunload', this._beforeUnloadHandler);
+          window.addEventListener('beforeunload', this.beforeUnloadHandler);
         }
         else {
-          window.removeEventListener('beforeunload', this._beforeUnloadHandler);
+          window.removeEventListener('beforeunload', this.beforeUnloadHandler);
         }
       }
     };
-    this.openButton.addEventListener('click', this._openHandler);
+    this.openButton.addEventListener('click', this.openHandler);
   },
   beforeUnmount() {
-    if (this._openHandler) {
-      this.openButton.removeEventListener('click', this._openHandler);
+    if (this.openHandler) {
+      this.openButton.removeEventListener('click', this.openHandler);
     }
-    if (this._beforeUnloadHandler) {
-      window.removeEventListener('beforeunload', this._beforeUnloadHandler);
+    if (this.beforeUnloadHandler) {
+      window.removeEventListener('beforeunload', this.beforeUnloadHandler);
     }
   },
   methods: {

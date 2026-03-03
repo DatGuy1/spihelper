@@ -64,6 +64,9 @@ export default defineConfig([
       '@typescript-eslint/no-unused-vars': ['error', {
         argsIgnorePattern: '^_',
       }],
+      'vue/no-mutating-props': ['error', {
+        shallowOnly: true,
+      }],
     },
   },
 ]);

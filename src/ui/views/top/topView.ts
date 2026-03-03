@@ -37,8 +37,8 @@ import { VueMessage, messages } from '../../messages.ts';
 
 interface Data {
   open: boolean;
-  _openHandler: ((e: Event) => void) | null;
-  _beforeUnloadHandler: ((e: Event) => void) | null;
+  openHandler: ((e: Event) => void) | null;
+  beforeUnloadHandler: ((e: Event) => void) | null;
   actionsRunning: boolean;
   displayedForms: CaseActionName[];
   cdxIconPushPin: typeof cdxIconPushPin;
@@ -67,8 +67,8 @@ export const TopViewComponent = defineComponent({
 
     return {
       open: false,
-      _openHandler: null,
-      _beforeUnloadHandler: null,
+      openHandler: null,
+      beforeUnloadHandler: null,
       actionsRunning: false,
       displayedForms: ['sections'],
       unpinned: !spiHelperSettings.interface.pinned,
@@ -195,7 +195,7 @@ export const TopViewComponent = defineComponent({
       this.mountPoint.classList.remove('unpinned');
     }
 
-    this._beforeUnloadHandler = (e) => {
+    this.beforeUnloadHandler = (e) => {
       const opState = getOpState('mainActions');
       // If we have actions enabled, and we haven't run (undefined), warn the user
       if (!this.allDisabled && opState !== OpState.Success) {
@@ -203,28 +203,28 @@ export const TopViewComponent = defineComponent({
       }
     };
 
-    this._openHandler = () => {
+    this.openHandler = () => {
       this.open = !this.open;
       if (this.open) {
         mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'open', type: 'top' });
       }
-      if (this._beforeUnloadHandler) {
+      if (this.beforeUnloadHandler) {
         if (this.open) {
-          window.addEventListener('beforeunload', this._beforeUnloadHandler);
+          window.addEventListener('beforeunload', this.beforeUnloadHandler);
         }
         else {
-          window.removeEventListener('beforeunload', this._beforeUnloadHandler);
+          window.removeEventListener('beforeunload', this.beforeUnloadHandler);
         }
       }
     };
-    this.openButton.addEventListener('click', this._openHandler);
+    this.openButton.addEventListener('click', this.openHandler);
   },
   beforeUnmount() {
-    if (this._openHandler) {
-      this.openButton.removeEventListener('click', this._openHandler);
+    if (this.openHandler) {
+      this.openButton.removeEventListener('click', this.openHandler);
     }
-    if (this._beforeUnloadHandler) {
-      window.removeEventListener('beforeunload', this._beforeUnloadHandler);
+    if (this.beforeUnloadHandler) {
+      window.removeEventListener('beforeunload', this.beforeUnloadHandler);
     }
   },
   methods: {
