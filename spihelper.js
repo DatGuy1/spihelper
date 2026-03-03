@@ -1,5 +1,5 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
-// v3.0.0-beta.3 "A Whole New World"
+// v3.1.0-beta.1 "B@IA"
 // <nowiki>
 (() => {
 
@@ -48,6 +48,223 @@
     const Vue = require2("vue");
     messages = Vue.reactive(messages);
   });
+
+  // src/types/spi.ts
+  class ParsedArchiveNotice {
+    username;
+    crosswiki;
+    deny;
+    notalk;
+    moot;
+    constructor(opts) {
+      this.username = opts?.username ?? context.caseName;
+      this.crosswiki = opts?.crosswiki ?? false;
+      this.deny = opts?.deny ?? false;
+      this.notalk = opts?.notalk ?? false;
+      this.moot = opts?.moot ?? false;
+    }
+    generateWikitext() {
+      let notice = "{{SPI archive notice|1=" + this.username;
+      if (this.crosswiki) {
+        notice += "|crosswiki=yes";
+      }
+      if (this.deny) {
+        notice += "|deny=yes";
+      }
+      if (this.notalk) {
+        notice += "|notalk=yes";
+      }
+      if (this.moot) {
+        notice += "|moot=yes";
+      }
+      notice += "}}";
+      return notice;
+    }
+  }
+
+  class SockpuppetTag {
+    master;
+    status;
+    locked;
+    evidence;
+    altmaster;
+    altmasterStatus;
+    constructor(opts) {
+      this.master = opts.master;
+      this.status = opts.status;
+      this.locked = opts.locked ?? false;
+      this.evidence = opts.evidence ?? "";
+      this.altmaster = opts.altmaster ?? "";
+      this.altmasterStatus = opts.altmasterStatus;
+    }
+    generateWikitext() {
+      let tag = "{{sockpuppet";
+      tag += `
+| 1 = ${this.master}`;
+      tag += `
+| 2 = ${this.status}`;
+      if (this.locked) {
+        tag += `
+| locked = yes`;
+      }
+      if (this.evidence) {
+        tag += `
+| evidence = ${this.evidence}`;
+      }
+      if (this.altmaster) {
+        tag += `
+| altmaster = ${this.altmaster}`;
+        tag += `
+| altmaster-status = ${this.altmasterStatus}`;
+      }
+      tag += `
+}}`;
+      return tag;
+    }
+    clone() {
+      return new SockpuppetTag({
+        master: this.master,
+        status: this.status,
+        locked: this.locked,
+        evidence: this.evidence,
+        altmaster: this.altmaster,
+        altmasterStatus: this.altmasterStatus
+      });
+    }
+    equals(other) {
+      if (!(other instanceof SockpuppetTag))
+        return false;
+      return this.master === other.master && this.status === other.status && this.locked === other.locked && this.evidence === other.evidence && this.altmaster === other.altmaster && this.altmasterStatus === other.altmasterStatus;
+    }
+  }
+
+  class SockmasterTag {
+    status;
+    checked;
+    ltapage;
+    spipage;
+    evidence;
+    constructor(opts) {
+      this.status = opts.status;
+      this.checked = opts.checked ?? false;
+      this.ltapage = opts.ltapage ?? "";
+      this.spipage = opts.spipage ?? "";
+      this.evidence = opts.evidence ?? "";
+    }
+    generateWikitext() {
+      let tag = "{{sockpuppeteer";
+      tag += `
+| 1 = ${this.status}`;
+      if (this.checked) {
+        tag += `
+| checked = yes`;
+      }
+      if (this.ltapage) {
+        tag += `
+| ltapage = ${this.ltapage}`;
+      }
+      if (this.spipage) {
+        tag += `
+| spipage = ${this.spipage}`;
+      }
+      if (this.evidence) {
+        tag += `
+| evidence = ${this.evidence}`;
+      }
+      tag += `
+}}`;
+      return tag;
+    }
+    clone() {
+      return new SockmasterTag({
+        status: this.status,
+        checked: this.checked,
+        ltapage: this.ltapage,
+        spipage: this.spipage,
+        evidence: this.evidence
+      });
+    }
+    equals(other) {
+      if (!(other instanceof SockmasterTag))
+        return false;
+      return this.status === other.status && this.checked === other.checked && this.ltapage === other.ltapage && this.spipage === other.spipage && this.evidence === other.evidence;
+    }
+  }
+  var CASE_ACTION_NAMES = [
+    "sections",
+    "management",
+    "block",
+    "status",
+    "link",
+    "comment",
+    "move",
+    "archive"
+  ];
+
+  // src/template.ts
+  function parseTemplates(wikitext) {
+    const templates = [];
+    const matches = wikitext.trim().matchAll(/\{\{([\s\S]+?)}}/g);
+    for (const match of matches) {
+      if (!match[1]) {
+        continue;
+      }
+      templates.push(parseTemplate(match[1]));
+    }
+    return templates;
+  }
+  function parseTemplate(templateText) {
+    const parts = templateText.split("|").map((p) => p.trim());
+    const name = parts.shift()?.toLowerCase() ?? "unknown";
+    const params = {};
+    const positional = [];
+    for (const part of parts) {
+      const eq = part.indexOf("=");
+      if (eq !== -1) {
+        const key = part.slice(0, eq).trim().toLowerCase();
+        const value = part.slice(eq + 1).trim();
+        if (value === "") {
+          params[key] = value;
+          continue;
+        }
+        const numberValue = Number(value);
+        if (!Number.isNaN(numberValue)) {
+          params[key] = numberValue;
+          continue;
+        }
+        const boolResult = convertParamToBoolean(value);
+        if (boolResult === null) {
+          params[key] = value;
+          continue;
+        }
+        params[key] = boolResult;
+      } else if (part) {
+        positional.push(part);
+      }
+    }
+    return { name, params, positional };
+  }
+  function convertParamToBoolean(value) {
+    if (["y", "yes", "true", "on"].includes(value.toLowerCase())) {
+      return true;
+    }
+    if (["n", "no", "false", "off"].includes(value.toLowerCase())) {
+      return false;
+    }
+    return null;
+  }
+  function fetchTemplateArguments(template) {
+    const result = [];
+    for (const positional of template.positional) {
+      result.push(positional);
+    }
+    for (const [key, value] of Object.entries(template.params)) {
+      if (!Number.isNaN(Number(key))) {
+        result.push(value.toString());
+      }
+    }
+    return result;
+  }
 
   // src/utils.ts
   function spiHelperStripXWikiPrefix(title) {
@@ -281,7 +498,19 @@
     }
     return null;
   }
-  function setupBlockActionData(masterName = "", altmasterName = "") {
+  function setupDefaultBlockRowData() {
+    return {
+      block: false,
+      duration: "",
+      acb: true,
+      abao: true,
+      ntp: false,
+      nem: false,
+      tags: [],
+      lock: false
+    };
+  }
+  function setupBlockActionData(masterName = "") {
     return {
       options: {
         noBlock: false,
@@ -294,14 +523,103 @@
         blankTalk: false,
         lockHideNames: false
       },
-      accounts: [],
       userLocks: new Map,
       userBlocks: new Map,
       userTags: new Map,
       master: masterName,
-      altmaster: altmasterName,
-      lockcomment: ""
+      lockcomment: "",
+      skipCUVerifyUsers: new Set
     };
+  }
+  function parseUserTags(userPage) {
+    const tags = [];
+    const templates = parseTemplates(userPage);
+    for (const template of templates) {
+      if (["sockpuppeteer", "sockmaster"].includes(template.name)) {
+        const firstParam = template.params["1"] ?? template.positional[0];
+        const sockChecked = template.params.checked === true;
+        let tagStatus;
+        if (firstParam === "banned") {
+          tagStatus = "banned";
+        } else if (firstParam === "blocked") {
+          tagStatus = sockChecked ? "confirmed" : "blocked";
+        } else {
+          console.warn("Unrecognised master status", firstParam);
+          continue;
+        }
+        const newTag = new SockmasterTag({ status: tagStatus, checked: sockChecked });
+        if (template.params.ltapage) {
+          newTag.ltapage = template.params.ltapage;
+        }
+        if (template.params.spipage) {
+          newTag.spipage = template.params.spipage;
+        }
+        if (template.params.evidence) {
+          newTag.evidence = template.params.evidence;
+        }
+        tags.push(newTag);
+      } else if (["sockpuppet", "sock"].includes(template.name)) {
+        const masterParam = template.params["1"] ?? template.positional[0];
+        if (!masterParam) {
+          console.warn("Master parameter not found");
+          continue;
+        }
+        const statusParam = template.params["2"] ?? template.positional[1];
+        let tagStatus;
+        switch (statusParam) {
+          case "blocked":
+            tagStatus = "blocked";
+            break;
+          case "proven":
+            tagStatus = "proven";
+            break;
+          case "confirmed":
+          case "nbconfirmed":
+          case "cuconfirmed":
+            tagStatus = "confirmed";
+            break;
+          default:
+            console.warn("Unrecognised sock status", statusParam);
+            continue;
+        }
+        const newTag = new SockpuppetTag({
+          master: masterParam,
+          status: tagStatus
+        });
+        const altmaster = template.params.altmaster;
+        if (altmaster) {
+          const altmasterStatusParam = template.params["altmaster-status"];
+          let altmasterStatus;
+          switch (altmasterStatusParam) {
+            case "suspect":
+            case "suspected":
+              altmasterStatus = "suspected";
+              break;
+            case "proven":
+              altmasterStatus = "proven";
+              break;
+            default:
+              console.warn("Unrecognised altmaster status", altmasterStatusParam);
+              break;
+          }
+          if (altmasterStatus) {
+            newTag.altmaster = altmaster;
+            newTag.altmasterStatus = altmasterStatus;
+          }
+        }
+        if (template.params.evidence) {
+          newTag.evidence = template.params.evidence;
+        }
+        tags.push(newTag);
+      }
+    }
+    return tags;
+  }
+  function isSockpuppetTag(tag) {
+    return tag instanceof SockpuppetTag;
+  }
+  function isSockmasterTag(tag) {
+    return tag instanceof SockmasterTag;
   }
 
   // src/operations.ts
@@ -440,7 +758,7 @@
     return resultMap;
   }
   async function spiHelperGetBulkUserBlockSettings(usernames) {
-    if (usernames.length == 0) {
+    if (usernames.size == 0) {
       return new Map;
     }
     const api = spiHelperGetAPI();
@@ -449,7 +767,7 @@
       action: "query",
       list: "blocks",
       bklimit: "max",
-      bkusers: usernames,
+      bkusers: [...usernames],
       bkprop: ["user", "reason", "flags", "expiry"],
       formatversion: "2"
     };
@@ -1059,7 +1377,7 @@
       return [];
     }
   }
-  var userAgent = `MediaWiki-JS/${mw.config.get("wgVersion")} spihelper/${"3.0.0-beta.3"}`;
+  var userAgent = `MediaWiki-JS/${mw.config.get("wgVersion")} spihelper/${"3.1.0-beta.1"}`;
   var APIs = {
     meta: new mw.ForeignApi("https://meta.wikimedia.org/w/api.php", { userAgent }),
     local: new mw.Api({ userAgent })
@@ -1201,20 +1519,7 @@
     { label: "Unwatch", value: "unwatch" }
   ];
   var WatchOptions = ["preferences", "watch", "nochange", "unwatch"];
-  var DefaultSockRow = {
-    username: "",
-    block: false,
-    duration: "",
-    acb: true,
-    abao: true,
-    ntp: false,
-    nem: false,
-    tag: "none",
-    altmaster: "none",
-    lock: false
-  };
-  var DefaultLinkRow = {
-    username: "",
+  var DefaultLinkRowData = {
     analyser: false,
     timeline: false,
     timecard: false,
@@ -1470,10 +1775,13 @@
   var Z1 = '<path d="M19 16 2 12a3.83 3.83 0 01-1-2.5A3.83 3.83 0 012 7l17-4z"/><rect width="4" height="8" x="4" y="9" rx="2"/>';
   var A0 = '<path d="M2 18.5A1.5 1.5 0 003.5 20H5V0H3.5A1.5 1.5 0 002 1.5zM6 0v20h10a2 2 0 002-2V2a2 2 0 00-2-2zm7 8H8V7h5zm3-2H8V5h8z"/>';
   var B2 = '<path d="M13 15v2a3 3 0 01-3 3 10 10 0 1110-10 5 5 0 01-5 5ZM3 8.5a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0m3-4a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0m5 0a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0m3 4a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0"/>';
+  var Z2 = '<path d="M3 3h8v2h2V3c0-1.1-.895-2-2-2H3c-1.1 0-2 .895-2 2v8c0 1.1.895 2 2 2h2v-2H3zm4 12v2c0 1.1.895 2 2 2h8c1.1 0 2-.895 2-2V9c0-1.1-.895-2-2-2h-2v2h2v8H9v-2z"/><path d="M10 5H8v3H5v2h3v3h2v-3h3V8h-3z"/>';
   var E2 = '<path d="M13 8V2a2 2 0 002-2H5a2 2 0 002 2v6H6a2 2 0 00-2 2v1h5v5l1 4 1-4v-5h5v-1a2 2 0 00-2-2z"/>';
   var _2 = '<path d="M15.65 4.35A8 8 0 1017.4 13h-2.22a6 6 0 11-1-7.22L11 9h7V2z"/>';
   var N5 = '<path d="M17 2h-3.5l-1-1h-5l-1 1H3v2h14zM4 17a2 2 0 002 2h8a2 2 0 002-2V5H4z"/>';
   var $5 = '<path d="m6.4 17-1.26-1.25 2.32-2.25H1v-1.75h6.46L5.14 9.5 6.4 8.25l4.5 4.38zm7.2-5.25L9.1 7.37 13.6 3l1.26 1.25-2.32 2.25H19v1.75h-6.46l2.32 2.25z"/>';
+  var s3 = '<path d="M10 11c-5.92 0-8 3-8 5v3h16v-3c0-2-2.08-5-8-5"/><circle cx="10" cy="5.5" r="4.5"/>';
+  var l3 = '<path d="M10 8c1.7 0 3.06-1.35 3.06-3S11.7 2 10 2 6.94 3.35 6.94 5 8.3 8 10 8m0 2c-2.8 0-5.06-2.24-5.06-5S7.2 0 10 0s5.06 2.24 5.06 5-2.26 5-5.06 5m-7 8h14v-1.33c0-1.75-2.31-3.56-7-3.56s-7 1.81-7 3.56zm7-6.89c6.66 0 9 3.33 9 5.56V20H1v-3.33c0-2.23 2.34-5.56 9-5.56"/>';
   var V3 = '<path d="M1 3h16v2H1Zm0 6h6v2H1Zm0 6h8v2H1Zm8-4.24h3.85L14.5 7l1.65 3.76H20l-3 3.17.9 4.05-3.4-2.14L11.1 18l.9-4.05Z"/>';
   var k3 = M;
   var d4 = r1;
@@ -1498,6 +1806,10 @@
     ltr: B2,
     shouldFlip: true
   };
+  var L7 = {
+    ltr: Z2,
+    shouldFlip: true
+  };
   var y7 = E2;
   var U7 = _2;
   var F8 = N5;
@@ -1505,53 +1817,12 @@
     ltr: $5,
     shouldFlip: true
   };
+  var P8 = s3;
+  var N8 = l3;
   var t9 = {
     ltr: V3,
     shouldFlip: true
   };
-
-  // src/types/spi.ts
-  class ParsedArchiveNotice {
-    username;
-    crosswiki;
-    deny;
-    notalk;
-    moot;
-    constructor(opts) {
-      this.username = opts?.username ?? context.caseName;
-      this.crosswiki = opts?.crosswiki ?? false;
-      this.deny = opts?.deny ?? false;
-      this.notalk = opts?.notalk ?? false;
-      this.moot = opts?.moot ?? false;
-    }
-    generateWikitext() {
-      let notice = "{{SPI archive notice|1=" + this.username;
-      if (this.crosswiki) {
-        notice += "|crosswiki=yes";
-      }
-      if (this.deny) {
-        notice += "|deny=yes";
-      }
-      if (this.notalk) {
-        notice += "|notalk=yes";
-      }
-      if (this.moot) {
-        notice += "|moot=yes";
-      }
-      notice += "}}";
-      return notice;
-    }
-  }
-  var CASE_ACTION_NAMES = [
-    "sections",
-    "management",
-    "block",
-    "status",
-    "link",
-    "comment",
-    "move",
-    "archive"
-  ];
 
   // src/ui/views/options/modal.ts
   var OptionsComponent = defineComponent({
@@ -1573,10 +1844,10 @@
       }, []);
       return {
         open: false,
-        _openHandler: null,
+        openHandler: null,
         showExtra: spiHelperSettings.debug.enabled || spiHelperSettings.iUnderstandSectionMoves,
         showExtraMessage: false,
-        _showExtraHandler: null,
+        showExtraHandler: null,
         logPrefix,
         caseActionMenuItems,
         selectedChipItems: spiHelperSettings.defaultActions,
@@ -1613,6 +1884,66 @@
         set(value) {
           this.spiHelperSettings.defaultActions = value.map((item) => item.value);
         }
+      }
+    },
+    watch: {
+      open(newVal) {
+        if (newVal) {
+          if (!this.showExtra && this.showExtraHandler) {
+            window.addEventListener("keydown", this.showExtraHandler);
+          }
+        } else {
+          saveOptions();
+          if (this.showExtraHandler) {
+            window.removeEventListener("keydown", this.showExtraHandler);
+          }
+        }
+      }
+    },
+    mounted() {
+      this.openHandler = () => {
+        this.open = true;
+        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "options" });
+      };
+      this.openButton.addEventListener("click", this.openHandler);
+      //! Use the Konami code to unlock section moves
+      const konami = [
+        "ArrowUp",
+        "ArrowUp",
+        "ArrowDown",
+        "ArrowDown",
+        "ArrowLeft",
+        "ArrowRight",
+        "ArrowLeft",
+        "ArrowRight"
+      ];
+      let i = 0;
+      this.showExtraHandler = (e) => {
+        if (e.key === konami[i]) {
+          i++;
+          if (i === konami.length) {
+            this.showExtra = true;
+            this.showExtraMessage = true;
+            if (this.showExtraHandler) {
+              window.removeEventListener("keydown", this.showExtraHandler);
+            }
+            i = 0;
+          }
+        } else {
+          i = 0;
+        }
+      };
+    },
+    beforeUnmount() {
+      if (this.openHandler) {
+        this.openButton.removeEventListener("click", this.openHandler);
+      }
+    },
+    methods: {
+      loadDefaults() {
+        this.spiHelperSettings = JSON.parse(JSON.stringify(spiHelperDefaultSettings));
+        Object.assign(spiHelperSettings, spiHelperDefaultSettings);
+        this.resetTrigger++;
       }
     },
     template: `
@@ -1753,67 +2084,7 @@
         </cdx-button>
       </div>
     </cdx-dialog>
-  `,
-    methods: {
-      loadDefaults() {
-        this.spiHelperSettings = JSON.parse(JSON.stringify(spiHelperDefaultSettings));
-        Object.assign(spiHelperSettings, spiHelperDefaultSettings);
-        this.resetTrigger++;
-      }
-    },
-    watch: {
-      open(newVal) {
-        if (newVal) {
-          if (!this.showExtra && this._showExtraHandler) {
-            window.addEventListener("keydown", this._showExtraHandler);
-          }
-        } else {
-          saveOptions();
-          if (this._showExtraHandler) {
-            window.removeEventListener("keydown", this._showExtraHandler);
-          }
-        }
-      }
-    },
-    mounted() {
-      this._openHandler = () => {
-        this.open = true;
-        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "options" });
-      };
-      this.openButton.addEventListener("click", this._openHandler);
-      //! Use the Konami code to unlock section moves
-      const konami = [
-        "ArrowUp",
-        "ArrowUp",
-        "ArrowDown",
-        "ArrowDown",
-        "ArrowLeft",
-        "ArrowRight",
-        "ArrowLeft",
-        "ArrowRight"
-      ];
-      let i = 0;
-      this._showExtraHandler = (e) => {
-        if (e.key === konami[i]) {
-          i++;
-          if (i === konami.length) {
-            this.showExtra = true;
-            this.showExtraMessage = true;
-            if (this._showExtraHandler) {
-              window.removeEventListener("keydown", this._showExtraHandler);
-            }
-            i = 0;
-          }
-        } else {
-          i = 0;
-        }
-      };
-    },
-    beforeUnmount() {
-      if (this._openHandler) {
-        this.openButton.removeEventListener("click", this._openHandler);
-      }
-    }
+  `
   });
 
   // src/ui/views/top/utils/setup.ts
@@ -1882,13 +2153,10 @@
       },
       block: {
         enabled: false,
-        data: setupBlockActionData(context.caseName, context.caseName)
+        data: setupBlockActionData(context.caseName)
       },
       link: {
-        enabled: false,
-        data: {
-          rows: []
-        }
+        enabled: false
       },
       management: {
         enabled: false,
@@ -2048,6 +2316,7 @@
     props: {
       name: { type: String, required: true },
       caseActions: { type: Object, required: true },
+      accounts: { type: Array, required: true },
       state: { type: Object, required: true },
       menuItems: { type: Array, required: true },
       currentStatus: { type: String, required: true }
@@ -2055,13 +2324,16 @@
     emits: [
       "update-section-selection",
       "update-status",
-      "block-username-change",
-      "link-username-change",
-      "link-username-selected",
+      "user-selected",
       "remove-rows",
       "add-row",
       "fetch-rows"
     ],
+    computed: {
+      caseName() {
+        return context.caseName;
+      }
+    },
     methods: {
       handleUpdateSectionSelection(selection) {
         this.$emit("update-section-selection", selection);
@@ -2069,28 +2341,17 @@
       handleUpdateStatus(newStatus) {
         this.$emit("update-status", newStatus);
       },
-      handleBlockUsernameChange(username, index) {
-        this.$emit("block-username-change", username, index);
+      handleUserSelected(data, rowId) {
+        this.$emit("user-selected", data, rowId);
       },
-      handleLinkUsernameChange(username, index) {
-        this.$emit("link-username-change", username, index);
-      },
-      handleLinkUsernameSelected(data, index) {
-        this.$emit("link-username-selected", data, index);
-      },
-      handleRemoveRows(indexes) {
-        this.$emit("remove-rows", indexes);
+      handleRemoveRows(rowIds) {
+        this.$emit("remove-rows", rowIds);
       },
       handleAddRow(row) {
         this.$emit("add-row", row);
       },
       handleFetchRows() {
         this.$emit("fetch-rows");
-      }
-    },
-    computed: {
-      caseName() {
-        return context.caseName;
       }
     },
     template: `
@@ -2107,14 +2368,15 @@
                           :old-status="caseActions.status.data.old" v-model:new-status="caseActions.status.data.new"
                           @update:new-status="handleUpdateStatus" />
     <block-action v-else-if="name === 'block'" v-model:enabled="caseActions.block.enabled"
-                  v-model="caseActions.block.data.accounts" v-model:block-options="caseActions.block.data.options"
+                  v-model:block-options="caseActions.block.data.options" :accounts="accounts"
+                  :default-master="caseActions.block.data.master"
                   :user-locks="caseActions.block.data.userLocks" :user-blocks="caseActions.block.data.userBlocks"
-                  @username-changed="handleBlockUsernameChange"
+                  @user-selected="handleUserSelected"
                   @remove-rows="handleRemoveRows" @add-row="handleAddRow"
                   @fetch-rows="handleFetchRows" />
     <link-action v-else-if="name === 'link'" v-model:enabled="caseActions.link.enabled"
-                 v-model="caseActions.link.data.rows" :case-name="caseName"
-                 @user-selected="handleLinkUsernameSelected" @username-changed="handleLinkUsernameChange"
+                 :accounts="accounts" :case-name="caseName"
+                 @user-selected="handleUserSelected"
                  @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
     <management-action v-else-if="name === 'management'" v-model:enabled="caseActions.management.enabled"
                        v-model:flags="caseActions.management.data.flags" />
@@ -2128,36 +2390,36 @@
   });
   // src/ui/views/userLookup.ts
   var ITEM_LIMIT = 10;
-  function HandleUserSelected(data, row) {
+  function UpdateUserAllUserData(data, row) {
     if (data.blockid !== undefined) {
-      row.block = true;
+      row.block.block = true;
     }
     if (data.blocknocreate !== undefined) {
-      row.acb = data.blocknocreate;
+      row.block.acb = data.blocknocreate;
     }
     if (data.blockemail !== undefined) {
-      row.nem = data.blockemail;
+      row.block.nem = data.blockemail;
     }
     if (mw.util.isIPAddress(data.name)) {
       if (data.blockanononly !== undefined) {
-        row.abao = data.blockanononly;
+        row.block.abao = data.blockanononly;
       }
     } else {
       if (data.blockautoblocking !== undefined) {
-        row.abao = data.blockautoblocking;
+        row.block.abao = data.blockautoblocking;
       }
     }
     if (data.blockowntalk !== undefined) {
-      row.ntp = data.blockowntalk;
+      row.block.ntp = data.blockowntalk;
     }
     if (data.blockexpiry) {
-      row.duration = data.blockexpiry;
+      row.block.duration = data.blockexpiry;
     }
   }
   var UserLookupComponent = defineComponent({
     props: {
       modelValue: { type: String, required: true },
-      label: { type: String, required: false }
+      label: { type: String, required: false, default: "" }
     },
     emits: ["update:modelValue", "user-selected"],
     data() {
@@ -2178,35 +2440,16 @@
         useLookup: spiHelperSettings.useLookup
       };
     },
-    template: `
-    <cdx-field :status="lookupStatus" :messages="messages" :hide-label="!label">
-      <cdx-lookup
-          v-if="useLookup"
-          v-model:selected="selection"
-          v-model:input-value="username"
-          :menu-items="userSuggestions"
-          :menu-config="menuConfig"
-          placeholder="Sock"
-          @update:input-value="onUpdateInputValue"
-          @load-more="onLoadMore"
-          @focus="onLoadMore"
-          @update:selected="onSelection"
-          @blur="validateInstantly"
-          @keydown.enter="validateInstantly"
-          @clear="validateInstantly"
-          clearable
-          class="user-lookup"
-      >
-        <template #no-results>
-          No users found
-        </template>
-      </cdx-lookup>
-      <cdx-text-input v-else v-model="username" placeholder="Sock" clearable class="user-lookup" />
-      <template v-if="label" #label>
-        {{ label }}
-      </template>
-    </cdx-field>
-  `,
+    computed: {
+      username: {
+        get() {
+          return this.modelValue;
+        },
+        set(value) {
+          this.$emit("update:modelValue", value);
+        }
+      }
+    },
     methods: {
       onUpdateInputValue(value) {
         this.menuConfig.searchQuery = value;
@@ -2247,18 +2490,17 @@
         }, () => {});
       },
       async validateInstantly() {
-        await this.$nextTick(() => {
-          if (this.username.length === 0 || mw.util.isIPAddress(this.username)) {
-            this.lookupStatus = "default";
-            return;
-          }
-          const selection = this.userSuggestions.find((item) => item.label === this.username) ?? null;
-          if (selection !== null) {
-            this.$emit("user-selected", selection.customData);
-            this.selection = selection.value;
-          }
-          this.lookupStatus = this.selection === null ? "warning" : "success";
-        });
+        await this.$nextTick();
+        if (this.username.length === 0 || mw.util.isIPAddress(this.username)) {
+          this.lookupStatus = "default";
+          return;
+        }
+        const selection = this.userSuggestions.find((item) => item.label === this.username) ?? null;
+        if (selection !== null) {
+          this.$emit("user-selected", selection.customData);
+          this.selection = selection.value;
+        }
+        this.lookupStatus = this.selection === null ? "warning" : "success";
       },
       onSelection(newSelection) {
         if (newSelection !== null) {
@@ -2270,58 +2512,36 @@
         }
       }
     },
-    computed: {
-      username: {
-        get() {
-          return this.modelValue;
-        },
-        set(value) {
-          this.$emit("update:modelValue", value);
-        }
-      }
-    }
+    template: `
+    <cdx-field :status="lookupStatus" :messages="messages" :hide-label="!label">
+      <cdx-lookup
+          v-if="useLookup"
+          v-model:selected="selection"
+          v-model:input-value="username"
+          :menu-items="userSuggestions"
+          :menu-config="menuConfig"
+          placeholder="Sock"
+          @update:input-value="onUpdateInputValue"
+          @load-more="onLoadMore"
+          @focus="onLoadMore"
+          @update:selected="onSelection"
+          @blur="validateInstantly"
+          @keydown.enter="validateInstantly"
+          @clear="validateInstantly"
+          clearable
+          class="user-lookup"
+      >
+        <template #no-results>
+          No users found
+        </template>
+      </cdx-lookup>
+      <cdx-text-input v-else v-model="username" placeholder="Sock" clearable class="user-lookup" />
+      <template v-if="label" #label>
+        {{ label }}
+      </template>
+    </cdx-field>
+  `
   });
-
-  // src/template.ts
-  function parseTemplates(wikitext) {
-    const templates = [];
-    const matches = wikitext.trim().matchAll(/\{\{([\s\S]+?)}}/g);
-    for (const match of matches) {
-      if (!match[1]) {
-        continue;
-      }
-      templates.push(parseTemplate(match[1]));
-    }
-    return templates;
-  }
-  function parseTemplate(templateText) {
-    const parts = templateText.split("|").map((p) => p.trim());
-    const name = parts.shift()?.toLowerCase() ?? "unknown";
-    const params = {};
-    const positional = [];
-    for (const part of parts) {
-      const eq = part.indexOf("=");
-      if (eq !== -1) {
-        const key = part.slice(0, eq).trim().toLowerCase();
-        params[key] = part.slice(eq + 1).trim();
-      } else if (part) {
-        positional.push(part);
-      }
-    }
-    return { name, params, positional };
-  }
-  function fetchTemplateArguments(template) {
-    const result = [];
-    for (const positional of template.positional) {
-      result.push(positional);
-    }
-    for (const [key, value] of Object.entries(template.params)) {
-      if (!Number.isNaN(Number(key))) {
-        result.push(value);
-      }
-    }
-    return result;
-  }
 
   // src/archivenotice.ts
   async function spiHelperParseArchiveNotice(page, state) {
@@ -2347,7 +2567,7 @@
       if (key === "1") {
         continue;
       }
-      if (val !== "yes") {
+      if (val !== true) {
         console.warn("Malformed archivenotice parameter", key, "=", val);
         continue;
       }
@@ -2408,7 +2628,7 @@
   // src/ui/utils.ts
   function getSockEntries(opts) {
     const { text, fullSearch, state } = opts;
-    const likelySocks = fullSearch ? [generateSockRow(context.caseName, state)] : [];
+    const likelySocks = fullSearch ? [generateUserRow(context.caseName, state)] : [];
     const possibleSocks = [];
     const allUsernames = fullSearch ? new Set([context.caseName]) : new Set;
     if (fullSearch) {
@@ -2422,7 +2642,7 @@
         if (allUsernames.has(username)) {
           continue;
         }
-        likelySocks.push(generateSockRow(username, state));
+        likelySocks.push(generateUserRow(username, state));
         allUsernames.add(username);
       }
     }
@@ -2436,26 +2656,26 @@
         for (const templateUsername of templateUsernames) {
           const username = spiHelperNormalizeUsername(templateUsername);
           if (!allUsernames.has(username)) {
-            possibleSocks.push(generateSockRow(username, state));
+            possibleSocks.push(generateUserRow(username, state));
             allUsernames.add(username);
           }
         }
       }
     }
-    return [likelySocks, possibleSocks, Array.from(allUsernames)];
+    return [likelySocks, possibleSocks, allUsernames];
   }
-  function generateSockRow(username, state) {
+  function generateUserRow(username, state) {
     if (mw.util.isIPAddress(username, true)) {
       if (spiHelperSettings.interface.displayIPv6As64 && mw.util.isIPv6Address(username, false)) {
         return {
-          ...getDefaultSockRow(state.archiveNotice),
+          ...getDefaultUserRow(state.archiveNotice),
           username: buildIPBlock(username)
         };
       } else {
-        return { ...getDefaultSockRow(state.archiveNotice), username };
+        return { ...getDefaultUserRow(state.archiveNotice), username };
       }
     } else {
-      return { ...getDefaultSockRow(state.archiveNotice), username };
+      return { ...getDefaultUserRow(state.archiveNotice), username };
     }
   }
   function buildIPBlock(fullIP) {
@@ -2464,109 +2684,67 @@
     }
     return fullIP.split(":").slice(0, 4).concat("0", "0", "0", "0").join(":") + "/64";
   }
-  function getDefaultSockRow(archiveNotice) {
-    const newRow = { ...DefaultSockRow };
+  function getDefaultUserRow(archiveNotice) {
+    const newRow = {
+      id: crypto.randomUUID(),
+      username: "",
+      block: setupDefaultBlockRowData(),
+      link: { ...DefaultLinkRowData }
+    };
     if (archiveNotice) {
       if (archiveNotice.crosswiki) {
-        newRow.lock = true;
+        newRow.block.lock = true;
       }
       if (archiveNotice.notalk) {
-        newRow.nem = true;
-        newRow.ntp = true;
+        newRow.block.nem = true;
+        newRow.block.ntp = true;
       }
     }
-    newRow.duration = spiHelperSettings.interface.defaultBlockDuration;
+    newRow.block.duration = spiHelperSettings.interface.defaultBlockDuration;
     return newRow;
   }
-  function updateSockRowSettings(opts) {
-    const { row, currentBlock, currentTags, defaultBlock } = opts;
+  function updateUserBlockDataSettings(opts) {
+    const { userRow, currentBlock, userPage, defaultBlock } = opts;
     if (currentBlock) {
-      row.block = true;
-      row.acb = currentBlock.acb;
-      row.abao = currentBlock.abao;
-      row.ntp = currentBlock.ntp;
-      row.nem = currentBlock.nem;
-      row.duration = currentBlock.duration;
+      userRow.block.block = true;
+      userRow.block.acb = currentBlock.acb;
+      userRow.block.abao = currentBlock.abao;
+      userRow.block.ntp = currentBlock.ntp;
+      userRow.block.nem = currentBlock.nem;
+      userRow.block.duration = currentBlock.duration;
     } else {
-      row.block = defaultBlock;
-      if (mw.util.isIPAddress(row.username, true)) {
-        row.duration = "1 week";
+      userRow.block.block = defaultBlock;
+      if (mw.util.isIPAddress(userRow.username, true)) {
+        userRow.block.duration = "1 week";
       }
     }
-    if (currentTags) {
-      const templates = parseTemplates(currentTags);
-      for (const template of templates) {
-        if (["sockpuppeteer", "sockmaster"].includes(template.name)) {
-          const firstParam = template.params["1"] ?? template.positional[0];
-          if (firstParam === "banned") {
-            row.tag = "Mbanned";
-          } else if (firstParam === "blocked") {
-            row.tag = template.params.checked?.toLowerCase() === "yes" ? "Mconfirmed" : "Mblocked";
-          } else {
-            console.warn("Unrecognised master status", firstParam, "for", row.username);
-          }
-        } else if (["sockpuppet", "sock"].includes(template.name)) {
-          const blockParam = template.params["2"] ?? template.positional[1];
-          switch (blockParam) {
-            case "blocked":
-              row.tag = "Ssuspected";
-              break;
-            case "proven":
-              row.tag = "Sproven";
-              break;
-            case "confirmed":
-            case "nbconfirmed":
-            case "cuconfirmed":
-              row.tag = "Sconfirmed";
-              break;
-            default:
-              console.warn("Unrecognised sock status", blockParam, "for", row.username);
-              break;
-          }
-          if (template.params.altmaster) {
-            const altmasterStatus = template.params["altmaster-status"];
-            switch (altmasterStatus) {
-              case undefined:
-                row.altmaster = "none";
-                break;
-              case "suspect":
-              case "suspected":
-                row.altmaster = "suspected";
-                break;
-              case "proven":
-                row.altmaster = "proven";
-                break;
-              default:
-                console.warn("Unrecognised altmaster status", altmasterStatus, "for", row.username);
-            }
-          }
-        }
-      }
+    if (userPage) {
+      userRow.block.tags = parseUserTags(userPage);
     }
-    return row;
+    return userRow;
   }
   var isMenuGroupData = (item) => ("items" in item);
-  async function setSockRowBlock(opts) {
-    const { sock, block: blockSetting, userPage, defaultBlock, checkLock, state } = opts;
-    const row = updateSockRowSettings({
-      row: sock,
+  async function setUserRowBlockData(opts) {
+    const { block: blockSetting, userPage, defaultBlock, checkLock, state } = opts;
+    const userRow = updateUserBlockDataSettings({
+      userRow: opts.userRow,
       defaultBlock,
       currentBlock: blockSetting,
-      currentTags: userPage
+      userPage
     });
     let isLocked = null;
     if (checkLock) {
-      const globalUser = await spiHelperGetGlobalUser(row.username);
+      const globalUser = await spiHelperGetGlobalUser(userRow.username);
       if (globalUser) {
         isLocked = globalUser.locked;
-        if (isLocked || state.archiveNotice?.crosswiki) {
-          row.lock = true;
+        if (globalUser.locked || state.archiveNotice?.crosswiki) {
+          userRow.block.lock = true;
         } else {
-          row.lock = false;
+          userRow.block.lock = false;
         }
       }
     }
-    return { row, isLocked };
+    return { userRow, isLocked };
   }
 
   // src/ui/views/top/utils/archive.ts
@@ -2592,22 +2770,22 @@
   // src/ui/views/top/utils/section.ts
   async function prefetchSockRows(opts) {
     const { likelySocks, possibleSocks, allUsernames, userBlocks, userLocks, userTags, state } = opts;
-    const likelySet = new Set(likelySocks);
-    const validUserPages = allUsernames.filter((name) => !isNonRegisteredAccount(name)).map((name) => `User:${name}`);
+    const likelySet = new Set(likelySocks.map((sock) => sock.id));
+    const validUserPages = [...allUsernames].filter((name) => !isNonRegisteredAccount(name)).map((name) => `User:${name}`);
     const [blockSettings, userPages] = await Promise.all([
       spiHelperGetBulkUserBlockSettings(allUsernames),
       spiHelperGetBulkPageText(validUserPages)
     ]);
-    const checkLock = allUsernames.length < 7;
-    const userPromises = [...likelySocks, ...possibleSocks].map(async (sock) => {
-      const blockSetting = blockSettings.get(sock.username);
+    const checkLock = allUsernames.size < 7;
+    const userPromises = [...likelySocks, ...possibleSocks].map(async (userRow) => {
+      const blockSetting = blockSettings.get(userRow.username);
       if (blockSetting !== undefined) {
-        userBlocks.set(sock.username, blockSetting);
+        userBlocks.set(userRow.username, blockSetting);
       }
-      const userPage = userPages.get(sock.username);
-      const defaultBlock = likelySet.has(sock);
-      const { row: newRow, isLocked } = await setSockRowBlock({
-        sock,
+      const userPage = userPages.get(userRow.username);
+      const defaultBlock = likelySet.has(userRow.id);
+      const { userRow: newRow, isLocked } = await setUserRowBlockData({
+        userRow,
         block: blockSetting,
         defaultBlock,
         userPage,
@@ -2615,9 +2793,9 @@
         state
       });
       if (isLocked !== null) {
-        userLocks.set(sock.username, isLocked);
+        userLocks.set(userRow.username, isLocked);
       }
-      userTags.set(sock.username, newRow.tag);
+      userTags.set(userRow.username, userRow.block.tags);
       return newRow;
     });
     return await Promise.all(userPromises);
@@ -3038,8 +3216,48 @@ $2`);
       watchExpiry: spiHelperSettings.expiry.categories
     });
   }
+  function tagArraysEqual(tags1, tags2) {
+    if (tags1.length !== tags2.length)
+      return false;
+    const used = new Array(tags2.length).fill(false);
+    for (const tag1 of tags1) {
+      let found = false;
+      for (let i = 0;i < tags2.length; i++) {
+        const tag2 = tags2[i];
+        if (!tag2) {
+          continue;
+        }
+        if (!used[i] && tag1.equals(tag2)) {
+          used[i] = true;
+          found = true;
+          break;
+        }
+      }
+      if (!found)
+        return false;
+    }
+    return true;
+  }
+  function replaceSockTemplates(pageText, replacement) {
+    const templateRegex = /\n?\{\{\s*sock\w*\b[\s\S]*?}}/gi;
+    const matches = [...pageText.matchAll(templateRegex)];
+    if (matches.length === 0) {
+      return replacement;
+    }
+    const firstMatch = matches[0];
+    if (!firstMatch) {
+      return replacement;
+    }
+    const matchText = firstMatch[0];
+    pageText = pageText.replace(matchText, replacement);
+    matches.slice(1).forEach((match) => {
+      const matchText2 = match[0];
+      pageText = pageText.replace(matchText2, "");
+    });
+    return pageText;
+  }
   async function spiHelperTagUser(opts) {
-    const { sock, tagNonLocalAccounts, master, altmaster, blocked } = opts;
+    const { sock, pageText, tagNonLocalAccounts } = opts;
     if (isNonRegisteredAccount(sock.username)) {
       return false;
     }
@@ -3058,115 +3276,92 @@ $2`);
       }).show();
       return false;
     }
-    let tagText = "";
-    const isMaster = sock.tag.startsWith("M");
-    let tag;
-    switch (sock.tag) {
-      case "Mblocked":
-        tag = "blocked";
-        break;
-      case "Mconfirmed":
-        tag = "blocked";
-        break;
-      case "Mbanned":
-        tag = "banned";
-        break;
-      case "Ssuspected":
-        tag = "blocked";
-        break;
-      case "Sproven":
-        tag = "proven";
-        break;
-      case "Sconfirmed":
-        tag = "confirmed";
-        break;
-      default:
-        console.error("spiHelperTagUser: Unexpected tag value", sock.tag);
-        return false;
-    }
-    const isNotBlocked = !userInfo.existsLocally || !blocked;
-    if (isMaster) {
-      tagText += `{{sockpuppeteer
-| 1 = ${tag}
-| locked = ${userInfo.locked ? "yes" : "no"}`;
-      if (sock.tag === "Mconfirmed" || sock.tag === "Mbanned") {
-        tagText += `
-| checked = yes`;
+    sock.block.tags.forEach((tag) => {
+      if (isSockpuppetTag(tag)) {
+        tag.locked = userInfo.locked;
       }
-      tagText += `
-}}`;
-    }
-    const tagAltmaster = sock.altmaster !== "none";
-    if (!isMaster || tagAltmaster) {
-      let altmasterParam = tagAltmaster ? altmaster : "";
-      let altmasterStatusParam = tagAltmaster ? sock.altmaster : "";
-      let sockmasterName = master;
-      if (tagAltmaster && isMaster) {
-        sockmasterName = altmaster;
-        tag = sock.altmaster === "suspected" ? "blocked" : sock.altmaster;
-        altmasterParam = "";
-        altmasterStatusParam = "";
-        tagText += `
-`;
+    });
+    const oldTags = parseUserTags(pageText);
+    const uniqueTags = sock.block.tags.reduce((acc, tag) => {
+      if (!acc.some((existing) => existing.equals(tag))) {
+        acc.push(tag);
       }
-      tagText += `{{sockpuppet
-| 1 = ${sockmasterName}
-| 2 = ${tag}
-| locked = ${userInfo.locked ? "yes" : "no"}
-| notblocked = ${isNotBlocked ? "yes" : "no"}
-| altmaster = ${altmasterParam}
-| altmaster-status = ${altmasterStatusParam}
-}}`;
+      return acc;
+    }, []);
+    if (tagArraysEqual(oldTags, uniqueTags)) {
+      const userLinkHtml = buildTitleLinkHtml(`User:${sock.username}`);
+      new VueMessage({
+        type: "notice",
+        content: `Tags are unmodified, skipping ${userLinkHtml}`,
+        isHtml: true
+      }).show();
+      return false;
     }
+    const tagText = uniqueTags.map((tag) => tag.generateWikitext()).join(`
+`);
+    const newText = replaceSockTemplates(pageText, tagText);
     return spiHelperEditPage({
       title: `User:${sock.username}`,
-      newText: tagText,
+      newText,
       summary: `Adding sockpuppetry tag per [[${context.prefixedName}]]`,
       createonly: false,
       watch: spiHelperSettings.watch.tagged,
       watchExpiry: spiHelperSettings.expiry.tagged
     }).then((result) => result !== null);
   }
-  async function createSockCategories(opts) {
-    const { sockRows, master, altmaster } = opts;
-    let needsPurge = false;
-    const checkConfirmedCat = sockRows.some((sock) => sock.tag === "Sproven" || sock.tag === "Sconfirmed");
-    const checkSuspectedCat = sockRows.some((sock) => sock.tag === "Ssuspected");
-    const checkAltSuspectedCat = sockRows.some((sock) => sock.altmaster === "suspected");
-    const checkAltProvenCat = sockRows.some((sock) => sock.altmaster === "proven");
-    if (checkAltProvenCat) {
-      const catName = `Category:Wikipedia sockpuppets of ${altmaster}`;
-      const catText = await spiHelperGetPageText(catName, false);
-      if (!catText) {
-        await createCategoryPage(catName);
-        needsPurge = true;
+  function collectCategoryNeeds(userRows) {
+    const masterNeedsMap = new Map;
+    function ensure(master) {
+      if (!masterNeedsMap.has(master)) {
+        masterNeedsMap.set(master, { confirmed: false, suspected: false });
+      }
+      return masterNeedsMap.get(master) ?? { confirmed: false, suspected: false };
+    }
+    for (const row of userRows) {
+      for (const tag of row.block.tags) {
+        if (isSockmasterTag(tag)) {
+          continue;
+        }
+        const entry = ensure(tag.master);
+        if (tag.status === "proven" || tag.status === "confirmed")
+          entry.confirmed = true;
+        if (tag.status === "blocked")
+          entry.suspected = true;
+        if (tag.altmaster) {
+          const altEntry = ensure(tag.altmaster);
+          if (tag.altmasterStatus === "proven")
+            altEntry.confirmed = true;
+          if (tag.altmasterStatus === "suspected")
+            altEntry.suspected = true;
+        }
       }
     }
-    if (checkAltSuspectedCat) {
-      const catName = `Category:Suspected Wikipedia sockpuppets of ${altmaster}`;
-      const catText = await spiHelperGetPageText(catName, false);
-      if (!catText) {
-        await createCategoryPage(catName);
-        needsPurge = true;
+    return masterNeedsMap;
+  }
+  async function createSockCategories(userRows) {
+    const purgeMap = new Map;
+    const categoryNeeds = collectCategoryNeeds(userRows);
+    for (const [master, { confirmed, suspected }] of categoryNeeds) {
+      let created = false;
+      if (confirmed) {
+        const catName = `Category:Wikipedia sockpuppets of ${master}`;
+        const catText = await spiHelperGetPageText(catName, false);
+        if (!catText) {
+          await createCategoryPage(catName);
+          created = true;
+        }
       }
-    }
-    if (checkConfirmedCat) {
-      const catName = `Category:Wikipedia sockpuppets of ${master}`;
-      const catText = await spiHelperGetPageText(catName, false);
-      if (!catText) {
-        await createCategoryPage(catName);
-        needsPurge = true;
+      if (suspected) {
+        const catName = `Category:Suspected Wikipedia sockpuppets of ${master}`;
+        const catText = await spiHelperGetPageText(catName, false);
+        if (!catText) {
+          await createCategoryPage(catName);
+          created = true;
+        }
       }
+      purgeMap.set(master, created);
     }
-    if (checkSuspectedCat) {
-      const catName = `Category:Suspected Wikipedia sockpuppets of ${master}`;
-      const catText = await spiHelperGetPageText(catName, false);
-      if (!catText) {
-        await createCategoryPage(catName);
-        needsPurge = true;
-      }
-    }
-    return needsPurge;
+    return purgeMap;
   }
 
   // src/actions/block.ts
@@ -3189,15 +3384,15 @@ $2`);
       newText += "{{subst:uw-sockblock|sig=yes";
     }
     newText += "|spi=" + context.caseName;
-    if (isNoExpiry(sock.duration)) {
+    if (isNoExpiry(sock.block.duration)) {
       newText += "|indef=yes";
     } else {
-      newText += "|time=" + sock.duration;
+      newText += "|time=" + sock.block.duration;
       if (cuBlock) {
         newText += "|indef=no";
       }
     }
-    if (sock.ntp) {
+    if (sock.block.ntp) {
       newText += "|notalk=yes";
     }
     if (isSock) {
@@ -3225,43 +3420,20 @@ $2`);
     return blockSummary;
   }
   async function spiHelperProcessBlockRow(opts) {
-    const { sock, userBlock, userTalkContent, blockOptions, noticeType, sockmaster } = opts;
-    if (userBlock !== undefined && !blockOptions.override) {
-      new VueMessage({
-        type: "warning",
-        content: `Block target ${sock.username} is already blocked. Check the "override existing blocks" box to re-block them`
-      }).show();
-      return true;
-    }
-    const blockReason = userBlock?.reason;
-    if (!spiHelperIsCheckuser() && blockOptions.override && blockReason && spiHelperCUBlockRegex.exec(blockReason)) {
-      const prompt = "User " + sock.username + ` is CheckUser-blocked, are you SURE you want to re-block them?
-` + `Current block message:
-` + blockReason;
-      if (!confirm(prompt)) {
-        return false;
-      }
-    }
-    if (!sock.duration) {
-      new VueMessage({
-        type: "error",
-        content: `Block target ${sock.username} does not have an intended duration`
-      }).show();
-      return false;
-    }
+    const { sock, userTalkContent, blockOptions, talkNotices, defaultMaster } = opts;
     const isIP = mw.util.isIPAddress(sock.username, true);
     const isIPRange = isIP && !mw.util.isIPAddress(sock.username, false);
-    const blockSummary = buildBlockSummary(blockOptions, isIP, isIPRange, sock.acb);
+    const blockSummary = buildBlockSummary(blockOptions, isIP, isIPRange, sock.block.acb);
     const blockSuccess = await spiHelperBlockUser({
       user: sock.username,
-      duration: sock.duration,
+      duration: sock.block.duration,
       reason: blockSummary,
       reblock: blockOptions.override,
-      anononly: isIP ? sock.abao : false,
-      accountcreation: sock.acb,
-      autoblock: isIP ? false : sock.abao,
-      notalkpage: sock.ntp,
-      noemail: sock.nem,
+      anononly: isIP ? sock.block.abao : false,
+      accountcreation: sock.block.acb,
+      autoblock: isIP ? false : sock.block.abao,
+      notalkpage: sock.block.ntp,
+      noemail: sock.block.nem,
       watchBlockedUser: spiHelperSettings.watch.blocked,
       watchExpiry: spiHelperSettings.expiry.blocked
     });
@@ -3271,15 +3443,14 @@ $2`);
     if (!blockSuccess) {
       return false;
     }
-    if (noticeType) {
+    const sockmaster = sock.block.tags.find((tag) => isSockpuppetTag(tag))?.master ?? defaultMaster;
+    if (talkNotices.length > 0) {
       const cuBlock = blockOptions.cuBlock && spiHelperIsCheckuser() && spiHelperSettings.useCheckuserblockAccount;
-      let newText = buildTalkNotice(sock, noticeType, sockmaster, cuBlock);
       const userTalkPage = `User talk:${sock.username}`;
-      if (!blockOptions.blankTalk) {
-        if (userTalkContent) {
-          newText = userTalkContent + `
-` + newText;
-        }
+      let newText = blockOptions.blankTalk ? "" : userTalkContent ?? "";
+      for (const talkNotice of talkNotices) {
+        newText += `
+` + buildTalkNotice(sock, talkNotice, sockmaster, cuBlock);
       }
       await spiHelperEditPage({
         title: userTalkPage,
@@ -3552,7 +3723,7 @@ $1`);
     finishOp("oneClickArchive", "success" /* Success */);
   }
   async function spiHelperPerformActions(opts) {
-    const { actions, state } = opts;
+    const { actions, accounts, state } = opts;
     if (Object.values(actions).every((action) => !action.enabled)) {
       new VueMessage({ type: "warning", content: "No actions are enabled" }).show();
       return;
@@ -3567,15 +3738,9 @@ $1`);
       new VueMessage({ type: "error", content: "Could not find archive notice" }).show();
       return;
     }
-    const { master, altmaster } = actions.block.data;
-    if (!master) {
+    if (!actions.block.data.master) {
       console.error("spiHelperPerformActions: Could not get master");
       new VueMessage({ type: "error", content: "Could not get master" }).show();
-      return;
-    }
-    if (!altmaster) {
-      console.error("spiHelperPerformActions: Could not get altmaster");
-      new VueMessage({ type: "error", content: "Could not get altmaster" }).show();
       return;
     }
     const sectionType = state.selectedSection.type;
@@ -3598,7 +3763,10 @@ $1`);
     let tagPromises = [];
     let lockPromise = Promise.resolve([]);
     if (actions.block.enabled) {
-      ({ blockPromises, tagPromises, lockPromise } = await spiHelperHandleBlocks(actions.block.data));
+      ({ blockPromises, tagPromises, lockPromise } = await spiHelperHandleBlocks({
+        accounts,
+        blockData: actions.block.data
+      }));
     }
     const userActionsPromise = Promise.all([
       Promise.all(blockPromises),
@@ -3807,78 +3975,95 @@ ${comment}
     let lockPromise = Promise.resolve([]);
     const {
       userLocks,
-      userTags,
       options: blockOptions,
       lockcomment: lockComment,
       master,
-      altmaster
-    } = opts;
-    const sockRows = opts.accounts.filter((sock) => sock.username !== "");
+      skipCUVerifyUsers
+    } = opts.blockData;
+    const userRows = opts.accounts.filter((userRow) => userRow.username !== "");
     const lockTargets = [];
-    const needsPurge = await createSockCategories({ sockRows, master, altmaster });
+    await createSockCategories(userRows);
     const blockAvailable = spiHelperIsAdmin() && !blockOptions.noBlock;
-    const allUsernames = sockRows.map((user) => user.username);
-    const allUserTalkPages = allUsernames.map((username) => `User talk:${username}`);
+    const { allUsernames, allUserPages, allUserTalkPages } = userRows.reduce((acc, user) => {
+      acc.allUsernames.add(user.username);
+      acc.allUserPages.push(`User:${user.username}`);
+      acc.allUserTalkPages.push(`User talk:${user.username}`);
+      return acc;
+    }, { allUsernames: new Set, allUserPages: [], allUserTalkPages: [] });
     const fetchMessage = new VueMessage({ type: "notice", content: "Fetching user blocks and tags" }).show();
-    const [userBlocks, userTalkPages] = await Promise.all([
+    const [userBlocks, userPages, userTalkPages] = await Promise.all([
       spiHelperGetBulkUserBlockSettings(allUsernames),
+      spiHelperGetBulkPageText(allUserPages),
       spiHelperGetBulkPageText(allUserTalkPages)
     ]);
     fetchMessage.update({ type: "success", content: "Got previous blocks and tags" });
-    const tagSock = async (sockRow, blocked) => {
-      if (sockRow.tag === userTags.get(sockRow.username)) {
-        return null;
-      }
+    const tagSock = async (userRow) => {
       const tagSuccess = await spiHelperTagUser({
-        sock: sockRow,
-        tagNonLocalAccounts: blockOptions.tagUnattached,
-        blocked,
-        master,
-        altmaster
+        sock: userRow,
+        pageText: userPages.get(userRow.username) ?? "",
+        tagNonLocalAccounts: blockOptions.tagUnattached
       });
-      if (tagSuccess) {
-        if (needsPurge) {
-          await spiHelperPurgePage(`User:${sockRow.username}`);
-        }
-      }
-      return tagSuccess ? sockRow.username : null;
+      return tagSuccess ? userRow.username : null;
     };
-    for (const sockRow of sockRows) {
-      if (sockRow.lock && !isNonRegisteredAccount(sockRow.username)) {
-        if (userLocks.get(sockRow.username) !== true) {
-          lockTargets.push(sockRow.username);
+    for (const userRow of userRows) {
+      if (userRow.block.lock && !isNonRegisteredAccount(userRow.username)) {
+        if (userLocks.get(userRow.username) !== true) {
+          lockTargets.push(userRow.username);
         }
       }
-      const username = spiHelperNormalizeUsername(sockRow.username);
-      if (blockAvailable && sockRow.block) {
-        let noticeType = null;
-        const masterTag = sockRow.tag.includes("master") || context.userName === username;
-        if (blockOptions.addMasterNotice && masterTag) {
-          noticeType = "master";
-        } else if (blockOptions.addSockNotice) {
-          noticeType = "sock";
+      const username = spiHelperNormalizeUsername(userRow.username);
+      if (blockAvailable && userRow.block.block) {
+        const talkNotices = [];
+        if (blockOptions.addMasterNotice && (context.userName === username || userRow.block.tags.some((tag) => isSockmasterTag(tag)))) {
+          talkNotices.push("master");
         }
-        const maxJitter = Math.max(500, sockRows.length * 100);
+        if (blockOptions.addSockNotice && userRow.block.tags.some((tag) => isSockpuppetTag(tag))) {
+          talkNotices.push("sock");
+        }
+        const maxJitter = Math.max(500, userRows.length * 100);
         blockPromises.push((async () => {
+          const userBlock = userBlocks.get(userRow.username);
+          if (userBlock !== undefined && !blockOptions.override) {
+            new VueMessage({
+              type: "warning",
+              content: `Block target ${userRow.username} is already blocked. Check the "override existing blocks" box to re-block them`
+            }).show();
+            return null;
+          }
+          const blockReason = userBlock?.reason;
+          if (!spiHelperIsCheckuser() && !skipCUVerifyUsers.has(userRow.username) && blockOptions.override && blockReason && spiHelperCUBlockRegex.exec(blockReason)) {
+            const prompt = "User " + userRow.username + ` is CheckUser-blocked, are you SURE you want to re-block them?
+` + `Current block message:
+` + blockReason;
+            if (!confirm(prompt)) {
+              return null;
+            }
+          }
+          if (!userRow.block.duration) {
+            new VueMessage({
+              type: "error",
+              content: `Block target ${userRow.username} does not have an intended duration`
+            }).show();
+            return null;
+          }
           await new Promise((r) => setTimeout(r, Math.random() * maxJitter));
           const blockSuccess = await spiHelperProcessBlockRow({
-            sock: sockRow,
-            userBlock: userBlocks.get(sockRow.username),
-            userTalkContent: userTalkPages.get(sockRow.username),
+            sock: userRow,
+            userTalkContent: userTalkPages.get(userRow.username),
             blockOptions,
-            noticeType,
-            sockmaster: master
+            talkNotices,
+            defaultMaster: master
           });
           if (!blockSuccess) {
             return null;
           }
-          if (sockRow.tag !== "none" || sockRow.altmaster !== "none") {
-            tagPromises.push(tagSock(sockRow, true));
+          if (userRow.block.tags.length > 0) {
+            tagPromises.push(tagSock(userRow));
           }
-          return sockRow.username;
+          return userRow.username;
         })());
-      } else if (sockRow.tag !== "none" || sockRow.altmaster !== "none") {
-        tagPromises.push(tagSock(sockRow, userBlocks.get(sockRow.username) !== undefined));
+      } else if (userRow.block.tags.length > 0) {
+        tagPromises.push(tagSock(userRow));
       }
     }
     if (lockTargets.length > 0) {
@@ -3909,8 +4094,8 @@ ${comment}
       const actionButtonKeys = Object.keys(actionButtons);
       return {
         open: false,
-        _openHandler: null,
-        _beforeUnloadHandler: null,
+        openHandler: null,
+        beforeUnloadHandler: null,
         actionsRunning: false,
         displayedForms: ["sections"],
         unpinned: !spiHelperSettings.interface.pinned,
@@ -3919,6 +4104,7 @@ ${comment}
         actionButtonKeys,
         sectionAccountNames: new Set,
         caseActions: getInitialCaseActions(),
+        accounts: [],
         messages,
         cdxIconPushPin: y7,
         cdxIconCollapse: z4,
@@ -3970,104 +4156,6 @@ ${comment}
         return this.$el.parentElement;
       }
     },
-    template: `
-    <div id="spiHelper-topView" class="spiHelper-mainCard" v-if="open">
-      <div id="spiHelper-topView-Header" class="spiHelper-mainCard-Header">
-        <div class="header-buttons">
-          <cdx-button aria-label="Give feedback" weight="quiet" @click="feedbackDialog.launch()">
-            <cdx-icon :icon="cdxIconFeedback" />
-          </cdx-button>
-          <cdx-button aria-label="Toggle layout" weight="quiet" @click="toggleButtonLayout">
-            <cdx-icon :icon="buttonLayout ? cdxIconExpand : cdxIconCollapse" />
-          </cdx-button>
-          <cdx-button :action="unpinned ? 'default': 'progressive'" aria-label="Toggle pin"
-                      weight="quiet" @click="unpinned = !unpinned">
-            <cdx-icon :icon="cdxIconPushPin" />
-          </cdx-button>
-        </div>
-      </div>
-      <div id="spiHelper-topView-Action" v-if="buttonLayout">
-        <div id="buttonRow">
-          <action-button
-              v-for="[name, button] of Object.entries(actionButtons)"
-              :key="name"
-              :name="name"
-              :label="button.label"
-              :selection-type="button.selectionType"
-              :selection="caseActions.sections.data.section"
-              :displayedForms="displayedForms"
-              :actionEnabled="caseActions[name].enabled"
-              @click="onActionClick($event, name)"
-          />
-        </div>
-        <div id="contentRow">
-          <div v-for="name of actionButtonKeys"
-               :key="name"
-               :class="{ 'is-visible': isVisible(name) }">
-            <action-content
-                :name="name"
-                :case-actions="caseActions"
-                :state="state"
-                :menu-items="menuItems"
-                :current-status="currentStatus"
-                @update-section-selection="onUpdateSectionSelection"
-                @update-status="onUpdateNewStatus"
-                @block-username-change="handleBlockUsernameChange"
-                @link-username-change="handleLinkUsernameChange"
-                @link-username-selected="handleLinkUsernameSelected"
-                @remove-rows="handleRemoveRows"
-                @add-row="handleAddRow"
-                @fetch-rows="handleFetchRows"
-            />
-          </div>
-        </div>
-      </div>
-      <div id="spiHelper-topView-Accordion" v-else>
-        <action-accordion
-            v-for="[name, button] of Object.entries(actionButtons)"
-            :key="name"
-            :name="name"
-            :label="button.label"
-            :selection-type="button.selectionType"
-            :selection="caseActions.sections.data.section"
-            :displayedForms="displayedForms"
-            :actionEnabled="caseActions[name].enabled"
-            @action-toggled="onAccordionToggle(name)"
-        >
-          <action-content
-              :name="name"
-              :case-actions="caseActions"
-              :state="state"
-              :menu-items="menuItems"
-              :current-status="currentStatus"
-              @update-section-selection="onUpdateSectionSelection"
-              @update-status="onUpdateNewStatus"
-              @block-username-change="handleBlockUsernameChange"
-              @link-username-change="handleLinkUsernameChange"
-              @link-username-selected="handleLinkUsernameSelected"
-              @remove-rows="handleRemoveRows"
-              @add-row="handleAddRow"
-              @fetch-rows="handleFetchRows"
-          />
-        </action-accordion>
-      </div>
-      <submit-form v-if="caseActions.sections.data.section !== null" v-model:socks="caseActions.block.data.accounts"
-                   v-model:master="caseActions.block.data.master" v-model:altmaster="caseActions.block.data.altmaster"
-                   v-model:lock-comment="caseActions.block.data.lockcomment" :locks="caseActions.block.data.userLocks"
-                   :all-disabled="allDisabled" :state="state" :action-name="'mainActions'" :check-conflict="true"
-                   @on-submit="onSubmitActions" />
-      <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
-      <div id="messageRow">
-        <cdx-message v-for="(message, index) in messages" :key="index" :type="message.type" :fade-in="true"
-                     :allow-user-dismiss="true">
-          <span v-if="message.isHtml" v-html="message.content" />
-          <span v-else>
-            {{ message.content }}
-          </span>
-        </cdx-message>
-      </div>
-    </div>
-  `,
     watch: {
       unpinned(newVal) {
         if (!this.mountPoint) {
@@ -4112,6 +4200,45 @@ ${comment}
           }
           caseAction.enabled = spiHelperSettings.defaultActions.includes(caseAN);
         }
+      }
+    },
+    mounted() {
+      if (!this.mountPoint) {
+        console.error("TopViewComponent mounted: Could not find mountPoint");
+        return;
+      }
+      if (this.unpinned) {
+        this.mountPoint.classList.add("unpinned");
+      } else {
+        this.mountPoint.classList.remove("unpinned");
+      }
+      this.beforeUnloadHandler = (e) => {
+        const opState = getOpState("mainActions");
+        if (!this.allDisabled && opState !== "success" /* Success */) {
+          e.preventDefault();
+        }
+      };
+      this.openHandler = () => {
+        this.open = !this.open;
+        if (this.open) {
+          mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "open", type: "top" });
+        }
+        if (this.beforeUnloadHandler) {
+          if (this.open) {
+            window.addEventListener("beforeunload", this.beforeUnloadHandler);
+          } else {
+            window.removeEventListener("beforeunload", this.beforeUnloadHandler);
+          }
+        }
+      };
+      this.openButton.addEventListener("click", this.openHandler);
+    },
+    beforeUnmount() {
+      if (this.openHandler) {
+        this.openButton.removeEventListener("click", this.openHandler);
+      }
+      if (this.beforeUnloadHandler) {
+        window.removeEventListener("beforeunload", this.beforeUnloadHandler);
       }
     },
     methods: {
@@ -4178,13 +4305,7 @@ ${comment}
         this.loadSectionAccounts(this.state.selectedSection);
       },
       async loadSectionAccounts(selection) {
-        const removeIndexes = this.caseActions.block.data.accounts.reduce((acc, row, i) => {
-          if (this.sectionAccountNames.has(row.username)) {
-            acc.push(i);
-          }
-          return acc;
-        }, []);
-        this.handleRemoveRows(removeIndexes);
+        this.accounts = this.accounts.filter((row) => !this.sectionAccountNames.has(row.username));
         const searchText = await (selection.type === "all" ? loadCaseText(this.state) : loadSectionText(selection.section));
         const [likelySocks, possibleSocks, allUsernames] = getSockEntries({
           text: searchText,
@@ -4200,7 +4321,7 @@ ${comment}
           userTags: this.caseActions.block.data.userTags,
           state: this.state
         });
-        this.sectionAccountNames = new Set(this.massAddSockRows(allRows).map((row) => row.username));
+        this.sectionAccountNames = new Set(this.massAddUserRows(allRows).map((row) => row.username));
       },
       onUpdateNewStatus(newStatus) {
         this.caseActions.comment.data.text = updateCommentWithStatus(this.caseActions.comment.data.text, newStatus);
@@ -4214,6 +4335,7 @@ ${comment}
         this.actionsRunning = true;
         await spiHelperPerformActions({
           actions: this.caseActions,
+          accounts: this.accounts,
           state: this.state
         });
         finishOp("mainActions", "success" /* Success */);
@@ -4226,62 +4348,49 @@ ${comment}
           state: this.state
         });
         const likelySet = new Set(likelySocks);
-        const allRows = [...likelySocks, ...possibleSocks].map((sock) => updateSockRowSettings({
-          row: sock,
+        const allRows = [...likelySocks, ...possibleSocks].map((sock) => updateUserBlockDataSettings({
+          userRow: sock,
           defaultBlock: likelySet.has(sock)
         }));
-        this.massAddSockRows(allRows);
+        this.massAddUserRows(allRows);
       },
-      handleBlockUsernameChange(newUsername, index) {
-        if (this.caseActions.link.data.rows.length < index + 1) {
-          console.error("handleBlockUsernameChange: Index", index, "doesn't exist in table");
+      handleUserSelected(data, rowId) {
+        const userRow = this.accounts.find((r) => r.id === rowId);
+        if (!userRow) {
           return;
         }
-        this.caseActions.link.data.rows[index].username = newUsername;
-      },
-      handleLinkUsernameChange(newUsername, index) {
-        if (this.caseActions.block.data.accounts.length < index + 1) {
-          console.error("handleLinkUsernameChange: Index", index, "doesn't exist in table");
-          return;
+        if (data.blockid !== undefined && !this.caseActions.block.data.userBlocks.has(userRow.username)) {
+          const ABAO = mw.util.isIPAddress(data.name) ? data.blockanononly : data.blockautoblocking;
+          this.caseActions.block.data.userBlocks.set(userRow.username, {
+            username: userRow.username,
+            duration: data.blockexpiry ?? "",
+            abao: ABAO ?? false,
+            acb: data.blocknocreate ?? false,
+            ntp: data.blockowntalk ?? false,
+            nem: data.blockemail ?? false,
+            reason: ""
+          });
         }
-        this.caseActions.block.data.accounts[index].username = newUsername;
-      },
-      handleLinkUsernameSelected(data, index) {
-        if (this.caseActions.block.data.accounts.length < index + 1) {
-          console.error("handleLinkUsernameSelected: Index", index, "doesn't exist in table");
-          return;
-        }
-        HandleUserSelected(data, this.caseActions.block.data.accounts[index]);
+        UpdateUserAllUserData(data, userRow);
       },
       handleAddRow(row) {
-        row ??= getDefaultSockRow(this.state.archiveNotice);
-        this.caseActions.block.data.accounts = [
-          ...this.caseActions.block.data.accounts,
-          row
-        ];
-        this.caseActions.link.data.rows = [
-          ...this.caseActions.link.data.rows,
-          { ...DefaultLinkRow, username: row.username }
-        ];
+        row ??= getDefaultUserRow(this.state.archiveNotice);
+        this.accounts.push(row);
       },
-      handleRemoveRows(indexes) {
-        this.caseActions.block.data.accounts = this.caseActions.block.data.accounts.filter((_row, index) => !indexes.includes(index));
-        this.caseActions.link.data.rows = this.caseActions.link.data.rows.filter((_row, index) => !indexes.includes(index));
+      handleRemoveRows(rowIds) {
+        this.accounts = this.accounts.filter((row) => !rowIds.includes(row.id));
       },
-      massAddSockRows(newRows) {
-        const sockRows = this.caseActions.block.data.accounts;
-        const linkRows = this.caseActions.link.data.rows;
-        const withDefault = sockRows.at(-1)?.username === "";
-        const existingUsernames = new Set(sockRows.map((s) => s.username));
+      massAddUserRows(newRows) {
+        const withDefault = this.accounts.at(-1)?.username === "";
+        const existingUsernames = new Set(this.accounts.map((s) => s.username));
         const filteredRows = newRows.filter((newRow) => !existingUsernames.has(newRow.username));
-        filteredRows.forEach((newRow) => {
-          if (withDefault) {
-            sockRows.splice(sockRows.length - 1, 0, newRow);
-            linkRows.splice(linkRows.length - 1, 0, { ...DefaultLinkRow, username: newRow.username });
-          } else {
-            this.handleAddRow(newRow);
-          }
-        });
+        if (withDefault) {
+          filteredRows.forEach((newRow) => {
+            this.accounts.splice(this.accounts.length - 1, 0, newRow);
+          });
+        } else {
+          this.accounts = this.accounts.concat(filteredRows);
+        }
         return filteredRows;
       },
       async ensureArchiveNotice() {
@@ -4299,45 +4408,105 @@ ${comment}
         }
       }
     },
-    mounted() {
-      if (!this.mountPoint) {
-        console.error("TopViewComponent mounted: Could not find mountPoint");
-        return;
-      }
-      if (this.unpinned) {
-        this.mountPoint.classList.add("unpinned");
-      } else {
-        this.mountPoint.classList.remove("unpinned");
-      }
-      this._beforeUnloadHandler = (e) => {
-        const opState = getOpState("mainActions");
-        if (!this.allDisabled && opState !== "success" /* Success */) {
-          e.preventDefault();
-        }
-      };
-      this._openHandler = () => {
-        this.open = !this.open;
-        if (this.open) {
-          mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "open", type: "top" });
-        }
-        if (this._beforeUnloadHandler) {
-          if (this.open) {
-            window.addEventListener("beforeunload", this._beforeUnloadHandler);
-          } else {
-            window.removeEventListener("beforeunload", this._beforeUnloadHandler);
-          }
-        }
-      };
-      this.openButton.addEventListener("click", this._openHandler);
-    },
-    beforeUnmount() {
-      if (this._openHandler) {
-        this.openButton.removeEventListener("click", this._openHandler);
-      }
-      if (this._beforeUnloadHandler) {
-        window.removeEventListener("beforeunload", this._beforeUnloadHandler);
-      }
-    }
+    template: `
+    <div id="spiHelper-topView" class="spiHelper-mainCard" v-if="open">
+      <div id="spiHelper-topView-Header" class="spiHelper-mainCard-Header">
+        <div class="header-buttons">
+          <cdx-button aria-label="Give feedback" weight="quiet" @click="feedbackDialog.launch()">
+            <cdx-icon :icon="cdxIconFeedback" />
+          </cdx-button>
+          <cdx-button aria-label="Toggle layout" weight="quiet" @click="toggleButtonLayout">
+            <cdx-icon :icon="buttonLayout ? cdxIconExpand : cdxIconCollapse" />
+          </cdx-button>
+          <cdx-button :action="unpinned ? 'default': 'progressive'" aria-label="Toggle pin"
+                      weight="quiet" @click="unpinned = !unpinned">
+            <cdx-icon :icon="cdxIconPushPin" />
+          </cdx-button>
+        </div>
+      </div>
+      <div id="spiHelper-topView-Action" v-if="buttonLayout">
+        <div id="buttonRow">
+          <action-button
+              v-for="[name, button] of Object.entries(actionButtons)"
+              :key="name"
+              :name="name"
+              :label="button.label"
+              :selection-type="button.selectionType"
+              :selection="caseActions.sections.data.section"
+              :displayedForms="displayedForms"
+              :actionEnabled="caseActions[name].enabled"
+              @click="onActionClick($event, name)"
+          />
+        </div>
+        <div id="contentRow">
+          <div v-for="name of actionButtonKeys"
+               :key="name"
+               :class="{ 'is-visible': isVisible(name) }">
+            <action-content
+                :name="name"
+                :case-actions="caseActions"
+                :accounts="accounts"
+                :state="state"
+                :menu-items="menuItems"
+                :current-status="currentStatus"
+                @update-section-selection="onUpdateSectionSelection"
+                @update-status="onUpdateNewStatus"
+                @user-selected="handleUserSelected"
+                @remove-rows="handleRemoveRows"
+                @add-row="handleAddRow"
+                @fetch-rows="handleFetchRows"
+            />
+          </div>
+        </div>
+      </div>
+      <div id="spiHelper-topView-Accordion" v-else>
+        <action-accordion
+            v-for="[name, button] of Object.entries(actionButtons)"
+            :key="name"
+            :name="name"
+            :label="button.label"
+            :selection-type="button.selectionType"
+            :selection="caseActions.sections.data.section"
+            :displayedForms="displayedForms"
+            :actionEnabled="caseActions[name].enabled"
+            @action-toggled="onAccordionToggle(name)"
+        >
+          <action-content
+              :name="name"
+              :case-actions="caseActions"
+              :accounts="accounts"
+              :state="state"
+              :menu-items="menuItems"
+              :current-status="currentStatus"
+              @update-section-selection="onUpdateSectionSelection"
+              @update-status="onUpdateNewStatus"
+              @user-selected="handleUserSelected"
+              @remove-rows="handleRemoveRows"
+              @add-row="handleAddRow"
+              @fetch-rows="handleFetchRows"
+          />
+        </action-accordion>
+      </div>
+      <submit-form v-if="caseActions.sections.data.section !== null" :accounts="accounts"
+                   v-model:master="caseActions.block.data.master"
+                   v-model:lock-comment="caseActions.block.data.lockcomment"
+                   v-model:skipCUVerifyUsers="caseActions.block.data.skipCUVerifyUsers"
+                   :block-options="caseActions.block.data.options"
+                   :locks="caseActions.block.data.userLocks" :blocks="caseActions.block.data.userBlocks"
+                   :all-disabled="allDisabled" :state="state" :action-name="'mainActions'" :check-conflict="true"
+                   @on-submit="onSubmitActions" />
+      <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
+      <div id="messageRow">
+        <cdx-message v-for="(message, index) in messages" :key="index" :type="message.type" :fade-in="true"
+                     :allow-user-dismiss="true">
+          <span v-if="message.isHtml" v-html="message.content" />
+          <span v-else>
+            {{ message.content }}
+          </span>
+        </cdx-message>
+      </div>
+    </div>
+  `
   });
   // src/ui/views/top/actions/archiveAction.ts
   var ArchiveActionComponent = defineComponent({
@@ -4347,33 +4516,34 @@ ${comment}
       selection: { type: Object, required: true }
     },
     emits: ["update:enabled"],
+    computed: {
+      badStatus() {
+        return this.selection !== "all" && this.status !== "closed";
+      }
+    },
     template: `
     <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event);" :empty="true" :disabled="badStatus" />
     <cdx-message v-if="badStatus" type="warning" :inline="true">
       The selected section status is '{{ status }}'. If you'd like to archive, please change it to 'closed'
     </cdx-message>
-  `,
-    computed: {
-      badStatus() {
-        return this.selection !== "all" && this.status !== "closed";
-      }
-    }
+  `
   });
   // src/ui/views/top/actions/blockAction.ts
   var BlockActionComponent = defineComponent({
     props: {
-      modelValue: { type: Array, required: true },
+      accounts: { type: Array, required: true },
       blockOptions: { type: Object, required: true },
       userLocks: { type: Map, required: true },
       userBlocks: { type: Map, required: true },
+      defaultMaster: { type: String, required: true },
       allowFetch: { type: Boolean, default: true },
       enabled: { type: Boolean, required: true }
     },
+    emits: ["update:enabled", "update:modelValue", "update:blockOptions", "removeRows", "addRow", "userSelected", "usernameChanged", "fetchRows"],
     data() {
       const columns = [
         { id: "username", label: "Username" },
         { id: "tag", label: "Tag" },
-        { id: "altmaster", label: "Alternate Master Tag" },
         { id: "lock", label: "Request Lock" }
       ];
       const isAdmin = spiHelperIsAdmin();
@@ -4389,52 +4559,171 @@ ${comment}
           { id: "nem", label: "NEM" }
         ]);
       }
-      const tagOptions = [
-        { value: "none", label: "None" },
-        {
-          label: "Sock",
-          items: [
-            { value: "Ssuspected", label: "S-Suspected" },
-            { value: "Sproven", label: "S-Proven" },
-            { value: "Sconfirmed", label: "S-Confirmed" }
-          ]
-        },
-        {
-          label: "Master",
-          items: [
-            { value: "Mblocked", label: "M-Blocked" },
-            { value: "Mconfirmed", label: "M-Confirmed" },
-            { value: "Mbanned", label: "M-3X Banned" }
-          ]
-        }
-      ];
-      const altmasterOptions = [
-        { value: "none", label: "None" },
-        { value: "suspected", label: "Suspected" },
-        { value: "proven", label: "Proven" }
-      ];
-      const allTagSelections = {
-        tag: "none",
-        altmaster: "none"
-      };
       const selectedRows = [];
       const topButtonActions = { copied: false, fetched: false };
+      const popovers = {
+        all: {
+          open: false,
+          tag: null
+        },
+        row: {
+          anchor: null,
+          open: false,
+          tag: null,
+          tagIndex: 0,
+          rowId: null
+        },
+        clipboardTag: null
+      };
       return {
         columns,
-        tagOptions,
-        altmasterOptions,
-        allTagSelections,
         selectedRows,
         topButtonActions,
         isAdmin,
         isCheckuser,
         isClerk,
+        popovers,
         cdxIconCopy: p4,
         cdxIconDownload: u4,
-        cdxIconTrash: F8
+        cdxIconTrash: F8,
+        cdxIconUserAvatar: P8,
+        cdxIconUserAvatarOutline: N8
       };
     },
-    emits: ["update:enabled", "update:modelValue", "update:blockOptions", "removeRows", "addRow", "userSelected", "usernameChanged", "fetchRows"],
+    computed: {
+      selectAll() {
+        return this.selectedRows.length === this.accounts.length;
+      },
+      selectAllIndeterminate() {
+        if (this.selectedRows.length === this.accounts.length) {
+          return false;
+        } else
+          return this.selectedRows.length !== 0;
+      },
+      selectedRowIDs() {
+        return this.selectedRows.map((index) => this.accounts[index]?.id).filter((id) => !!id);
+      }
+    },
+    methods: {
+      isNonRegisteredAccount,
+      isSockmasterTag,
+      async copySocks() {
+        if (this.selectedRows.length === 0) {
+          return;
+        }
+        let text = "{{sock list";
+        let i = 0;
+        this.selectedRows.forEach((row) => {
+          const rowData = this.accounts[row];
+          if (!rowData)
+            return;
+          text += `|${++i}=${rowData.username}`;
+        });
+        text += "}}";
+        await navigator.clipboard.writeText(text);
+        this.topButtonActions.copied = true;
+      },
+      onMessageDismissed(actionType) {
+        setTimeout(() => {
+          this.topButtonActions[actionType] = false;
+        }, 200);
+      },
+      removeSocks() {
+        this.$emit("removeRows", this.selectedRowIDs);
+        this.selectedRows = [];
+      },
+      addDefaultRow() {
+        this.$emit("addRow");
+      },
+      handleSelectAll(newValue) {
+        this.selectAllIndeterminate = false;
+        if (newValue) {
+          this.selectedRows = [...this.accounts.keys()];
+        } else {
+          this.selectedRows = [];
+        }
+      },
+      handleUserSelected(data, row) {
+        this.$emit("userSelected", data, row.id);
+      },
+      setAllBlockFields(key, value) {
+        for (const row of this.accounts) {
+          if (key === "lock" && this.userLocks.get(row.username) === true) {
+            continue;
+          } else if (key === "block" && this.userBlocks.get(row.username) !== undefined) {
+            continue;
+          } else if (key === "acb" && this.userBlocks.get(row.username)?.acb) {
+            continue;
+          } else if (key === "abao" && this.userBlocks.get(row.username)?.abao) {
+            continue;
+          } else if (key === "ntp" && this.userBlocks.get(row.username)?.ntp) {
+            continue;
+          } else if (key === "nem" && this.userBlocks.get(row.username)?.nem) {
+            continue;
+          }
+          row.block[key] = value;
+        }
+      },
+      setAllTags(tag) {
+        for (const row of this.accounts) {
+          row.block.tags = [tag.clone()];
+        }
+      },
+      fetchSocks() {
+        this.topButtonActions.fetched = true;
+        this.$emit("fetchRows");
+      },
+      showTagPopover(tag, tagIndex, rowId, $event) {
+        this.popovers.row.tag = tag;
+        this.popovers.row.tagIndex = tagIndex;
+        this.popovers.row.rowId = rowId;
+        this.popovers.row.anchor = $event.currentTarget;
+        this.popovers.row.open = true;
+      },
+      handleTagUpdate(updatedTag) {
+        const targetRow = this.accounts.find((row) => row.id === this.popovers.row.rowId);
+        if (!targetRow) {
+          console.error("Could not find target row for tag update", this.popovers.row.rowId);
+          return;
+        }
+        targetRow.block.tags.splice(this.popovers.row.tagIndex, 1, updatedTag);
+      },
+      handleTagDelete() {
+        const targetRow = this.accounts.find((row) => row.id === this.popovers.row.rowId);
+        if (!targetRow) {
+          console.error("Could not find target row for tag delete", this.popovers.row.rowId);
+          return;
+        }
+        targetRow.block.tags.splice(this.popovers.row.tagIndex, 1);
+      },
+      handleTagAdd(rowId) {
+        const targetRow = this.accounts.find((row) => row.id === rowId);
+        if (!targetRow) {
+          console.error("Could not find target row for tag add", rowId);
+          return null;
+        }
+        const newTag = new SockpuppetTag({ master: this.defaultMaster, status: "blocked" });
+        targetRow.block.tags.push(newTag);
+        return newTag;
+      },
+      getRowTagsWithDefault(tags) {
+        if (tags.length === 0) {
+          return [null];
+        } else {
+          return tags;
+        }
+      },
+      handleTagAddAll() {
+        for (const row of this.accounts) {
+          row.block.tags.push(new SockpuppetTag({ master: this.defaultMaster, status: "blocked" }));
+        }
+      },
+      handleTagDeleteAll() {
+        for (const row of this.accounts) {
+          row.block.tags.length = 0;
+        }
+      }
+    },
     template: `
     <!--suppress VueUnrecognizedDirective, VueUnrecognizedSlot -->
     <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
@@ -4474,7 +4763,7 @@ ${comment}
         </cdx-checkbox>
       </div>
       <cdx-table caption="Socks" :show-vertical-borders="true" :use-row-selection="true"
-                 :columns="columns" :data="modelValue" v-model:selected-rows="selectedRows"
+                 :columns="columns" :data="accounts" v-model:selected-rows="selectedRows"
                  class="spiHelper-sockTable">
         <template #header>
           <div class="header-content">
@@ -4518,8 +4807,7 @@ ${comment}
             <th scope="col" rowspan="2" v-if="isAdmin" class="checkboxHeader">Block</th>
             <th scope="col" rowspan="2" v-if="isAdmin" style="width: 300px;">Duration</th>
             <th scope="colgroup" colspan="4" v-if="isAdmin">Block Settings</th>
-            <th scope="col" :rowspan="isAdmin ? 2 : 1" class="selectHeader">Tag</th>
-            <th scope="col" :rowspan="isAdmin ? 2 : 1" class="selectHeader">Alternate Master Tag</th>
+            <th scope="col" :rowspan="isAdmin ? 2 : 1" class="tagHeader">Tag</th>
             <th scope="col" :rowspan="isAdmin ? 2 : 1" class="checkboxHeader">Lock</th>
           </tr>
           <tr v-if="isAdmin" class="blockSettingsRow">
@@ -4546,46 +4834,48 @@ ${comment}
             <!-- Do this instead of rowspan="2" to align it properly -->
             <th scope="col" style="min-width: 150px;">(all users)</th>
             <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAll('block', $event)">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('block', $event)">
                 Set all block
               </cdx-checkbox>
             </th>
             <th scope="col" v-if="isAdmin">
-              <expiry-input placeholder="Duration" @update:model-value="setAll('duration', $event)" />
+              <expiry-input placeholder="Duration" @update:model-value="setAllBlockFields('duration', $event)" />
             </th>
 
             <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAll('acb', $event)">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('acb', $event)">
                 Set all account creation blocked
               </cdx-checkbox>
             </th>
             <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAll('abao', $event)">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('abao', $event)">
                 Set all autoblock/anon-only
               </cdx-checkbox>
             </th>
             <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAll('ntp', $event)">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('ntp', $event)">
                 Set all no talk page
               </cdx-checkbox>
             </th>
             <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAll('nem', $event)">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('nem', $event)">
                 Set all no email
               </cdx-checkbox>
             </th>
 
             <th scope="col" class="selectTagOptions">
-              <cdx-select :menu-items="tagOptions" v-model:selected="allTagSelections.tag"
-                          @update:selected="setAll('tag', $event)" />
-            </th>
-            <th scope="col" class="selectTagOptions">
-              <cdx-select :menu-items="altmasterOptions" v-model:selected="allTagSelections.altmaster"
-                          @update:selected="setAll('altmaster', $event)" />
+              <cdx-button ref="selectAllTagButton" @click="popovers.all.open = true">
+                Set all tags
+              </cdx-button>
+              <tag-popover :anchor="$refs.selectAllTagButton" :default-master="defaultMaster"
+                           v-model:open="popovers.all.open" :tag="popovers.all.tag"
+                           :clipboard-tag="popovers.clipboardTag" :force-footer="true"
+                           @update:tag="setAllTags" @deleteTag="handleTagDeleteAll" @addTag="handleTagAddAll"
+                           @copyTag="popovers.clipboardTag = $event" />
             </th>
 
             <th scope="col">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAll('lock', $event)">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('lock', $event)">
                 Set all request locks
               </cdx-checkbox>
             </th>
@@ -4593,43 +4883,57 @@ ${comment}
           </thead>
         </template>
         <template #item-username="{ item, row }">
-          <user-lookup v-model="row.username" @user-selected="handleUserSelected($event, row)"
-                       @update:model-value="handleUsernameChange($event, row)" />
+          <user-lookup v-model="row.username" @user-selected="handleUserSelected($event, row)" />
         </template>
 
         <template #item-block="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.block" :disabled="blockOptions.noBlock || userBlocks.get(row.username) !== undefined">Block</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.block.block"
+                        :disabled="blockOptions.noBlock || userBlocks.get(row.username) !== undefined">
+            Block
+          </cdx-checkbox>
         </template>
 
         <template #item-duration="{ item, row }">
-          <expiry-input v-model="row.duration" :shortened="true" :auto-dismiss="true" placeholder="Duration" />
+          <expiry-input v-model="row.block.duration" :shortened="true" :auto-dismiss="true" placeholder="Duration" />
         </template>
 
         <template #item-acb="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.acb" :disabled="!blockOptions.override && userBlocks.get(row.username)?.acb">Account creation blocked</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.block.acb"
+                        :disabled="!blockOptions.override && userBlocks.get(row.username)?.acb">
+            Account creation blocked
+          </cdx-checkbox>
         </template>
         <template #item-abao="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.abao" :disabled="!blockOptions.override && userBlocks.get(row.username)?.abao">Autoblock/Anon-only</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.block.abao"
+                        :disabled="!blockOptions.override && userBlocks.get(row.username)?.abao">
+            Autoblock/Anon-only
+          </cdx-checkbox>
         </template>
         <template #item-ntp="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.ntp" :disabled="!blockOptions.override && userBlocks.get(row.username)?.ntp">No talk page</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.block.ntp"
+                        :disabled="!blockOptions.override && userBlocks.get(row.username)?.ntp">
+            No talk page
+          </cdx-checkbox>
         </template>
         <template #item-nem="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.nem" :disabled="!blockOptions.override && userBlocks.get(row.username)?.nem">No email</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.block.nem"
+                        :disabled="!blockOptions.override && userBlocks.get(row.username)?.nem">
+            No email
+          </cdx-checkbox>
         </template>
 
         <template #item-tag="{ item, row }">
-          <cdx-select :menu-items="tagOptions" v-model:selected="row.tag"
-                      :disabled="isNonRegisteredAccount(row.username)" class="tagOptions" />
-        </template>
-
-        <template #item-altmaster="{ item, row }">
-          <cdx-select :menu-items="altmasterOptions" v-model:selected="row.altmaster"
-                      :disabled="isNonRegisteredAccount(row.username)" />
+          <cdx-button v-for="(tag, index) in getRowTagsWithDefault(row.block.tags)" class="userTag"
+                      @click="showTagPopover(tag, index, row.id, $event)">
+            <cdx-icon v-if="tag !== null"
+                      :icon="isSockmasterTag(tag) ? cdxIconUserAvatar : cdxIconUserAvatarOutline"
+                      :title="isSockmasterTag(tag) ? 'Master' : 'Sockpuppet'" />
+            {{ tag === null ? 'None' : isSockmasterTag(tag) ? tag.status.charAt(0).toUpperCase() + tag.status.slice(1) : tag.master }}
+          </cdx-button>
         </template>
 
         <template #item-lock="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.lock"
+          <cdx-checkbox :hide-label="true" v-model="row.block.lock"
                         :disabled="isNonRegisteredAccount(row.username) || userLocks.get(row.username) === true">
             Request lock
           </cdx-checkbox>
@@ -4639,97 +4943,12 @@ ${comment}
           <cdx-button @click="addDefaultRow">Add Row</cdx-button>
         </template>
       </cdx-table>
+      <tag-popover :anchor="popovers.row.anchor" v-model:open="popovers.row.open" :default-master="defaultMaster"
+                   :tag="popovers.row.tag" :clipboard-tag="popovers.clipboardTag" @update:tag="handleTagUpdate"
+                   @deleteTag="handleTagDelete" @addTag="handleTagAdd(popovers.row.rowId)"
+                   @copyTag="popovers.clipboardTag = $event" />
     </action-container>
-  `,
-    computed: {
-      selectAll() {
-        return this.selectedRows.length === this.modelValue.length;
-      },
-      selectAllIndeterminate() {
-        if (this.selectedRows.length === this.modelValue.length) {
-          return false;
-        } else
-          return this.selectedRows.length !== 0;
-      }
-    },
-    methods: {
-      isNonRegisteredAccount,
-      async copySocks() {
-        if (this.selectedRows.length === 0) {
-          return;
-        }
-        let text = "{{sock list";
-        this.selectedRows.forEach((row, index) => {
-          const rowData = this.modelValue[row];
-          if (!rowData)
-            return;
-          text += `|${index + 1}=${rowData.username}`;
-        });
-        text += "}}";
-        await navigator.clipboard.writeText(text);
-        this.topButtonActions.copied = true;
-      },
-      onMessageDismissed(actionType) {
-        setTimeout(() => {
-          this.topButtonActions[actionType] = false;
-        }, 200);
-      },
-      removeSocks() {
-        this.$emit("removeRows", this.selectedRows);
-        this.selectedRows = [];
-      },
-      addDefaultRow() {
-        this.$emit("addRow");
-      },
-      handleSelectAll(newValue) {
-        this.selectAllIndeterminate = false;
-        if (newValue) {
-          this.selectedRows = this.modelValue.map((_row, index) => index);
-        } else {
-          this.selectedRows = [];
-        }
-      },
-      handleUserSelected(data, row) {
-        if (data.blockid !== undefined) {
-          const ABAO = mw.util.isIPAddress(data.name) ? data.blockanononly : data.blockautoblocking;
-          this.userBlocks.set(row.username, {
-            username: row.username,
-            duration: data.blockexpiry ?? "",
-            abao: ABAO ?? false,
-            acb: data.blocknocreate ?? false,
-            ntp: data.blockowntalk ?? false,
-            nem: data.blockemail ?? false,
-            reason: ""
-          });
-        }
-        HandleUserSelected(data, row);
-      },
-      handleUsernameChange(username, row) {
-        this.$emit("usernameChanged", username, this.modelValue.findIndex((item) => item.username === row.username));
-      },
-      setAll(key, value) {
-        for (const row of this.modelValue) {
-          if (key === "lock" && this.userLocks.get(row.username) === true) {
-            continue;
-          } else if (key === "block" && this.userBlocks.get(row.username) !== undefined) {
-            continue;
-          } else if (key === "acb" && this.userBlocks.get(row.username)?.acb) {
-            continue;
-          } else if (key === "abao" && this.userBlocks.get(row.username)?.abao) {
-            continue;
-          } else if (key === "ntp" && this.userBlocks.get(row.username)?.ntp) {
-            continue;
-          } else if (key === "nem" && this.userBlocks.get(row.username)?.nem) {
-            continue;
-          }
-          row[key] = value;
-        }
-      },
-      fetchSocks() {
-        this.topButtonActions.fetched = true;
-        this.$emit("fetchRows");
-      }
-    }
+  `
   });
   // src/constants/spi.ts
   var spiHelperCUTemplates = [
@@ -4804,6 +5023,7 @@ ${comment}
       enabled: { type: Boolean, required: true },
       text: { type: String, required: true }
     },
+    emits: ["update:enabled", "update:text"],
     data() {
       const noteTemplates = [
         { value: "takenote", label: "Note" }
@@ -4828,26 +5048,6 @@ ${comment}
         cdxIconReload: U7
       };
     },
-    emits: ["update:enabled", "update:text"],
-    template: `
-    <action-container v-model:enabled="enabled" @update:enabled="onEnable">
-      <div>
-        <cdx-select :menu-items="noteTemplates" default-label="Comment templates" @update:selected="insertNote" />
-        <cdx-select :menu-items="clerkTemplates" default-label="Admin/clerk templates" @update:selected="insertText" />
-        <cdx-select :menu-items="cuTemplates" default-label="CheckUser templates" @update:selected="insertText" />
-      </div>
-      <cdx-text-area ref="commentBox" :autosize="true" placeholder="Write your comment" :model-value="text"
-                     @update:model-value="onTextUpdate" />
-      <div id="spiHelper-PreviewBox" class="cdx-card" style="min-height:26px">
-        <cdx-button aria-label="Load preview" @click="updatePreview" weight="primary" action="progressive"
-                    :disabled="loadingPreview">
-          <cdx-progress-indicator v-if="loadingPreview">Loading preview</cdx-progress-indicator>
-          <cdx-icon v-else :icon="cdxIconReload" />
-        </cdx-button>
-        <div v-html="htmlPreview" id="htmlPreview" />
-      </div>
-    </action-container>
-  `,
     computed: {
       commentBox() {
         return this.$refs.commentBox;
@@ -4894,7 +5094,26 @@ ${comment}
         this.$emit("update:text", newText);
         this.commentBox.focus();
       }
-    }
+    },
+    template: `
+    <action-container v-model:enabled="enabled" @update:enabled="onEnable">
+      <div>
+        <cdx-select :menu-items="noteTemplates" default-label="Comment templates" @update:selected="insertNote" />
+        <cdx-select :menu-items="clerkTemplates" default-label="Admin/clerk templates" @update:selected="insertText" />
+        <cdx-select :menu-items="cuTemplates" default-label="CheckUser templates" @update:selected="insertText" />
+      </div>
+      <cdx-text-area ref="commentBox" :autosize="true" placeholder="Write your comment" :model-value="text"
+                     @update:model-value="onTextUpdate" />
+      <div id="spiHelper-PreviewBox" class="cdx-card" style="min-height:26px">
+        <cdx-button aria-label="Load preview" @click="updatePreview" weight="primary" action="progressive"
+                    :disabled="loadingPreview">
+          <cdx-progress-indicator v-if="loadingPreview">Loading preview</cdx-progress-indicator>
+          <cdx-icon v-else :icon="cdxIconReload" />
+        </cdx-button>
+        <div v-html="htmlPreview" id="htmlPreview" />
+      </div>
+    </action-container>
+  `
   });
   // src/ui/views/top/actions/changeStatusAction.ts
   var ChangeStatusActionComponent = defineComponent({
@@ -4903,17 +5122,12 @@ ${comment}
       oldStatus: { type: String, required: true },
       newStatus: { type: String, required: true }
     },
+    emits: ["update:enabled", "update:newStatus"],
     data() {
       return {
         localStatus: this.oldStatus
       };
     },
-    emits: ["update:enabled", "update:newStatus"],
-    template: `
-    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
-      <cdx-select v-model:selected="selected" :menu-items="caseStatusItems" default-label="New case status" />
-    </action-container>
-  `,
     computed: {
       selected: {
         get() {
@@ -5000,7 +5214,12 @@ ${comment}
         return [...mainItems, ...groups];
       }
     },
-    methods: {}
+    methods: {},
+    template: `
+    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
+      <cdx-select v-model:selected="selected" :menu-items="caseStatusItems" default-label="New case status" />
+    </action-container>
+  `
   });
   // src/constants/linkview.ts
   var spiHelperLinkViewURLFormats = {
@@ -5085,10 +5304,11 @@ ${comment}
   // src/ui/views/top/actions/linkAction.ts
   var LinkActionComponent = defineComponent({
     props: {
-      modelValue: { type: Array, required: true },
+      accounts: { type: Array, required: true },
       caseName: { type: String, required: true },
       enabled: { type: Boolean, required: true }
     },
+    emits: ["update:enabled", "update:modelValue", "removeRows", "addRow", "userSelected", "usernameChanged"],
     data() {
       const columns = [
         { id: "username", label: "Username" },
@@ -5109,12 +5329,153 @@ ${comment}
         cdxIconTrash: F8
       };
     },
-    emits: ["update:enabled", "update:modelValue", "removeRows", "addRow", "userSelected", "usernameChanged"],
+    computed: {
+      columnState() {
+        const rows = this.accounts;
+        const state = {};
+        for (const column of this.optionColumns) {
+          if (rows.length === 0) {
+            state[column.id] = {
+              checked: false,
+              indeterminate: false
+            };
+            continue;
+          }
+          const values = rows.map((r) => r.link[column.id]);
+          const all = values.every(Boolean);
+          const none = values.every((v) => !v);
+          state[column.id] = {
+            checked: all,
+            indeterminate: !all && !none
+          };
+        }
+        return state;
+      },
+      allColumnsChecked() {
+        return this.accounts.length > 0 && this.optionColumns.every((k) => this.columnState[k.id].checked);
+      },
+      allColumnsIndeterminate() {
+        const checkedCount = this.optionColumns.filter((k) => this.columnState[k.id].checked).length;
+        return checkedCount > 0 && checkedCount < this.optionColumns.length;
+      },
+      linkItems() {
+        const result = {};
+        for (const linkColumn of this.optionColumns) {
+          const linkFormat = this.getLinkFormat(linkColumn.id);
+          if (linkFormat === null) {
+            console.error("Couldn't find link format for", linkColumn.id);
+            continue;
+          }
+          const resultUrl = linkFormat.baseUrl(this.caseName);
+          const includedUsers = this.accounts.reduce((accumulator, row) => {
+            if (row.link[linkColumn.id]) {
+              accumulator.push(linkFormat.userQueryStringWrapper + row.username + linkFormat.userQueryStringWrapper);
+            }
+            return accumulator;
+          }, []);
+          if (includedUsers.length === 0) {
+            continue;
+          }
+          if (linkFormat.multipleUserQueryStringKeys) {
+            for (const username of includedUsers) {
+              resultUrl.searchParams.append(linkFormat.userQueryStringKey, username);
+            }
+          } else {
+            resultUrl.searchParams.set(linkFormat.userQueryStringKey, includedUsers.join(linkFormat.userQueryStringSeparator));
+          }
+          result[linkColumn.id] = { url: resultUrl, label: linkColumn.label };
+        }
+        return result;
+      },
+      selectAll() {
+        return this.accounts.length > 0 && this.selectedRows.length === this.accounts.length;
+      },
+      selectAllIndeterminate() {
+        if (this.selectedRows.length === this.accounts.length) {
+          return false;
+        } else
+          return this.selectedRows.length !== 0;
+      },
+      selectedRowIDs() {
+        return this.selectedRows.map((index) => this.accounts[index]?.id).filter((id) => !!id);
+      }
+    },
+    watch: {
+      selectedRows(newValue, oldValue) {
+        const oldSet = new Set(oldValue);
+        const newSet = new Set(newValue);
+        const toggle = (index, enabled) => {
+          const row = this.accounts[index];
+          if (row)
+            this.toggleRow(row, enabled);
+        };
+        for (const index of newSet) {
+          if (!oldSet.has(index))
+            toggle(index, true);
+        }
+        for (const index of oldSet) {
+          if (!newSet.has(index))
+            toggle(index, false);
+        }
+      }
+    },
+    methods: {
+      handleSelectAll(newValue) {
+        if (newValue) {
+          this.selectedRows = [...this.accounts.keys()];
+        } else {
+          this.selectedRows = [];
+        }
+      },
+      handleUserSelected(data, row) {
+        this.$emit("userSelected", data, row.id);
+      },
+      addDefaultRow() {
+        this.$emit("addRow");
+      },
+      removeRows() {
+        this.$emit("removeRows", this.selectedRowIDs);
+        this.selectedRows = [];
+      },
+      toggleColumn(key, value) {
+        for (const row of this.accounts) {
+          row.link[key] = value;
+        }
+      },
+      toggleAllColumns(value) {
+        for (const column of this.optionColumns) {
+          this.toggleColumn(column.id, value);
+        }
+      },
+      toggleRow(row, value) {
+        for (const col of this.optionColumns) {
+          row.link[col.id] = value;
+        }
+      },
+      getLinkFormat(columnId) {
+        switch (columnId) {
+          case "analyser":
+            return spiHelperLinkViewURLFormats.editorInteractionAnalyser;
+          case "cuwiki":
+            return spiHelperLinkViewURLFormats.checkUserWikiSearch;
+          case "pages":
+            return spiHelperLinkViewURLFormats.sandals.pages;
+          case "summary":
+            return spiHelperLinkViewURLFormats.sandals.summaries;
+          case "timecard":
+            return spiHelperLinkViewURLFormats.sandals.timecard;
+          case "timeline":
+            return spiHelperLinkViewURLFormats.sandals.consolidatedTimeline;
+          default:
+            return null;
+        }
+      }
+    },
     template: `
     <!--suppress VueUnrecognizedDirective -->
     <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
       <cdx-table :hide-caption="false" caption="Links" :use-row-selection="true"
-                 :columns="columns" :data="modelValue" v-model:selected-rows="selectedRows"
+                 :columns="columns" :data="accounts" v-model:selected-rows="selectedRows"
                  class="spiHelper-sockTable linkTable">
         <template #header>
           <div class="header-content">
@@ -5170,178 +5531,35 @@ ${comment}
           </thead>
         </template>
         <template #item-username="{ item, row }">
-          <user-lookup v-model="row.username" @user-selected="handleUserSelected($event, row)"
-                       @update:model-value="handleUsernameChange($event, row)" />
+          <user-lookup v-model="row.username" @user-selected="handleUserSelected($event, row)" />
         </template>
 
         <template #item-analyser="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.analyser">Editor interaction analyser</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.link.analyser">Editor interaction analyser</cdx-checkbox>
         </template>
         <template #item-timeline="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.timeline">Consolidated timeline</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.link.timeline">Consolidated timeline</cdx-checkbox>
         </template>
         <template #item-timecard="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.timecard">Timecard</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.link.timecard">Timecard</cdx-checkbox>
         </template>
         <template #item-pages="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.pages">Pages</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.link.pages">Pages</cdx-checkbox>
         </template>
         <template #item-summary="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.summary">Summaries</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.link.summary">Summaries</cdx-checkbox>
         </template>
         <template #item-cuwiki="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.cuwiki">CheckUser wiki</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.link.cuwiki">CheckUser wiki</cdx-checkbox>
         </template>
       </cdx-table>
       <ul>
-        <li v-for="linkItem in linkItems" :key="linkItem.label">
+        <li v-for="[columnId, linkItem] in Object.entries(linkItems)" :key="columnId">
           <a :href="linkItem.url.href">{{ linkItem.label }}</a>
         </li>
       </ul>
     </action-container>
-  `,
-    watch: {
-      selectedRows(newValue, oldValue) {
-        const oldSet = new Set(oldValue);
-        const newSet = new Set(newValue);
-        const toggle = (index, enabled) => {
-          const row = this.modelValue[index];
-          if (row)
-            this.toggleRow(row, enabled);
-        };
-        for (const index of newSet) {
-          if (!oldSet.has(index))
-            toggle(index, true);
-        }
-        for (const index of oldSet) {
-          if (!newSet.has(index))
-            toggle(index, false);
-        }
-      }
-    },
-    methods: {
-      handleSelectAll(newValue) {
-        if (newValue) {
-          this.selectedRows = this.modelValue.map((_row, index) => index);
-        } else {
-          this.selectedRows = [];
-        }
-      },
-      handleUserSelected(data, row) {
-        this.$emit("userSelected", data, this.modelValue.findIndex((item) => item.username === row.username));
-      },
-      handleUsernameChange(username, row) {
-        this.$emit("usernameChanged", username, this.modelValue.findIndex((item) => item.username === row.username));
-      },
-      addDefaultRow() {
-        this.$emit("addRow");
-      },
-      removeRows() {
-        this.$emit("removeRows", this.selectedRows);
-        this.selectedRows = [];
-      },
-      toggleColumn(key, value) {
-        for (const row of this.modelValue) {
-          row[key] = value;
-        }
-      },
-      toggleAllColumns(value) {
-        for (const column of this.optionColumns) {
-          this.toggleColumn(column.id, value);
-        }
-      },
-      toggleRow(row, value) {
-        for (const col of this.optionColumns) {
-          row[col.id] = value;
-        }
-      },
-      getLinkFormat(columnId) {
-        switch (columnId) {
-          case "analyser":
-            return spiHelperLinkViewURLFormats.editorInteractionAnalyser;
-          case "cuwiki":
-            return spiHelperLinkViewURLFormats.checkUserWikiSearch;
-          case "pages":
-            return spiHelperLinkViewURLFormats.sandals.pages;
-          case "summary":
-            return spiHelperLinkViewURLFormats.sandals.summaries;
-          case "timecard":
-            return spiHelperLinkViewURLFormats.sandals.timecard;
-          case "timeline":
-            return spiHelperLinkViewURLFormats.sandals.consolidatedTimeline;
-          default:
-            return null;
-        }
-      }
-    },
-    computed: {
-      columnState() {
-        const rows = this.modelValue;
-        const state = {};
-        for (const column of this.optionColumns) {
-          if (rows.length === 0) {
-            state[column.id] = {
-              checked: false,
-              indeterminate: false
-            };
-            continue;
-          }
-          const values = rows.map((r) => r[column.id]);
-          const all = values.every(Boolean);
-          const none = values.every((v) => !v);
-          state[column.id] = {
-            checked: all,
-            indeterminate: !all && !none
-          };
-        }
-        return state;
-      },
-      allColumnsChecked() {
-        return this.modelValue.length > 0 && this.optionColumns.every((k) => this.columnState[k.id].checked);
-      },
-      allColumnsIndeterminate() {
-        const checkedCount = this.optionColumns.filter((k) => this.columnState[k.id].checked).length;
-        return checkedCount > 0 && checkedCount < this.optionColumns.length;
-      },
-      linkItems() {
-        const result = {};
-        for (const linkColumn of this.optionColumns) {
-          const linkFormat = this.getLinkFormat(linkColumn.id);
-          if (linkFormat === null) {
-            console.error("Couldn't find link format for", linkColumn.id);
-            continue;
-          }
-          const resultUrl = linkFormat.baseUrl(this.caseName);
-          const includedUsers = this.modelValue.reduce((accumulator, row) => {
-            if (row[linkColumn.id]) {
-              accumulator.push(linkFormat.userQueryStringWrapper + row.username + linkFormat.userQueryStringWrapper);
-            }
-            return accumulator;
-          }, []);
-          if (includedUsers.length === 0) {
-            continue;
-          }
-          if (linkFormat.multipleUserQueryStringKeys) {
-            for (const username of includedUsers) {
-              resultUrl.searchParams.append(linkFormat.userQueryStringKey, username);
-            }
-          } else {
-            resultUrl.searchParams.set(linkFormat.userQueryStringKey, includedUsers.join(linkFormat.userQueryStringSeparator));
-          }
-          result[linkColumn.id] = { url: resultUrl, label: linkColumn.label };
-        }
-        return result;
-      },
-      selectAll() {
-        return this.modelValue.length > 0 && this.selectedRows.length === this.modelValue.length;
-      },
-      selectAllIndeterminate() {
-        if (this.selectedRows.length === this.modelValue.length) {
-          return false;
-        } else
-          return this.selectedRows.length !== 0;
-      }
-    }
+  `
   });
   // src/ui/views/top/actions/managementAction.ts
   var ManagementActionComponent = defineComponent({
@@ -5349,6 +5567,7 @@ ${comment}
       enabled: { type: Boolean, required: true },
       flags: { type: Set, required: true }
     },
+    emits: ["update:enabled", "update:flags"],
     data() {
       const archiveNoticeFlags = [
         { value: "crosswiki", label: "Cross-wiki" },
@@ -5360,12 +5579,6 @@ ${comment}
         archiveNoticeFlags
       };
     },
-    emits: ["update:enabled", "update:flags"],
-    template: `
-    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
-      <cdx-toggle-button-group v-model="internalFlags" :buttons="archiveNoticeFlags"/>
-    </action-container>
-  `,
     computed: {
       internalFlags: {
         get() {
@@ -5375,7 +5588,12 @@ ${comment}
           this.$emit("update:flags", new Set(newValue));
         }
       }
-    }
+    },
+    template: `
+    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
+      <cdx-toggle-button-group v-model="internalFlags" :buttons="archiveNoticeFlags"/>
+    </action-container>
+  `
   });
   // src/ui/views/top/actions/moveAction.ts
   var MoveActionComponent = defineComponent({
@@ -5386,25 +5604,6 @@ ${comment}
       archiveEnabled: { type: Boolean, required: true }
     },
     emits: ["update:enabled", "update:target"],
-    template: `
-    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event);"
-                    :disabled="disabled">
-      <h3>Moving {{ moveTitle }}</h3>
-      <page-lookup :model-value="target" @update:model-value="$emit('update:target', $event)"
-                   :namespace="4" prefix="Sockpuppet investigations/"
-                   placeholder="Title" label="New Case Name" />
-      <cdx-message v-if="isSectionMove" type="notice" :allow-user-dismiss="true" style="margin-top: 16px;">
-        <p><strong>You are moving a section</strong></p>
-        <p>Make sure you are expecting to only move the section and not the entire case.</p>
-      </cdx-message>
-    </action-container>
-    <cdx-message v-if="isSectionMove && !allowSectionMoves" type="error" :inline="true">
-      You do not yet understand section moves. You probably want to move the entire case.
-    </cdx-message>
-    <cdx-message v-if="archiveEnabled" type="warning" :inline="true">
-      Archival is enabled, which overrides moving.
-    </cdx-message>
-  `,
     computed: {
       allowSectionMoves() {
         return this.selectionType === "all" || this.isSectionMove && spiHelperSettings.iUnderstandSectionMoves;
@@ -5447,18 +5646,37 @@ ${comment}
         },
         immediate: true
       }
-    }
+    },
+    template: `
+    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event);"
+                    :disabled="disabled">
+      <h3>Moving {{ moveTitle }}</h3>
+      <page-lookup :model-value="target" @update:model-value="$emit('update:target', $event)"
+                   :namespace="4" prefix="Sockpuppet investigations/"
+                   placeholder="Title" label="New Case Name" />
+      <cdx-message v-if="isSectionMove" type="notice" :allow-user-dismiss="true" style="margin-top: 16px;">
+        <p><strong>You are moving a section</strong></p>
+        <p>Make sure you are expecting to only move the section and not the entire case.</p>
+      </cdx-message>
+    </action-container>
+    <cdx-message v-if="isSectionMove && !allowSectionMoves" type="error" :inline="true">
+      You do not yet understand section moves. You probably want to move the entire case.
+    </cdx-message>
+    <cdx-message v-if="archiveEnabled" type="warning" :inline="true">
+      Archival is enabled, which overrides moving.
+    </cdx-message>
+  `
   });
   // src/ui/views/expiryInput.ts
   var ExpiryInputComponent = defineComponent({
+    inheritAttrs: false,
     props: {
       modelValue: { type: String, required: false, default: "" },
-      label: { type: String, required: false },
+      label: { type: String, required: false, default: "" },
       touched: { type: Boolean, default: false },
       shortened: { type: Boolean, default: false },
       autoDismiss: { type: Boolean, default: false }
     },
-    inheritAttrs: false,
     emits: ["update:touched"],
     data() {
       return {
@@ -5505,17 +5723,17 @@ ${comment}
         this.$emit("update:touched", newValue);
       }
     },
+    beforeUnmount() {
+      if (this.successTimeout) {
+        clearTimeout(this.successTimeout);
+      }
+    },
     template: `
     <cdx-field :status="status" :messages="messages" class="spihelper-expiry-input" :hide-label="!label">
       <template #label>{{ label }}</template>
       <cdx-text-input v-model="modelValue" v-bind="$attrs" />
     </cdx-field>
-  `,
-    beforeUnmount() {
-      if (this.successTimeout) {
-        clearTimeout(this.successTimeout);
-      }
-    }
+  `
   });
   // src/ui/views/pageLookup.ts
   var ITEM_LIMIT2 = 10;
@@ -5546,6 +5764,78 @@ ${comment}
         menuConfig
       };
     },
+    computed: {
+      pagename: {
+        get() {
+          return this.modelValue;
+        },
+        set(value) {
+          this.$emit("update:modelValue", value);
+        }
+      },
+      fullPagename() {
+        return `${this.prefix}${this.pagename}`;
+      }
+    },
+    methods: {
+      async onUpdateInputValue(value) {
+        this.menuConfig.searchQuery = value;
+        if (!value) {
+          this.pageSuggestions = [];
+          return;
+        }
+        await this.$nextTick();
+        spiHelperGetPages(this.fullPagename, 4, ITEM_LIMIT2).then((pages) => {
+          if (this.pagename !== value) {
+            return;
+          }
+          if (pages.length === 0) {
+            this.pageSuggestions = [];
+            return;
+          }
+          this.pageSuggestions = pages.filter((page) => !page.title.includes("/Archive")).map((page) => ({
+            label: this.stripTitle(page.title),
+            value: page.pageid.toString()
+          }));
+        }).catch(() => {
+          this.pageSuggestions = [];
+        });
+      },
+      onLoadMore() {
+        if (!this.pagename) {
+          return;
+        }
+        spiHelperGetPages(this.fullPagename, 4, this.pageSuggestions.length + ITEM_LIMIT2).then((pages) => {
+          if (pages.length === 0) {
+            return;
+          }
+          this.pageSuggestions = pages.filter((page) => !page.title.includes("/Archive")).map((page) => ({
+            label: this.stripTitle(page.title),
+            value: page.pageid.toString()
+          }));
+        }, () => {});
+      },
+      async validateInstantly() {
+        await this.$nextTick();
+        if (this.pagename.length === 0) {
+          this.lookupStatus = "default";
+          return;
+        }
+        const selection = this.pageSuggestions.find((item) => item.label === this.pagename) ?? null;
+        if (selection !== null) {
+          this.selection = selection.value;
+        }
+        this.lookupStatus = this.selection === null ? "warning" : "success";
+      },
+      onSelection(newSelection) {
+        if (newSelection !== null) {
+          this.lookupStatus = "success";
+        }
+      },
+      stripTitle(fullTitle) {
+        return fullTitle.split(this.prefix)[1] ?? fullTitle;
+      }
+    },
     template: `
     <cdx-field :status="lookupStatus" :messages="messages" :hide-label="!label">
       <template v-if="label" #label>
@@ -5573,81 +5863,7 @@ ${comment}
       </cdx-lookup>
       <cdx-text-input v-else v-model="pagename" :placeholder="placeholder" clearable />
     </cdx-field>
-  `,
-    methods: {
-      async onUpdateInputValue(value) {
-        this.menuConfig.searchQuery = value;
-        if (!value) {
-          this.pageSuggestions = [];
-          return;
-        }
-        await this.$nextTick(() => {
-          spiHelperGetPages(this.fullPagename, 4, ITEM_LIMIT2).then((pages) => {
-            if (this.pagename !== value) {
-              return;
-            }
-            if (pages.length === 0) {
-              this.pageSuggestions = [];
-              return;
-            }
-            this.pageSuggestions = pages.filter((page) => !page.title.includes("/Archive")).map((page) => ({
-              label: this.stripTitle(page.title),
-              value: page.pageid.toString()
-            }));
-          }).catch(() => {
-            this.pageSuggestions = [];
-          });
-        });
-      },
-      onLoadMore() {
-        if (!this.pagename) {
-          return;
-        }
-        spiHelperGetPages(this.fullPagename, 4, this.pageSuggestions.length + ITEM_LIMIT2).then((pages) => {
-          if (pages.length === 0) {
-            return;
-          }
-          this.pageSuggestions = pages.filter((page) => !page.title.includes("/Archive")).map((page) => ({
-            label: this.stripTitle(page.title),
-            value: page.pageid.toString()
-          }));
-        }, () => {});
-      },
-      async validateInstantly() {
-        await this.$nextTick(() => {
-          if (this.pagename.length === 0) {
-            this.lookupStatus = "default";
-            return;
-          }
-          const selection = this.pageSuggestions.find((item) => item.label === this.pagename) ?? null;
-          if (selection !== null) {
-            this.selection = selection.value;
-          }
-          this.lookupStatus = this.selection === null ? "warning" : "success";
-        });
-      },
-      onSelection(newSelection) {
-        if (newSelection !== null) {
-          this.lookupStatus = "success";
-        }
-      },
-      stripTitle(fullTitle) {
-        return fullTitle.split(this.prefix)[1] ?? fullTitle;
-      }
-    },
-    computed: {
-      pagename: {
-        get() {
-          return this.modelValue;
-        },
-        set(value) {
-          this.$emit("update:modelValue", value);
-        }
-      },
-      fullPagename() {
-        return `${this.prefix}${this.pagename}`;
-      }
-    }
+  `
   });
   // src/ui/views/submitForm.ts
   var SubmitFormComponent = defineComponent({
@@ -5655,13 +5871,15 @@ ${comment}
       actionName: { type: String, required: true },
       checkConflict: { type: Boolean, required: true },
       state: { type: Object, required: true },
-      socks: { type: Array, required: true },
+      accounts: { type: Array, required: true },
+      blockOptions: { type: Object, required: true },
+      blocks: { type: Map, required: true },
       locks: { type: Map, required: true },
-      master: { type: String, required: true },
-      altmaster: { type: String, required: true },
       lockComment: { type: String, required: true },
+      skipCUVerifyUsers: { type: Set, required: true },
       allDisabled: { type: Boolean, required: true }
     },
+    emits: ["update:master", "update:altmaster", "update:lockComment", "update:skipCUVerifyUsers", "onSubmit"],
     data() {
       const cancelAction = { label: "Cancel" };
       const continueAction = { label: "Continue", actionType: "progressive" };
@@ -5676,56 +5894,40 @@ ${comment}
         cdxIconUpdate: T8
       };
     },
-    emits: ["update:master", "update:altmaster", "update:lockComment", "onSubmit"],
-    template: `
-    <div class="spiHelper-submitForm">
-      <user-lookup v-if="needsSockmaster" label="Master" v-model="masterValue" />
-      <user-lookup v-if="needsAltmaster" label="Alternate master" v-model="altmasterValue" />
-      <cdx-field v-if="needsLockComment">
-        <template #label>Lock Comment</template>
-        <template #description>Optional comment to include in the global lock request</template>
-        <cdx-text-input v-model="lockCommentValue" placeholder="Comment" />
-      </cdx-field>
-      <cdx-button ref="submitElement" action="progressive" weight="primary" @click="onSubmit" :disabled="disableButton">
-        Submit
-      </cdx-button>
-      <cdx-popover :anchor="submitElement"
-                   v-model:open="popover.show" :icon="cdxIconUpdate" title="Edit Conflict"
-                   close-button-label="Cancel"
-                   :primary-action="popover.continueAction" @primary="confirmSubmit"
-                   :default-action="popover.cancelAction" @default="popover.show = false">
-        The page has been edited after you loaded it. Do you want to continue?
-      </cdx-popover>
-    </div>
-  `,
     computed: {
-      needsAltmaster() {
-        return this.socks.some((sock) => sock.altmaster !== "none" && !isNonRegisteredAccount(sock.username));
-      },
-      needsSockmaster() {
-        return this.socks.some((sock) => sock.tag.startsWith("S") && !isNonRegisteredAccount(sock.username));
-      },
       needsLockComment() {
-        return this.socks.some((sock) => sock.lock && !isNonRegisteredAccount(sock.username) && this.locks.get(sock.username) !== true);
+        return this.accounts.some((sock) => sock.block.lock && !isNonRegisteredAccount(sock.username) && this.locks.get(sock.username) !== true);
+      },
+      cuBlockConfirmationsNeeded() {
+        const neededUsers = new Set;
+        if (spiHelperIsCheckuser() || !this.blockOptions.override || this.blockOptions.noBlock) {
+          return neededUsers;
+        }
+        for (const userRow of this.accounts) {
+          if (!userRow.block.block) {
+            continue;
+          }
+          const blockReason = this.blocks.get(userRow.username)?.reason;
+          if (blockReason && spiHelperCUBlockRegex.exec(blockReason)) {
+            neededUsers.add(userRow.username);
+          }
+        }
+        return neededUsers;
+      },
+      cuBlockOverrideChecked: {
+        get() {
+          return this.skipCUVerifyUsers.size === this.cuBlockConfirmationsNeeded.size;
+        },
+        set(newValue) {
+          this.$emit("update:skipCUVerifyUsers", newValue ? this.cuBlockConfirmationsNeeded : new Set);
+        }
+      },
+      cuBlockOverrideIndeterminate() {
+        const skipCount = this.skipCUVerifyUsers.size;
+        return skipCount > 0 && skipCount < this.cuBlockConfirmationsNeeded.size;
       },
       disableButton() {
-        return isOpRunning(this.actionName) || this.allDisabled || this.needsSockmaster && !this.master || this.needsAltmaster && !this.altmaster;
-      },
-      masterValue: {
-        get() {
-          return this.master;
-        },
-        set(value) {
-          this.$emit("update:master", value);
-        }
-      },
-      altmasterValue: {
-        get() {
-          return this.altmaster;
-        },
-        set(value) {
-          this.$emit("update:altmaster", value);
-        }
+        return isOpRunning(this.actionName) || this.allDisabled;
       },
       lockCommentValue: {
         get() {
@@ -5735,6 +5937,9 @@ ${comment}
           this.$emit("update:lockComment", value);
         }
       }
+    },
+    mounted() {
+      this.submitElement = this.$refs.submitElement;
     },
     methods: {
       async onSubmit() {
@@ -5756,9 +5961,238 @@ ${comment}
         this.$emit("onSubmit");
       }
     },
-    mounted() {
-      this.submitElement = this.$refs.submitElement;
-    }
+    template: `
+    <div class="spiHelper-submitForm">
+      <cdx-field v-if="needsLockComment">
+        <template #label>Lock Comment</template>
+        <template #description>Optional comment to include in the global lock request</template>
+        <cdx-text-input v-model="lockCommentValue" placeholder="Comment" />
+      </cdx-field>
+      <cdx-checkbox v-if="cuBlockConfirmationsNeeded.size > 0"
+                    v-model="cuBlockOverrideChecked" :indeterminate="cuBlockOverrideIndeterminate">
+        Confirm CU-block overriding
+        <template #description>You are currently set to override the following CU blocks:
+          {{ [...cuBlockConfirmationsNeeded].join(', ') }}
+        </template>
+      </cdx-checkbox>
+      <cdx-button ref="submitElement" action="progressive" weight="primary" @click="onSubmit" :disabled="disableButton">
+        Submit
+      </cdx-button>
+      <cdx-popover :anchor="submitElement"
+                   v-model:open="popover.show" :icon="cdxIconUpdate" title="Edit Conflict"
+                   close-button-label="Cancel"
+                   :primary-action="popover.continueAction" @primary="confirmSubmit"
+                   :default-action="popover.cancelAction" @default="popover.show = false">
+        The page has been edited after you loaded it. Do you want to continue?
+      </cdx-popover>
+    </div>
+  `
+  });
+  // src/ui/views/tagPopover.ts
+  var TagPopoverComponent = defineComponent({
+    props: {
+      tag: { type: Object, required: true },
+      open: { type: Boolean, required: true },
+      anchor: { type: Object, required: true },
+      clipboardTag: { type: Object, required: true },
+      defaultMaster: { type: String, required: true },
+      forceFooter: { type: Boolean, default: false }
+    },
+    emits: {
+      "update:open": (_) => true,
+      "update:tag": (_) => true,
+      addTag: () => true,
+      copyTag: (_) => true,
+      deleteTag: () => true
+    },
+    data() {
+      const sockTags = [
+        { value: "blocked", label: "Suspected" },
+        { value: "proven", label: "Proven" },
+        { value: "confirmed", label: "Confirmed" }
+      ];
+      const masterTags = [
+        { value: "blocked", label: "Blocked" },
+        { value: "confirmed", label: "Confirmed" },
+        { value: "banned", label: "3X Banned" }
+      ];
+      const altmasterTags = [
+        { value: "suspected", label: "Suspected" },
+        { value: "proven", label: "Proven" }
+      ];
+      const allTagSelections = {
+        tag: "none",
+        altmaster: "none"
+      };
+      const tagCategoryButtons = [
+        { value: "sock", label: "Sockpuppet", icon: N8 },
+        { value: "master", label: "Sockmaster", icon: P8 }
+      ];
+      const temporaryTag = null;
+      const icons = {
+        cdxIconAdd: k3,
+        cdxIconCopy: p4,
+        cdxIconPaste: L7,
+        cdxIconTrash: F8
+      };
+      return {
+        sockTags,
+        masterTags,
+        altmasterTags,
+        allTagSelections,
+        tagCategoryButtons,
+        temporaryTag,
+        icons
+      };
+    },
+    computed: {
+      openValue: {
+        get() {
+          return this.open;
+        },
+        set(newValue) {
+          this.$emit("update:open", newValue);
+        }
+      },
+      tagCategory: {
+        get() {
+          if (this.temporaryTag === null) {
+            return null;
+          }
+          return isSockpuppetTag(this.temporaryTag) ? "sock" : "master";
+        },
+        set(newValue) {
+          if (newValue === "sock") {
+            this.temporaryTag = new SockpuppetTag({
+              status: "blocked",
+              master: this.defaultMaster,
+              evidence: this.temporaryTag?.evidence
+            });
+          } else {
+            this.temporaryTag = new SockmasterTag({
+              status: "blocked",
+              evidence: this.temporaryTag?.evidence
+            });
+          }
+        }
+      }
+    },
+    watch: {
+      tag(newTag) {
+        if (newTag) {
+          this.temporaryTag = newTag.clone();
+        }
+      },
+      open(newValue) {
+        if (!newValue) {
+          this.temporaryTag = null;
+        }
+      }
+    },
+    methods: {
+      handleSave() {
+        if (this.temporaryTag === null) {
+          console.error("No tag to save");
+          return;
+        }
+        this.$emit("update:tag", this.temporaryTag);
+        this.openValue = false;
+      },
+      handleCancel() {
+        this.openValue = false;
+      },
+      handleDeleteTag() {
+        this.$emit("deleteTag");
+        this.openValue = false;
+      },
+      handleCopyTag() {
+        if (!this.temporaryTag) {
+          return;
+        }
+        this.$emit("copyTag", this.temporaryTag);
+      },
+      handlePasteTag() {
+        if (!this.clipboardTag) {
+          return;
+        }
+        this.temporaryTag = this.clipboardTag.clone();
+      },
+      handleAddTag() {
+        this.$emit("addTag");
+        this.openValue = false;
+      }
+    },
+    template: `
+    <cdx-popover :anchor="anchor" v-model:open="openValue"
+                 title="Edit Tag" class="edit-tag-popover">
+      <cdx-toggle-button-group :buttons="tagCategoryButtons" v-model="tagCategory" class="tag-category" />
+      <div v-if="tagCategory === 'sock'" class="edit-body">
+        <cdx-toggle-button-group :buttons="sockTags" v-model="temporaryTag.status" />
+        <user-lookup label="Master" v-model="temporaryTag.master" />
+        <user-lookup label="Alternate Master" v-model="temporaryTag.altmaster" />
+        <cdx-toggle-button-group v-if="temporaryTag.altmaster" :buttons="altmasterTags"
+                                 v-model="temporaryTag.altmasterStatus" />
+        <cdx-accordion separation="minimal">
+          <template #title>
+            Extras
+          </template>
+          <cdx-field>
+            <template #label>Evidence</template>
+            <cdx-text-input v-model="temporaryTag.evidence" />
+          </cdx-field>
+        </cdx-accordion>
+      </div>
+      <div v-else-if="tagCategory === 'master'" class="edit-body">
+        <cdx-toggle-button-group :buttons="masterTags" v-model="temporaryTag.status" />
+        <cdx-accordion separation="minimal">
+          <template #title>
+            Extras
+          </template>
+          <cdx-field>
+            <template #label>Evidence</template>
+            <cdx-text-input v-model="temporaryTag.evidence" />
+          </cdx-field>
+          <page-lookup v-model="temporaryTag.spipage" :namespace="4" prefix="Sockpuppet investigations/"
+                       label="SPI Page" />
+          <page-lookup v-model="temporaryTag.ltapage" :namespace="4" prefix="Long-term abuse/" label="LTA Page" />
+        </cdx-accordion>
+      </div>
+      <template #footer>
+        <div class="footer-sideactions">
+          <template v-if="forceFooter || temporaryTag !== null">
+            <cdx-button action="destructive" @click="handleDeleteTag" aria-label="Delete tag" title="Delete tag">
+              <cdx-icon :icon="icons.cdxIconTrash" />
+            </cdx-button>
+            <cdx-button @click="handleAddTag" aria-label="Add tag" title="Add tag">
+              <cdx-icon :icon="icons.cdxIconAdd" />
+            </cdx-button>
+            <cdx-button @click="handleCopyTag" aria-label="Copy tag" title="Copy tag">
+              <cdx-icon :icon="icons.cdxIconCopy" />
+            </cdx-button>
+            <cdx-button @click="handlePasteTag" aria-label="Paste tag" title="Paste tag">
+              <cdx-icon :icon="icons.cdxIconPaste" />
+            </cdx-button>
+          </template>
+        </div>
+        <div class="cdx-popover__footer__actions">
+          <cdx-button
+              class="cdx-popover__footer__primary-action"
+              weight="primary"
+              action="progressive"
+              @click="handleSave"
+          >
+            Save
+          </cdx-button>
+          <cdx-button
+              class="cdx-popover__footer__default-action"
+              @click="handleCancel"
+          >
+            Cancel
+          </cdx-button>
+        </div>
+      </template>
+    </cdx-popover>
+  `
   });
   // src/ui/views/OCAModal.ts
   var OneClickArchivalComponent = defineComponent({
@@ -5768,11 +6202,28 @@ ${comment}
     },
     data() {
       return {
-        _activateHandler: null,
+        activateHandler: null,
         open: false,
         archiving: false,
         messages
       };
+    },
+    mounted() {
+      this.activateHandler = () => {
+        messages.length = 0;
+        this.open = true;
+        this.archiving = true;
+        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "submit", type: "oca" });
+        spiHelperOneClickArchive(this.state).then(() => {
+          this.archiving = false;
+        }, () => {});
+      };
+      this.activateButton.addEventListener("click", this.activateHandler);
+    },
+    beforeUnmount() {
+      if (this.activateHandler) {
+        this.activateButton.removeEventListener("click", this.activateHandler);
+      }
     },
     template: `
     <cdx-dialog v-model:open="open" title="One Click Archival">
@@ -5786,24 +6237,7 @@ ${comment}
         </cdx-message>
       </div>
     </cdx-dialog>
-  `,
-    mounted() {
-      this._activateHandler = () => {
-        messages.length = 0;
-        this.open = true;
-        this.archiving = true;
-        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "submit", type: "oca" });
-        spiHelperOneClickArchive(this.state).then(() => {
-          this.archiving = false;
-        }, () => {});
-      };
-      this.activateButton.addEventListener("click", this._activateHandler);
-    },
-    beforeUnmount() {
-      if (this._activateHandler) {
-        this.activateButton.removeEventListener("click", this._activateHandler);
-      }
-    }
+  `
   });
   // src/ui/views/alternateView.ts
   var AlternateViewComponent = defineComponent({
@@ -5812,24 +6246,251 @@ ${comment}
       feedbackDialog: { type: Object, required: true },
       openButton: { type: Object, required: true },
       defaultCase: { type: String, required: false, default: "" },
-      categoryView: { type: Boolean, default: false }
+      view: { type: String, required: true }
     },
     data() {
       return {
         open: false,
-        _openHandler: null,
-        _beforeUnloadHandler: null,
+        openHandler: null,
+        beforeUnloadHandler: null,
         caseLoaded: false,
         caseLoading: false,
         targetCase: this.defaultCase,
         blockData: setupBlockActionData(),
-        linkRows: [],
+        accounts: [],
         actionsRunning: false,
         unpinned: !spiHelperSettings.interface.pinned,
         messages,
         cdxIconFeedback: q4,
         cdxIconPushPin: y7
       };
+    },
+    computed: {
+      mountPoint() {
+        return this.$el.parentElement;
+      },
+      pageName() {
+        return `Wikipedia:Sockpuppet investigations/${this.targetCase}`;
+      }
+    },
+    watch: {
+      unpinned(newVal) {
+        if (!this.mountPoint) {
+          console.error("AlternateView unpinned: Could not find mountPoint");
+          return;
+        }
+        if (newVal) {
+          this.mountPoint.classList.add("unpinned");
+        } else {
+          this.mountPoint.classList.remove("unpinned");
+        }
+        spiHelperSettings.interface.pinned = !newVal;
+      }
+    },
+    mounted() {
+      if (!this.mountPoint) {
+        console.error("AlternateViewComponent mounted: Could not find mountPoint");
+        return;
+      }
+      if (this.unpinned) {
+        this.mountPoint.classList.add("unpinned");
+      } else {
+        this.mountPoint.classList.remove("unpinned");
+      }
+      this.beforeUnloadHandler = (e) => {
+        const opState = getOpState("alternateActions");
+        if (opState !== "success" /* Success */) {
+          e.preventDefault();
+        }
+      };
+      this.openHandler = () => {
+        this.open = !this.open;
+        if (this.open) {
+          mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "open", type: "alternate" });
+          if (!this.caseLoaded) {
+            switch (this.view) {
+              case "category":
+                this.initialiseCategoryView();
+                break;
+              case "si":
+                this.initialiseSIView();
+                break;
+            }
+          }
+        }
+        if (this.beforeUnloadHandler) {
+          if (this.open) {
+            window.addEventListener("beforeunload", this.beforeUnloadHandler);
+          } else {
+            window.removeEventListener("beforeunload", this.beforeUnloadHandler);
+          }
+        }
+      };
+      this.openButton.addEventListener("click", this.openHandler);
+    },
+    beforeUnmount() {
+      if (this.openHandler) {
+        this.openButton.removeEventListener("click", this.openHandler);
+      }
+      if (this.beforeUnloadHandler) {
+        window.removeEventListener("beforeunload", this.beforeUnloadHandler);
+      }
+    },
+    methods: {
+      handleUserSelected(data, rowId) {
+        const userRow = this.accounts.find((r) => r.id === rowId);
+        if (!userRow) {
+          return;
+        }
+        if (data.blockid !== undefined && !this.blockData.userBlocks.has(userRow.username)) {
+          const ABAO = mw.util.isIPAddress(data.name) ? data.blockanononly : data.blockautoblocking;
+          this.blockData.userBlocks.set(userRow.username, {
+            username: userRow.username,
+            duration: data.blockexpiry ?? "",
+            abao: ABAO ?? false,
+            acb: data.blocknocreate ?? false,
+            ntp: data.blockowntalk ?? false,
+            nem: data.blockemail ?? false,
+            reason: ""
+          });
+        }
+        UpdateUserAllUserData(data, userRow);
+      },
+      handleAddRow(row) {
+        row ??= getDefaultUserRow(this.state.archiveNotice);
+        this.accounts.push(row);
+      },
+      handleRemoveRows(rowIds) {
+        this.accounts = this.accounts.filter((row) => !rowIds.includes(row.id));
+      },
+      massAddUserRows(newRows) {
+        const existingUsernames = new Set(this.accounts.map((s) => s.username));
+        newRows.forEach((newRow) => {
+          if (!existingUsernames.has(newRow.username)) {
+            this.handleAddRow(newRow);
+          }
+        });
+      },
+      async loadCase(addRow) {
+        this.caseLoading = true;
+        setContext(this.pageName);
+        const archiveNoticeResult = await spiHelperParseArchiveNotice(this.pageName, this.state);
+        if (archiveNoticeResult === null) {
+          this.state.archiveNotice = new ParsedArchiveNotice({ username: this.targetCase });
+        } else {
+          this.state.archiveNotice = archiveNoticeResult;
+        }
+        if (addRow) {
+          const userBlock = await spiHelperGetUserBlockSettings(this.targetCase);
+          if (userBlock !== null) {
+            this.blockData.userBlocks.set(this.targetCase, userBlock);
+          }
+          const userPageText = await spiHelperGetPageText(`User:${this.targetCase}`, false);
+          const { userRow, isLocked } = await setUserRowBlockData({
+            userRow: generateUserRow(this.targetCase, this.state),
+            block: userBlock,
+            userPage: userPageText,
+            defaultBlock: true,
+            checkLock: false,
+            state: this.state
+          });
+          if (isLocked !== null) {
+            this.blockData.userLocks.set(this.targetCase, isLocked);
+          }
+          const oldIndex = this.accounts.findIndex((user) => user.username === userRow.username);
+          if (oldIndex === -1) {
+            this.accounts.splice(0, 0, userRow);
+          } else {
+            this.accounts.splice(oldIndex, 1, userRow);
+          }
+        }
+        this.blockData.master = this.targetCase;
+        this.caseLoading = false;
+        this.caseLoaded = true;
+      },
+      async onSubmitActions() {
+        if (isOpRunning("alternateActions")) {
+          return;
+        }
+        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "submit", type: "alternate" });
+        startOp("alternateActions");
+        this.actionsRunning = true;
+        let blockPromises = [];
+        let tagPromises = [];
+        let lockPromise = Promise.resolve([]);
+        ({ blockPromises, tagPromises, lockPromise } = await spiHelperHandleBlocks({
+          accounts: this.accounts,
+          blockData: this.blockData
+        }));
+        const userActionsPromise = Promise.all([
+          Promise.all(blockPromises),
+          Promise.all(tagPromises),
+          lockPromise
+        ]);
+        const [blockedUsers, taggedUsers, lockedUsers] = await userActionsPromise;
+        if (spiHelperSettings.log.enabled) {
+          const logMessage = `* [[:User:${context.userName}]]` + buildUserActionLogMessage({ blockedUsers, taggedUsers, lockedUsers });
+          await spiHelperLog(logMessage);
+        }
+        new VueMessage({ type: "success", content: "Done!" }).show();
+        finishOp("alternateActions", "success" /* Success */);
+        this.actionsRunning = false;
+      },
+      async initialiseCategoryView() {
+        if (this.defaultCase === "" || this.caseLoading || this.caseLoaded) {
+          return;
+        }
+        const [, suspectedMembers, confirmedMembers] = await Promise.all([
+          this.loadCase(false),
+          spiHelperGetCategoryMembers(`Category:Suspected Wikipedia sockpuppets of ${this.targetCase}`),
+          spiHelperGetCategoryMembers(`Category:Wikipedia sockpuppets of ${this.targetCase}`)
+        ]);
+        const BuildUserRow = (member, likely) => {
+          const userRow = { ...generateUserRow(member.replace("User:", ""), this.state) };
+          userRow.block.block = likely;
+          return userRow;
+        };
+        const likelySocks = [...confirmedMembers, `User:${this.targetCase}`].map((member) => BuildUserRow(member, true));
+        const possibleSocks = suspectedMembers.map((member) => BuildUserRow(member, false));
+        const allUsernames = new Set([...likelySocks, ...possibleSocks].map((sock) => sock.username));
+        const allRows = await prefetchSockRows({
+          likelySocks,
+          possibleSocks,
+          allUsernames,
+          userBlocks: this.blockData.userBlocks,
+          userLocks: this.blockData.userLocks,
+          userTags: this.blockData.userTags,
+          state: this.state
+        });
+        this.massAddUserRows(allRows);
+      },
+      async initialiseSIView() {
+        const allSocks = [];
+        const allUsernames = new Set;
+        const $searchOrigin = $("ul.mw-checkuser-suggestedinvestigations-users", document);
+        const sockList = $searchOrigin.find("li > a.mw-userlink > bdi");
+        for (const entryElement of sockList) {
+          const username = spiHelperNormalizeUsername($(entryElement).text());
+          if (allUsernames.has(username)) {
+            continue;
+          }
+          allSocks.push(generateUserRow(username, this.state));
+          allUsernames.add(username);
+        }
+        if (allSocks.length > 0 && allSocks[0]) {
+          this.targetCase = allSocks[0].username;
+        }
+        const allRows = await prefetchSockRows({
+          likelySocks: allSocks,
+          possibleSocks: [],
+          allUsernames,
+          userBlocks: this.blockData.userBlocks,
+          userLocks: this.blockData.userLocks,
+          userTags: this.blockData.userTags,
+          state: this.state
+        });
+        this.massAddUserRows(allRows);
+      }
     },
     template: `
     <div id="spiHelper-alternateView" class="spiHelper-mainCard" v-if="open">
@@ -5857,22 +6518,24 @@ ${comment}
         <div>
           <h4>Link</h4>
           <link-action :enabled="true" :case-name="targetCase"
-                       v-model="linkRows"
-                       @user-selected="handleLinkUsernameSelected" @username-changed="handleLinkUsernameChange"
+                       :accounts="accounts"
+                       @user-selected="handleUserSelected"
                        @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
         </div>
         <div>
           <h4>Block</h4>
           <block-action :enabled="true" :allow-fetch="false"
-                        v-model="blockData.accounts" v-model:block-options="blockData.options"
+                        :accounts="accounts" v-model:block-options="blockData.options"
                         :user-locks="blockData.userLocks" :user-blocks="blockData.userBlocks"
-                        @username-changed="handleBlockUsernameChange"
+                        :default-master="blockData.master"
+                        @user-selected="handleUserSelected"
                         @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
         </div>
       </div>
       <div v-if="caseLoaded">
-        <submit-form v-model:socks="blockData.accounts" v-model:master="blockData.master"
-                     v-model:altmaster="blockData.altmaster" v-model:lock-comment="blockData.lockcomment"
+        <submit-form :accounts="accounts"
+                     v-model:lock-comment="blockData.lockcomment" v-model:skipCUVerifyUsers="blockData.skipCUVerifyUsers"
+                     :block-options="blockData.options" :blocks="blockData.userBlocks"
                      :locks="blockData.userLocks" :state="state" :action-name="'alternateActions'"
                      :check-conflict="false" :all-disabled="false"
                      @on-submit="onSubmitActions" />
@@ -5888,211 +6551,15 @@ ${comment}
         </cdx-message>
       </div>
     </div>
-  `,
-    computed: {
-      mountPoint() {
-        return this.$el.parentElement;
-      },
-      pageName() {
-        return `Wikipedia:Sockpuppet investigations/${this.targetCase}`;
-      }
-    },
-    watch: {
-      unpinned(newVal) {
-        if (!this.mountPoint) {
-          console.error("AlternateView unpinned: Could not find mountPoint");
-          return;
-        }
-        if (newVal) {
-          this.mountPoint.classList.add("unpinned");
-        } else {
-          this.mountPoint.classList.remove("unpinned");
-        }
-        spiHelperSettings.interface.pinned = !newVal;
-      }
-    },
-    methods: {
-      handleBlockUsernameChange(newUsername, index) {
-        if (this.linkRows.length < index + 1) {
-          console.error("handleBlockUsernameChange: Index", index, "doesn't exist in table");
-          return;
-        }
-        this.linkRows[index].username = newUsername;
-      },
-      handleLinkUsernameChange(newUsername, index) {
-        if (this.blockData.accounts.length < index + 1) {
-          console.error("handleLinkUsernameChange: Index", index, "doesn't exist in table");
-          return;
-        }
-        this.blockData.accounts[index].username = newUsername;
-      },
-      handleLinkUsernameSelected(data, index) {
-        if (this.blockData.accounts.length < index + 1) {
-          console.error("handleLinkUsernameSelected: Index", index, "doesn't exist in table");
-          return;
-        }
-        HandleUserSelected(data, this.blockData.accounts[index]);
-      },
-      handleAddRow(row) {
-        row ??= getDefaultSockRow(this.state.archiveNotice);
-        this.blockData.accounts = [
-          ...this.blockData.accounts,
-          row
-        ];
-        this.linkRows = [
-          ...this.linkRows,
-          { ...DefaultLinkRow, username: row.username }
-        ];
-      },
-      handleRemoveRows(indexes) {
-        this.blockData.accounts = this.blockData.accounts.filter((_row, index) => !indexes.includes(index));
-        this.linkRows = this.linkRows.filter((_row, index) => !indexes.includes(index));
-      },
-      massAddSockRows(newRows) {
-        const sockRows = this.blockData.accounts;
-        const existingUsernames = new Set(sockRows.map((s) => s.username));
-        newRows.forEach((newRow) => {
-          if (!existingUsernames.has(newRow.username)) {
-            this.handleAddRow(newRow);
-          }
-        });
-      },
-      async loadCase(addRow) {
-        this.caseLoading = true;
-        setContext(this.pageName);
-        const archiveNoticeResult = await spiHelperParseArchiveNotice(this.pageName, this.state);
-        if (archiveNoticeResult === null) {
-          this.state.archiveNotice = new ParsedArchiveNotice({ username: this.targetCase });
-        } else {
-          this.state.archiveNotice = archiveNoticeResult;
-        }
-        if (addRow) {
-          const userBlock = await spiHelperGetUserBlockSettings(this.targetCase);
-          if (userBlock !== null) {
-            this.blockData.userBlocks.set(this.targetCase, userBlock);
-          }
-          const userPageText = await spiHelperGetPageText(`User:${this.targetCase}`, false);
-          const { row, isLocked } = await setSockRowBlock({
-            sock: generateSockRow(this.targetCase, this.state),
-            block: userBlock,
-            userPage: userPageText,
-            defaultBlock: true,
-            checkLock: false,
-            state: this.state
-          });
-          if (isLocked !== null) {
-            this.blockData.userLocks.set(this.targetCase, isLocked);
-          }
-          this.handleAddRow(row);
-        }
-        this.blockData.master = this.targetCase;
-        this.blockData.altmaster = this.targetCase;
-        this.caseLoading = false;
-        this.caseLoaded = true;
-      },
-      async onSubmitActions() {
-        if (isOpRunning("alternateActions")) {
-          return;
-        }
-        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "submit", type: "alternate" });
-        startOp("alternateActions");
-        this.actionsRunning = true;
-        let blockPromises = [];
-        let tagPromises = [];
-        let lockPromise = Promise.resolve([]);
-        ({ blockPromises, tagPromises, lockPromise } = await spiHelperHandleBlocks(this.blockData));
-        const userActionsPromise = Promise.all([
-          Promise.all(blockPromises),
-          Promise.all(tagPromises),
-          lockPromise
-        ]);
-        const [blockedUsers, taggedUsers, lockedUsers] = await userActionsPromise;
-        if (spiHelperSettings.log.enabled) {
-          const logMessage = `* [[:User:${context.userName}]]` + buildUserActionLogMessage({ blockedUsers, taggedUsers, lockedUsers });
-          await spiHelperLog(logMessage);
-        }
-        new VueMessage({ type: "success", content: "Done!" }).show();
-        finishOp("alternateActions", "success" /* Success */);
-        this.actionsRunning = false;
-      },
-      async initialiseCategoryView() {
-        if (this.defaultCase === "" || this.caseLoading || this.caseLoaded) {
-          return;
-        }
-        const [, suspectedMembers, confirmedMembers] = await Promise.all([
-          this.loadCase(false),
-          spiHelperGetCategoryMembers(`Category:Suspected Wikipedia sockpuppets of ${this.targetCase}`),
-          spiHelperGetCategoryMembers(`Category:Wikipedia sockpuppets of ${this.targetCase}`)
-        ]);
-        const BuildSockRow = (member, likely) => {
-          return { ...generateSockRow(member.replace("User:", ""), this.state), tag: likely ? "none" : "Ssuspected" };
-        };
-        const likelySocks = [...confirmedMembers, `User:${this.targetCase}`].map((member) => BuildSockRow(member, true));
-        const possibleSocks = suspectedMembers.map((member) => BuildSockRow(member, false));
-        const allUsernames = [...likelySocks, ...possibleSocks].map((sock) => sock.username);
-        const allRows = await prefetchSockRows({
-          likelySocks,
-          possibleSocks,
-          allUsernames,
-          userBlocks: this.blockData.userBlocks,
-          userLocks: this.blockData.userLocks,
-          userTags: this.blockData.userTags,
-          state: this.state
-        });
-        this.massAddSockRows(allRows);
-      }
-    },
-    mounted() {
-      if (!this.mountPoint) {
-        console.error("AlternateViewComponent mounted: Could not find mountPoint");
-        return;
-      }
-      if (this.unpinned) {
-        this.mountPoint.classList.add("unpinned");
-      } else {
-        this.mountPoint.classList.remove("unpinned");
-      }
-      this._beforeUnloadHandler = (e) => {
-        const opState = getOpState("alternateActions");
-        if (opState !== "success" /* Success */) {
-          e.preventDefault();
-        }
-      };
-      this._openHandler = () => {
-        this.open = !this.open;
-        if (this.open) {
-          mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "open", type: "alternate" });
-          if (this.categoryView) {
-            this.initialiseCategoryView();
-          }
-          if (this.defaultCase !== "" && !this.caseLoaded) {
-            this.initialiseCategoryView();
-          }
-        }
-        if (this._beforeUnloadHandler) {
-          if (this.open) {
-            window.addEventListener("beforeunload", this._beforeUnloadHandler);
-          } else {
-            window.removeEventListener("beforeunload", this._beforeUnloadHandler);
-          }
-        }
-      };
-      this.openButton.addEventListener("click", this._openHandler);
-    },
-    beforeUnmount() {
-      if (this._openHandler) {
-        this.openButton.removeEventListener("click", this._openHandler);
-      }
-      if (this._beforeUnloadHandler) {
-        window.removeEventListener("beforeunload", this._beforeUnloadHandler);
-      }
-    }
+  `
   });
   // src/spihelper.ts
   if (mw.config.get("wgPageName").includes("Wikipedia:Sockpuppet_investigations/") && !mw.config.get("wgPageName").includes("Wikipedia:Sockpuppet_investigations/SPI/")) {
     bootstrap("spi");
   } else if (mw.config.get("wgCanonicalSpecialPageName") === "CheckUser") {
     bootstrap("checkuser");
+  } else if (mw.config.get("wgCanonicalSpecialPageName") === "SuggestedInvestigations" && mw.config.get("wgPageName").includes("/detail/")) {
+    bootstrap("si");
   } else if (mw.config.get("wgNamespaceNumber") === 14 && ["Suspected Wikipedia sockpuppets", "Wikipedia sockpuppets"].some((cat) => mw.config.get("wgCategories").includes(cat))) {
     bootstrap("category");
   }
@@ -6136,15 +6603,16 @@ ${comment}
               state: caseState,
               feedbackDialog,
               openButton: initLink
-            }).component("cdx-tabs", Codex.CdxTabs).component("cdx-tab", Codex.CdxTab).component("cdx-select", Codex.CdxSelect).component("cdx-card", Codex.CdxCard).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-text-area", Codex.CdxTextArea).component("cdx-toggle-button", Codex.CdxToggleButton).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("cdx-button-group", Codex.CdxButtonGroup).component("cdx-button", Codex.CdxButton).component("cdx-icon", Codex.CdxIcon).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-lookup", Codex.CdxLookup).component("cdx-field", Codex.CdxField).component("cdx-message", Codex.CdxMessage).component("cdx-progress-bar", Codex.CdxProgressBar).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-accordion", Codex.CdxAccordion).component("cdx-label", Codex.CdxLabel).component("cdx-popover", Codex.CdxPopover).component("action-accordion", ActionAccordionComponent).component("action-button", ActionButtonComponent).component("action-container", ActionContainerComponent).component("action-content", ActionContentComponent).component("submit-form", SubmitFormComponent).component("comment-action", CommentActionComponent).component("change-status-action", ChangeStatusActionComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("management-action", ManagementActionComponent).component("archive-action", ArchiveActionComponent).component("move-action", MoveActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
+            }).component("cdx-tabs", Codex.CdxTabs).component("cdx-tab", Codex.CdxTab).component("cdx-select", Codex.CdxSelect).component("cdx-card", Codex.CdxCard).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-text-area", Codex.CdxTextArea).component("cdx-toggle-button", Codex.CdxToggleButton).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("cdx-button", Codex.CdxButton).component("cdx-button-group", Codex.CdxButtonGroup).component("cdx-icon", Codex.CdxIcon).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-lookup", Codex.CdxLookup).component("cdx-field", Codex.CdxField).component("cdx-message", Codex.CdxMessage).component("cdx-progress-bar", Codex.CdxProgressBar).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-accordion", Codex.CdxAccordion).component("cdx-label", Codex.CdxLabel).component("cdx-popover", Codex.CdxPopover).component("action-accordion", ActionAccordionComponent).component("action-button", ActionButtonComponent).component("action-container", ActionContainerComponent).component("action-content", ActionContentComponent).component("submit-form", SubmitFormComponent).component("comment-action", CommentActionComponent).component("change-status-action", ChangeStatusActionComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("management-action", ManagementActionComponent).component("archive-action", ArchiveActionComponent).component("move-action", MoveActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).component("tag-popover", TagPopoverComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
             break;
           }
           case "checkuser": {
             Vue.createMwApp(AlternateViewComponent, {
               state: caseState,
               feedbackDialog,
-              openButton: initLink
-            }).component("cdx-button", Codex.CdxButton).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-field", Codex.CdxField).component("cdx-icon", Codex.CdxIcon).component("cdx-label", Codex.CdxLabel).component("cdx-lookup", Codex.CdxLookup).component("cdx-message", Codex.CdxMessage).component("cdx-popover", Codex.CdxPopover).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-select", Codex.CdxSelect).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("submit-form", SubmitFormComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
+              openButton: initLink,
+              view: "checkuser"
+            }).component("cdx-button", Codex.CdxButton).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-field", Codex.CdxField).component("cdx-icon", Codex.CdxIcon).component("cdx-label", Codex.CdxLabel).component("cdx-lookup", Codex.CdxLookup).component("cdx-message", Codex.CdxMessage).component("cdx-popover", Codex.CdxPopover).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-select", Codex.CdxSelect).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("submit-form", SubmitFormComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).component("tag-popover", TagPopoverComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
             break;
           }
           case "category": {
@@ -6156,9 +6624,18 @@ ${comment}
               state: caseState,
               feedbackDialog,
               openButton: initLink,
-              categoryView: true,
+              view: "category",
               defaultCase: targetSock[1]
-            }).component("cdx-button", Codex.CdxButton).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-field", Codex.CdxField).component("cdx-icon", Codex.CdxIcon).component("cdx-label", Codex.CdxLabel).component("cdx-lookup", Codex.CdxLookup).component("cdx-message", Codex.CdxMessage).component("cdx-popover", Codex.CdxPopover).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-select", Codex.CdxSelect).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("submit-form", SubmitFormComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
+            }).component("cdx-button", Codex.CdxButton).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-field", Codex.CdxField).component("cdx-icon", Codex.CdxIcon).component("cdx-label", Codex.CdxLabel).component("cdx-lookup", Codex.CdxLookup).component("cdx-message", Codex.CdxMessage).component("cdx-popover", Codex.CdxPopover).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-select", Codex.CdxSelect).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("submit-form", SubmitFormComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).component("tag-popover", TagPopoverComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
+            break;
+          }
+          case "si": {
+            Vue.createMwApp(AlternateViewComponent, {
+              state: caseState,
+              feedbackDialog,
+              openButton: initLink,
+              view: "si"
+            }).component("cdx-button", Codex.CdxButton).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-field", Codex.CdxField).component("cdx-icon", Codex.CdxIcon).component("cdx-label", Codex.CdxLabel).component("cdx-lookup", Codex.CdxLookup).component("cdx-message", Codex.CdxMessage).component("cdx-popover", Codex.CdxPopover).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-select", Codex.CdxSelect).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("submit-form", SubmitFormComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).component("tag-popover", TagPopoverComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
             break;
           }
         }

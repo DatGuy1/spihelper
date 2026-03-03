@@ -1,5 +1,5 @@
 /* {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.css}} */
-/* v3.0.0-beta.3 "A Whole New World" */
+/* v3.1.0-beta.1 "B@IA" */
 /* src/spihelper.css */
 .spihelper-hovertext {
   text-decoration: underline dotted;
@@ -161,7 +161,7 @@
   margin-left: 4px;
 }
 
-.spiHelper-sockTable th.selectHeader {
+.spiHelper-sockTable th.tagHeader {
   width: 200px;
 }
 
@@ -216,12 +216,25 @@
   min-width: 150px;
 }
 
-.spiHelper-sockTable th.selectTagOptions {
-  font-weight: normal;
+.spiHelper-sockTable th.selectTagOptions button {
+  justify-content: flex-start;
+  width: 200px;
+  padding: 0 5px;
 }
 
 .spiHelper-sockTable .spihelper-expiry-input {
   min-width: 90px;
+}
+
+.spiHelper-sockTable button.userTag {
+  justify-content: flex-start;
+  width: 200px;
+  padding: 0 5px;
+  font-weight: normal;
+}
+
+button.userTag + button.userTag {
+  margin-top: 4px;
 }
 
 .spiHelper-sockTable.linkTable thead {
@@ -253,4 +266,27 @@
 
 #spiHelper-CaseLoader .cdx-text-input {
   max-width: 200px;
+}
+
+div.edit-tag-popover {
+  min-width: 310px;
+}
+
+div.edit-tag-popover .tag-category {
+  margin-bottom: 16px;
+}
+
+div.edit-tag-popover .edit-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+div.edit-tag-popover footer {
+  display: flex;
+  justify-content: space-between;
+}
+
+div.edit-tag-popover footer .cdx-popover__footer__actions {
+  gap: 0;
 }
