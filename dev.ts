@@ -1,6 +1,6 @@
 import { watch } from 'fs';
 import { resolve } from 'path';
-import { codename, version } from './package.json';
+import { version } from './package.json';
 import { VueImportPlugin } from './plugin.ts';
 
 async function build() {
@@ -14,11 +14,10 @@ async function build() {
     plugins: [VueImportPlugin],
     format: 'iife',
     define: {
-      __CODENAME__: JSON.stringify(codename),
       __VERSION__: JSON.stringify(version),
       __MODE__: '"live"',
     },
-    banner: `// v${version} "${codename}"`,
+    banner: `// v${version}`,
   });
 
   if (!result.success) {

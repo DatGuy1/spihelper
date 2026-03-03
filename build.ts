@@ -1,4 +1,4 @@
-import { codename, version } from './package.json';
+import { version } from './package.json';
 import { VueImportPlugin } from './plugin.ts';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -7,7 +7,7 @@ const branch = process.env.GITHUB_REF_NAME ?? 'develop'; // "main" or "develop"
 const buildRef = `refs/heads/build/${branch}`;
 const mode = branch === 'main' ? 'production' : 'dev';
 
-const versionBanner = `v${version} "${codename}"`;
+const versionBanner = `v${version}`;
 
 const usyncTemplateJs = `{{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=${buildRef}|path=spihelper.js}}`;
 await Bun.build({
@@ -19,7 +19,6 @@ await Bun.build({
   plugins: [VueImportPlugin],
   format: 'iife',
   define: {
-    __CODENAME__: JSON.stringify(codename),
     __VERSION__: JSON.stringify(version),
     __MODE__: `"${mode}"`,
   },
