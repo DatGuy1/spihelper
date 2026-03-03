@@ -126,7 +126,13 @@ export async function spiHelperTagUser(opts: {
   }
 
   const oldTags = parseUserTags(pageText);
-  if (tagArraysEqual(oldTags, sock.block.tags)) {
+  const uniqueTags = sock.block.tags.reduce<Tag[]>((acc, tag) => {
+    if (!acc.some(existing => existing.equals(tag))) {
+      acc.push(tag);
+    }
+    return acc;
+  }, []);
+  if (tagArraysEqual(oldTags, uniqueTags)) {
     const userLinkHtml = buildTitleLinkHtml(`User:${sock.username}`);
     new VueMessage({
       type: 'notice',
@@ -135,7 +141,7 @@ export async function spiHelperTagUser(opts: {
     }).show();
     return false;
   }
-  const tagText = sock.block.tags.map(tag => tag.generateWikitext()).join('\n');
+  const tagText = uniqueTags.map(tag => tag.generateWikitext()).join('\n');
   const newText = replaceSockTemplates(pageText, tagText);
 
   return spiHelperEditPage({
