@@ -6,6 +6,7 @@ export const ManagementActionComponent = defineComponent({
     enabled: { type: Boolean, required: true },
     flags: { type: Set as PropType<Set<ManagementFlag>>, required: true },
   },
+  emits: ['update:enabled', 'update:flags'],
   data() {
     const archiveNoticeFlags: { value: ManagementFlag; label: string }[] = [
       { value: 'crosswiki', label: 'Cross-wiki' },
@@ -17,12 +18,6 @@ export const ManagementActionComponent = defineComponent({
       archiveNoticeFlags: archiveNoticeFlags,
     };
   },
-  emits: ['update:enabled', 'update:flags'],
-  template: `
-    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
-      <cdx-toggle-button-group v-model="internalFlags" :buttons="archiveNoticeFlags"/>
-    </action-container>
-  `,
   computed: {
     internalFlags: {
       get() {
@@ -33,4 +28,9 @@ export const ManagementActionComponent = defineComponent({
       },
     },
   },
+  template: `
+    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
+      <cdx-toggle-button-group v-model="internalFlags" :buttons="archiveNoticeFlags"/>
+    </action-container>
+  `,
 });

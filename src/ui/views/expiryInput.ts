@@ -9,6 +9,7 @@ interface Data {
 }
 
 export const ExpiryInputComponent = defineComponent({
+  inheritAttrs: false,
   props: {
     modelValue: { type: String, required: false, default: '' },
     label: { type: String, required: false },
@@ -16,7 +17,6 @@ export const ExpiryInputComponent = defineComponent({
     shortened: { type: Boolean, default: false },
     autoDismiss: { type: Boolean, default: false },
   },
-  inheritAttrs: false,
   emits: ['update:touched'],
   data(): Data {
     return {
@@ -66,15 +66,15 @@ export const ExpiryInputComponent = defineComponent({
       this.$emit('update:touched', newValue);
     },
   },
+  beforeUnmount() {
+    if (this.successTimeout) {
+      clearTimeout(this.successTimeout);
+    }
+  },
   template: `
     <cdx-field :status="status" :messages="messages" class="spihelper-expiry-input" :hide-label="!label">
       <template #label>{{ label }}</template>
       <cdx-text-input v-model="modelValue" v-bind="$attrs" />
     </cdx-field>
   `,
-  beforeUnmount() {
-    if (this.successTimeout) {
-      clearTimeout(this.successTimeout);
-    }
-  },
 });

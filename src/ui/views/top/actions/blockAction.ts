@@ -21,6 +21,7 @@ export const BlockActionComponent = defineComponent({
     allowFetch: { type: Boolean, default: true },
     enabled: { type: Boolean, required: true },
   },
+  emits: ['update:enabled', 'update:modelValue', 'update:blockOptions', 'removeRows', 'addRow', 'userSelected', 'usernameChanged', 'fetchRows'],
   data() {
     const columns = [
       { id: 'username', label: 'Username' },
@@ -75,7 +76,157 @@ export const BlockActionComponent = defineComponent({
       cdxIconUserAvatarOutline,
     };
   },
-  emits: ['update:enabled', 'update:modelValue', 'update:blockOptions', 'removeRows', 'addRow', 'userSelected', 'usernameChanged', 'fetchRows'],
+  computed: {
+    selectAll(): boolean {
+      return this.selectedRows.length === this.accounts.length;
+    },
+    selectAllIndeterminate(): boolean {
+      if (this.selectedRows.length === this.accounts.length) {
+        return false;
+      }
+      else return this.selectedRows.length !== 0;
+    },
+    selectedRowIDs(): string[] {
+      return this.selectedRows
+        .map(index => this.accounts[index]?.id)
+        .filter((id): id is string => !!id);
+    },
+  },
+  methods: {
+    isNonRegisteredAccount,
+    isSockmasterTag,
+    async copySocks() {
+      if (this.selectedRows.length === 0) {
+        return;
+      }
+      let text = '{{sock list';
+      let i = 0;
+      this.selectedRows.forEach((row) => {
+        const rowData = this.accounts[row];
+        if (!rowData) return;
+        text += `|${++i}=${rowData.username}`;
+      });
+      text += '}}';
+      await navigator.clipboard.writeText(text);
+      this.topButtonActions.copied = true;
+    },
+    onMessageDismissed(actionType: 'copied' | 'fetched') {
+      // I feel like this is bad practice. Why doesn't Codex expose onFadedOut?
+      setTimeout(() => {
+        this.topButtonActions[actionType] = false;
+      }, 200);
+    },
+    removeSocks() {
+      this.$emit('removeRows', this.selectedRowIDs);
+      this.selectedRows = [];
+    },
+    addDefaultRow() {
+      this.$emit('addRow');
+    },
+    // Taken from https://github.com/wikimedia/design-codex/blob/main/packages/codex/src/components/table/Table.vue
+    /**
+     * Handle "select all" changes.
+     *
+     * @param newValue Whether the "select all" box is checked.
+     */
+    handleSelectAll(newValue: boolean) {
+      // Always remove indeterminate status.
+      this.selectAllIndeterminate = false;
+
+      if (newValue) {
+        this.selectedRows = [...this.accounts.keys()];
+      }
+      else {
+        this.selectedRows = [];
+      }
+    },
+    handleUserSelected(data: AllUser, row: UserRow) {
+      this.$emit('userSelected', data, row.id);
+    },
+    setAllBlockFields<K extends keyof BlockRowData>(key: K, value: BlockRowData[K]) {
+      for (const row of this.accounts) {
+        if (key === 'lock' && this.userLocks.get(row.username) === true) {
+          continue;
+        }
+        else if (key === 'block' && this.userBlocks.get(row.username) !== undefined) {
+          continue;
+        }
+        else if (key === 'acb' && this.userBlocks.get(row.username)?.acb) {
+          continue;
+        }
+        else if (key === 'abao' && this.userBlocks.get(row.username)?.abao) {
+          continue;
+        }
+        else if (key === 'ntp' && this.userBlocks.get(row.username)?.ntp) {
+          continue;
+        }
+        else if (key === 'nem' && this.userBlocks.get(row.username)?.nem) {
+          continue;
+        }
+        row.block[key] = value;
+      }
+    },
+    setAllTags(tag: Tag) {
+      for (const row of this.accounts) {
+        row.block.tags = [tag.clone()];
+      }
+    },
+    fetchSocks() {
+      this.topButtonActions.fetched = true;
+      this.$emit('fetchRows');
+    },
+    showTagPopover(
+      tag: Tag | null,
+      tagIndex: number,
+      rowId: string,
+      $event: MouseEvent,
+    ) {
+      this.popovers.row.tag = tag;
+      this.popovers.row.tagIndex = tagIndex;
+      this.popovers.row.rowId = rowId;
+      this.popovers.row.anchor = $event.currentTarget as HTMLElement;
+      this.popovers.row.open = true;
+    },
+    handleTagUpdate(updatedTag: Tag) {
+      const targetRow = this.accounts.find(row => row.id === this.popovers.row.rowId);
+      if (!targetRow) {
+        console.error('Could not find target row for tag update', this.popovers.row.rowId);
+        return;
+      }
+      targetRow.block.tags.splice(this.popovers.row.tagIndex, 1, updatedTag);
+    },
+    handleTagDelete() {
+      const targetRow = this.accounts.find(row => row.id === this.popovers.row.rowId);
+      if (!targetRow) {
+        console.error('Could not find target row for tag delete', this.popovers.row.rowId);
+        return;
+      }
+      targetRow.block.tags.splice(this.popovers.row.tagIndex, 1);
+    },
+    handleTagAdd(rowId: string): Tag | null {
+      const targetRow = this.accounts.find(row => row.id === rowId);
+      if (!targetRow) {
+        console.error('Could not find target row for tag add', rowId);
+        return null;
+      }
+      const newTag = new SockpuppetTag({ master: this.defaultMaster, status: 'blocked' });
+      targetRow.block.tags.push(newTag);
+      return newTag;
+    },
+    getRowTagsWithDefault(tags: Tag[]): (Tag | null)[] {
+      if (tags.length === 0) {
+        return [null];
+      }
+      else {
+        return tags;
+      }
+    },
+    handleTagAddAll() {
+      for (const row of this.accounts) {
+        row.block.tags.push(new SockpuppetTag({ master: this.defaultMaster, status: 'blocked' }));
+      }
+    },
+  },
   template: `
     <!--suppress VueUnrecognizedDirective, VueUnrecognizedSlot -->
     <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
@@ -300,155 +451,4 @@ export const BlockActionComponent = defineComponent({
                    @deleteTag="handleTagDelete" @addTag="handleTagAdd(popovers.row.rowId)" @copyTag="popovers.clipboardTag = $event" />
     </action-container>
   `,
-  computed: {
-    selectAll(): boolean {
-      return this.selectedRows.length === this.accounts.length;
-    },
-    selectAllIndeterminate(): boolean {
-      if (this.selectedRows.length === this.accounts.length) {
-        return false;
-      }
-      else return this.selectedRows.length !== 0;
-    },
-    selectedRowIDs(): string[] {
-      return this.selectedRows
-        .map(index => this.accounts[index]?.id)
-        .filter((id): id is string => !!id);
-    },
-  },
-  methods: {
-    isNonRegisteredAccount,
-    isSockmasterTag,
-    async copySocks() {
-      if (this.selectedRows.length === 0) {
-        return;
-      }
-      let text = '{{sock list';
-      let i = 0;
-      this.selectedRows.forEach((row) => {
-        const rowData = this.accounts[row];
-        if (!rowData) return;
-        text += `|${++i}=${rowData.username}`;
-      });
-      text += '}}';
-      await navigator.clipboard.writeText(text);
-      this.topButtonActions.copied = true;
-    },
-    onMessageDismissed(actionType: 'copied' | 'fetched') {
-      // I feel like this is bad practice. Why doesn't Codex expose onFadedOut?
-      setTimeout(() => {
-        this.topButtonActions[actionType] = false;
-      }, 200);
-    },
-    removeSocks() {
-      this.$emit('removeRows', this.selectedRowIDs);
-      this.selectedRows = [];
-    },
-    addDefaultRow() {
-      this.$emit('addRow');
-    },
-    // Taken from https://github.com/wikimedia/design-codex/blob/main/packages/codex/src/components/table/Table.vue
-    /**
-     * Handle "select all" changes.
-     *
-     * @param newValue Whether the "select all" box is checked.
-     */
-    handleSelectAll(newValue: boolean) {
-      // Always remove indeterminate status.
-      this.selectAllIndeterminate = false;
-
-      if (newValue) {
-        this.selectedRows = [...this.accounts.keys()];
-      }
-      else {
-        this.selectedRows = [];
-      }
-    },
-    handleUserSelected(data: AllUser, row: UserRow) {
-      this.$emit('userSelected', data, row.id);
-    },
-    setAllBlockFields<K extends keyof BlockRowData>(key: K, value: BlockRowData[K]) {
-      for (const row of this.accounts) {
-        if (key === 'lock' && this.userLocks.get(row.username) === true) {
-          continue;
-        }
-        else if (key === 'block' && this.userBlocks.get(row.username) !== undefined) {
-          continue;
-        }
-        else if (key === 'acb' && this.userBlocks.get(row.username)?.acb) {
-          continue;
-        }
-        else if (key === 'abao' && this.userBlocks.get(row.username)?.abao) {
-          continue;
-        }
-        else if (key === 'ntp' && this.userBlocks.get(row.username)?.ntp) {
-          continue;
-        }
-        else if (key === 'nem' && this.userBlocks.get(row.username)?.nem) {
-          continue;
-        }
-        row.block[key] = value;
-      }
-    },
-    setAllTags(tag: Tag) {
-      for (const row of this.accounts) {
-        row.block.tags = [tag.clone()];
-      }
-    },
-    fetchSocks() {
-      this.topButtonActions.fetched = true;
-      this.$emit('fetchRows');
-    },
-    showTagPopover(
-      tag: Tag | null,
-      tagIndex: number,
-      rowId: string,
-      $event: MouseEvent,
-    ) {
-      this.popovers.row.tag = tag;
-      this.popovers.row.tagIndex = tagIndex;
-      this.popovers.row.rowId = rowId;
-      this.popovers.row.anchor = $event.currentTarget as HTMLElement;
-      this.popovers.row.open = true;
-    },
-    handleTagUpdate(updatedTag: Tag) {
-      const targetRow = this.accounts.find(row => row.id === this.popovers.row.rowId);
-      if (!targetRow) {
-        console.error('Could not find target row for tag update', this.popovers.row.rowId);
-        return;
-      }
-      targetRow.block.tags.splice(this.popovers.row.tagIndex, 1, updatedTag);
-    },
-    handleTagDelete() {
-      const targetRow = this.accounts.find(row => row.id === this.popovers.row.rowId);
-      if (!targetRow) {
-        console.error('Could not find target row for tag delete', this.popovers.row.rowId);
-        return;
-      }
-      targetRow.block.tags.splice(this.popovers.row.tagIndex, 1);
-    },
-    handleTagAdd(rowId: string): Tag | null {
-      const targetRow = this.accounts.find(row => row.id === rowId);
-      if (!targetRow) {
-        console.error('Could not find target row for tag add', rowId);
-        return null;
-      }
-      const newTag = new SockpuppetTag({ master: this.defaultMaster, status: 'blocked' });
-      targetRow.block.tags.push(newTag);
-      return newTag;
-    },
-    getRowTagsWithDefault(tags: Tag[]): (Tag | null)[] {
-      if (tags.length === 0) {
-        return [null];
-      }
-      else {
-        return tags;
-      }
-    },
-    handleTagAddAll() {
-      for (const row of this.accounts) {
-        row.block.tags.push(new SockpuppetTag({ master: this.defaultMaster, status: 'blocked' }));
-      }
-    },
-  },
 });

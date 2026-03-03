@@ -25,6 +25,11 @@ export const ActionContentComponent = defineComponent({
     'add-row',
     'fetch-rows',
   ],
+  computed: {
+    caseName(): string {
+      return context.caseName;
+    },
+  },
   methods: {
     handleUpdateSectionSelection(selection: number | 'all' | null) {
       this.$emit('update-section-selection', selection);
@@ -43,11 +48,6 @@ export const ActionContentComponent = defineComponent({
     },
     handleFetchRows() {
       this.$emit('fetch-rows');
-    },
-  },
-  computed: {
-    caseName(): string {
-      return context.caseName;
     },
   },
   template: `

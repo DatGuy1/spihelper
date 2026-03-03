@@ -42,34 +42,19 @@ export const PageLookupComponent = defineComponent({
       menuConfig,
     };
   },
-  template: `
-    <cdx-field :status="lookupStatus" :messages="messages" :hide-label="!label">
-      <template v-if="label" #label>
-        {{ label }}
-      </template>
-      <cdx-lookup
-          v-if="useLookup"
-          v-model:selected="selection"
-          v-model:input-value="pagename"
-          :menu-items="pageSuggestions"
-          :menu-config="menuConfig"
-          :placeholder="placeholder"
-          @update:input-value="onUpdateInputValue"
-          @load-more="onLoadMore"
-          @focus="onLoadMore"
-          @update:selected="onSelection"
-          @blur="validateInstantly"
-          @keydown.enter="validateInstantly"
-          @clear="validateInstantly"
-          clearable
-      >
-        <template #no-results>
-          No pages found
-        </template>
-      </cdx-lookup>
-      <cdx-text-input v-else v-model="pagename" :placeholder="placeholder" clearable />
-    </cdx-field>
-  `,
+  computed: {
+    pagename: {
+      get() {
+        return this.modelValue;
+      },
+      set(value: string) {
+        this.$emit('update:modelValue', value);
+      },
+    },
+    fullPagename() {
+      return `${this.prefix}${this.pagename}`;
+    },
+  },
   methods: {
     async onUpdateInputValue(value: string) {
       this.menuConfig.searchQuery = value;
@@ -150,17 +135,32 @@ export const PageLookupComponent = defineComponent({
       return fullTitle.split(this.prefix)[1] ?? fullTitle;
     },
   },
-  computed: {
-    pagename: {
-      get() {
-        return this.modelValue;
-      },
-      set(value: string) {
-        this.$emit('update:modelValue', value);
-      },
-    },
-    fullPagename() {
-      return `${this.prefix}${this.pagename}`;
-    },
-  },
+  template: `
+    <cdx-field :status="lookupStatus" :messages="messages" :hide-label="!label">
+      <template v-if="label" #label>
+        {{ label }}
+      </template>
+      <cdx-lookup
+          v-if="useLookup"
+          v-model:selected="selection"
+          v-model:input-value="pagename"
+          :menu-items="pageSuggestions"
+          :menu-config="menuConfig"
+          :placeholder="placeholder"
+          @update:input-value="onUpdateInputValue"
+          @load-more="onLoadMore"
+          @focus="onLoadMore"
+          @update:selected="onSelection"
+          @blur="validateInstantly"
+          @keydown.enter="validateInstantly"
+          @clear="validateInstantly"
+          clearable
+      >
+        <template #no-results>
+          No pages found
+        </template>
+      </cdx-lookup>
+      <cdx-text-input v-else v-model="pagename" :placeholder="placeholder" clearable />
+    </cdx-field>
+  `,
 });

@@ -1,6 +1,7 @@
 import eslint from '@eslint/js';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
+import eslintPluginVue from 'eslint-plugin-vue';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import stylistic from '@stylistic/eslint-plugin';
 
@@ -12,6 +13,7 @@ export default defineConfig([
       eslint.configs.recommended,
       tseslint.configs.strictTypeChecked,
       tseslint.configs.stylisticTypeChecked,
+      eslintPluginVue.configs['flat/recommended'],
     ],
     languageOptions: {
       parserOptions: {

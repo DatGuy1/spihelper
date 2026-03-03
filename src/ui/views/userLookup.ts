@@ -69,35 +69,16 @@ export const UserLookupComponent = defineComponent({
       useLookup: spiHelperSettings.useLookup,
     };
   },
-  template: `
-    <cdx-field :status="lookupStatus" :messages="messages" :hide-label="!label">
-      <cdx-lookup
-          v-if="useLookup"
-          v-model:selected="selection"
-          v-model:input-value="username"
-          :menu-items="userSuggestions"
-          :menu-config="menuConfig"
-          placeholder="Sock"
-          @update:input-value="onUpdateInputValue"
-          @load-more="onLoadMore"
-          @focus="onLoadMore"
-          @update:selected="onSelection"
-          @blur="validateInstantly"
-          @keydown.enter="validateInstantly"
-          @clear="validateInstantly"
-          clearable
-          class="user-lookup"
-      >
-        <template #no-results>
-          No users found
-        </template>
-      </cdx-lookup>
-      <cdx-text-input v-else v-model="username" placeholder="Sock" clearable class="user-lookup" />
-      <template v-if="label" #label>
-        {{ label }}
-      </template>
-    </cdx-field>
-  `,
+  computed: {
+    username: {
+      get() {
+        return this.modelValue;
+      },
+      set(value: string) {
+        this.$emit('update:modelValue', value);
+      },
+    },
+  },
   methods: {
     onUpdateInputValue(value: string) {
       this.menuConfig.searchQuery = value;
@@ -180,14 +161,33 @@ export const UserLookupComponent = defineComponent({
       }
     },
   },
-  computed: {
-    username: {
-      get() {
-        return this.modelValue;
-      },
-      set(value: string) {
-        this.$emit('update:modelValue', value);
-      },
-    },
-  },
+  template: `
+    <cdx-field :status="lookupStatus" :messages="messages" :hide-label="!label">
+      <cdx-lookup
+          v-if="useLookup"
+          v-model:selected="selection"
+          v-model:input-value="username"
+          :menu-items="userSuggestions"
+          :menu-config="menuConfig"
+          placeholder="Sock"
+          @update:input-value="onUpdateInputValue"
+          @load-more="onLoadMore"
+          @focus="onLoadMore"
+          @update:selected="onSelection"
+          @blur="validateInstantly"
+          @keydown.enter="validateInstantly"
+          @clear="validateInstantly"
+          clearable
+          class="user-lookup"
+      >
+        <template #no-results>
+          No users found
+        </template>
+      </cdx-lookup>
+      <cdx-text-input v-else v-model="username" placeholder="Sock" clearable class="user-lookup" />
+      <template v-if="label" #label>
+        {{ label }}
+      </template>
+    </cdx-field>
+  `,
 });

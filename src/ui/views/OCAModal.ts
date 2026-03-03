@@ -23,19 +23,6 @@ export const OneClickArchivalComponent = defineComponent({
       messages,
     };
   },
-  template: `
-    <cdx-dialog v-model:open="open" title="One Click Archival">
-      <cdx-progress-bar v-if="archiving" aria-label="Archival in progress" />
-      <div style="margin-top: 12px;">
-        <cdx-message v-for="(message, index) in messages" :key="index" :type="message.type">
-          <span v-if="message.isHtml" v-html="message.content" />
-          <span v-else>
-            {{ message.content }}
-          </span>
-        </cdx-message>
-      </div>
-    </cdx-dialog>
-  `,
   mounted() {
     this._activateHandler = () => {
       // Clear any messages we have in-place to maintain reactivity
@@ -55,4 +42,17 @@ export const OneClickArchivalComponent = defineComponent({
       this.activateButton.removeEventListener('click', this._activateHandler);
     }
   },
+  template: `
+    <cdx-dialog v-model:open="open" title="One Click Archival">
+      <cdx-progress-bar v-if="archiving" aria-label="Archival in progress" />
+      <div style="margin-top: 12px;">
+        <cdx-message v-for="(message, index) in messages" :key="index" :type="message.type">
+          <span v-if="message.isHtml" v-html="message.content" />
+          <span v-else>
+            {{ message.content }}
+          </span>
+        </cdx-message>
+      </div>
+    </cdx-dialog>
+  `,
 });

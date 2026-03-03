@@ -12,6 +12,7 @@ export const CommentActionComponent = defineComponent({
     enabled: { type: Boolean, required: true },
     text: { type: String, required: true },
   },
+  emits: ['update:enabled', 'update:text'],
   data() {
     const noteTemplates: MenuItemData[] = [
       { value: 'takenote', label: 'Note' },
@@ -38,26 +39,6 @@ export const CommentActionComponent = defineComponent({
       cdxIconReload,
     };
   },
-  emits: ['update:enabled', 'update:text'],
-  template: `
-    <action-container v-model:enabled="enabled" @update:enabled="onEnable">
-      <div>
-        <cdx-select :menu-items="noteTemplates" default-label="Comment templates" @update:selected="insertNote" />
-        <cdx-select :menu-items="clerkTemplates" default-label="Admin/clerk templates" @update:selected="insertText" />
-        <cdx-select :menu-items="cuTemplates" default-label="CheckUser templates" @update:selected="insertText" />
-      </div>
-      <cdx-text-area ref="commentBox" :autosize="true" placeholder="Write your comment" :model-value="text"
-                     @update:model-value="onTextUpdate" />
-      <div id="spiHelper-PreviewBox" class="cdx-card" style="min-height:26px">
-        <cdx-button aria-label="Load preview" @click="updatePreview" weight="primary" action="progressive"
-                    :disabled="loadingPreview">
-          <cdx-progress-indicator v-if="loadingPreview">Loading preview</cdx-progress-indicator>
-          <cdx-icon v-else :icon="cdxIconReload" />
-        </cdx-button>
-        <div v-html="htmlPreview" id="htmlPreview" />
-      </div>
-    </action-container>
-  `,
   computed: {
     commentBox(): InstanceType<typeof CdxTextArea> {
       return this.$refs.commentBox as InstanceType<typeof CdxTextArea>;
@@ -120,4 +101,23 @@ export const CommentActionComponent = defineComponent({
       this.commentBox.focus();
     },
   },
+  template: `
+    <action-container v-model:enabled="enabled" @update:enabled="onEnable">
+      <div>
+        <cdx-select :menu-items="noteTemplates" default-label="Comment templates" @update:selected="insertNote" />
+        <cdx-select :menu-items="clerkTemplates" default-label="Admin/clerk templates" @update:selected="insertText" />
+        <cdx-select :menu-items="cuTemplates" default-label="CheckUser templates" @update:selected="insertText" />
+      </div>
+      <cdx-text-area ref="commentBox" :autosize="true" placeholder="Write your comment" :model-value="text"
+                     @update:model-value="onTextUpdate" />
+      <div id="spiHelper-PreviewBox" class="cdx-card" style="min-height:26px">
+        <cdx-button aria-label="Load preview" @click="updatePreview" weight="primary" action="progressive"
+                    :disabled="loadingPreview">
+          <cdx-progress-indicator v-if="loadingPreview">Loading preview</cdx-progress-indicator>
+          <cdx-icon v-else :icon="cdxIconReload" />
+        </cdx-button>
+        <div v-html="htmlPreview" id="htmlPreview" />
+      </div>
+    </action-container>
+  `,
 });

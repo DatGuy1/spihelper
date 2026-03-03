@@ -108,6 +108,73 @@ export const OptionsComponent = defineComponent({
       },
     },
   },
+  watch: {
+    open(newVal: boolean) {
+      if (newVal) {
+        if (!this.showExtra && this._showExtraHandler) {
+          window.addEventListener('keydown', this._showExtraHandler);
+        }
+      }
+      else {
+        void saveOptions();
+        if (this._showExtraHandler) {
+          window.removeEventListener('keydown', this._showExtraHandler);
+        }
+      }
+    },
+  },
+  mounted() {
+    this._openHandler = () => {
+      this.open = true;
+      mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'options' });
+    };
+    this.openButton.addEventListener('click', this._openHandler);
+
+    // https://discord.com/channels/1373700739951624272/1447651346508415110/1447681331634110575
+    // "SPIhelper won't let you do merges until you learn how to merge.
+    // if you figure out how to make SPIhelper let you merge,
+    // you are allowed to merge." -asilvering
+    //! Use the Konami code to unlock section moves
+    const konami = [
+      'ArrowUp', 'ArrowUp',
+      'ArrowDown', 'ArrowDown',
+      'ArrowLeft', 'ArrowRight',
+      'ArrowLeft', 'ArrowRight',
+    ];
+    let i = 0;
+
+    this._showExtraHandler = (e: KeyboardEvent) => {
+      if (e.key === konami[i]) {
+        i++;
+        if (i === konami.length) {
+          this.showExtra = true;
+          this.showExtraMessage = true;
+          if (this._showExtraHandler) {
+            window.removeEventListener('keydown', this._showExtraHandler);
+          }
+          i = 0;
+        }
+      }
+      else {
+        i = 0;
+      }
+    };
+  },
+  beforeUnmount() {
+    if (this._openHandler) {
+      this.openButton.removeEventListener('click', this._openHandler);
+    }
+  },
+  methods: {
+    loadDefaults() {
+      // Create a deep copy and replace the reactive reference
+      this.spiHelperSettings
+        = JSON.parse(JSON.stringify(spiHelperDefaultSettings)) as ScriptSettings;
+      // Also update the global
+      Object.assign(spiHelperSettings, spiHelperDefaultSettings);
+      this.resetTrigger++;
+    },
+  },
   template: `
     <cdx-dialog v-model:open="open" title="spiHelper Options" id="spiHelper-opts-dialog" close-button-label="Close">
       <template #header>
@@ -247,71 +314,4 @@ export const OptionsComponent = defineComponent({
       </div>
     </cdx-dialog>
   `,
-  methods: {
-    loadDefaults() {
-      // Create a deep copy and replace the reactive reference
-      this.spiHelperSettings
-        = JSON.parse(JSON.stringify(spiHelperDefaultSettings)) as ScriptSettings;
-      // Also update the global
-      Object.assign(spiHelperSettings, spiHelperDefaultSettings);
-      this.resetTrigger++;
-    },
-  },
-  watch: {
-    open(newVal: boolean) {
-      if (newVal) {
-        if (!this.showExtra && this._showExtraHandler) {
-          window.addEventListener('keydown', this._showExtraHandler);
-        }
-      }
-      else {
-        void saveOptions();
-        if (this._showExtraHandler) {
-          window.removeEventListener('keydown', this._showExtraHandler);
-        }
-      }
-    },
-  },
-  mounted() {
-    this._openHandler = () => {
-      this.open = true;
-      mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'options' });
-    };
-    this.openButton.addEventListener('click', this._openHandler);
-
-    // https://discord.com/channels/1373700739951624272/1447651346508415110/1447681331634110575
-    // "SPIhelper won't let you do merges until you learn how to merge.
-    // if you figure out how to make SPIhelper let you merge,
-    // you are allowed to merge." -asilvering
-    //! Use the Konami code to unlock section moves
-    const konami = [
-      'ArrowUp', 'ArrowUp',
-      'ArrowDown', 'ArrowDown',
-      'ArrowLeft', 'ArrowRight',
-      'ArrowLeft', 'ArrowRight',
-    ];
-    let i = 0;
-
-    this._showExtraHandler = (e: KeyboardEvent) => {
-      if (e.key === konami[i]) {
-        i++;
-        if (i === konami.length) {
-          this.showExtra = true;
-          this.showExtraMessage = true;
-          if (this._showExtraHandler) {
-            window.removeEventListener('keydown', this._showExtraHandler);
-          }
-          i = 0;
-        }
-      }
-      else {
-        i = 0;
-      }
-    };
-  },
-  beforeUnmount() {
-    if (this._openHandler) {
-      this.openButton.removeEventListener('click', this._openHandler);
-    }
-  },
 });

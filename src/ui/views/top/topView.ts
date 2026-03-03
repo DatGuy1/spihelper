@@ -130,105 +130,6 @@ export const TopViewComponent = defineComponent({
       return (this.$el as HTMLElement).parentElement;
     },
   },
-  template: `
-    <div id="spiHelper-topView" class="spiHelper-mainCard" v-if="open">
-      <div id="spiHelper-topView-Header" class="spiHelper-mainCard-Header">
-        <div class="header-buttons">
-          <cdx-button aria-label="Give feedback" weight="quiet" @click="feedbackDialog.launch()">
-            <cdx-icon :icon="cdxIconFeedback" />
-          </cdx-button>
-          <cdx-button aria-label="Toggle layout" weight="quiet" @click="toggleButtonLayout">
-            <cdx-icon :icon="buttonLayout ? cdxIconExpand : cdxIconCollapse" />
-          </cdx-button>
-          <cdx-button :action="unpinned ? 'default': 'progressive'" aria-label="Toggle pin"
-                      weight="quiet" @click="unpinned = !unpinned">
-            <cdx-icon :icon="cdxIconPushPin" />
-          </cdx-button>
-        </div>
-      </div>
-      <div id="spiHelper-topView-Action" v-if="buttonLayout">
-        <div id="buttonRow">
-          <action-button
-              v-for="[name, button] of Object.entries(actionButtons)"
-              :key="name"
-              :name="name"
-              :label="button.label"
-              :selection-type="button.selectionType"
-              :selection="caseActions.sections.data.section"
-              :displayedForms="displayedForms"
-              :actionEnabled="caseActions[name].enabled"
-              @click="onActionClick($event, name)"
-          />
-        </div>
-        <div id="contentRow">
-          <div v-for="name of actionButtonKeys"
-               :key="name"
-               :class="{ 'is-visible': isVisible(name) }">
-            <action-content
-                :name="name"
-                :case-actions="caseActions"
-                :accounts="accounts"
-                :state="state"
-                :menu-items="menuItems"
-                :current-status="currentStatus"
-                @update-section-selection="onUpdateSectionSelection"
-                @update-status="onUpdateNewStatus"
-                @user-selected="handleUserSelected"
-                @remove-rows="handleRemoveRows"
-                @add-row="handleAddRow"
-                @fetch-rows="handleFetchRows"
-            />
-          </div>
-        </div>
-      </div>
-      <div id="spiHelper-topView-Accordion" v-else>
-        <action-accordion
-            v-for="[name, button] of Object.entries(actionButtons)"
-            :key="name"
-            :name="name"
-            :label="button.label"
-            :selection-type="button.selectionType"
-            :selection="caseActions.sections.data.section"
-            :displayedForms="displayedForms"
-            :actionEnabled="caseActions[name].enabled"
-            @action-toggled="onAccordionToggle(name)"
-        >
-          <action-content
-              :name="name"
-              :case-actions="caseActions"
-              :accounts="accounts"
-              :state="state"
-              :menu-items="menuItems"
-              :current-status="currentStatus"
-              @update-section-selection="onUpdateSectionSelection"
-              @update-status="onUpdateNewStatus"
-              @user-selected="handleUserSelected"
-              @remove-rows="handleRemoveRows"
-              @add-row="handleAddRow"
-              @fetch-rows="handleFetchRows"
-          />
-        </action-accordion>
-      </div>
-      <submit-form v-if="caseActions.sections.data.section !== null" :accounts="accounts"
-                   v-model:master="caseActions.block.data.master" v-model:altmaster="caseActions.block.data.altmaster"
-                   v-model:lock-comment="caseActions.block.data.lockcomment"
-                   v-model:skipCUVerifyUsers="caseActions.block.data.skipCUVerifyUsers"
-                   :block-options="caseActions.block.data.options"
-                   :locks="caseActions.block.data.userLocks" :blocks="caseActions.block.data.userBlocks"
-                   :all-disabled="allDisabled" :state="state" :action-name="'mainActions'" :check-conflict="true"
-                   @on-submit="onSubmitActions" />
-      <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
-      <div id="messageRow">
-        <cdx-message v-for="(message, index) in messages" :key="index" :type="message.type" :fade-in="true"
-                     :allow-user-dismiss="true">
-          <span v-if="message.isHtml" v-html="message.content" />
-          <span v-else>
-            {{ message.content }}
-          </span>
-        </cdx-message>
-      </div>
-    </div>
-  `,
   watch: {
     unpinned(newVal) {
       if (!this.mountPoint) {
@@ -280,6 +181,51 @@ export const TopViewComponent = defineComponent({
         caseAction.enabled = spiHelperSettings.defaultActions.includes(caseAN);
       }
     },
+  },
+  mounted() {
+    // Access the parent mount element
+    if (!this.mountPoint) {
+      console.error('TopViewComponent mounted: Could not find mountPoint');
+      return;
+    }
+    if (this.unpinned) {
+      this.mountPoint.classList.add('unpinned');
+    }
+    else {
+      this.mountPoint.classList.remove('unpinned');
+    }
+
+    this._beforeUnloadHandler = (e) => {
+      const opState = getOpState('mainActions');
+      // If we have actions enabled, and we haven't run (undefined), warn the user
+      if (!this.allDisabled && opState !== OpState.Success) {
+        e.preventDefault();
+      }
+    };
+
+    this._openHandler = () => {
+      this.open = !this.open;
+      if (this.open) {
+        mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'open', type: 'top' });
+      }
+      if (this._beforeUnloadHandler) {
+        if (this.open) {
+          window.addEventListener('beforeunload', this._beforeUnloadHandler);
+        }
+        else {
+          window.removeEventListener('beforeunload', this._beforeUnloadHandler);
+        }
+      }
+    };
+    this.openButton.addEventListener('click', this._openHandler);
+  },
+  beforeUnmount() {
+    if (this._openHandler) {
+      this.openButton.removeEventListener('click', this._openHandler);
+    }
+    if (this._beforeUnloadHandler) {
+      window.removeEventListener('beforeunload', this._beforeUnloadHandler);
+    }
   },
   methods: {
     toggleButtonLayout() {
@@ -479,49 +425,103 @@ export const TopViewComponent = defineComponent({
       }
     },
   },
-  mounted() {
-    // Access the parent mount element
-    if (!this.mountPoint) {
-      console.error('TopViewComponent mounted: Could not find mountPoint');
-      return;
-    }
-    if (this.unpinned) {
-      this.mountPoint.classList.add('unpinned');
-    }
-    else {
-      this.mountPoint.classList.remove('unpinned');
-    }
-
-    this._beforeUnloadHandler = (e) => {
-      const opState = getOpState('mainActions');
-      // If we have actions enabled, and we haven't run (undefined), warn the user
-      if (!this.allDisabled && opState !== OpState.Success) {
-        e.preventDefault();
-      }
-    };
-
-    this._openHandler = () => {
-      this.open = !this.open;
-      if (this.open) {
-        mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'open', type: 'top' });
-      }
-      if (this._beforeUnloadHandler) {
-        if (this.open) {
-          window.addEventListener('beforeunload', this._beforeUnloadHandler);
-        }
-        else {
-          window.removeEventListener('beforeunload', this._beforeUnloadHandler);
-        }
-      }
-    };
-    this.openButton.addEventListener('click', this._openHandler);
-  },
-  beforeUnmount() {
-    if (this._openHandler) {
-      this.openButton.removeEventListener('click', this._openHandler);
-    }
-    if (this._beforeUnloadHandler) {
-      window.removeEventListener('beforeunload', this._beforeUnloadHandler);
-    }
-  },
+  template: `
+    <div id="spiHelper-topView" class="spiHelper-mainCard" v-if="open">
+      <div id="spiHelper-topView-Header" class="spiHelper-mainCard-Header">
+        <div class="header-buttons">
+          <cdx-button aria-label="Give feedback" weight="quiet" @click="feedbackDialog.launch()">
+            <cdx-icon :icon="cdxIconFeedback" />
+          </cdx-button>
+          <cdx-button aria-label="Toggle layout" weight="quiet" @click="toggleButtonLayout">
+            <cdx-icon :icon="buttonLayout ? cdxIconExpand : cdxIconCollapse" />
+          </cdx-button>
+          <cdx-button :action="unpinned ? 'default': 'progressive'" aria-label="Toggle pin"
+                      weight="quiet" @click="unpinned = !unpinned">
+            <cdx-icon :icon="cdxIconPushPin" />
+          </cdx-button>
+        </div>
+      </div>
+      <div id="spiHelper-topView-Action" v-if="buttonLayout">
+        <div id="buttonRow">
+          <action-button
+              v-for="[name, button] of Object.entries(actionButtons)"
+              :key="name"
+              :name="name"
+              :label="button.label"
+              :selection-type="button.selectionType"
+              :selection="caseActions.sections.data.section"
+              :displayedForms="displayedForms"
+              :actionEnabled="caseActions[name].enabled"
+              @click="onActionClick($event, name)"
+          />
+        </div>
+        <div id="contentRow">
+          <div v-for="name of actionButtonKeys"
+               :key="name"
+               :class="{ 'is-visible': isVisible(name) }">
+            <action-content
+                :name="name"
+                :case-actions="caseActions"
+                :accounts="accounts"
+                :state="state"
+                :menu-items="menuItems"
+                :current-status="currentStatus"
+                @update-section-selection="onUpdateSectionSelection"
+                @update-status="onUpdateNewStatus"
+                @user-selected="handleUserSelected"
+                @remove-rows="handleRemoveRows"
+                @add-row="handleAddRow"
+                @fetch-rows="handleFetchRows"
+            />
+          </div>
+        </div>
+      </div>
+      <div id="spiHelper-topView-Accordion" v-else>
+        <action-accordion
+            v-for="[name, button] of Object.entries(actionButtons)"
+            :key="name"
+            :name="name"
+            :label="button.label"
+            :selection-type="button.selectionType"
+            :selection="caseActions.sections.data.section"
+            :displayedForms="displayedForms"
+            :actionEnabled="caseActions[name].enabled"
+            @action-toggled="onAccordionToggle(name)"
+        >
+          <action-content
+              :name="name"
+              :case-actions="caseActions"
+              :accounts="accounts"
+              :state="state"
+              :menu-items="menuItems"
+              :current-status="currentStatus"
+              @update-section-selection="onUpdateSectionSelection"
+              @update-status="onUpdateNewStatus"
+              @user-selected="handleUserSelected"
+              @remove-rows="handleRemoveRows"
+              @add-row="handleAddRow"
+              @fetch-rows="handleFetchRows"
+          />
+        </action-accordion>
+      </div>
+      <submit-form v-if="caseActions.sections.data.section !== null" :accounts="accounts"
+                   v-model:master="caseActions.block.data.master" v-model:altmaster="caseActions.block.data.altmaster"
+                   v-model:lock-comment="caseActions.block.data.lockcomment"
+                   v-model:skipCUVerifyUsers="caseActions.block.data.skipCUVerifyUsers"
+                   :block-options="caseActions.block.data.options"
+                   :locks="caseActions.block.data.userLocks" :blocks="caseActions.block.data.userBlocks"
+                   :all-disabled="allDisabled" :state="state" :action-name="'mainActions'" :check-conflict="true"
+                   @on-submit="onSubmitActions" />
+      <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
+      <div id="messageRow">
+        <cdx-message v-for="(message, index) in messages" :key="index" :type="message.type" :fade-in="true"
+                     :allow-user-dismiss="true">
+          <span v-if="message.isHtml" v-html="message.content" />
+          <span v-else>
+            {{ message.content }}
+          </span>
+        </cdx-message>
+      </div>
+    </div>
+  `,
 });

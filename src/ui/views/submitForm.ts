@@ -35,6 +35,7 @@ export const SubmitFormComponent = defineComponent({
     skipCUVerifyUsers: { type: Set as PropType<Set<string>>, required: true },
     allDisabled: { type: Boolean, required: true },
   },
+  emits: ['update:master', 'update:altmaster', 'update:lockComment', 'update:skipCUVerifyUsers', 'onSubmit'],
   data(): Data {
     const cancelAction: ModalAction = { label: 'Cancel' };
     const continueAction: PrimaryModalAction = { label: 'Continue', actionType: 'progressive' };
@@ -49,33 +50,6 @@ export const SubmitFormComponent = defineComponent({
       cdxIconUpdate,
     };
   },
-  emits: ['update:master', 'update:altmaster', 'update:lockComment', 'update:skipCUVerifyUsers', 'onSubmit'],
-  template: `
-    <div class="spiHelper-submitForm">
-      <cdx-field v-if="needsLockComment">
-        <template #label>Lock Comment</template>
-        <template #description>Optional comment to include in the global lock request</template>
-        <cdx-text-input v-model="lockCommentValue" placeholder="Comment" />
-      </cdx-field>
-      <cdx-checkbox v-if="cuBlockConfirmationsNeeded.size > 0"
-                    v-model="cuBlockOverrideChecked" :indeterminate="cuBlockOverrideIndeterminate">
-        Confirm CU-block overriding
-        <template #description>You are currently set to override the following CU blocks:
-          {{ [...cuBlockConfirmationsNeeded].join(', ') }}
-        </template>
-      </cdx-checkbox>
-      <cdx-button ref="submitElement" action="progressive" weight="primary" @click="onSubmit" :disabled="disableButton">
-        Submit
-      </cdx-button>
-      <cdx-popover :anchor="submitElement"
-                   v-model:open="popover.show" :icon="cdxIconUpdate" title="Edit Conflict"
-                   close-button-label="Cancel"
-                   :primary-action="popover.continueAction" @primary="confirmSubmit"
-                   :default-action="popover.cancelAction" @default="popover.show = false">
-        The page has been edited after you loaded it. Do you want to continue?
-      </cdx-popover>
-    </div>
-  `,
   computed: {
     needsLockComment() {
       // Also check that our user isn't already locked because we'd skip them eventually
@@ -128,6 +102,9 @@ export const SubmitFormComponent = defineComponent({
       },
     },
   },
+  mounted() {
+    this.submitElement = this.$refs.submitElement as ComponentPublicInstance;
+  },
   methods: {
     // Should this be in topView.ts?
     async onSubmit() {
@@ -156,7 +133,30 @@ export const SubmitFormComponent = defineComponent({
       this.$emit('onSubmit');
     },
   },
-  mounted() {
-    this.submitElement = this.$refs.submitElement as ComponentPublicInstance;
-  },
+  template: `
+    <div class="spiHelper-submitForm">
+      <cdx-field v-if="needsLockComment">
+        <template #label>Lock Comment</template>
+        <template #description>Optional comment to include in the global lock request</template>
+        <cdx-text-input v-model="lockCommentValue" placeholder="Comment" />
+      </cdx-field>
+      <cdx-checkbox v-if="cuBlockConfirmationsNeeded.size > 0"
+                    v-model="cuBlockOverrideChecked" :indeterminate="cuBlockOverrideIndeterminate">
+        Confirm CU-block overriding
+        <template #description>You are currently set to override the following CU blocks:
+          {{ [...cuBlockConfirmationsNeeded].join(', ') }}
+        </template>
+      </cdx-checkbox>
+      <cdx-button ref="submitElement" action="progressive" weight="primary" @click="onSubmit" :disabled="disableButton">
+        Submit
+      </cdx-button>
+      <cdx-popover :anchor="submitElement"
+                   v-model:open="popover.show" :icon="cdxIconUpdate" title="Edit Conflict"
+                   close-button-label="Cancel"
+                   :primary-action="popover.continueAction" @primary="confirmSubmit"
+                   :default-action="popover.cancelAction" @default="popover.show = false">
+        The page has been edited after you loaded it. Do you want to continue?
+      </cdx-popover>
+    </div>
+  `,
 });

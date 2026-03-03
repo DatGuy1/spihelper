@@ -10,25 +10,6 @@ export const MoveActionComponent = defineComponent({
     archiveEnabled: { type: Boolean, required: true },
   },
   emits: ['update:enabled', 'update:target'],
-  template: `
-    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event);"
-                    :disabled="disabled">
-      <h3>Moving {{ moveTitle }}</h3>
-      <page-lookup :model-value="target" @update:model-value="$emit('update:target', $event)"
-                   :namespace="4" prefix="Sockpuppet investigations/"
-                   placeholder="Title" label="New Case Name" />
-      <cdx-message v-if="isSectionMove" type="notice" :allow-user-dismiss="true" style="margin-top: 16px;">
-        <p><strong>You are moving a section</strong></p>
-        <p>Make sure you are expecting to only move the section and not the entire case.</p>
-      </cdx-message>
-    </action-container>
-    <cdx-message v-if="isSectionMove && !allowSectionMoves" type="error" :inline="true">
-      You do not yet understand section moves. You probably want to move the entire case.
-    </cdx-message>
-    <cdx-message v-if="archiveEnabled" type="warning" :inline="true">
-      Archival is enabled, which overrides moving.
-    </cdx-message>
-  `,
   computed: {
     allowSectionMoves(): boolean {
       return this.selectionType === 'all'
@@ -73,4 +54,23 @@ export const MoveActionComponent = defineComponent({
       immediate: true,
     },
   },
+  template: `
+    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event);"
+                    :disabled="disabled">
+      <h3>Moving {{ moveTitle }}</h3>
+      <page-lookup :model-value="target" @update:model-value="$emit('update:target', $event)"
+                   :namespace="4" prefix="Sockpuppet investigations/"
+                   placeholder="Title" label="New Case Name" />
+      <cdx-message v-if="isSectionMove" type="notice" :allow-user-dismiss="true" style="margin-top: 16px;">
+        <p><strong>You are moving a section</strong></p>
+        <p>Make sure you are expecting to only move the section and not the entire case.</p>
+      </cdx-message>
+    </action-container>
+    <cdx-message v-if="isSectionMove && !allowSectionMoves" type="error" :inline="true">
+      You do not yet understand section moves. You probably want to move the entire case.
+    </cdx-message>
+    <cdx-message v-if="archiveEnabled" type="warning" :inline="true">
+      Archival is enabled, which overrides moving.
+    </cdx-message>
+  `,
 });

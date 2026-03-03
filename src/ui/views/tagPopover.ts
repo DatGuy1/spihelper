@@ -76,77 +76,6 @@ export const TagPopoverComponent = defineComponent({
       icons,
     };
   },
-  template: `
-    <cdx-popover :anchor="anchor" v-model:open="openValue"
-                 title="Edit Tag" class="edit-tag-popover">
-      <cdx-toggle-button-group :buttons="tagCategoryButtons" v-model="tagCategory" class="tag-category" />
-      <div v-if="tagCategory === 'sock'" class="edit-body">
-        <cdx-toggle-button-group :buttons="sockTags" v-model="temporaryTag.status" />
-        <user-lookup label="Master" v-model="temporaryTag.master" />
-        <user-lookup label="Alternate Master" v-model="temporaryTag.altmaster" />
-        <cdx-toggle-button-group v-if="temporaryTag.altmaster" :buttons="altmasterTags"
-                                 v-model="temporaryTag.altmasterStatus" />
-        <cdx-accordion separation="minimal">
-          <template #title>
-            Extras
-          </template>
-          <cdx-field>
-            <template #label>Evidence</template>
-            <cdx-text-input v-model="temporaryTag.evidence" />
-          </cdx-field>
-        </cdx-accordion>
-      </div>
-      <div v-else-if="tagCategory === 'master'" class="edit-body">
-        <cdx-toggle-button-group :buttons="masterTags" v-model="temporaryTag.status" />
-        <cdx-accordion separation="minimal">
-          <template #title>
-            Extras
-          </template>
-          <cdx-field>
-            <template #label>Evidence</template>
-            <cdx-text-input v-model="temporaryTag.evidence" />
-          </cdx-field>
-          <page-lookup v-model="temporaryTag.spipage" :namespace="4" prefix="Sockpuppet investigations/"
-                       label="SPI Page" />
-          <page-lookup v-model="temporaryTag.ltapage" :namespace="4" prefix="Long-term abuse/" label="LTA Page" />
-        </cdx-accordion>
-      </div>
-      <template #footer>
-        <div class="footer-sideactions">
-          <template v-if="forceFooter || temporaryTag !== null">
-            <cdx-button action="destructive" @click="handleDeleteTag" aria-label="Delete tag" title="Delete tag">
-              <cdx-icon :icon="icons.cdxIconTrash" />
-            </cdx-button>
-            <cdx-button @click="handleAddTag" aria-label="Add tag" title="Add tag">
-              <cdx-icon :icon="icons.cdxIconAdd" />
-            </cdx-button>
-            <cdx-button @click="handleCopyTag" aria-label="Copy tag" title="Copy tag">
-              <cdx-icon :icon="icons.cdxIconCopy" />
-            </cdx-button>
-            <cdx-button @click="handlePasteTag" aria-label="Paste tag" title="Paste tag">
-              <cdx-icon :icon="icons.cdxIconPaste" />
-            </cdx-button>
-          </template>
-        </div>
-        <div class="cdx-popover__footer__actions">
-          <cdx-button
-              class="cdx-popover__footer__primary-action"
-              weight="primary"
-              action="progressive"
-              @click="handleSave"
-          >
-            Save
-          </cdx-button>
-          <cdx-button
-              class="cdx-popover__footer__default-action"
-              @click="handleCancel"
-          >
-            Cancel
-          </cdx-button>
-        </div>
-      </template>
-    </cdx-popover>
-  `,
   computed: {
     openValue: {
       get() {
@@ -226,4 +155,75 @@ export const TagPopoverComponent = defineComponent({
       this.openValue = false;
     },
   },
+  template: `
+    <cdx-popover :anchor="anchor" v-model:open="openValue"
+                 title="Edit Tag" class="edit-tag-popover">
+      <cdx-toggle-button-group :buttons="tagCategoryButtons" v-model="tagCategory" class="tag-category" />
+      <div v-if="tagCategory === 'sock'" class="edit-body">
+        <cdx-toggle-button-group :buttons="sockTags" v-model="temporaryTag.status" />
+        <user-lookup label="Master" v-model="temporaryTag.master" />
+        <user-lookup label="Alternate Master" v-model="temporaryTag.altmaster" />
+        <cdx-toggle-button-group v-if="temporaryTag.altmaster" :buttons="altmasterTags"
+                                 v-model="temporaryTag.altmasterStatus" />
+        <cdx-accordion separation="minimal">
+          <template #title>
+            Extras
+          </template>
+          <cdx-field>
+            <template #label>Evidence</template>
+            <cdx-text-input v-model="temporaryTag.evidence" />
+          </cdx-field>
+        </cdx-accordion>
+      </div>
+      <div v-else-if="tagCategory === 'master'" class="edit-body">
+        <cdx-toggle-button-group :buttons="masterTags" v-model="temporaryTag.status" />
+        <cdx-accordion separation="minimal">
+          <template #title>
+            Extras
+          </template>
+          <cdx-field>
+            <template #label>Evidence</template>
+            <cdx-text-input v-model="temporaryTag.evidence" />
+          </cdx-field>
+          <page-lookup v-model="temporaryTag.spipage" :namespace="4" prefix="Sockpuppet investigations/"
+                       label="SPI Page" />
+          <page-lookup v-model="temporaryTag.ltapage" :namespace="4" prefix="Long-term abuse/" label="LTA Page" />
+        </cdx-accordion>
+      </div>
+      <template #footer>
+        <div class="footer-sideactions">
+          <template v-if="forceFooter || temporaryTag !== null">
+            <cdx-button action="destructive" @click="handleDeleteTag" aria-label="Delete tag" title="Delete tag">
+              <cdx-icon :icon="icons.cdxIconTrash" />
+            </cdx-button>
+            <cdx-button @click="handleAddTag" aria-label="Add tag" title="Add tag">
+              <cdx-icon :icon="icons.cdxIconAdd" />
+            </cdx-button>
+            <cdx-button @click="handleCopyTag" aria-label="Copy tag" title="Copy tag">
+              <cdx-icon :icon="icons.cdxIconCopy" />
+            </cdx-button>
+            <cdx-button @click="handlePasteTag" aria-label="Paste tag" title="Paste tag">
+              <cdx-icon :icon="icons.cdxIconPaste" />
+            </cdx-button>
+          </template>
+        </div>
+        <div class="cdx-popover__footer__actions">
+          <cdx-button
+              class="cdx-popover__footer__primary-action"
+              weight="primary"
+              action="progressive"
+              @click="handleSave"
+          >
+            Save
+          </cdx-button>
+          <cdx-button
+              class="cdx-popover__footer__default-action"
+              @click="handleCancel"
+          >
+            Cancel
+          </cdx-button>
+        </div>
+      </template>
+    </cdx-popover>
+  `,
 });

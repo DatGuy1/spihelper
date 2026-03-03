@@ -10,17 +10,12 @@ export const ChangeStatusActionComponent = defineComponent({
     oldStatus: { type: String, required: true },
     newStatus: { type: String, required: true },
   },
+  emits: ['update:enabled', 'update:newStatus'],
   data() {
     return {
       localStatus: this.oldStatus,
     };
   },
-  emits: ['update:enabled', 'update:newStatus'],
-  template: `
-    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
-      <cdx-select v-model:selected="selected" :menu-items="caseStatusItems" default-label="New case status" />
-    </action-container>
-  `,
   computed: {
     selected: {
       get(): MenuItemValue | null {
@@ -126,4 +121,9 @@ export const ChangeStatusActionComponent = defineComponent({
   methods: {
 
   },
+  template: `
+    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
+      <cdx-select v-model:selected="selected" :menu-items="caseStatusItems" default-label="New case status" />
+    </action-container>
+  `,
 });

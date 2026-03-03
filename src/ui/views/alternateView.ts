@@ -62,66 +62,6 @@ export const AlternateViewComponent = defineComponent({
       cdxIconPushPin,
     };
   },
-  template: `
-    <div id="spiHelper-alternateView" class="spiHelper-mainCard" v-if="open">
-      <div id="spiHelper-alternateView-Header" class="spiHelper-mainCard-Header">
-        <div class="header-buttons">
-          <cdx-button aria-label="Give feedback" weight="quiet" @click="feedbackDialog.launch()">
-            <cdx-icon :icon="cdxIconFeedback" />
-          </cdx-button>
-          <cdx-button :action="unpinned ? 'default': 'progressive'" aria-label="Toggle pin"
-                      weight="quiet" @click="unpinned = !unpinned">
-            <cdx-icon :icon="cdxIconPushPin" />
-          </cdx-button>
-        </div>
-      </div>
-      <div id="spiHelper-CaseLoader">
-        <page-lookup v-model="targetCase"
-                     :namespace="4" prefix="Sockpuppet investigations/"
-                     placeholder="Case" label="Case title" />
-        <div style="display: flex; gap: 10px;">
-          <cdx-button weight="primary" action="progressive" @click="loadCase(true)">Load</cdx-button>
-          <cdx-progress-indicator v-show="caseLoading">Loading case</cdx-progress-indicator>
-        </div>
-      </div>
-      <div id="spiHelper-alternateView-Content" v-if="caseLoaded">
-        <div>
-          <h4>Link</h4>
-          <link-action :enabled="true" :case-name="targetCase"
-                       :accounts="accounts"
-                       @user-selected="handleUserSelected"
-                       @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
-        </div>
-        <div>
-          <h4>Block</h4>
-          <block-action :enabled="true" :allow-fetch="false"
-                        :accounts="accounts" v-model:block-options="blockData.options"
-                        :user-locks="blockData.userLocks" :user-blocks="blockData.userBlocks"
-                        :default-master="blockData.master"
-                        @user-selected="handleUserSelected"
-                        @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
-        </div>
-      </div>
-      <div v-if="caseLoaded">
-        <submit-form :accounts="accounts"
-                     v-model:lock-comment="blockData.lockcomment" v-model:skipCUVerifyUsers="blockData.skipCUVerifyUsers"
-                     :block-options="blockData.options" :blocks="blockData.userBlocks"
-                     :locks="blockData.userLocks" :state="state" :action-name="'alternateActions'"
-                     :check-conflict="false" :all-disabled="false"
-                     @on-submit="onSubmitActions" />
-      </div>
-      <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
-      <div id="messageRow">
-        <cdx-message v-for="(message, index) in messages" :key="index" :type="message.type" :fade-in="true"
-                     :allow-user-dismiss="true">
-          <span v-if="message.isHtml" v-html="message.content" />
-          <span v-else>
-            {{ message.content }}
-          </span>
-        </cdx-message>
-      </div>
-    </div>
-  `,
   computed: {
     mountPoint() {
       return (this.$el as HTMLElement).parentElement;
@@ -144,6 +84,57 @@ export const AlternateViewComponent = defineComponent({
       }
       spiHelperSettings.interface.pinned = !newVal;
     },
+  },
+  mounted() {
+    // Access the parent mount element
+    if (!this.mountPoint) {
+      console.error('AlternateViewComponent mounted: Could not find mountPoint');
+      return;
+    }
+    if (this.unpinned) {
+      this.mountPoint.classList.add('unpinned');
+    }
+    else {
+      this.mountPoint.classList.remove('unpinned');
+    }
+
+    this._beforeUnloadHandler = (e) => {
+      const opState = getOpState('alternateActions');
+      // If we have the form open, and we haven't completed successfully, warn the user
+      if (opState !== OpState.Success) {
+        e.preventDefault();
+      }
+    };
+
+    this._openHandler = () => {
+      this.open = !this.open;
+      if (this.open) {
+        mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'open', type: 'alternate' });
+        if (this.categoryView) {
+          void this.initialiseCategoryView();
+        }
+        if (this.defaultCase !== '' && !this.caseLoaded) {
+          void this.initialiseCategoryView();
+        }
+      }
+      if (this._beforeUnloadHandler) {
+        if (this.open) {
+          window.addEventListener('beforeunload', this._beforeUnloadHandler);
+        }
+        else {
+          window.removeEventListener('beforeunload', this._beforeUnloadHandler);
+        }
+      }
+    };
+    this.openButton.addEventListener('click', this._openHandler);
+  },
+  beforeUnmount() {
+    if (this._openHandler) {
+      this.openButton.removeEventListener('click', this._openHandler);
+    }
+    if (this._beforeUnloadHandler) {
+      window.removeEventListener('beforeunload', this._beforeUnloadHandler);
+    }
   },
   methods: {
     handleUserSelected(data: AllUser, rowId: string) {
@@ -285,55 +276,64 @@ export const AlternateViewComponent = defineComponent({
       this.massAddUserRows(allRows);
     },
   },
-  mounted() {
-    // Access the parent mount element
-    if (!this.mountPoint) {
-      console.error('AlternateViewComponent mounted: Could not find mountPoint');
-      return;
-    }
-    if (this.unpinned) {
-      this.mountPoint.classList.add('unpinned');
-    }
-    else {
-      this.mountPoint.classList.remove('unpinned');
-    }
-
-    this._beforeUnloadHandler = (e) => {
-      const opState = getOpState('alternateActions');
-      // If we have the form open, and we haven't completed successfully, warn the user
-      if (opState !== OpState.Success) {
-        e.preventDefault();
-      }
-    };
-
-    this._openHandler = () => {
-      this.open = !this.open;
-      if (this.open) {
-        mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'open', type: 'alternate' });
-        if (this.categoryView) {
-          void this.initialiseCategoryView();
-        }
-        if (this.defaultCase !== '' && !this.caseLoaded) {
-          void this.initialiseCategoryView();
-        }
-      }
-      if (this._beforeUnloadHandler) {
-        if (this.open) {
-          window.addEventListener('beforeunload', this._beforeUnloadHandler);
-        }
-        else {
-          window.removeEventListener('beforeunload', this._beforeUnloadHandler);
-        }
-      }
-    };
-    this.openButton.addEventListener('click', this._openHandler);
-  },
-  beforeUnmount() {
-    if (this._openHandler) {
-      this.openButton.removeEventListener('click', this._openHandler);
-    }
-    if (this._beforeUnloadHandler) {
-      window.removeEventListener('beforeunload', this._beforeUnloadHandler);
-    }
-  },
+  template: `
+    <div id="spiHelper-alternateView" class="spiHelper-mainCard" v-if="open">
+      <div id="spiHelper-alternateView-Header" class="spiHelper-mainCard-Header">
+        <div class="header-buttons">
+          <cdx-button aria-label="Give feedback" weight="quiet" @click="feedbackDialog.launch()">
+            <cdx-icon :icon="cdxIconFeedback" />
+          </cdx-button>
+          <cdx-button :action="unpinned ? 'default': 'progressive'" aria-label="Toggle pin"
+                      weight="quiet" @click="unpinned = !unpinned">
+            <cdx-icon :icon="cdxIconPushPin" />
+          </cdx-button>
+        </div>
+      </div>
+      <div id="spiHelper-CaseLoader">
+        <page-lookup v-model="targetCase"
+                     :namespace="4" prefix="Sockpuppet investigations/"
+                     placeholder="Case" label="Case title" />
+        <div style="display: flex; gap: 10px;">
+          <cdx-button weight="primary" action="progressive" @click="loadCase(true)">Load</cdx-button>
+          <cdx-progress-indicator v-show="caseLoading">Loading case</cdx-progress-indicator>
+        </div>
+      </div>
+      <div id="spiHelper-alternateView-Content" v-if="caseLoaded">
+        <div>
+          <h4>Link</h4>
+          <link-action :enabled="true" :case-name="targetCase"
+                       :accounts="accounts"
+                       @user-selected="handleUserSelected"
+                       @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
+        </div>
+        <div>
+          <h4>Block</h4>
+          <block-action :enabled="true" :allow-fetch="false"
+                        :accounts="accounts" v-model:block-options="blockData.options"
+                        :user-locks="blockData.userLocks" :user-blocks="blockData.userBlocks"
+                        :default-master="blockData.master"
+                        @user-selected="handleUserSelected"
+                        @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
+        </div>
+      </div>
+      <div v-if="caseLoaded">
+        <submit-form :accounts="accounts"
+                     v-model:lock-comment="blockData.lockcomment" v-model:skipCUVerifyUsers="blockData.skipCUVerifyUsers"
+                     :block-options="blockData.options" :blocks="blockData.userBlocks"
+                     :locks="blockData.userLocks" :state="state" :action-name="'alternateActions'"
+                     :check-conflict="false" :all-disabled="false"
+                     @on-submit="onSubmitActions" />
+      </div>
+      <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
+      <div id="messageRow">
+        <cdx-message v-for="(message, index) in messages" :key="index" :type="message.type" :fade-in="true"
+                     :allow-user-dismiss="true">
+          <span v-if="message.isHtml" v-html="message.content" />
+          <span v-else>
+            {{ message.content }}
+          </span>
+        </cdx-message>
+      </div>
+    </div>
+  `,
 });
