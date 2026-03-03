@@ -1,7 +1,7 @@
 import { ParsedArchiveNotice, type UserRow } from '../types/spi.ts';
 import { type CaseState } from '../state.ts';
-import { DefaultBlockRowData, DefaultLinkRowData } from '../types/vue.ts';
-import { parseUserTags, spiHelperNormalizeUsername } from '../utils.ts';
+import { DefaultLinkRowData } from '../types/vue.ts';
+import { parseUserTags, setupDefaultBlockRowData, spiHelperNormalizeUsername } from '../utils.ts';
 import { spiHelperSettings } from '../options';
 import { fetchTemplateArguments, parseTemplates } from '../template.ts';
 import { context } from '../context.ts';
@@ -13,7 +13,7 @@ export function getSockEntries(opts: {
   text: string;
   fullSearch: boolean;
   state: CaseState;
-}): [UserRow[], UserRow[], string[]] {
+}): [UserRow[], UserRow[], Set<string>] {
   const { text, fullSearch, state } = opts;
   const likelySocks: UserRow[] = fullSearch ? [generateUserRow(context.caseName, state)] : [];
   const possibleSocks: UserRow[] = [];
@@ -53,7 +53,7 @@ export function getSockEntries(opts: {
     }
   }
 
-  return [likelySocks, possibleSocks, Array.from(allUsernames)];
+  return [likelySocks, possibleSocks, allUsernames];
 }
 
 export function generateUserRow(username: string, state: CaseState): UserRow {
@@ -84,7 +84,7 @@ export function getDefaultUserRow(archiveNotice: ParsedArchiveNotice | null): Us
   const newRow: UserRow = {
     id: crypto.randomUUID(),
     username: '',
-    block: { ...DefaultBlockRowData },
+    block: setupDefaultBlockRowData(),
     link: { ...DefaultLinkRowData },
   };
   if (archiveNotice) {

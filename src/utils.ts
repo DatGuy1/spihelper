@@ -6,6 +6,7 @@ import {
   type AltmasterTagStatus,
   type ArchiveSection,
   type BlockActionData,
+  type BlockRowData,
   SockmasterTag,
   type SockmasterTagStatus,
   SockpuppetTag,
@@ -310,6 +311,19 @@ export function parseSectionDate(sectionTitle: string): Date | null {
 
   // If all parsing fails, return null
   return null;
+}
+
+export function setupDefaultBlockRowData(): BlockRowData {
+  return {
+    block: false,
+    duration: '',
+    acb: true,
+    abao: true,
+    ntp: false,
+    nem: false,
+    tags: [],
+    lock: false,
+  };
 }
 
 export function setupBlockActionData(masterName = ''): BlockActionData {

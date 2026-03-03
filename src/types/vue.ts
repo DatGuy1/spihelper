@@ -1,4 +1,4 @@
-import type { BlockRowData, LinkRowData } from './spi.ts';
+import type { LinkRowData } from './spi.ts';
 
 export const WatchOptionsSelect = [
   { label: 'Follow preferences', value: 'preferences' },
@@ -8,17 +8,6 @@ export const WatchOptionsSelect = [
 ];
 
 export const WatchOptions = ['preferences', 'watch', 'nochange', 'unwatch'];
-
-export const DefaultBlockRowData: BlockRowData = {
-  block: false,
-  duration: '',
-  acb: true,
-  abao: true,
-  ntp: false,
-  nem: false,
-  tags: [],
-  lock: false,
-};
 
 export const DefaultLinkRowData: LinkRowData = {
   analyser: false,

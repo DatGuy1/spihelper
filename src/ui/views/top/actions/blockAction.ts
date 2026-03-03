@@ -1,14 +1,14 @@
 import { type PropType, defineComponent } from 'vue';
-import { cdxIconCopy, cdxIconDownload, cdxIconTrash, cdxIconUserAvatar, cdxIconUserAvatarOutline } from '@wikimedia/codex-icons';
+import {
+  cdxIconCopy,
+  cdxIconDownload,
+  cdxIconTrash,
+  cdxIconUserAvatar,
+  cdxIconUserAvatarOutline,
+} from '@wikimedia/codex-icons';
 import type { AllUser, BlockEntry } from '../../../../types/api.ts';
 import { spiHelperIsAdmin, spiHelperIsCheckuser, spiHelperIsClerk } from '../../../../role.ts';
-import {
-  type BlockOptions,
-  type BlockRowData,
-  SockpuppetTag,
-  type Tag,
-  type UserRow,
-} from '../../../../types/spi.ts';
+import { type BlockOptions, type BlockRowData, SockpuppetTag, type Tag, type UserRow } from '../../../../types/spi.ts';
 import { isNonRegisteredAccount, isSockmasterTag } from '../../../../utils.ts';
 
 export const BlockActionComponent = defineComponent({
@@ -226,6 +226,11 @@ export const BlockActionComponent = defineComponent({
         row.block.tags.push(new SockpuppetTag({ master: this.defaultMaster, status: 'blocked' }));
       }
     },
+    handleTagDeleteAll() {
+      for (const row of this.accounts) {
+        row.block.tags.length = 0;
+      }
+    },
   },
   template: `
     <!--suppress VueUnrecognizedDirective, VueUnrecognizedSlot -->
@@ -373,8 +378,8 @@ export const BlockActionComponent = defineComponent({
               <tag-popover :anchor="$refs.selectAllTagButton" :default-master="defaultMaster"
                            v-model:open="popovers.all.open" :tag="popovers.all.tag"
                            :clipboard-tag="popovers.clipboardTag" :force-footer="true"
-                           @update:tag="setAllTags"
-                           @deleteTag="setAllBlockFields('tags', [])" @addTag="handleTagAddAll" @copyTag="popovers.clipboardTag = $event" />
+                           @update:tag="setAllTags" @deleteTag="handleTagDeleteAll" @addTag="handleTagAddAll"
+                           @copyTag="popovers.clipboardTag = $event" />
             </th>
 
             <th scope="col">
@@ -448,7 +453,8 @@ export const BlockActionComponent = defineComponent({
       </cdx-table>
       <tag-popover :anchor="popovers.row.anchor" v-model:open="popovers.row.open" :default-master="defaultMaster"
                    :tag="popovers.row.tag" :clipboard-tag="popovers.clipboardTag" @update:tag="handleTagUpdate"
-                   @deleteTag="handleTagDelete" @addTag="handleTagAdd(popovers.row.rowId)" @copyTag="popovers.clipboardTag = $event" />
+                   @deleteTag="handleTagDelete" @addTag="handleTagAdd(popovers.row.rowId)"
+                   @copyTag="popovers.clipboardTag = $event" />
     </action-container>
   `,
 });
