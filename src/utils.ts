@@ -408,7 +408,6 @@ export function parseUserTags(userPage: string): Tag[] {
       const newTag = new SockpuppetTag({
         master: masterParam as string,
         status: tagStatus,
-        locked: template.params.locked === true,
       });
       const altmaster = template.params.altmaster;
       if (altmaster) {

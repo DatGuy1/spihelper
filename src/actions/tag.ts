@@ -117,13 +117,11 @@ export async function spiHelperTagUser(opts: {
     }).show();
     return false;
   }
-  if (userInfo.locked) {
-    sock.block.tags.forEach((tag) => {
-      if (isSockpuppetTag(tag)) {
-        tag.locked = true;
-      }
-    });
-  }
+  sock.block.tags.forEach((tag) => {
+    if (isSockpuppetTag(tag)) {
+      tag.locked = userInfo.locked;
+    }
+  });
 
   const oldTags = parseUserTags(pageText);
   const uniqueTags = sock.block.tags.reduce<Tag[]>((acc, tag) => {
