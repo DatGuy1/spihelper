@@ -49,6 +49,9 @@ if (mw.config.get('wgPageName').includes('Wikipedia:Sockpuppet_investigations/')
 else if (mw.config.get('wgCanonicalSpecialPageName') === 'CheckUser') {
   bootstrap('checkuser');
 }
+else if (mw.config.get('wgCanonicalSpecialPageName') === 'SuggestedInvestigations' && mw.config.get('wgPageName').includes('/detail/')) {
+  bootstrap('si');
+}
 else if (
   mw.config.get('wgNamespaceNumber') === 14
   && ['Suspected Wikipedia sockpuppets', 'Wikipedia sockpuppets'].some(cat => mw.config.get('wgCategories').includes(cat))
@@ -56,7 +59,7 @@ else if (
   bootstrap('category');
 }
 
-function bootstrap(pageType: 'spi' | 'checkuser' | 'category') {
+function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
   mw.loader.using(['vue', '@wikimedia/codex', 'mediawiki.api', 'mediawiki.util', 'mediawiki.user', 'mediawiki.feedback'], (require) => {
     const Vue = require('vue') as typeof VueType;
     const Codex = require('@wikimedia/codex') as typeof CodexType;
@@ -158,7 +161,7 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'category') {
         }
         case 'checkuser': {
           Vue.createMwApp(AlternateViewComponent, {
-            state: caseState, feedbackDialog, openButton: initLink,
+            state: caseState, feedbackDialog, openButton: initLink, view: 'checkuser',
           })
             .component('cdx-button', Codex.CdxButton)
             .component('cdx-checkbox', Codex.CdxCheckbox)
@@ -172,12 +175,14 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'category') {
             .component('cdx-select', Codex.CdxSelect)
             .component('cdx-table', Codex.CdxTable)
             .component('cdx-text-input', Codex.CdxTextInput)
+            .component('cdx-toggle-button-group', Codex.CdxToggleButtonGroup)
             .component('submit-form', SubmitFormComponent)
             .component('block-action', BlockActionComponent)
             .component('link-action', LinkActionComponent)
             .component('user-lookup', UserLookupComponent)
             .component('page-lookup', PageLookupComponent)
             .component('expiry-input', ExpiryInputComponent)
+            .component('tag-popover', TagPopoverComponent)
             .directive('tooltip', Codex.CdxTooltip)
             .mount(mountPoint);
           break;
@@ -189,7 +194,7 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'category') {
           }
           Vue.createMwApp(AlternateViewComponent, {
             state: caseState, feedbackDialog, openButton: initLink,
-            categoryView: true, defaultCase: targetSock[1],
+            view: 'category', defaultCase: targetSock[1],
           })
             .component('cdx-button', Codex.CdxButton)
             .component('cdx-checkbox', Codex.CdxCheckbox)
@@ -203,12 +208,43 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'category') {
             .component('cdx-select', Codex.CdxSelect)
             .component('cdx-table', Codex.CdxTable)
             .component('cdx-text-input', Codex.CdxTextInput)
+            .component('cdx-toggle-button-group', Codex.CdxToggleButtonGroup)
             .component('submit-form', SubmitFormComponent)
             .component('block-action', BlockActionComponent)
             .component('link-action', LinkActionComponent)
             .component('user-lookup', UserLookupComponent)
             .component('page-lookup', PageLookupComponent)
             .component('expiry-input', ExpiryInputComponent)
+            .component('tag-popover', TagPopoverComponent)
+            .directive('tooltip', Codex.CdxTooltip)
+            .mount(mountPoint);
+          break;
+        }
+        case 'si': {
+          Vue.createMwApp(AlternateViewComponent, {
+            state: caseState, feedbackDialog, openButton: initLink,
+            view: 'si',
+          })
+            .component('cdx-button', Codex.CdxButton)
+            .component('cdx-checkbox', Codex.CdxCheckbox)
+            .component('cdx-field', Codex.CdxField)
+            .component('cdx-icon', Codex.CdxIcon)
+            .component('cdx-label', Codex.CdxLabel)
+            .component('cdx-lookup', Codex.CdxLookup)
+            .component('cdx-message', Codex.CdxMessage)
+            .component('cdx-popover', Codex.CdxPopover)
+            .component('cdx-progress-indicator', Codex.CdxProgressIndicator)
+            .component('cdx-select', Codex.CdxSelect)
+            .component('cdx-table', Codex.CdxTable)
+            .component('cdx-text-input', Codex.CdxTextInput)
+            .component('cdx-toggle-button-group', Codex.CdxToggleButtonGroup)
+            .component('submit-form', SubmitFormComponent)
+            .component('block-action', BlockActionComponent)
+            .component('link-action', LinkActionComponent)
+            .component('user-lookup', UserLookupComponent)
+            .component('page-lookup', PageLookupComponent)
+            .component('expiry-input', ExpiryInputComponent)
+            .component('tag-popover', TagPopoverComponent)
             .directive('tooltip', Codex.CdxTooltip)
             .mount(mountPoint);
           break;

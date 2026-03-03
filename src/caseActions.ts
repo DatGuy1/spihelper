@@ -370,17 +370,17 @@ export async function spiHelperHandleBlocks(opts: {
   const blockAvailable = spiHelperIsAdmin() && !blockOptions.noBlock;
 
   const { allUsernames, allUserPages, allUserTalkPages } = userRows.reduce<{
-    allUsernames: string[];
+    allUsernames: Set<string>;
     allUserPages: string[];
     allUserTalkPages: string[];
   }>(
     (acc, user) => {
-      acc.allUsernames.push(user.username);
+      acc.allUsernames.add(user.username);
       acc.allUserPages.push(`User:${user.username}`);
       acc.allUserTalkPages.push(`User talk:${user.username}`);
       return acc;
     },
-    { allUsernames: [], allUserPages: [], allUserTalkPages: [] },
+    { allUsernames: new Set<string>(), allUserPages: [], allUserTalkPages: [] },
   );
   const fetchMessage = new VueMessage({ type: 'notice', content: 'Fetching user blocks and tags' }).show();
   // Don't reuse blocks and tags because they might not have all our users

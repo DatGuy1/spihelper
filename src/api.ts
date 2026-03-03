@@ -138,9 +138,9 @@ export async function spiHelperGetBulkPageText(
 }
 
 export async function spiHelperGetBulkUserBlockSettings(
-  usernames: string[],
+  usernames: Set<string>,
 ): Promise<Map<string, BlockEntry>> {
-  if (usernames.length == 0) {
+  if (usernames.size == 0) {
     return new Map<string, BlockEntry>();
   }
   const api = spiHelperGetAPI();
@@ -150,7 +150,7 @@ export async function spiHelperGetBulkUserBlockSettings(
     action: 'query',
     list: 'blocks',
     bklimit: 'max',
-    bkusers: usernames,
+    bkusers: [...usernames],
     bkprop: ['user', 'reason', 'flags', 'expiry'],
     formatversion: '2',
   };

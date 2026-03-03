@@ -11,7 +11,7 @@ import type { BlockEntry } from '../../../../types/api.ts';
 export async function prefetchSockRows(opts: {
   likelySocks: UserRow[];
   possibleSocks: UserRow[];
-  allUsernames: string[];
+  allUsernames: Set<string>;
   userBlocks: Map<string, BlockEntry>;
   userLocks: Map<string, boolean>;
   userTags: Map<string, Tag[]>;
@@ -21,14 +21,15 @@ export async function prefetchSockRows(opts: {
   // For the minute time complexity gains
   const likelySet = new Set(likelySocks.map(sock => sock.id));
 
-  const validUserPages = allUsernames.filter(name => !isNonRegisteredAccount(name))
+  const validUserPages = [...allUsernames]
+    .filter(name => !isNonRegisteredAccount(name))
     .map(name => `User:${name}`);
 
   const [blockSettings, userPages] = await Promise.all([
     spiHelperGetBulkUserBlockSettings(allUsernames),
     spiHelperGetBulkPageText(validUserPages),
   ]);
-  const checkLock = allUsernames.length < 7;
+  const checkLock = allUsernames.size < 7;
 
   const userPromises = [...likelySocks, ...possibleSocks].map(async (userRow) => {
     const blockSetting = blockSettings.get(userRow.username);

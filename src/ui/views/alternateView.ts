@@ -16,7 +16,7 @@ import { generateUserRow, getDefaultUserRow, setUserRowBlockData } from '../util
 import { spiHelperHandleBlocks } from '../../caseActions.ts';
 import { spiHelperLog } from '../../actions/log.ts';
 import { context, setContext } from '../../context.ts';
-import { buildUserActionLogMessage, setupBlockActionData } from '../../utils.ts';
+import { buildUserActionLogMessage, setupBlockActionData, spiHelperNormalizeUsername } from '../../utils.ts';
 import { spiHelperParseArchiveNotice } from '../../archivenotice.ts';
 import { spiHelperGetCategoryMembers, spiHelperGetPageText, spiHelperGetUserBlockSettings } from '../../api.ts';
 import { prefetchSockRows } from './top/utils';
@@ -43,7 +43,7 @@ export const AlternateViewComponent = defineComponent({
     feedbackDialog: { type: Object as PropType<FeedbackDialog>, required: true },
     openButton: { type: Object as PropType<HTMLElement>, required: true },
     defaultCase: { type: String, required: false, default: '' },
-    categoryView: { type: Boolean, default: false },
+    view: { type: String as PropType<'category' | 'checkuser' | 'si'>, required: true },
   },
   data(): Data {
     return {
@@ -110,11 +110,15 @@ export const AlternateViewComponent = defineComponent({
       this.open = !this.open;
       if (this.open) {
         mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'open', type: 'alternate' });
-        if (this.categoryView) {
-          void this.initialiseCategoryView();
-        }
-        if (this.defaultCase !== '' && !this.caseLoaded) {
-          void this.initialiseCategoryView();
+        if (!this.caseLoaded) {
+          switch (this.view) {
+            case 'category':
+              void this.initialiseCategoryView();
+              break;
+            case 'si':
+              void this.initialiseSIView();
+              break;
+          }
         }
       }
       if (this.beforeUnloadHandler) {
@@ -204,7 +208,14 @@ export const AlternateViewComponent = defineComponent({
         if (isLocked !== null) {
           this.blockData.userLocks.set(this.targetCase, isLocked);
         }
-        this.handleAddRow(userRow);
+        // Add or replace
+        const oldIndex = this.accounts.findIndex(user => user.username === userRow.username);
+        if (oldIndex === -1) {
+          this.accounts.splice(0, 0, userRow);
+        }
+        else {
+          this.accounts.splice(oldIndex, 1, userRow);
+        }
       }
       this.blockData.master = this.targetCase;
 
@@ -263,10 +274,39 @@ export const AlternateViewComponent = defineComponent({
       const possibleSocks = suspectedMembers.map(
         member => BuildUserRow(member, false),
       );
-      const allUsernames = [...likelySocks, ...possibleSocks].map(sock => sock.username);
+      const allUsernames = new Set([...likelySocks, ...possibleSocks].map(sock => sock.username));
       const allRows = await prefetchSockRows({
         likelySocks,
         possibleSocks,
+        allUsernames,
+        userBlocks: this.blockData.userBlocks,
+        userLocks: this.blockData.userLocks,
+        userTags: this.blockData.userTags,
+        state: this.state,
+      });
+      this.massAddUserRows(allRows);
+    },
+    async initialiseSIView() {
+      const allSocks: UserRow[] = [];
+      const allUsernames = new Set<string>();
+
+      const $searchOrigin: JQuery<Element> | JQuery<Document> = $('ul.mw-checkuser-suggestedinvestigations-users', document);
+      const sockList = $searchOrigin.find('li > a.mw-userlink > bdi');
+
+      for (const entryElement of sockList) {
+        const username = spiHelperNormalizeUsername($(entryElement).text());
+        if (allUsernames.has(username)) {
+          continue;
+        }
+        allSocks.push(generateUserRow(username, this.state));
+        allUsernames.add(username);
+      }
+      if (allSocks.length > 0 && allSocks[0]) {
+        this.targetCase = allSocks[0].username;
+      }
+      const allRows = await prefetchSockRows({
+        likelySocks: allSocks,
+        possibleSocks: [],
         allUsernames,
         userBlocks: this.blockData.userBlocks,
         userLocks: this.blockData.userLocks,
