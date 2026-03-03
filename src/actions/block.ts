@@ -3,9 +3,9 @@ import {
   spiHelperEditPage,
 } from '../api.ts';
 import { spiHelperSettings } from '../options';
-import type { BlockOptions, UserRow } from '../types/spi.ts';
+import { type BlockOptions, type UserRow } from '../types/spi.ts';
 import { spiHelperIsCheckuser } from '../role.ts';
-import { isNoExpiry, spiHelperNormalizeUsername } from '../utils.ts';
+import { isNoExpiry, isSockpuppetTag, spiHelperNormalizeUsername } from '../utils.ts';
 import { context } from '../context.ts';
 
 function buildTalkNotice(sock: UserRow, noticeType: 'master' | 'sock', sockmaster: string, cuBlock: boolean) {
@@ -77,10 +77,10 @@ export async function spiHelperProcessBlockRow(opts: {
   sock: UserRow;
   userTalkContent: string | undefined;
   blockOptions: BlockOptions;
-  noticeType: 'master' | 'sock' | null;
-  sockmaster: string;
+  talkNotices: ('master' | 'sock')[];
+  defaultMaster: string;
 }): Promise<boolean> {
-  const { sock, userTalkContent, blockOptions, noticeType, sockmaster } = opts;
+  const { sock, userTalkContent, blockOptions, talkNotices, defaultMaster } = opts;
   const isIP = mw.util.isIPAddress(sock.username, true);
   const isIPRange = isIP && !mw.util.isIPAddress(sock.username, false);
   const blockSummary = buildBlockSummary(blockOptions, isIP, isIPRange, sock.block.acb);
@@ -108,17 +108,16 @@ export async function spiHelperProcessBlockRow(opts: {
     return false;
   }
 
+  const sockmaster = sock.block.tags.find(tag => isSockpuppetTag(tag))?.master ?? defaultMaster;
   // Talk page notice
-  if (noticeType) {
+  if (talkNotices.length > 0) {
     const cuBlock = blockOptions.cuBlock
       && spiHelperIsCheckuser()
       && spiHelperSettings.useCheckuserblockAccount;
-    let newText = buildTalkNotice(sock, noticeType, sockmaster, cuBlock);
     const userTalkPage = `User talk:${sock.username}`;
-    if (!blockOptions.blankTalk) {
-      if (userTalkContent) {
-        newText = userTalkContent + '\n' + newText;
-      }
+    let newText = blockOptions.blankTalk ? '' : userTalkContent ?? '';
+    for (const talkNotice of talkNotices) {
+      newText += '\n' + buildTalkNotice(sock, talkNotice, sockmaster, cuBlock);
     }
     // Hardcode the watch setting to 'nochange' since we will have either
     // watched or not watched based on the boolean watchBlockedUser

@@ -1,11 +1,18 @@
-import {
-  spiHelperHiddenCharNormRegex, spiHelperPriorCasesRegex,
-  spiHelperSignatureRegex,
-} from './constants/regex.ts';
+import { spiHelperHiddenCharNormRegex, spiHelperPriorCasesRegex, spiHelperSignatureRegex } from './constants/regex.ts';
 import type { AbsoluteExpiry, Expiry, NoExpiry, RelativeExpiry } from './types/api.ts';
 import { SectionEntry } from './state.ts';
 import { VueMessage } from './ui/messages.ts';
-import type { ArchiveSection, BlockActionData } from './types/spi.ts';
+import {
+  type AltmasterTagStatus,
+  type ArchiveSection,
+  type BlockActionData,
+  SockmasterTag,
+  type SockmasterTagStatus,
+  SockpuppetTag,
+  type SockpuppetTagStatus,
+  type Tag,
+} from './types/spi.ts';
+import { parseTemplates } from './template.ts';
 
 /**
  * Removes the interwiki prefix from a page title
@@ -305,7 +312,7 @@ export function parseSectionDate(sectionTitle: string): Date | null {
   return null;
 }
 
-export function setupBlockActionData(masterName = '', altmasterName = ''): BlockActionData {
+export function setupBlockActionData(masterName = ''): BlockActionData {
   return {
     options: {
       noBlock: false,
@@ -322,8 +329,109 @@ export function setupBlockActionData(masterName = '', altmasterName = ''): Block
     userBlocks: new Map(),
     userTags: new Map(),
     master: masterName,
-    altmaster: altmasterName,
     lockcomment: '',
     skipCUVerifyUsers: new Set<string>(),
   };
+}
+
+export function parseUserTags(userPage: string): Tag[] {
+  const tags: Tag[] = [];
+  const templates = parseTemplates(userPage);
+  for (const template of templates) {
+    if (['sockpuppeteer', 'sockmaster'].includes(template.name)) {
+      const firstParam = template.params['1'] ?? template.positional[0];
+      const sockChecked = template.params.checked === true;
+      let tagStatus: SockmasterTagStatus | undefined;
+      if (firstParam === 'banned') {
+        tagStatus = 'banned';
+      }
+      else if (firstParam === 'blocked') {
+        tagStatus = sockChecked ? 'confirmed' : 'blocked';
+      }
+      else {
+        console.warn('Unrecognised master status', firstParam);
+        continue;
+      }
+
+      const newTag = new SockmasterTag({ status: tagStatus, checked: sockChecked });
+      // Only set these parameters if they exist to avoid adding too many needless parameters
+      if (template.params.ltapage) {
+        newTag.ltapage = template.params.ltapage as string;
+      }
+      if (template.params.spipage) {
+        newTag.spipage = template.params.spipage as string;
+      }
+      if (template.params.evidence) {
+        newTag.evidence = template.params.evidence as string;
+      }
+      tags.push(newTag);
+    }
+    else if (['sockpuppet', 'sock'].includes(template.name)) {
+      const masterParam = template.params['1'] ?? template.positional[0];
+      if (!masterParam) {
+        console.warn('Master parameter not found');
+        continue;
+      }
+      const statusParam = template.params['2'] ?? template.positional[1];
+      let tagStatus: SockpuppetTagStatus | undefined;
+      switch (statusParam) {
+        case 'blocked':
+          tagStatus = 'blocked';
+          break;
+        case 'proven':
+          tagStatus = 'proven';
+          break;
+        case 'confirmed':
+        case 'nbconfirmed':
+        case 'cuconfirmed':
+          tagStatus = 'confirmed';
+          break;
+        default:
+          console.warn('Unrecognised sock status', statusParam);
+          continue;
+      }
+
+      const newTag = new SockpuppetTag({
+        master: masterParam as string,
+        status: tagStatus,
+        locked: template.params.locked === true,
+      });
+      const altmaster = template.params.altmaster;
+      if (altmaster) {
+        const altmasterStatusParam = template.params['altmaster-status'];
+        let altmasterStatus: AltmasterTagStatus | undefined;
+        switch (altmasterStatusParam) {
+          case 'suspect':
+          case 'suspected':
+            altmasterStatus = 'suspected';
+            break;
+          case 'proven':
+            altmasterStatus = 'proven';
+            break;
+          default:
+            console.warn('Unrecognised altmaster status', altmasterStatusParam);
+            break;
+        }
+
+        if (altmasterStatus) {
+          newTag.altmaster = altmaster as string;
+          newTag.altmasterStatus = altmasterStatus;
+        }
+      }
+
+      if (template.params.evidence) {
+        newTag.evidence = template.params.evidence as string;
+      }
+      tags.push(newTag);
+    }
+  }
+  return tags;
+}
+
+export function isSockpuppetTag(tag: Tag): tag is SockpuppetTag {
+  return tag instanceof SockpuppetTag;
+}
+
+export function isSockmasterTag(tag: Tag): tag is SockmasterTag {
+  return tag instanceof SockmasterTag;
 }

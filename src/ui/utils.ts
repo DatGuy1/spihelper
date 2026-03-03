@@ -1,10 +1,7 @@
-import {
-  ParsedArchiveNotice,
-  type UserRow,
-} from '../types/spi.ts';
+import { ParsedArchiveNotice, type UserRow } from '../types/spi.ts';
 import { type CaseState } from '../state.ts';
 import { DefaultBlockRowData, DefaultLinkRowData } from '../types/vue.ts';
-import { spiHelperNormalizeUsername } from '../utils.ts';
+import { parseUserTags, spiHelperNormalizeUsername } from '../utils.ts';
 import { spiHelperSettings } from '../options';
 import { fetchTemplateArguments, parseTemplates } from '../template.ts';
 import { context } from '../context.ts';
@@ -109,10 +106,10 @@ export function getDefaultUserRow(archiveNotice: ParsedArchiveNotice | null): Us
 export function updateUserBlockDataSettings(opts: {
   userRow: UserRow;
   currentBlock?: BlockEntry | null;
-  currentTags?: string;
+  userPage?: string;
   defaultBlock: boolean;
 }): UserRow {
-  const { userRow, currentBlock, currentTags, defaultBlock } = opts;
+  const { userRow, currentBlock, userPage, defaultBlock } = opts;
   if (currentBlock) {
     userRow.block.block = true;
     userRow.block.acb = currentBlock.acb;
@@ -128,61 +125,8 @@ export function updateUserBlockDataSettings(opts: {
     }
   }
 
-  if (currentTags) {
-    const templates = parseTemplates(currentTags);
-    for (const template of templates) {
-      if (['sockpuppeteer', 'sockmaster'].includes(template.name)) {
-        const firstParam = template.params['1'] ?? template.positional[0];
-        if (firstParam === 'banned') {
-          userRow.block.tag = 'Mbanned';
-        }
-        else if (firstParam === 'blocked') {
-          userRow.block.tag = template.params.checked?.toLowerCase() === 'yes'
-            ? 'Mconfirmed'
-            : 'Mblocked';
-        }
-        else {
-          console.warn('Unrecognised master status', firstParam, 'for', userRow.username);
-        }
-      }
-      else if (['sockpuppet', 'sock'].includes(template.name)) {
-        const blockParam = template.params['2'] ?? template.positional[1];
-        switch (blockParam) {
-          case 'blocked':
-            userRow.block.tag = 'Ssuspected';
-            break;
-          case 'proven':
-            userRow.block.tag = 'Sproven';
-            break;
-          case 'confirmed':
-          case 'nbconfirmed':
-          case 'cuconfirmed':
-            userRow.block.tag = 'Sconfirmed';
-            break;
-          default:
-            console.warn('Unrecognised sock status', blockParam, 'for', userRow.username);
-            break;
-        }
-
-        if (template.params.altmaster) {
-          const altmasterStatus = template.params['altmaster-status'];
-          switch (altmasterStatus) {
-            case undefined:
-              userRow.block.altmaster = 'none';
-              break;
-            case 'suspect':
-            case 'suspected':
-              userRow.block.altmaster = 'suspected';
-              break;
-            case 'proven':
-              userRow.block.altmaster = 'proven';
-              break;
-            default:
-              console.warn('Unrecognised altmaster status', altmasterStatus, 'for', userRow.username);
-          }
-        }
-      }
-    }
+  if (userPage) {
+    userRow.block.tags = parseUserTags(userPage);
   }
 
   return userRow;
@@ -203,7 +147,7 @@ export async function setUserRowBlockData(opts: {
     userRow: opts.userRow,
     defaultBlock,
     currentBlock: blockSetting,
-    currentTags: userPage,
+    userPage: userPage,
   });
 
   let isLocked: boolean | null = null;

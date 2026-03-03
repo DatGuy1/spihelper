@@ -1,12 +1,15 @@
 import { type PropType, defineComponent } from 'vue';
-import { cdxIconCopy, cdxIconDownload, cdxIconTrash } from '@wikimedia/codex-icons';
+import { cdxIconCopy, cdxIconDownload, cdxIconTrash, cdxIconUserAvatar, cdxIconUserAvatarOutline } from '@wikimedia/codex-icons';
 import type { AllUser, BlockEntry } from '../../../../types/api.ts';
 import { spiHelperIsAdmin, spiHelperIsCheckuser, spiHelperIsClerk } from '../../../../role.ts';
-import type { AltmasterTag, BlockOptions, BlockRowData, Tag, UserRow } from '../../../../types/spi.ts';
-import { isNonRegisteredAccount } from '../../../../utils.ts';
-
-interface TagOption { value: Tag; label: string }
-type TagOptions = (TagOption | { label: string; items: TagOption[] })[];
+import {
+  type BlockOptions,
+  type BlockRowData,
+  SockpuppetTag,
+  type Tag,
+  type UserRow,
+} from '../../../../types/spi.ts';
+import { isNonRegisteredAccount, isSockmasterTag } from '../../../../utils.ts';
 
 export const BlockActionComponent = defineComponent({
   props: {
@@ -14,6 +17,7 @@ export const BlockActionComponent = defineComponent({
     blockOptions: { type: Object as PropType<BlockOptions>, required: true },
     userLocks: { type: Map as PropType<Map<string, boolean>>, required: true },
     userBlocks: { type: Map as PropType<Map<string, BlockEntry>>, required: true },
+    defaultMaster: { type: String, required: true },
     allowFetch: { type: Boolean, default: true },
     enabled: { type: Boolean, required: true },
   },
@@ -21,7 +25,6 @@ export const BlockActionComponent = defineComponent({
     const columns = [
       { id: 'username', label: 'Username' },
       { id: 'tag', label: 'Tag' },
-      { id: 'altmaster', label: 'Alternate Master Tag' },
       { id: 'lock', label: 'Request Lock' },
     ];
     const isAdmin = spiHelperIsAdmin();
@@ -38,54 +41,38 @@ export const BlockActionComponent = defineComponent({
       ]);
     }
 
-    const tagOptions: TagOptions = [
-      { value: 'none', label: 'None' },
-      {
-        label: 'Sock',
-        items: [
-          { value: 'Ssuspected', label: 'S-Suspected' },
-          { value: 'Sproven', label: 'S-Proven' },
-          { value: 'Sconfirmed', label: 'S-Confirmed' },
-        ],
-      }, {
-        label: 'Master',
-        items: [
-          { value: 'Mblocked', label: 'M-Blocked' },
-          { value: 'Mconfirmed', label: 'M-Confirmed' },
-          { value: 'Mbanned', label: 'M-3X Banned' },
-        ],
-      },
-    ];
-
-    const altmasterOptions: { value: AltmasterTag; label: string }[] = [
-      { value: 'none', label: 'None' },
-      { value: 'suspected', label: 'Suspected' },
-      { value: 'proven', label: 'Proven' },
-    ];
-
-    const allTagSelections = {
-      tag: 'none',
-      altmaster: 'none',
-    };
-
     // An array of selected row indices
     const selectedRows: number[] = [];
 
     const topButtonActions = { copied: false, fetched: false };
+    const popovers = {
+      all: {
+        open: false,
+        tag: null as Tag | null,
+      },
+      row: {
+        anchor: null as HTMLElement | null,
+        open: false,
+        tag: null as Tag | null,
+        tagIndex: 0,
+        rowId: null as string | null,
+      },
+      clipboardTag: null as Tag | null,
+    };
 
     return {
       columns,
-      tagOptions,
-      altmasterOptions,
-      allTagSelections,
       selectedRows,
       topButtonActions,
       isAdmin,
       isCheckuser,
       isClerk,
+      popovers,
       cdxIconCopy,
       cdxIconDownload,
       cdxIconTrash,
+      cdxIconUserAvatar,
+      cdxIconUserAvatarOutline,
     };
   },
   emits: ['update:enabled', 'update:modelValue', 'update:blockOptions', 'removeRows', 'addRow', 'userSelected', 'usernameChanged', 'fetchRows'],
@@ -172,8 +159,7 @@ export const BlockActionComponent = defineComponent({
             <th scope="col" rowspan="2" v-if="isAdmin" class="checkboxHeader">Block</th>
             <th scope="col" rowspan="2" v-if="isAdmin" style="width: 300px;">Duration</th>
             <th scope="colgroup" colspan="4" v-if="isAdmin">Block Settings</th>
-            <th scope="col" :rowspan="isAdmin ? 2 : 1" class="selectHeader">Tag</th>
-            <th scope="col" :rowspan="isAdmin ? 2 : 1" class="selectHeader">Alternate Master Tag</th>
+            <th scope="col" :rowspan="isAdmin ? 2 : 1" class="tagHeader">Tag</th>
             <th scope="col" :rowspan="isAdmin ? 2 : 1" class="checkboxHeader">Lock</th>
           </tr>
           <tr v-if="isAdmin" class="blockSettingsRow">
@@ -230,12 +216,14 @@ export const BlockActionComponent = defineComponent({
             </th>
 
             <th scope="col" class="selectTagOptions">
-              <cdx-select :menu-items="tagOptions" v-model:selected="allTagSelections.tag"
-                          @update:selected="setAllBlockFields('tag', $event)" />
-            </th>
-            <th scope="col" class="selectTagOptions">
-              <cdx-select :menu-items="altmasterOptions" v-model:selected="allTagSelections.altmaster"
-                          @update:selected="setAllBlockFields('altmaster', $event)" />
+              <cdx-button ref="selectAllTagButton" @click="popovers.all.open = true">
+                Set all tags
+              </cdx-button>
+              <tag-popover :anchor="$refs.selectAllTagButton" :default-master="defaultMaster"
+                           v-model:open="popovers.all.open" :tag="popovers.all.tag"
+                           :clipboard-tag="popovers.clipboardTag" :force-footer="true"
+                           @update:tag="setAllTags"
+                           @deleteTag="setAllBlockFields('tags', [])" @addTag="handleTagAddAll" @copyTag="popovers.clipboardTag = $event" />
             </th>
 
             <th scope="col">
@@ -251,7 +239,10 @@ export const BlockActionComponent = defineComponent({
         </template>
 
         <template #item-block="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.block.block" :disabled="blockOptions.noBlock || userBlocks.get(row.username) !== undefined">Block</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.block.block"
+                        :disabled="blockOptions.noBlock || userBlocks.get(row.username) !== undefined">
+            Block
+          </cdx-checkbox>
         </template>
 
         <template #item-duration="{ item, row }">
@@ -259,26 +250,38 @@ export const BlockActionComponent = defineComponent({
         </template>
 
         <template #item-acb="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.block.acb" :disabled="!blockOptions.override && userBlocks.get(row.username)?.acb">Account creation blocked</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.block.acb"
+                        :disabled="!blockOptions.override && userBlocks.get(row.username)?.acb">
+            Account creation blocked
+          </cdx-checkbox>
         </template>
         <template #item-abao="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.block.abao" :disabled="!blockOptions.override && userBlocks.get(row.username)?.abao">Autoblock/Anon-only</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.block.abao"
+                        :disabled="!blockOptions.override && userBlocks.get(row.username)?.abao">
+            Autoblock/Anon-only
+          </cdx-checkbox>
         </template>
         <template #item-ntp="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.block.ntp" :disabled="!blockOptions.override && userBlocks.get(row.username)?.ntp">No talk page</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.block.ntp"
+                        :disabled="!blockOptions.override && userBlocks.get(row.username)?.ntp">
+            No talk page
+          </cdx-checkbox>
         </template>
         <template #item-nem="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.block.nem" :disabled="!blockOptions.override && userBlocks.get(row.username)?.nem">No email</cdx-checkbox>
+          <cdx-checkbox :hide-label="true" v-model="row.block.nem"
+                        :disabled="!blockOptions.override && userBlocks.get(row.username)?.nem">
+            No email
+          </cdx-checkbox>
         </template>
 
         <template #item-tag="{ item, row }">
-          <cdx-select :menu-items="tagOptions" v-model:selected="row.block.tag"
-                      :disabled="isNonRegisteredAccount(row.username)" class="tagOptions" />
-        </template>
-
-        <template #item-altmaster="{ item, row }">
-          <cdx-select :menu-items="altmasterOptions" v-model:selected="row.block.altmaster"
-                      :disabled="isNonRegisteredAccount(row.username)" />
+          <cdx-button v-for="(tag, index) in getRowTagsWithDefault(row.block.tags)" class="userTag"
+                      @click="showTagPopover(tag, index, row.id, $event)">
+            <cdx-icon v-if="tag !== null"
+                      :icon="isSockmasterTag(tag) ? cdxIconUserAvatar : cdxIconUserAvatarOutline"
+                      :title="isSockmasterTag(tag) ? 'Master' : 'Sockpuppet'" />
+            {{ tag === null ? 'None' : isSockmasterTag(tag) ? tag.status.charAt(0).toUpperCase() + tag.status.slice(1) : tag.master }}
+          </cdx-button>
         </template>
 
         <template #item-lock="{ item, row }">
@@ -292,6 +295,9 @@ export const BlockActionComponent = defineComponent({
           <cdx-button @click="addDefaultRow">Add Row</cdx-button>
         </template>
       </cdx-table>
+      <tag-popover :anchor="popovers.row.anchor" v-model:open="popovers.row.open" :default-master="defaultMaster"
+                   :tag="popovers.row.tag" :clipboard-tag="popovers.clipboardTag" @update:tag="handleTagUpdate"
+                   @deleteTag="handleTagDelete" @addTag="handleTagAdd(popovers.row.rowId)" @copyTag="popovers.clipboardTag = $event" />
     </action-container>
   `,
   computed: {
@@ -312,6 +318,7 @@ export const BlockActionComponent = defineComponent({
   },
   methods: {
     isNonRegisteredAccount,
+    isSockmasterTag,
     async copySocks() {
       if (this.selectedRows.length === 0) {
         return;
@@ -383,9 +390,65 @@ export const BlockActionComponent = defineComponent({
         row.block[key] = value;
       }
     },
+    setAllTags(tag: Tag) {
+      for (const row of this.accounts) {
+        row.block.tags = [tag.clone()];
+      }
+    },
     fetchSocks() {
       this.topButtonActions.fetched = true;
       this.$emit('fetchRows');
+    },
+    showTagPopover(
+      tag: Tag | null,
+      tagIndex: number,
+      rowId: string,
+      $event: MouseEvent,
+    ) {
+      this.popovers.row.tag = tag;
+      this.popovers.row.tagIndex = tagIndex;
+      this.popovers.row.rowId = rowId;
+      this.popovers.row.anchor = $event.currentTarget as HTMLElement;
+      this.popovers.row.open = true;
+    },
+    handleTagUpdate(updatedTag: Tag) {
+      const targetRow = this.accounts.find(row => row.id === this.popovers.row.rowId);
+      if (!targetRow) {
+        console.error('Could not find target row for tag update', this.popovers.row.rowId);
+        return;
+      }
+      targetRow.block.tags.splice(this.popovers.row.tagIndex, 1, updatedTag);
+    },
+    handleTagDelete() {
+      const targetRow = this.accounts.find(row => row.id === this.popovers.row.rowId);
+      if (!targetRow) {
+        console.error('Could not find target row for tag delete', this.popovers.row.rowId);
+        return;
+      }
+      targetRow.block.tags.splice(this.popovers.row.tagIndex, 1);
+    },
+    handleTagAdd(rowId: string): Tag | null {
+      const targetRow = this.accounts.find(row => row.id === rowId);
+      if (!targetRow) {
+        console.error('Could not find target row for tag add', rowId);
+        return null;
+      }
+      const newTag = new SockpuppetTag({ master: this.defaultMaster, status: 'blocked' });
+      targetRow.block.tags.push(newTag);
+      return newTag;
+    },
+    getRowTagsWithDefault(tags: Tag[]): (Tag | null)[] {
+      if (tags.length === 0) {
+        return [null];
+      }
+      else {
+        return tags;
+      }
+    },
+    handleTagAddAll() {
+      for (const row of this.accounts) {
+        row.block.tags.push(new SockpuppetTag({ master: this.defaultMaster, status: 'blocked' }));
+      }
     },
   },
 });

@@ -31,8 +31,6 @@ export const SubmitFormComponent = defineComponent({
     blockOptions: { type: Object as PropType<BlockOptions>, required: true },
     blocks: { type: Map as PropType<Map<string, BlockEntry>>, required: true },
     locks: { type: Map as PropType<Map<string, boolean>>, required: true },
-    master: { type: String, required: true },
-    altmaster: { type: String, required: true },
     lockComment: { type: String, required: true },
     skipCUVerifyUsers: { type: Set as PropType<Set<string>>, required: true },
     allDisabled: { type: Boolean, required: true },
@@ -54,8 +52,6 @@ export const SubmitFormComponent = defineComponent({
   emits: ['update:master', 'update:altmaster', 'update:lockComment', 'update:skipCUVerifyUsers', 'onSubmit'],
   template: `
     <div class="spiHelper-submitForm">
-      <user-lookup v-if="needsSockmaster" label="Master" v-model="masterValue" />
-      <user-lookup v-if="needsAltmaster" label="Alternate master" v-model="altmasterValue" />
       <cdx-field v-if="needsLockComment">
         <template #label>Lock Comment</template>
         <template #description>Optional comment to include in the global lock request</template>
@@ -81,12 +77,6 @@ export const SubmitFormComponent = defineComponent({
     </div>
   `,
   computed: {
-    needsAltmaster() {
-      return this.accounts.some(sock => sock.block.altmaster !== 'none' && !isNonRegisteredAccount(sock.username));
-    },
-    needsSockmaster() {
-      return this.accounts.some(sock => sock.block.tag.startsWith('S') && !isNonRegisteredAccount(sock.username));
-    },
     needsLockComment() {
       // Also check that our user isn't already locked because we'd skip them eventually
       return this.accounts.some(sock =>
@@ -127,26 +117,7 @@ export const SubmitFormComponent = defineComponent({
       return skipCount > 0 && skipCount < this.cuBlockConfirmationsNeeded.size;
     },
     disableButton() {
-      return isOpRunning(this.actionName)
-        || this.allDisabled
-        || (this.needsSockmaster && !this.master)
-        || (this.needsAltmaster && !this.altmaster);
-    },
-    masterValue: {
-      get() {
-        return this.master;
-      },
-      set(value: string) {
-        this.$emit('update:master', value);
-      },
-    },
-    altmasterValue: {
-      get() {
-        return this.altmaster;
-      },
-      set(value: string) {
-        this.$emit('update:altmaster', value);
-      },
+      return isOpRunning(this.actionName) || this.allDisabled;
     },
     lockCommentValue: {
       get() {
@@ -158,7 +129,6 @@ export const SubmitFormComponent = defineComponent({
     },
   },
   methods: {
-
     // Should this be in topView.ts?
     async onSubmit() {
       if (this.checkConflict) {

@@ -30,6 +30,7 @@ import {
   OneClickArchivalComponent,
   PageLookupComponent,
   SubmitFormComponent,
+  TagPopoverComponent,
   UserLookupComponent,
 } from './ui/views';
 import { hasRunningOps } from './operations.ts';
@@ -121,8 +122,8 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'category') {
             .component('cdx-text-area', Codex.CdxTextArea)
             .component('cdx-toggle-button', Codex.CdxToggleButton)
             .component('cdx-toggle-button-group', Codex.CdxToggleButtonGroup)
-            .component('cdx-button-group', Codex.CdxButtonGroup)
             .component('cdx-button', Codex.CdxButton)
+            .component('cdx-button-group', Codex.CdxButtonGroup)
             .component('cdx-icon', Codex.CdxIcon)
             .component('cdx-table', Codex.CdxTable)
             .component('cdx-text-input', Codex.CdxTextInput)
@@ -150,6 +151,7 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'category') {
             .component('user-lookup', UserLookupComponent)
             .component('page-lookup', PageLookupComponent)
             .component('expiry-input', ExpiryInputComponent)
+            .component('tag-popover', TagPopoverComponent)
             .directive('tooltip', Codex.CdxTooltip)
             .mount(mountPoint);
           break;

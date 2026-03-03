@@ -1,6 +1,6 @@
 interface Template {
   name: string;
-  params: Record<string, string>;
+  params: Record<string, string | number | boolean>;
   positional: string[];
 }
 
@@ -22,14 +22,29 @@ function parseTemplate(templateText: string): Template {
   const parts = templateText.split('|').map(p => p.trim());
   const name = parts.shift()?.toLowerCase() ?? 'unknown';
 
-  const params: Record<string, string> = {};
+  const params: Record<string, string | number | boolean> = {};
   const positional: string[] = [];
 
   for (const part of parts) {
     const eq = part.indexOf('=');
     if (eq !== -1) {
       const key = part.slice(0, eq).trim().toLowerCase();
-      params[key] = part.slice(eq + 1).trim();
+      const value = part.slice(eq + 1).trim();
+      if (value === '') {
+        params[key] = value;
+        continue;
+      }
+      const numberValue = Number(value);
+      if (!Number.isNaN(numberValue)) {
+        params[key] = numberValue;
+        continue;
+      }
+      const boolResult = convertParamToBoolean(value);
+      if (boolResult === null) {
+        params[key] = value;
+        continue;
+      }
+      params[key] = boolResult;
     }
     else if (part) {
       positional.push(part);
@@ -39,6 +54,17 @@ function parseTemplate(templateText: string): Template {
   return { name, params, positional };
 }
 
+function convertParamToBoolean(value: string): boolean | null {
+  // From Module:Yesno
+  if (['y', 'yes', 'true', 'on'].includes(value.toLowerCase())) {
+    return true;
+  }
+  if (['n', 'no', 'false', 'off'].includes(value.toLowerCase())) {
+    return false;
+  }
+  return null;
+}
+
 export function fetchTemplateArguments(template: Template): string[] {
   const result: string[] = [];
   for (const positional of template.positional) {
@@ -46,7 +72,7 @@ export function fetchTemplateArguments(template: Template): string[] {
   }
   for (const [key, value] of Object.entries(template.params)) {
     if (!Number.isNaN(Number(key))) {
-      result.push(value);
+      result.push(value.toString());
     }
   }
 

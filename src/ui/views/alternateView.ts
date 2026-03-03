@@ -97,12 +97,13 @@ export const AlternateViewComponent = defineComponent({
           <block-action :enabled="true" :allow-fetch="false"
                         :accounts="accounts" v-model:block-options="blockData.options"
                         :user-locks="blockData.userLocks" :user-blocks="blockData.userBlocks"
+                        :default-master="blockData.master"
                         @user-selected="handleUserSelected"
                         @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
         </div>
       </div>
       <div v-if="caseLoaded">
-        <submit-form :accounts="accounts" v-model:master="blockData.master" v-model:altmaster="blockData.altmaster"
+        <submit-form :accounts="accounts"
                      v-model:lock-comment="blockData.lockcomment" v-model:skipCUVerifyUsers="blockData.skipCUVerifyUsers"
                      :block-options="blockData.options" :blocks="blockData.userBlocks"
                      :locks="blockData.userLocks" :state="state" :action-name="'alternateActions'"
@@ -215,7 +216,6 @@ export const AlternateViewComponent = defineComponent({
         this.handleAddRow(userRow);
       }
       this.blockData.master = this.targetCase;
-      this.blockData.altmaster = this.targetCase;
 
       this.caseLoading = false;
       this.caseLoaded = true;
@@ -263,7 +263,7 @@ export const AlternateViewComponent = defineComponent({
 
       const BuildUserRow = (member: string, likely: boolean): UserRow => {
         const userRow = { ...generateUserRow(member.replace('User:', ''), this.state) };
-        userRow.block.tag = likely ? 'none' : 'Ssuspected';
+        userRow.block.block = likely;
         return userRow;
       };
       const likelySocks = [...confirmedMembers, `User:${this.targetCase}`].map(

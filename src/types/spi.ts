@@ -42,16 +42,140 @@ export class ParsedArchiveNotice {
   }
 }
 
+export class SockpuppetTag {
+  master: string;
+  status: SockpuppetTagStatus;
+  locked: boolean;
+  evidence: string;
+  altmaster: string;
+  altmasterStatus?: AltmasterTagStatus;
+
+  constructor(opts: {
+    master: string;
+    status: SockpuppetTagStatus;
+    locked?: boolean;
+    evidence?: string;
+    altmaster?: string;
+    altmasterStatus?: AltmasterTagStatus;
+  }) {
+    this.master = opts.master;
+    this.status = opts.status;
+    this.locked = opts.locked ?? false;
+    this.evidence = opts.evidence ?? '';
+    this.altmaster = opts.altmaster ?? '';
+    this.altmasterStatus = opts.altmasterStatus;
+  }
+
+  generateWikitext(): string {
+    let tag = '{{sockpuppet';
+    tag += `\n| 1 = ${this.master}`;
+    tag += `\n| 2 = ${this.status}`;
+    if (this.locked) {
+      tag += `\n| locked = yes`;
+    }
+    if (this.evidence) {
+      tag += `\n| evidence = ${this.evidence}`;
+    }
+    if (this.altmaster) {
+      tag += `\n| altmaster = ${this.altmaster}`;
+      tag += `\n| altmaster-status = ${this.altmasterStatus}`;
+    }
+    tag += '\n}}';
+    return tag;
+  }
+
+  clone(): SockpuppetTag {
+    return new SockpuppetTag({
+      master: this.master,
+      status: this.status,
+      locked: this.locked,
+      evidence: this.evidence,
+      altmaster: this.altmaster,
+      altmasterStatus: this.altmasterStatus,
+    });
+  };
+
+  equals(other: Tag): boolean {
+    if (!(other instanceof SockpuppetTag)) return false;
+    return this.master === other.master
+      && this.status === other.status
+      && this.locked === other.locked
+      && this.evidence === other.evidence
+      && this.altmaster === other.altmaster
+      && this.altmasterStatus === other.altmasterStatus;
+  }
+}
+
+export class SockmasterTag {
+  status: SockmasterTagStatus;
+  checked: boolean;
+  ltapage: string;
+  spipage: string;
+  evidence: string;
+
+  constructor(opts: {
+    status: SockmasterTagStatus;
+    checked?: boolean;
+    ltapage?: string;
+    spipage?: string;
+    evidence?: string;
+  }) {
+    this.status = opts.status;
+    this.checked = opts.checked ?? false;
+    this.ltapage = opts.ltapage ?? '';
+    this.spipage = opts.spipage ?? '';
+    this.evidence = opts.evidence ?? '';
+  }
+
+  generateWikitext(): string {
+    let tag = '{{sockpuppeteer';
+    tag += `\n| 1 = ${this.status}`;
+    if (this.checked) {
+      tag += `\n| checked = yes`;
+    }
+    if (this.ltapage) {
+      tag += `\n| ltapage = ${this.ltapage}`;
+    }
+    if (this.spipage) {
+      tag += `\n| spipage = ${this.spipage}`;
+    }
+    if (this.evidence) {
+      tag += `\n| evidence = ${this.evidence}`;
+    }
+    tag += '\n}}';
+    return tag;
+  }
+
+  clone(): SockmasterTag {
+    return new SockmasterTag({
+      status: this.status,
+      checked: this.checked,
+      ltapage: this.ltapage,
+      spipage: this.spipage,
+      evidence: this.evidence,
+    });
+  }
+
+  equals(other: Tag): boolean {
+    if (!(other instanceof SockmasterTag)) return false;
+    return this.status === other.status
+      && this.checked === other.checked
+      && this.ltapage === other.ltapage
+      && this.spipage === other.spipage
+      && this.evidence === other.evidence;
+  }
+}
+
+export type SockpuppetTagStatus = 'blocked' | 'proven' | 'confirmed';
+export type SockmasterTagStatus = 'blocked' | 'confirmed' | 'banned';
+export type AltmasterTagStatus = 'suspected' | 'proven';
+export type Tag = SockmasterTag | SockpuppetTag;
+
 export interface GlobalUser {
   name: string;
   locked: boolean;
   existsLocally: boolean;
 }
-
-type SockTag = 'Ssuspected' | 'Sproven' | 'Sconfirmed';
-type MasterTag = 'Mblocked' | 'Mconfirmed' | 'Mbanned';
-export type Tag = SockTag | MasterTag | 'none';
-export type AltmasterTag = 'suspected' | 'proven' | 'none';
 
 export type ManagementFlag = 'crosswiki' | 'deny' | 'notalk' | 'moot';
 
@@ -99,9 +223,8 @@ export interface BlockActionData {
   options: BlockOptions;
   userBlocks: Map<string, BlockEntry>;
   userLocks: Map<string, boolean>;
-  userTags: Map<string, Tag>;
+  userTags: Map<string, Tag[]>;
   master: string;
-  altmaster: string;
   lockcomment: string;
   skipCUVerifyUsers: Set<string>;
 }
@@ -125,8 +248,7 @@ export interface BlockRowData {
   abao: boolean;
   ntp: boolean;
   nem: boolean;
-  tag: Tag;
-  altmaster: AltmasterTag;
+  tags: Tag[];
   lock: boolean;
 }
 
@@ -142,4 +264,9 @@ export interface LinkRowData {
 export interface ArchiveSection {
   header: Date;
   fullText: string;
+}
+
+export interface MasterNeeds {
+  confirmed: boolean;
+  suspected: boolean;
 }

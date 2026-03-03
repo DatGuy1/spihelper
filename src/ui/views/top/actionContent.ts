@@ -65,6 +65,7 @@ export const ActionContentComponent = defineComponent({
                           @update:new-status="handleUpdateStatus" />
     <block-action v-else-if="name === 'block'" v-model:enabled="caseActions.block.enabled"
                   v-model:block-options="caseActions.block.data.options" :accounts="accounts"
+                  :default-master="caseActions.block.data.master"
                   :user-locks="caseActions.block.data.userLocks" :user-blocks="caseActions.block.data.userBlocks"
                   @user-selected="handleUserSelected"
                   @remove-rows="handleRemoveRows" @add-row="handleAddRow"

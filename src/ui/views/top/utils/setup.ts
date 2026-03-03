@@ -75,7 +75,7 @@ export function getInitialCaseActions(): CaseActions {
     },
     block: {
       enabled: false,
-      data: setupBlockActionData(context.caseName, context.caseName),
+      data: setupBlockActionData(context.caseName),
     },
     link: {
       enabled: false,

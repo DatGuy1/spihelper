@@ -162,7 +162,7 @@
         }
     }
 
-    th.selectHeader {
+    th.tagHeader {
         width: 200px;
     }
 
@@ -212,13 +212,26 @@
         min-width: 150px;
     }
 
-    th.selectTagOptions {
-        font-weight: normal;
+    th.selectTagOptions button {
+        width: 200px;
+        justify-content: flex-start;
+        padding: 0 5px;
     }
 
     .spihelper-expiry-input {
         min-width: 90px;
     }
+
+    button.userTag {
+        width: 200px;
+        justify-content: flex-start;
+        padding: 0 5px;
+        font-weight: normal;
+    }
+}
+
+button.userTag + button.userTag {
+    margin-top: 4px;
 }
 
 .spiHelper-sockTable.linkTable {
@@ -251,5 +264,27 @@
 
     .cdx-text-input {
         max-width: 200px;
+    }
+}
+
+div.edit-tag-popover {
+    min-width: 310px;
+
+    .tag-category {
+        margin-bottom: 16px;
+    }
+    .edit-body {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    footer {
+        display: flex;
+        justify-content: space-between;
+
+        .cdx-popover__footer__actions {
+            gap: 0;
+        }
     }
 }

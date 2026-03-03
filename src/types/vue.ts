@@ -16,8 +16,7 @@ export const DefaultBlockRowData: BlockRowData = {
   abao: true,
   ntp: false,
   nem: false,
-  tag: 'none',
-  altmaster: 'none',
+  tags: [],
   lock: false,
 };
 

@@ -14,7 +14,7 @@ export async function prefetchSockRows(opts: {
   allUsernames: string[];
   userBlocks: Map<string, BlockEntry>;
   userLocks: Map<string, boolean>;
-  userTags: Map<string, Tag>;
+  userTags: Map<string, Tag[]>;
   state: CaseState;
 }): Promise<UserRow[]> {
   const { likelySocks, possibleSocks, allUsernames, userBlocks, userLocks, userTags, state } = opts;
@@ -44,7 +44,7 @@ export async function prefetchSockRows(opts: {
     if (isLocked !== null) {
       userLocks.set(userRow.username, isLocked);
     }
-    userTags.set(userRow.username, userRow.block.tag);
+    userTags.set(userRow.username, userRow.block.tags);
     return newRow;
   });
 

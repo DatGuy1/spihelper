@@ -40,7 +40,7 @@ export async function spiHelperParseArchiveNotice(
     if (key === '1') {
       continue;
     }
-    if (val !== 'yes') {
+    if (val !== true) {
       console.warn('Malformed archivenotice parameter', key, '=', val);
       continue;
     }
@@ -53,7 +53,7 @@ export async function spiHelperParseArchiveNotice(
     }
   }
 
-  return new ParsedArchiveNotice({ username: username, ...flags });
+  return new ParsedArchiveNotice({ username: username as string, ...flags });
 }
 
 export async function spiHelperAddArchiveNotice(page: string, state: CaseState) {

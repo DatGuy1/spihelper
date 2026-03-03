@@ -19,6 +19,8 @@ import {
   addSignature,
   buildUserActionLogMessage,
   isNonRegisteredAccount,
+  isSockmasterTag,
+  isSockpuppetTag,
   spiHelperNormalizeUsername,
 } from './utils.ts';
 import {
@@ -84,15 +86,9 @@ export async function spiHelperPerformActions(opts: {
     new VueMessage({ type: 'error', content: 'Could not find archive notice' }).show();
     return;
   }
-  const { master, altmaster } = actions.block.data;
-  if (!master) {
+  if (!actions.block.data.master) {
     console.error('spiHelperPerformActions: Could not get master');
     new VueMessage({ type: 'error', content: 'Could not get master' }).show();
-    return;
-  }
-  if (!altmaster) {
-    console.error('spiHelperPerformActions: Could not get altmaster');
-    new VueMessage({ type: 'error', content: 'Could not get altmaster' }).show();
     return;
   }
   const sectionType = state.selectedSection.type;
@@ -361,40 +357,46 @@ export async function spiHelperHandleBlocks(opts: {
 
   const {
     userLocks,
-    userTags,
     options: blockOptions,
     lockcomment: lockComment,
     master,
-    altmaster,
     skipCUVerifyUsers,
   } = opts.blockData;
   const userRows = opts.accounts.filter(userRow => userRow.username !== '');
 
   const lockTargets: string[] = [];
-  const needsPurge = await createSockCategories({ userRows: userRows, master, altmaster });
+  await createSockCategories(userRows);
 
   const blockAvailable = spiHelperIsAdmin() && !blockOptions.noBlock;
 
-  const allUsernames = userRows.map(user => user.username);
-  const allUserTalkPages = allUsernames.map(username => `User talk:${username}`);
+  const { allUsernames, allUserPages, allUserTalkPages } = userRows.reduce<{
+    allUsernames: string[];
+    allUserPages: string[];
+    allUserTalkPages: string[];
+  }>(
+    (acc, user) => {
+      acc.allUsernames.push(user.username);
+      acc.allUserPages.push(`User:${user.username}`);
+      acc.allUserTalkPages.push(`User talk:${user.username}`);
+      return acc;
+    },
+    { allUsernames: [], allUserPages: [], allUserTalkPages: [] },
+  );
   const fetchMessage = new VueMessage({ type: 'notice', content: 'Fetching user blocks and tags' }).show();
-  // Don't reuse userBlocks because they might not have all our users
-  const [userBlocks, userTalkPages] = await Promise.all([
+  // Don't reuse blocks and tags because they might not have all our users
+  const [userBlocks, userPages, userTalkPages] = await Promise.all([
     spiHelperGetBulkUserBlockSettings(allUsernames),
+    spiHelperGetBulkPageText(allUserPages),
     spiHelperGetBulkPageText(allUserTalkPages),
   ]);
   fetchMessage.update({ type: 'success', content: 'Got previous blocks and tags' });
-  const tagSock = async (userRow: UserRow, blocked: boolean): Promise<string | null> => {
-    if (userRow.block.tag === userTags.get(userRow.username)) {
-      return null;
-    }
+  const tagSock = async (userRow: UserRow): Promise<string | null> => {
     const tagSuccess = await spiHelperTagUser({
       sock: userRow,
+      pageText: userPages.get(userRow.username) ?? '',
       tagNonLocalAccounts: blockOptions.tagUnattached,
-      blocked,
-      master,
-      altmaster,
     });
+    /* Disabling to see if necessary. TODO: Check in later
     if (tagSuccess) {
       // Purge the sock pages if we created a category to get rid of
       // the issue where the page says "click here to create category"
@@ -403,6 +405,7 @@ export async function spiHelperHandleBlocks(opts: {
         await spiHelperPurgePage(`User:${userRow.username}`);
       }
     }
+    */
 
     return tagSuccess ? userRow.username : null;
   };
@@ -416,13 +419,14 @@ export async function spiHelperHandleBlocks(opts: {
     }
     const username = spiHelperNormalizeUsername(userRow.username);
     if (blockAvailable && userRow.block.block) {
-      let noticeType: 'master' | 'sock' | null = null;
-      const masterTag = userRow.block.tag.includes('master') || context.userName === username;
-      if (blockOptions.addMasterNotice && masterTag) {
-        noticeType = 'master';
+      const talkNotices: ('master' | 'sock')[] = [];
+      if (blockOptions.addMasterNotice
+        && (context.userName === username || userRow.block.tags.some(tag => isSockmasterTag(tag)))
+      ) {
+        talkNotices.push('master');
       }
-      else if (blockOptions.addSockNotice) {
-        noticeType = 'sock';
+      if (blockOptions.addSockNotice && userRow.block.tags.some(tag => isSockpuppetTag(tag))) {
+        talkNotices.push('sock');
       }
 
       const maxJitter = Math.max(500, userRows.length * 100);
@@ -464,22 +468,22 @@ export async function spiHelperHandleBlocks(opts: {
         const blockSuccess = await spiHelperProcessBlockRow({
           sock: userRow,
           userTalkContent: userTalkPages.get(userRow.username),
-          blockOptions: blockOptions,
-          noticeType: noticeType,
-          sockmaster: master,
+          blockOptions,
+          talkNotices,
+          defaultMaster: master,
         });
         if (!blockSuccess) {
           return null;
         }
 
-        if (userRow.block.tag !== 'none' || userRow.block.altmaster !== 'none') {
-          tagPromises.push(tagSock(userRow, true));
+        if (userRow.block.tags.length > 0) {
+          tagPromises.push(tagSock(userRow));
         }
         return userRow.username;
       })());
     }
-    else if (userRow.block.tag !== 'none' || userRow.block.altmaster !== 'none') {
-      tagPromises.push(tagSock(userRow, userBlocks.get(userRow.username) !== undefined));
+    else if (userRow.block.tags.length > 0) {
+      tagPromises.push(tagSock(userRow));
     }
   }
 
