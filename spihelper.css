@@ -11,7 +11,7 @@
   padding: 12px;
 }
 
-.enableSwitch {
+.cdx-toggle-switch.enableSwitch {
   align-self: baseline;
 }
 
@@ -59,7 +59,7 @@
   background-color: var(--background-color-progressive-subtle, #e8eeff);
 }
 
-#spiHelper-topView-Accordion .enableSwitch:not(:only-child) {
+#spiHelper-topView-Accordion .cdx-toggle-switch.enableSwitch:not(:only-child) {
   margin-bottom: .75em;
 }
 
