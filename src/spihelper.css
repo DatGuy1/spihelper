@@ -8,7 +8,7 @@
     padding: 12px;
 }
 
-.enableSwitch {
+.cdx-toggle-switch.enableSwitch {
     align-self: baseline;
 }
 
@@ -57,7 +57,7 @@
         background-color: var(--background-color-progressive-subtle, #e8eeff)
     }
 
-    .enableSwitch:not(:only-child) {
+    .cdx-toggle-switch.enableSwitch:not(:only-child) {
         margin-bottom: 0.75em;
     }
 }
