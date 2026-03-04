@@ -1,5 +1,5 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
-// v3.1.0-beta.1 "B@IA"
+// v3.1.0-beta.1
 // <nowiki>
 (() => {
 
@@ -2367,7 +2367,7 @@
     <change-status-action v-else-if="name === 'status'" v-model:enabled="caseActions.status.enabled"
                           :old-status="caseActions.status.data.old" v-model:new-status="caseActions.status.data.new"
                           @update:new-status="handleUpdateStatus" />
-    <block-action v-else-if="name === 'block'" v-model:enabled="caseActions.block.enabled"
+    <block-action v-else-if="name === 'block'" v-model:enabled="caseActions.block.enabled" fetch-type="comment"
                   v-model:block-options="caseActions.block.data.options" :accounts="accounts"
                   :default-master="caseActions.block.data.master"
                   :user-locks="caseActions.block.data.userLocks" :user-blocks="caseActions.block.data.userBlocks"
@@ -2550,6 +2550,9 @@
       pageText = await loadCaseText(state);
     } else {
       pageText = await spiHelperGetPageText(page, false);
+    }
+    if (pageText === "") {
+      return null;
     }
     const templates = parseTemplates(pageText);
     const archiveNoticeTemplate = templates.find((tl) => /SPI\s*archive notice/i.exec(tl.name));
@@ -3876,7 +3879,6 @@ $1`);
       logMessage += buildUserActionLogMessage({ blockedUsers, taggedUsers, lockedUsers });
       await spiHelperLog(logMessage);
     }
-    await spiHelperPurgePage(context.pageName);
     await refreshSections(state);
     new VueMessage({ type: "success", content: "Done!" }).show();
   }
@@ -4536,7 +4538,7 @@ ${comment}
       userLocks: { type: Map, required: true },
       userBlocks: { type: Map, required: true },
       defaultMaster: { type: String, required: true },
-      allowFetch: { type: Boolean, default: true },
+      fetchType: { type: String, required: true },
       enabled: { type: Boolean, required: true }
     },
     emits: ["update:enabled", "update:modelValue", "update:blockOptions", "removeRows", "addRow", "userSelected", "usernameChanged", "fetchRows"],
@@ -4777,13 +4779,13 @@ ${comment}
               <cdx-message v-if="topButtonActions.copied" type="success" :fade-in="true" :auto-dismiss="2000"
                            @user-dismissed="onMessageDismissed('copied')" @auto-dismissed="onMessageDismissed('copied')"
                            :inline="true">Copied!</cdx-message>
-              <cdx-button v-if="allowFetch" @click="fetchSocks" aria-label="Fetch socks from comment">
+              <cdx-button @click="fetchSocks" :aria-label="'Fetch socks from ' + fetchType">
                 <cdx-icon :icon="cdxIconDownload" />
               </cdx-button>
               <cdx-message v-if="topButtonActions.fetched" type="success" :fade-in="true" :auto-dismiss="2000"
                            @user-dismissed="onMessageDismissed('fetched')"
                            @auto-dismissed="onMessageDismissed('fetched')"
-                           :inline="true">Fetched from comment!</cdx-message>
+                           :inline="true">Fetched from {{ fetchType }}!</cdx-message>
               <cdx-button @click="removeSocks" action="destructive" aria-label="Remove selected rows">
                 <cdx-icon :icon="cdxIconTrash" />
               </cdx-button>
@@ -6240,6 +6242,7 @@ ${comment}
   `
   });
   // src/ui/views/alternateView.ts
+  var SPI_CASE_REGEX = /\[\[(?:Wikipedia|WP):(?:Sockpuppet investigations|SPI)\/([^\]]+)/i;
   var AlternateViewComponent = defineComponent({
     props: {
       state: { type: Object, required: true },
@@ -6312,6 +6315,9 @@ ${comment}
               case "category":
                 this.initialiseCategoryView();
                 break;
+              case "checkuser":
+                this.initialiseCheckUserView();
+                break;
               case "si":
                 this.initialiseSIView();
                 break;
@@ -6362,6 +6368,29 @@ ${comment}
       },
       handleRemoveRows(rowIds) {
         this.accounts = this.accounts.filter((row) => !rowIds.includes(row.id));
+      },
+      async handleFetchRows() {
+        let clipboardText;
+        try {
+          clipboardText = await navigator.clipboard.readText();
+        } catch (err) {
+          console.error("handleFetchRows failed to read clipboard:", err);
+          if (err instanceof DOMException && err.name === "NotAllowedError") {
+            new VueMessage({ type: "warning", content: "Failed to read clipboard. You may need to press 'paste' in the confirmation popup" }).show();
+          }
+          return;
+        }
+        const [likelySocks, possibleSocks] = getSockEntries({
+          text: clipboardText,
+          fullSearch: false,
+          state: this.state
+        });
+        const likelySet = new Set(likelySocks);
+        const allRows = [...likelySocks, ...possibleSocks].map((sock) => updateUserBlockDataSettings({
+          userRow: sock,
+          defaultBlock: likelySet.has(sock)
+        }));
+        this.massAddUserRows(allRows);
       },
       massAddUserRows(newRows) {
         const existingUsernames = new Set(this.accounts.map((s) => s.username));
@@ -6464,6 +6493,23 @@ ${comment}
         });
         this.massAddUserRows(allRows);
       },
+      initialiseCheckUserView() {
+        const $searchOrigin = $("form#checkuserform", document);
+        const searchReason = $("#checkreason input", $searchOrigin).val();
+        if (typeof searchReason === "string") {
+          const caseName = SPI_CASE_REGEX.exec(searchReason)?.[1];
+          if (caseName) {
+            this.targetCase = caseName;
+            return;
+          }
+        }
+        const searchTarget = $("#checktarget input", $searchOrigin).val();
+        if (typeof searchTarget === "string") {
+          if (!mw.util.isIPAddress(searchTarget, true)) {
+            this.targetCase = searchTarget;
+          }
+        }
+      },
       async initialiseSIView() {
         const allSocks = [];
         const allUsernames = new Set;
@@ -6524,11 +6570,11 @@ ${comment}
         </div>
         <div>
           <h4>Block</h4>
-          <block-action :enabled="true" :allow-fetch="false"
+          <block-action :enabled="true" fetch-type="clipboard"
                         :accounts="accounts" v-model:block-options="blockData.options"
                         :user-locks="blockData.userLocks" :user-blocks="blockData.userBlocks"
                         :default-master="blockData.master"
-                        @user-selected="handleUserSelected"
+                        @user-selected="handleUserSelected" @fetch-rows="handleFetchRows"
                         @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
         </div>
       </div>

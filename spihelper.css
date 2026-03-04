@@ -1,5 +1,5 @@
 /* {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.css}} */
-/* v3.1.0-beta.1 "B@IA" */
+/* v3.1.0-beta.1 */
 /* src/spihelper.css */
 .spihelper-hovertext {
   text-decoration: underline dotted;
@@ -36,7 +36,9 @@
 
 #spiHelper-vue-mount-point.unpinned .spiHelper-mainCard {
   position: absolute;
+  overflow-y: auto;
   width: 97.35%;
+  max-height: 40vh;
 }
 
 .spiHelper-mainCard-Header {
