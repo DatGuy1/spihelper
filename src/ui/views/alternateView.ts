@@ -43,6 +43,8 @@ interface Data {
   messages: VueMessage[];
 }
 
+const SPI_CASE_REGEX = /\[\[(?:Wikipedia|WP):(?:Sockpuppet investigations|SPI)\/([^\]]+)/i;
+
 export const AlternateViewComponent = defineComponent({
   props: {
     state: { type: Object as PropType<CaseState>, required: true },
@@ -120,6 +122,9 @@ export const AlternateViewComponent = defineComponent({
           switch (this.view) {
             case 'category':
               void this.initialiseCategoryView();
+              break;
+            case 'checkuser':
+              this.initialiseCheckUserView();
               break;
             case 'si':
               void this.initialiseSIView();
@@ -316,6 +321,27 @@ export const AlternateViewComponent = defineComponent({
         state: this.state,
       });
       this.massAddUserRows(allRows);
+    },
+    initialiseCheckUserView() {
+      // First check for SPI in reason box. If not found, fallback to search target
+      const $searchOrigin: JQuery = $('form#checkuserform', document);
+      const searchReason = $('#checkreason input', $searchOrigin).val();
+
+      if (typeof searchReason === 'string') {
+        const caseName = SPI_CASE_REGEX.exec(searchReason)?.[1];
+        if (caseName) {
+          this.targetCase = caseName;
+          return;
+        }
+      }
+
+      const searchTarget = $('#checktarget input', $searchOrigin).val();
+      if (typeof searchTarget === 'string') {
+        // So people don't accidentally leak IPs. Unsure if necessary.
+        if (!mw.util.isIPAddress(searchTarget, true)) {
+          this.targetCase = searchTarget;
+        }
+      }
     },
     async initialiseSIView() {
       const allSocks: UserRow[] = [];
