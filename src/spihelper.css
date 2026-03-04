@@ -34,6 +34,8 @@
 #spiHelper-vue-mount-point.unpinned .spiHelper-mainCard {
     position: absolute;
     width: 97.35%;
+    max-height: 40vh;
+    overflow-y: auto;
 }
 
 .spiHelper-mainCard-Header {
