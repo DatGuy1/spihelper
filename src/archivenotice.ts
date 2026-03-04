@@ -23,6 +23,10 @@ export async function spiHelperParseArchiveNotice(
   else {
     pageText = await spiHelperGetPageText(page, false);
   }
+  if (pageText === '') {
+    // Page doesn't exist
+    return null;
+  }
   const templates = parseTemplates(pageText);
   const archiveNoticeTemplate = templates.find(tl => /SPI\s*archive notice/i.exec(tl.name));
   if (!archiveNoticeTemplate) {

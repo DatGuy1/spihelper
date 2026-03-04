@@ -18,7 +18,7 @@ export const BlockActionComponent = defineComponent({
     userLocks: { type: Map as PropType<Map<string, boolean>>, required: true },
     userBlocks: { type: Map as PropType<Map<string, BlockEntry>>, required: true },
     defaultMaster: { type: String, required: true },
-    allowFetch: { type: Boolean, default: true },
+    fetchType: { type: String as PropType<'comment' | 'clipboard'>, required: true },
     enabled: { type: Boolean, required: true },
   },
   emits: ['update:enabled', 'update:modelValue', 'update:blockOptions', 'removeRows', 'addRow', 'userSelected', 'usernameChanged', 'fetchRows'],
@@ -285,13 +285,13 @@ export const BlockActionComponent = defineComponent({
               <cdx-message v-if="topButtonActions.copied" type="success" :fade-in="true" :auto-dismiss="2000"
                            @user-dismissed="onMessageDismissed('copied')" @auto-dismissed="onMessageDismissed('copied')"
                            :inline="true">Copied!</cdx-message>
-              <cdx-button v-if="allowFetch" @click="fetchSocks" aria-label="Fetch socks from comment">
+              <cdx-button @click="fetchSocks" :aria-label="'Fetch socks from ' + fetchType">
                 <cdx-icon :icon="cdxIconDownload" />
               </cdx-button>
               <cdx-message v-if="topButtonActions.fetched" type="success" :fade-in="true" :auto-dismiss="2000"
                            @user-dismissed="onMessageDismissed('fetched')"
                            @auto-dismissed="onMessageDismissed('fetched')"
-                           :inline="true">Fetched from comment!</cdx-message>
+                           :inline="true">Fetched from {{ fetchType }}!</cdx-message>
               <cdx-button @click="removeSocks" action="destructive" aria-label="Remove selected rows">
                 <cdx-icon :icon="cdxIconTrash" />
               </cdx-button>

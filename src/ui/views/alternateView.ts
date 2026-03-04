@@ -12,7 +12,13 @@ import {
 import { OpState, finishOp, getOpState, isOpRunning, startOp } from '../../operations.ts';
 import type { AllUser } from '../../types/api.ts';
 import { UpdateUserAllUserData } from './userLookup.ts';
-import { generateUserRow, getDefaultUserRow, setUserRowBlockData } from '../utils.ts';
+import {
+  generateUserRow,
+  getDefaultUserRow,
+  getSockEntries,
+  setUserRowBlockData,
+  updateUserBlockDataSettings,
+} from '../utils.ts';
 import { spiHelperHandleBlocks } from '../../caseActions.ts';
 import { spiHelperLog } from '../../actions/log.ts';
 import { context, setContext } from '../../context.ts';
@@ -167,6 +173,31 @@ export const AlternateViewComponent = defineComponent({
     },
     handleRemoveRows(rowIds: string[]) {
       this.accounts = this.accounts.filter(row => !rowIds.includes(row.id));
+    },
+    async handleFetchRows() {
+      let clipboardText: string;
+      try {
+        clipboardText = await navigator.clipboard.readText();
+      }
+      catch (err) {
+        console.error('handleFetchRows failed to read clipboard:', err);
+        if (err instanceof DOMException && err.name === 'NotAllowedError') {
+          new VueMessage({ type: 'warning', content: 'Failed to read clipboard. You may need to press \'paste\' in the confirmation popup' }).show();
+        }
+        return;
+      }
+      const [likelySocks, possibleSocks] = getSockEntries({
+        text: clipboardText,
+        fullSearch: false,
+        state: this.state,
+      });
+      const likelySet = new Set(likelySocks);
+
+      const allRows = [...likelySocks, ...possibleSocks].map(sock => updateUserBlockDataSettings({
+        userRow: sock,
+        defaultBlock: likelySet.has(sock),
+      }));
+      this.massAddUserRows(allRows);
     },
     massAddUserRows(newRows: UserRow[]) {
       const existingUsernames = new Set(this.accounts.map(s => s.username));
@@ -348,11 +379,11 @@ export const AlternateViewComponent = defineComponent({
         </div>
         <div>
           <h4>Block</h4>
-          <block-action :enabled="true" :allow-fetch="false"
+          <block-action :enabled="true" fetch-type="clipboard"
                         :accounts="accounts" v-model:block-options="blockData.options"
                         :user-locks="blockData.userLocks" :user-blocks="blockData.userBlocks"
                         :default-master="blockData.master"
-                        @user-selected="handleUserSelected"
+                        @user-selected="handleUserSelected" @fetch-rows="handleFetchRows"
                         @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
         </div>
       </div>

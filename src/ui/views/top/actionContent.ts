@@ -63,7 +63,7 @@ export const ActionContentComponent = defineComponent({
     <change-status-action v-else-if="name === 'status'" v-model:enabled="caseActions.status.enabled"
                           :old-status="caseActions.status.data.old" v-model:new-status="caseActions.status.data.new"
                           @update:new-status="handleUpdateStatus" />
-    <block-action v-else-if="name === 'block'" v-model:enabled="caseActions.block.enabled"
+    <block-action v-else-if="name === 'block'" v-model:enabled="caseActions.block.enabled" fetch-type="comment"
                   v-model:block-options="caseActions.block.data.options" :accounts="accounts"
                   :default-master="caseActions.block.data.master"
                   :user-locks="caseActions.block.data.userLocks" :user-blocks="caseActions.block.data.userBlocks"
