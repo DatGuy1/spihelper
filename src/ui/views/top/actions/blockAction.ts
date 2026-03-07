@@ -144,7 +144,8 @@ export const BlockActionComponent = defineComponent({
       this.$emit('userSelected', data, row.id);
     },
     setAllBlockFields<K extends keyof BlockRowData>(key: K, value: BlockRowData[K]) {
-      for (const row of this.accounts) {
+      for (const row of this.getTargetRows()) {
+        // Check if we should ignore
         if (key === 'lock' && this.userLocks.get(row.username) === true) {
           continue;
         }
@@ -167,9 +168,14 @@ export const BlockActionComponent = defineComponent({
       }
     },
     setAllTags(tag: Tag) {
-      for (const row of this.accounts) {
+      for (const row of this.getTargetRows()) {
         row.block.tags = [tag.clone()];
       }
+    },
+    getTargetRows() {
+      if (this.selectedRows.length === 0) return this.accounts;
+      const selected = new Set(this.selectedRows);
+      return this.accounts.filter((_, i) => selected.has(i));
     },
     fetchSocks() {
       this.topButtonActions.fetched = true;
