@@ -417,12 +417,9 @@ export async function spiHelperHandleBlocks(opts: {
         lockTargets.push(userRow.username);
       }
     }
-    const username = spiHelperNormalizeUsername(userRow.username);
     if (blockAvailable && userRow.block.block) {
       const talkNotices: ('master' | 'sock')[] = [];
-      if (blockOptions.addMasterNotice
-        && (context.userName === username || userRow.block.tags.some(tag => isSockmasterTag(tag)))
-      ) {
+      if (blockOptions.addMasterNotice && userRow.block.tags.some(tag => isSockmasterTag(tag))) {
         talkNotices.push('master');
       }
       if (blockOptions.addSockNotice && userRow.block.tags.some(tag => isSockpuppetTag(tag))) {
@@ -433,12 +430,17 @@ export async function spiHelperHandleBlocks(opts: {
       blockPromises.push((async () => {
         const userBlock = userBlocks.get(userRow.username);
         if (userBlock !== undefined && !blockOptions.override) {
-          // If the user is already blocked, and we haven't asked
-          // to override, exit before we get to API block error
-          new VueMessage({
-            type: 'warning',
-            content: `Block target ${userRow.username} is already blocked. Check the "override existing blocks" box to re-block them`,
-          }).show();
+          const alreadyBlockedWarning = new VueMessage({ type: 'warning', content: `Block target ${userRow.username} is already blocked. ` });
+          if (userRow.block.tags.length > 0) {
+            alreadyBlockedWarning.content += 'Proceeding with tagging';
+            tagPromises.push(tagSock(userRow));
+          }
+          else {
+            // If the user is already blocked, and we haven't asked
+            // to override, exit before we get to API block error
+            alreadyBlockedWarning.content += `Check the "override existing blocks" box to re-block them`;
+          }
+          alreadyBlockedWarning.show();
           return null;
         }
         const blockReason = userBlock?.reason;
