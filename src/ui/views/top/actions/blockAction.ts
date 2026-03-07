@@ -377,8 +377,8 @@ export const BlockActionComponent = defineComponent({
               </cdx-button>
               <tag-popover :anchor="$refs.selectAllTagButton" :default-master="defaultMaster"
                            v-model:open="popovers.all.open" :tag="popovers.all.tag"
-                           :clipboard-tag="popovers.clipboardTag" :force-footer="true"
-                           @update:tag="setAllTags" @deleteTag="handleTagDeleteAll" @addTag="handleTagAddAll"
+                           :clipboard-tag="popovers.clipboardTag" @update:tag="setAllTags"
+                           @deleteTag="handleTagDeleteAll" @addTag="handleTagAddAll"
                            @copyTag="popovers.clipboardTag = $event" />
             </th>
 

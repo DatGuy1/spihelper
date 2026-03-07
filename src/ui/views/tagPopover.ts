@@ -23,7 +23,6 @@ export const TagPopoverComponent = defineComponent({
     anchor: { type: Object as PropType<HTMLElement>, required: true },
     clipboardTag: { type: Object as PropType<Tag | null>, required: true },
     defaultMaster: { type: String, required: true },
-    forceFooter: { type: Boolean, default: false },
   },
   emits: {
     'update:open': (_: boolean) => true,
@@ -192,7 +191,6 @@ export const TagPopoverComponent = defineComponent({
       </div>
       <template #footer>
         <div class="footer-sideactions">
-          <template v-if="forceFooter || temporaryTag !== null">
             <cdx-button action="destructive" @click="handleDeleteTag" aria-label="Delete tag" title="Delete tag">
               <cdx-icon :icon="icons.cdxIconTrash" />
             </cdx-button>
@@ -205,7 +203,6 @@ export const TagPopoverComponent = defineComponent({
             <cdx-button @click="handlePasteTag" aria-label="Paste tag" title="Paste tag">
               <cdx-icon :icon="icons.cdxIconPaste" />
             </cdx-button>
-          </template>
         </div>
         <div class="cdx-popover__footer__actions">
           <cdx-button
