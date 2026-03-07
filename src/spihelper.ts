@@ -71,7 +71,7 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
 
     // @ts-expect-error Ignore __MODE__ not existing error because Bun should replace it on compile
     if (__MODE__ === 'live') {
-      mw.loader.load('http://127.0.0.1:8080/spihelper.css', 'text/css');
+      mw.loader.load('http://localhost:8080/spihelper.css', 'text/css');
     }
     // @ts-expect-error Ignore __MODE__, same as above
     else if (__MODE__ === 'dev') {
