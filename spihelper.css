@@ -1,5 +1,5 @@
 /* {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.css}} */
-/* v3.1.0-beta.1 */
+/* v3.1.1 */
 /* src/spihelper.css */
 .spihelper-hovertext {
   text-decoration: underline dotted;
@@ -275,13 +275,28 @@ div.edit-tag-popover {
 }
 
 div.edit-tag-popover .tag-category {
+  display: flex;
+  width: auto;
   margin-bottom: 16px;
+}
+
+div.edit-tag-popover .tag-category > button {
+  flex: 1;
 }
 
 div.edit-tag-popover .edit-body {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+div.edit-tag-popover .edit-body > .cdx-toggle-button-group {
+  display: flex;
+  width: auto;
+}
+
+div.edit-tag-popover .edit-body > .cdx-toggle-button-group > button {
+  flex: 1;
 }
 
 div.edit-tag-popover footer {

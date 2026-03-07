@@ -1,5 +1,5 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
-// v3.1.0-beta.1
+// v3.1.1
 // <nowiki>
 (() => {
 
@@ -645,6 +645,14 @@
   }
 
   // src/constants/settings.ts
+  var spiHelperAdvert = " (using [[:w:en:User:DatGuy/spihelper|User:DatGuy/spihelper.js]])";
+  var FeedbackConfig = {
+    title: new mw.Title("User talk:DatGuy/spihelper.js"),
+    bugsLink: "//github.com/DatGuy1/spihelper/issues/new",
+    showUseragentCheckbox: true,
+    useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
+  };
+  var VERSION = "3.1.1";
   var spiHelperDefaultSettings = {
     watch: {
       case: "preferences",
@@ -681,14 +689,8 @@
       enabled: false,
       forceCheckuser: false,
       forceAdmin: false
-    }
-  };
-  var spiHelperAdvert = " (using [[:w:en:User:DatGuy/spihelper|User:DatGuy/spihelper.js]])";
-  var FeedbackConfig = {
-    title: new mw.Title("User talk:DatGuy/spihelper.js"),
-    bugsLink: "//github.com/DatGuy1/spihelper/issues/new",
-    showUseragentCheckbox: true,
-    useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
+    },
+    lastSeenVersion: "0.0.0"
   };
 
   // src/api.ts
@@ -1377,7 +1379,7 @@
       return [];
     }
   }
-  var userAgent = `MediaWiki-JS/${mw.config.get("wgVersion")} spihelper/${"3.1.0-beta.1"}`;
+  var userAgent = `MediaWiki-JS/${mw.config.get("wgVersion")} spihelper/${VERSION}`;
   var APIs = {
     meta: new mw.ForeignApi("https://meta.wikimedia.org/w/api.php", { userAgent }),
     local: new mw.Api({ userAgent })
@@ -1388,6 +1390,12 @@
     } else {
       return APIs.local;
     }
+  }
+  function spiHelperGetEnwikiAPI() {
+    if (mw.config.get("wgWikiID") === "enwiki") {
+      return APIs.local;
+    }
+    return new mw.ForeignApi("https://en.wikipedia.org/w/api.php", { userAgent });
   }
 
   // src/context.ts
@@ -4013,10 +4021,9 @@ ${comment}
           lockTargets.push(userRow.username);
         }
       }
-      const username = spiHelperNormalizeUsername(userRow.username);
       if (blockAvailable && userRow.block.block) {
         const talkNotices = [];
-        if (blockOptions.addMasterNotice && (context.userName === username || userRow.block.tags.some((tag) => isSockmasterTag(tag)))) {
+        if (blockOptions.addMasterNotice && userRow.block.tags.some((tag) => isSockmasterTag(tag))) {
           talkNotices.push("master");
         }
         if (blockOptions.addSockNotice && userRow.block.tags.some((tag) => isSockpuppetTag(tag))) {
@@ -4026,10 +4033,14 @@ ${comment}
         blockPromises.push((async () => {
           const userBlock = userBlocks.get(userRow.username);
           if (userBlock !== undefined && !blockOptions.override) {
-            new VueMessage({
-              type: "warning",
-              content: `Block target ${userRow.username} is already blocked. Check the "override existing blocks" box to re-block them`
-            }).show();
+            const alreadyBlockedWarning = new VueMessage({ type: "warning", content: `Block target ${userRow.username} is already blocked. ` });
+            if (userRow.block.tags.length > 0) {
+              alreadyBlockedWarning.content += "Proceeding with tagging";
+              tagPromises.push(tagSock(userRow));
+            } else {
+              alreadyBlockedWarning.content += `Check the "override existing blocks" box to re-block them`;
+            }
+            alreadyBlockedWarning.show();
             return null;
           }
           const blockReason = userBlock?.reason;
@@ -4649,7 +4660,7 @@ ${comment}
         this.$emit("userSelected", data, row.id);
       },
       setAllBlockFields(key, value) {
-        for (const row of this.accounts) {
+        for (const row of this.getTargetRows()) {
           if (key === "lock" && this.userLocks.get(row.username) === true) {
             continue;
           } else if (key === "block" && this.userBlocks.get(row.username) !== undefined) {
@@ -4667,9 +4678,15 @@ ${comment}
         }
       },
       setAllTags(tag) {
-        for (const row of this.accounts) {
+        for (const row of this.getTargetRows()) {
           row.block.tags = [tag.clone()];
         }
+      },
+      getTargetRows() {
+        if (this.selectedRows.length === 0)
+          return this.accounts;
+        const selected = new Set(this.selectedRows);
+        return this.accounts.filter((_, i) => selected.has(i));
       },
       fetchSocks() {
         this.topButtonActions.fetched = true;
@@ -4871,8 +4888,8 @@ ${comment}
               </cdx-button>
               <tag-popover :anchor="$refs.selectAllTagButton" :default-master="defaultMaster"
                            v-model:open="popovers.all.open" :tag="popovers.all.tag"
-                           :clipboard-tag="popovers.clipboardTag" :force-footer="true"
-                           @update:tag="setAllTags" @deleteTag="handleTagDeleteAll" @addTag="handleTagAddAll"
+                           :clipboard-tag="popovers.clipboardTag" @update:tag="setAllTags"
+                           @deleteTag="handleTagDeleteAll" @addTag="handleTagAddAll"
                            @copyTag="popovers.clipboardTag = $event" />
             </th>
 
@@ -5997,8 +6014,7 @@ ${comment}
       open: { type: Boolean, required: true },
       anchor: { type: Object, required: true },
       clipboardTag: { type: Object, required: true },
-      defaultMaster: { type: String, required: true },
-      forceFooter: { type: Boolean, default: false }
+      defaultMaster: { type: String, required: true }
     },
     emits: {
       "update:open": (_) => true,
@@ -6161,7 +6177,6 @@ ${comment}
       </div>
       <template #footer>
         <div class="footer-sideactions">
-          <template v-if="forceFooter || temporaryTag !== null">
             <cdx-button action="destructive" @click="handleDeleteTag" aria-label="Delete tag" title="Delete tag">
               <cdx-icon :icon="icons.cdxIconTrash" />
             </cdx-button>
@@ -6174,7 +6189,6 @@ ${comment}
             <cdx-button @click="handlePasteTag" aria-label="Paste tag" title="Paste tag">
               <cdx-icon :icon="icons.cdxIconPaste" />
             </cdx-button>
-          </template>
         </div>
         <div class="cdx-popover__footer__actions">
           <cdx-button
@@ -6599,6 +6613,74 @@ ${comment}
     </div>
   `
   });
+  // src/ui/views/changelogView.ts
+  var ChangelogViewComponent = defineComponent({
+    props: {
+      unseenChanges: { type: Array, required: true },
+      openState: { type: Object, required: true }
+    },
+    methods: {
+      onClose() {
+        this.openState.isOpen = false;
+        this.$emit("dismissed");
+      }
+    },
+    template: `
+    <cdx-dialog
+        v-model:open="openState.isOpen"
+        title="What's new"
+        @update:open="onClose"
+    >
+      <div v-for="[version, entry] in unseenChanges" :key="version">
+        <h3 style="display: inline;">{{ version }}</h3> · <span class="cdx-muted-text">{{ entry.date }}</span>
+        <ul>
+          <li v-for="change in entry.changes" :key="change">{{ change }}</li>
+        </ul>
+      </div>
+
+      <template #footer>
+        <cdx-button action="progressive" @click="onClose">Got it</cdx-button>
+      </template>
+    </cdx-dialog>`
+  });
+  // src/changelog.ts
+  async function getChangelog() {
+    const api = spiHelperGetEnwikiAPI();
+    const request = {
+      action: "query",
+      prop: "revisions",
+      rvprop: "content",
+      rvslots: "main",
+      pageids: 82598459,
+      formatversion: "2"
+    };
+    try {
+      const response = await api.get(request);
+      const content = response.query.pages[0]?.revisions?.[0]?.slots.main.content;
+      if (content) {
+        return JSON.parse(content);
+      }
+    } catch (error) {
+      console.error("getChangelog fetch error:", error);
+    }
+    return {};
+  }
+  async function getUnseenChanges(lastSeenVersion) {
+    const changelog = await getChangelog();
+    return Object.entries(changelog).filter(([version]) => semverGt(version, lastSeenVersion)).sort(([a], [b]) => semverGt(a, b) ? -1 : 1);
+  }
+  function semverGt(versionA, versionB) {
+    const partsA = versionA.split(".").map(Number);
+    const partsB = versionB.split(".").map(Number);
+    for (let i = 0;i < 3; i++) {
+      if ((partsA[i] ?? 0) > (partsB[i] ?? 0))
+        return true;
+      if ((partsA[i] ?? 0) < (partsB[i] ?? 0))
+        return false;
+    }
+    return false;
+  }
+
   // src/spihelper.ts
   if (mw.config.get("wgPageName").includes("Wikipedia:Sockpuppet_investigations/") && !mw.config.get("wgPageName").includes("Wikipedia:Sockpuppet_investigations/SPI/")) {
     bootstrap("spi");
@@ -6638,11 +6720,34 @@ ${comment}
           saveOptions();
         })();
       }
+      const changelogState = Vue.reactive({ isOpen: false });
+      if (spiHelperSettings.lastSeenVersion !== VERSION) {
+        console.log(spiHelperSettings.lastSeenVersion);
+        getUnseenChanges(spiHelperSettings.lastSeenVersion).then((unseenChanges) => {
+          const mountPoint = document.createElement("div");
+          mountPoint.style.position = "absolute";
+          mw.util.$content.prepend(mountPoint);
+          const changelogApp = Vue.createMwApp(ChangelogViewComponent, {
+            unseenChanges,
+            openState: changelogState,
+            onDismissed: async () => {
+              spiHelperSettings.lastSeenVersion = VERSION;
+              await saveOptions();
+              changelogApp.unmount();
+              mountPoint.remove();
+            }
+          }).component("cdx-button", Codex.CdxButton).component("cdx-dialog", Codex.CdxDialog);
+          changelogApp.mount(mountPoint);
+        }, () => {});
+      }
       const initLink = mw.util.addPortletLink("p-cactions", "#", "SPI-Beta", "ca-spiHelper", "Run spiHelper");
       if (initLink) {
         const mountPoint = document.createElement("div");
         mountPoint.setAttribute("id", "spiHelper-vue-mount-point");
         mw.util.$content.prepend(mountPoint);
+        initLink.addEventListener("click", () => {
+          changelogState.isOpen = true;
+        });
         switch (pageType) {
           case "spi": {
             Vue.createMwApp(TopViewComponent, {
