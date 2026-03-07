@@ -46,7 +46,7 @@ import type {
 } from './types/api.ts';
 import { buildTitleLinkHtml, spiHelperStripXWikiPrefix } from './utils.ts';
 import { OpState, finishOp, startOp } from './operations.ts';
-import { spiHelperAdvert } from './constants/settings.ts';
+import { VERSION, spiHelperAdvert } from './constants/settings.ts';
 import { SectionEntry } from './state.ts';
 import { VueMessage } from './ui/messages.ts';
 
@@ -1043,11 +1043,10 @@ export async function spiHelperGetCategoryMembers(category: string): Promise<str
   }
 }
 
-// @ts-expect-error Ignore __VERSION__ not existing error because Bun should replace it on compile
-const userAgent = `MediaWiki-JS/${mw.config.get('wgVersion')} spihelper/${__VERSION__}`;
+const userAgent = `MediaWiki-JS/${mw.config.get('wgVersion')} spihelper/${VERSION}`;
 const APIs = {
-  meta: new mw.ForeignApi('https://meta.wikimedia.org/w/api.php', { userAgent: userAgent }),
-  local: new mw.Api({ userAgent: userAgent }),
+  meta: new mw.ForeignApi('https://meta.wikimedia.org/w/api.php', { userAgent }),
+  local: new mw.Api({ userAgent }),
 };
 
 /**
@@ -1063,4 +1062,11 @@ export function spiHelperGetAPI(title?: string): mw.Api {
   else {
     return APIs.local;
   }
+}
+
+export function spiHelperGetEnwikiAPI(): mw.Api {
+  if (mw.config.get('wgWikiID') === 'enwiki') {
+    return APIs.local;
+  }
+  return new mw.ForeignApi('https://en.wikipedia.org/w/api.php', { userAgent });
 }

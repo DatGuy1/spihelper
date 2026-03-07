@@ -38,4 +38,5 @@ export interface ScriptSettings {
     forceCheckuser: boolean;
     forceAdmin: boolean;
   };
+  lastSeenVersion: string;
 }

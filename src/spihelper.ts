@@ -26,6 +26,7 @@ import {
 } from './ui/views/top';
 import {
   AlternateViewComponent,
+  ChangelogViewComponent,
   ExpiryInputComponent,
   OneClickArchivalComponent,
   PageLookupComponent,
@@ -34,11 +35,12 @@ import {
   UserLookupComponent,
 } from './ui/views';
 import { hasRunningOps } from './operations.ts';
-import { FeedbackConfig } from './constants/settings.ts';
+import { FeedbackConfig, VERSION } from './constants/settings.ts';
 import type * as VueType from 'vue';
 import type * as CodexType from '@wikimedia/codex';
 import type { FeedbackDialog } from './types/vue.ts';
 import { setContext } from './context.ts';
+import { getUnseenChanges } from './changelog.ts';
 
 // DatGuy's rewrite of GeneralNotability's rewrite of Tim's SPI helper script
 // With additional contributions from 0xDeadbeef, Dreamy Jazz,
@@ -105,6 +107,31 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
       })();
     }
 
+    const changelogState = Vue.reactive({ isOpen: false });
+    if (spiHelperSettings.lastSeenVersion !== VERSION) {
+      console.log(spiHelperSettings.lastSeenVersion);
+      getUnseenChanges(spiHelperSettings.lastSeenVersion)
+        .then((unseenChanges) => {
+          const mountPoint = document.createElement('div');
+          mountPoint.style.position = 'absolute';
+          mw.util.$content.prepend(mountPoint);
+
+          const changelogApp = Vue.createMwApp(ChangelogViewComponent, {
+            unseenChanges,
+            openState: changelogState,
+            onDismissed: async () => {
+              spiHelperSettings.lastSeenVersion = VERSION;
+              await saveOptions();
+              changelogApp.unmount();
+              mountPoint.remove();
+            },
+          })
+            .component('cdx-button', Codex.CdxButton)
+            .component('cdx-dialog', Codex.CdxDialog);
+          changelogApp.mount(mountPoint);
+        }, () => { /* empty */ });
+    }
+
     const initLink = mw.util.addPortletLink('p-cactions', '#', 'SPI-Beta', 'ca-spiHelper', 'Run spiHelper');
     // Fails if we don't have a p-cactions menu
     if (initLink) {
@@ -112,6 +139,9 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
       mountPoint.setAttribute('id', 'spiHelper-vue-mount-point');
       mw.util.$content.prepend(mountPoint);
 
+      initLink.addEventListener('click', () => {
+        changelogState.isOpen = true;
+      });
       switch (pageType) {
         case 'spi': {
           Vue.createMwApp(TopViewComponent, {

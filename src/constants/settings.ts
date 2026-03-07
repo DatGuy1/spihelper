@@ -1,8 +1,20 @@
-// User-configurable settings, these are the defaults but will be updated by
-// spiHelperLoadSettings()
-
 import type { ScriptSettings } from '../options/types.ts';
 
+// Advert to append to the edit summary of edits
+export const spiHelperAdvert = ' (using [[:w:en:User:DatGuy/spihelper|User:DatGuy/spihelper.js]])';
+
+export const FeedbackConfig = {
+  title: new mw.Title('User talk:DatGuy/spihelper.js'),
+  bugsLink: '//github.com/DatGuy1/spihelper/issues/new',
+  showUseragentCheckbox: true,
+  useragentCheckboxMessage: 'I want to share my user agent publicly alongside my feedback. This is optional.',
+};
+
+// @ts-expect-error Ignore __VERSION__ not existing error because Bun should replace it on compile
+export const VERSION: string = __VERSION__ as string;
+
+// User-configurable settings, these are the defaults but will be updated by
+// spiHelperLoadSettings()
 export const spiHelperDefaultSettings: ScriptSettings = {
   // Choices are 'watch' (unconditionally add to watchlist), 'preferences'
   // (follow default preferences), 'nochange' (don't change the watchlist
@@ -58,14 +70,5 @@ export const spiHelperDefaultSettings: ScriptSettings = {
     forceCheckuser: false,
     forceAdmin: false,
   },
-};
-
-// Advert to append to the edit summary of edits
-export const spiHelperAdvert = ' (using [[:w:en:User:DatGuy/spihelper|User:DatGuy/spihelper.js]])';
-
-export const FeedbackConfig = {
-  title: new mw.Title('User talk:DatGuy/spihelper.js'),
-  bugsLink: '//github.com/DatGuy1/spihelper/issues/new',
-  showUseragentCheckbox: true,
-  useragentCheckboxMessage: 'I want to share my user agent publicly alongside my feedback. This is optional.',
+  lastSeenVersion: '0.0.0',
 };
