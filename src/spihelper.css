@@ -273,12 +273,28 @@ div.edit-tag-popover {
     min-width: 310px;
 
     .tag-category {
+        display: flex;
+        width: auto;
         margin-bottom: 16px;
+
+        > button {
+            flex: 1;
+        }
     }
+
     .edit-body {
         display: flex;
         flex-direction: column;
         gap: 4px;
+
+        > .cdx-toggle-button-group {
+            display: flex;
+            width: auto;
+
+            > button {
+                flex: 1;
+            }
+        }
     }
 
     footer {
