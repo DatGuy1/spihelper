@@ -12,6 +12,8 @@ export const FeedbackConfig = {
 
 // @ts-expect-error Ignore __VERSION__ not existing error because Bun should replace it on compile
 export const VERSION: string = __VERSION__ as string;
+// @ts-expect-error Same as above
+export const MODE = __MODE__ as 'live' | 'dev' | 'production';
 
 // User-configurable settings, these are the defaults but will be updated by
 // spiHelperLoadSettings()

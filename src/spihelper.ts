@@ -35,7 +35,7 @@ import {
   UserLookupComponent,
 } from './ui/views';
 import { hasRunningOps } from './operations.ts';
-import { FeedbackConfig, VERSION } from './constants/settings.ts';
+import { FeedbackConfig, MODE, VERSION } from './constants/settings.ts';
 import type * as VueType from 'vue';
 import type * as CodexType from '@wikimedia/codex';
 import type { FeedbackDialog } from './types/vue.ts';
@@ -71,12 +71,10 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-call
     const feedbackDialog: FeedbackDialog = new mw.Feedback(FeedbackConfig);
 
-    // @ts-expect-error Ignore __MODE__ not existing error because Bun should replace it on compile
-    if (__MODE__ === 'live') {
+    if (MODE === 'live') {
       mw.loader.load('http://localhost:8080/spihelper.css', 'text/css');
     }
-    // @ts-expect-error Ignore __MODE__, same as above
-    else if (__MODE__ === 'dev') {
+    else if (MODE === 'dev') {
       importStylesheet('User:DatGuy/spihelper.dev.css');
     }
     else {
@@ -126,7 +124,8 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
             },
           })
             .component('cdx-button', Codex.CdxButton)
-            .component('cdx-dialog', Codex.CdxDialog);
+            .component('cdx-dialog', Codex.CdxDialog)
+            .component('cdx-message', Codex.CdxMessage);
           changelogApp.mount(mountPoint);
         }, () => { /* empty */ });
     }

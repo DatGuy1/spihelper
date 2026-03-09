@@ -1,10 +1,16 @@
 import { type PropType, defineComponent } from 'vue';
 import type { ChangelogEntry } from '../../changelog.ts';
+import { MODE } from '../../constants/settings.ts';
 
 export const ChangelogViewComponent = defineComponent({
   props: {
     unseenChanges: { type: Array as PropType<[string, ChangelogEntry ][]>, required: true },
     openState: { type: Object as PropType<{ isOpen: boolean }>, required: true },
+  },
+  data() {
+    return {
+      beta: MODE !== 'production',
+    };
   },
   methods: {
     onClose() {
@@ -19,11 +25,17 @@ export const ChangelogViewComponent = defineComponent({
         @update:open="onClose"
     >
       <div v-for="[version, entry] in unseenChanges" :key="version">
-        <h3 style="display: inline;">{{ version }}</h3> · <span class="cdx-muted-text">{{ entry.date }}</span>
+        <h3 style="display: inline;">{{ version }}</h3> · {{ entry.date }}
         <ul>
           <li v-for="change in entry.changes" :key="change">{{ change }}</li>
         </ul>
       </div>
+      
+      <cdx-message v-if="beta" style="padding: 12px; margin-top: 32px">
+        <p><strong>Beta Reminder</strong></p>
+        <p>You are running a beta version.</p>
+        <p>It is recommended to double-check your edits, especially ones that are impacted by a recent change.</p>
+      </cdx-message>
 
       <template #footer>
         <cdx-button action="progressive" @click="onClose">Got it</cdx-button>
