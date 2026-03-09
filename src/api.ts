@@ -426,7 +426,7 @@ export async function spiHelperGetInvestigationSections(opts: {
     }
     const dateSections: SectionEntry[] = [];
     for (const section of response.parse.tocdata.sections) {
-      if (parseInt(section.hLevel) === 3) {
+      if (section.tocLevel === 2) {
         dateSections.push(new SectionEntry(parseInt(section.index), section.line));
       }
     }

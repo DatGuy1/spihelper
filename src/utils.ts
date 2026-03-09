@@ -1,4 +1,8 @@
-import { spiHelperHiddenCharNormRegex, spiHelperPriorCasesRegex, spiHelperSignatureRegex } from './constants/regex.ts';
+import {
+  spiHelperHiddenCharNormRegex,
+  spiHelperSectionRegex,
+  spiHelperSignatureRegex,
+} from './constants/regex.ts';
 import type { AbsoluteExpiry, Expiry, NoExpiry, RelativeExpiry } from './types/api.ts';
 import { SectionEntry } from './state.ts';
 import { VueMessage } from './ui/messages.ts';
@@ -215,12 +219,25 @@ export function buildUserActionLogMessage(opts: {
 }
 
 /**
+ * Match the section header with the section name:
+ * level 3,
+ * level 5 with <big> (old format),
+ * level 5 with 'Report date Date Time (UTC)' (even older format),
+ * @param sectionTitle
+ */
+function createSectionTitleRegex(sectionTitle: string) {
+  // Escape in case we use the type 3 header
+  const escapedTitle = sectionTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^(={3}|={5})\\s*(<big>)?${escapedTitle}(</big>)?\\s*(={3}|={5})\\s*$`, 'm');
+}
+
+/**
  * Find the end of this section (start of next section or end of text)
  */
 export function getSectionText(text: string, startIndex = 0, nextSectionTitle?: string): string {
   let endIndex = text.length;
   if (nextSectionTitle) {
-    const nextHeaderPattern = new RegExp(`^===\\s*${nextSectionTitle}\\s*===\\s*$`, 'm');
+    const nextHeaderPattern = createSectionTitleRegex(nextSectionTitle);
     const nextMatch = text.slice(startIndex + 1).match(nextHeaderPattern);
     if (nextMatch?.index !== undefined) {
       endIndex = startIndex + nextMatch.index;
@@ -238,11 +255,8 @@ export function rebuildArchiveText(originalText: string, sections: ArchiveSectio
 }
 
 export function getContentStartIndex(archiveText: string) {
-  const headerEndMatch = spiHelperPriorCasesRegex.exec(archiveText);
-  if (headerEndMatch) {
-    return headerEndMatch.index + headerEndMatch[0].length;
-  }
-  return 0;
+  const firstSectionMatch = spiHelperSectionRegex.exec(archiveText);
+  return firstSectionMatch?.index ?? 0;
 }
 
 export function parseArchiveSections(
@@ -265,8 +279,7 @@ export function parseArchiveSections(
       continue;
     }
     const sectionName = sectionEntry.name;
-    // Match the section header (level 3 header with the section name)
-    const headerPattern = new RegExp(`^===\\s*${sectionName}\\s*===\\s*$`, 'm');
+    const headerPattern = createSectionTitleRegex(sectionName);
     const headerMatch = contentText.match(headerPattern);
     if (!headerMatch) {
       continue;
