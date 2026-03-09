@@ -405,6 +405,7 @@ export async function spiHelperGetInvestigationSections(opts: {
     // @ts-expect-error - Latest MediaWiki deprecated 'section'
     // Remove me at next types-mediawiki release
     prop: 'tocdata',
+    formatversion: '2',
   };
   if (pageName !== undefined) {
     request.page = pageName;
@@ -820,10 +821,10 @@ export async function spiHelperEditPage(opts: {
     activeOpKey += `_${sectionId}`;
   }
   startOp(activeOpKey);
-  const linkHtml = buildTitleLinkHtml(title);
+  const pageLinkHtml = buildTitleLinkHtml(title);
   const message = new VueMessage({
     type: 'notice',
-    content: 'Editing ' + linkHtml,
+    content: 'Editing ' + pageLinkHtml,
     isHtml: true,
   }).show();
 
@@ -850,14 +851,15 @@ export async function spiHelperEditPage(opts: {
   }
   try {
     const response = await api.postWithToken('csrf', request) as EditResponse;
-    message.update({ type: 'success', content: 'Saved ' + linkHtml, isHtml: true });
+    const diffLinkHtml = buildTitleLinkHtml(`Special:Diff/${response.edit.newrevid}`, 'Saved');
+    message.update({ type: 'success', content: `${diffLinkHtml} page ${pageLinkHtml}`, isHtml: true });
     finishOp(activeOpKey, OpState.Success);
     return response.edit.newrevid;
   }
   catch (error) {
     message.update({
       type: 'error',
-      content: `Edit failed on ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`,
+      content: `Edit failed on ${pageLinkHtml}: ${mw.html.escape(JSON.stringify(error))}`,
       isHtml: true,
     });
     console.error(error);

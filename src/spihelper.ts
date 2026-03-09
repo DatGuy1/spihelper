@@ -109,7 +109,6 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
 
     const changelogState = Vue.reactive({ isOpen: false });
     if (spiHelperSettings.lastSeenVersion !== VERSION) {
-      console.log(spiHelperSettings.lastSeenVersion);
       getUnseenChanges(spiHelperSettings.lastSeenVersion)
         .then((unseenChanges) => {
           const mountPoint = document.createElement('div');
