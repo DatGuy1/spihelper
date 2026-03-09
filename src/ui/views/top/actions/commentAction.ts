@@ -1,4 +1,4 @@
-import { defineComponent } from 'vue';
+import { type PropType, defineComponent } from 'vue';
 import { type CdxTextArea, type MenuItemData } from '@wikimedia/codex';
 import { spiHelperRenderText } from '../../../../api.ts';
 import { context } from '../../../../context.ts';
@@ -6,11 +6,15 @@ import { cdxIconReload } from '@wikimedia/codex-icons';
 import { spiHelperIsAdmin, spiHelperIsCheckuser, spiHelperIsClerk } from '../../../../role.ts';
 import { spiHelperCUTemplates, spiHelperClerkTemplates } from '../../../../constants/spi.ts';
 import { addSignature } from '../../../../utils.ts';
+import { type SectionSelection, loadSectionText } from '../../../../state.ts';
+import { spiHelperSettings } from '../../../../options';
+import { spiHelperAdminSectionWithPrecedingNewlinesRegex } from '../../../../constants/regex.ts';
 
 export const CommentActionComponent = defineComponent({
   props: {
     enabled: { type: Boolean, required: true },
     text: { type: String, required: true },
+    selectedSection: { type: Object as PropType<SectionSelection | null>, required: true },
   },
   emits: ['update:enabled', 'update:text'],
   data() {
@@ -36,6 +40,7 @@ export const CommentActionComponent = defineComponent({
       cuTemplates,
       loadingPreview: false,
       htmlPreview: '',
+      fullPreview: spiHelperSettings.interface.fullPreview,
       cdxIconReload,
     };
   },
@@ -58,8 +63,32 @@ export const CommentActionComponent = defineComponent({
     },
     async updatePreview() {
       this.loadingPreview = true;
-      this.htmlPreview = await spiHelperRenderText(context.pageName, addSignature(this.text));
-      this.loadingPreview = false;
+      const userText = addSignature(this.text);
+      try {
+        if (this.fullPreview && this.selectedSection?.type === 'specific') {
+          const sectionText = await loadSectionText(this.selectedSection.section);
+          let startIndex: number | undefined;
+          let endIndex: number | undefined;
+          if (spiHelperIsClerk() || spiHelperIsAdmin()) {
+            // Find the invisible marker
+            startIndex = spiHelperAdminSectionWithPrecedingNewlinesRegex.exec(sectionText)?.index;
+            endIndex = /\n*----(?!.*----)/s.exec(sectionText)?.index;
+          }
+          else {
+            // Everyone else posts in the "other users" section
+            startIndex = /\s*====\s*<big>Comments by other users<\/big>\s*====\s*/i.exec(sectionText)?.index;
+            endIndex = spiHelperAdminSectionWithPrecedingNewlinesRegex.exec(sectionText)?.index;
+          }
+          const subsectionText = sectionText.slice(startIndex ?? 0, endIndex ?? 0).trim() + '\n' + userText;
+          this.htmlPreview = await spiHelperRenderText(context.pageName, subsectionText);
+        }
+        else {
+          this.htmlPreview = await spiHelperRenderText(context.pageName, userText);
+        }
+      }
+      finally {
+        this.loadingPreview = false;
+      }
     },
     /**
      * Inserts a {{note}} template at the start of the text box

@@ -252,8 +252,12 @@ export const OptionsComponent = defineComponent({
           Display IPv6 as /64
           <template #description>Default IPv6 listings to /64 in the block/tag socks menu</template>
         </cdx-toggle-switch>
+        <cdx-toggle-switch v-model="spiHelperSettings.interface.fullPreview" :align-switch="true">
+          Full preview
+          <template #description>Include the entire section's text when previewing comments</template>
+        </cdx-toggle-switch>
         <expiry-setting label="Default block duration" v-model="spiHelperSettings.interface.defaultBlockDuration"
-                        :reset-trigger="resetTrigger" />
+        :reset-trigger="resetTrigger" />
       </cdx-accordion>
       <cdx-accordion :action-icon="icons.cdxIconCode" :action-always-visible="true" v-if="showExtra">
         <template #title>Debug</template>

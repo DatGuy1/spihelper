@@ -57,6 +57,8 @@ export const spiHelperDefaultSettings: ScriptSettings = {
     defaultBlockDuration: 'indefinite',
     // Default IPv6 listings to /64 in the block/tag socks menu
     displayIPv6As64: true,
+    // Should we include the entire section in the comment preview box
+    fullPreview: false,
     // Should we pin the top view to the top, or make it sticky
     pinned: true,
     // Whether to use the button layout (true) or the accordion layout (false)

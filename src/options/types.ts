@@ -30,6 +30,7 @@ export interface ScriptSettings {
   interface: {
     defaultBlockDuration: string;
     displayIPv6As64: boolean;
+    fullPreview: boolean;
     pinned: boolean;
     buttonLayout: boolean;
   };

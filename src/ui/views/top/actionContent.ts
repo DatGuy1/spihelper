@@ -59,7 +59,7 @@ export const ActionContentComponent = defineComponent({
 
     <!-- Other actions -->
     <comment-action v-else-if="name === 'comment'" v-model:enabled="caseActions.comment.enabled"
-                    v-model:text="caseActions.comment.data.text" />
+                    v-model:text="caseActions.comment.data.text" :selected-section="state.selectedSection" />
     <change-status-action v-else-if="name === 'status'" v-model:enabled="caseActions.status.enabled"
                           :old-status="caseActions.status.data.old" v-model:new-status="caseActions.status.data.new"
                           @update:new-status="handleUpdateStatus" />
