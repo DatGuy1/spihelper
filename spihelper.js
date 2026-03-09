@@ -1,5 +1,5 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
-// v3.1.1
+// v3.1.2
 // <nowiki>
 (() => {
 
@@ -427,10 +427,14 @@
     }
     return logMessage;
   }
+  function createSectionTitleRegex(sectionTitle) {
+    const escapedTitle = sectionTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`^(={3}|={5})\\s*(<big>)?${escapedTitle}(</big>)?\\s*(={3}|={5})\\s*$`, "m");
+  }
   function getSectionText(text, startIndex = 0, nextSectionTitle) {
     let endIndex = text.length;
     if (nextSectionTitle) {
-      const nextHeaderPattern = new RegExp(`^===\\s*${nextSectionTitle}\\s*===\\s*$`, "m");
+      const nextHeaderPattern = createSectionTitleRegex(nextSectionTitle);
       const nextMatch = text.slice(startIndex + 1).match(nextHeaderPattern);
       if (nextMatch?.index !== undefined) {
         endIndex = startIndex + nextMatch.index;
@@ -447,11 +451,8 @@
 `);
   }
   function getContentStartIndex(archiveText) {
-    const headerEndMatch = spiHelperPriorCasesRegex.exec(archiveText);
-    if (headerEndMatch) {
-      return headerEndMatch.index + headerEndMatch[0].length;
-    }
-    return 0;
+    const firstSectionMatch = spiHelperSectionRegex.exec(archiveText);
+    return firstSectionMatch?.index ?? 0;
   }
   function parseArchiveSections(archiveText, sectionEntries) {
     const sectionsResult = [];
@@ -466,7 +467,7 @@
         continue;
       }
       const sectionName = sectionEntry.name;
-      const headerPattern = new RegExp(`^===\\s*${sectionName}\\s*===\\s*$`, "m");
+      const headerPattern = createSectionTitleRegex(sectionName);
       const headerMatch = contentText.match(headerPattern);
       if (!headerMatch) {
         continue;
@@ -652,7 +653,8 @@
     showUseragentCheckbox: true,
     useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
   };
-  var VERSION = "3.1.1";
+  var VERSION = "3.1.2";
+  var MODE = "dev";
   var spiHelperDefaultSettings = {
     watch: {
       case: "preferences",
@@ -682,6 +684,7 @@
     interface: {
       defaultBlockDuration: "indefinite",
       displayIPv6As64: true,
+      fullPreview: false,
       pinned: true,
       buttonLayout: true
     },
@@ -924,7 +927,8 @@
     const { pageName, content } = opts;
     const request = {
       action: "parse",
-      prop: "tocdata"
+      prop: "tocdata",
+      formatversion: "2"
     };
     if (pageName !== undefined) {
       request.page = pageName;
@@ -944,7 +948,7 @@
       }
       const dateSections = [];
       for (const section of response.parse.tocdata.sections) {
-        if (parseInt(section.hLevel) === 3) {
+        if (section.tocLevel === 2) {
           dateSections.push(new SectionEntry(parseInt(section.index), section.line));
         }
       }
@@ -1214,10 +1218,10 @@
       activeOpKey += `_${sectionId}`;
     }
     startOp(activeOpKey);
-    const linkHtml = buildTitleLinkHtml(title);
+    const pageLinkHtml = buildTitleLinkHtml(title);
     const message = new VueMessage({
       type: "notice",
-      content: "Editing " + linkHtml,
+      content: "Editing " + pageLinkHtml,
       isHtml: true
     }).show();
     const api = spiHelperGetAPI(title);
@@ -1242,13 +1246,14 @@
     }
     try {
       const response = await api.postWithToken("csrf", request);
-      message.update({ type: "success", content: "Saved " + linkHtml, isHtml: true });
+      const diffLinkHtml = buildTitleLinkHtml(`Special:Diff/${response.edit.newrevid}`, "Saved");
+      message.update({ type: "success", content: `${diffLinkHtml} page ${pageLinkHtml}`, isHtml: true });
       finishOp(activeOpKey, "success" /* Success */);
       return response.edit.newrevid;
     } catch (error) {
       message.update({
         type: "error",
-        content: `Edit failed on ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`,
+        content: `Edit failed on ${pageLinkHtml}: ${mw.html.escape(JSON.stringify(error))}`,
         isHtml: true
       });
       console.error(error);
@@ -2031,8 +2036,12 @@
           Display IPv6 as /64
           <template #description>Default IPv6 listings to /64 in the block/tag socks menu</template>
         </cdx-toggle-switch>
+        <cdx-toggle-switch v-model="spiHelperSettings.interface.fullPreview" :align-switch="true">
+          Full preview
+          <template #description>Include the entire section's text when previewing comments</template>
+        </cdx-toggle-switch>
         <expiry-setting label="Default block duration" v-model="spiHelperSettings.interface.defaultBlockDuration"
-                        :reset-trigger="resetTrigger" />
+        :reset-trigger="resetTrigger" />
       </cdx-accordion>
       <cdx-accordion :action-icon="icons.cdxIconCode" :action-always-visible="true" v-if="showExtra">
         <template #title>Debug</template>
@@ -2371,7 +2380,7 @@
 
     <!-- Other actions -->
     <comment-action v-else-if="name === 'comment'" v-model:enabled="caseActions.comment.enabled"
-                    v-model:text="caseActions.comment.data.text" />
+                    v-model:text="caseActions.comment.data.text" :selected-section="state.selectedSection" />
     <change-status-action v-else-if="name === 'status'" v-model:enabled="caseActions.status.enabled"
                           :old-status="caseActions.status.data.old" v-model:new-status="caseActions.status.data.new"
                           @update:new-status="handleUpdateStatus" />
@@ -3101,10 +3110,12 @@
         ignoreWarnings: false
       });
     }
-    await spiHelperPostRenameCleanup(oldContext, newContext, archiveNotice);
-    if (targetPageText) {
-      await spiHelperPostMergeCleanup(targetPageText, newContext);
-    }
+    await spiHelperPostRenameCleanup({
+      oldContext,
+      newContext,
+      oldNotice: archiveNotice,
+      preMergeText: targetPageText
+    });
     if (archivesCopied) {
       new VueMessage({
         type: "notice",
@@ -3143,7 +3154,8 @@
       sectionId: section.id
     });
   }
-  async function spiHelperPostRenameCleanup(oldContext, newContext, oldNotice) {
+  async function spiHelperPostRenameCleanup(opts) {
+    const { oldContext, newContext, oldNotice, preMergeText } = opts;
     const newNotice = new ParsedArchiveNotice({ username: newContext.caseName });
     const replacementArchiveNotice = newNotice.generateWikitext();
     newNotice.crosswiki = oldNotice.crosswiki;
@@ -3186,6 +3198,13 @@
       watchExpiry: spiHelperSettings.expiry.case
     });
     let newPageText = await newContext.getText({ purge: true, show: true });
+    if (preMergeText) {
+      let appendText = preMergeText.replace(/\n*<noinclude>__TOC__.*\n/ig, "");
+      appendText = appendText.replace(spiHelperArchiveNoticeRegex, "");
+      appendText = appendText.replace(spiHelperPriorCasesRegex, "");
+      newPageText = newPageText + `
+` + appendText;
+    }
     newPageText = newPageText.replace(spiHelperArchiveNoticeRegex, newNotice.generateWikitext());
     newPageText = newPageText.replace(spiHelperSockSectionWithNewlineRegex, "====Suspected sockpuppets====" + `
 * {{checkuser|1=` + oldContext.caseName + `}} ({{clerknote}} original case name)
@@ -3197,20 +3216,6 @@ $2`);
     await newContext.edit({
       newText: newPageText,
       summary: "Updating new case following page move",
-      watch: spiHelperSettings.watch.case,
-      watchExpiry: spiHelperSettings.expiry.case
-    });
-  }
-  async function spiHelperPostMergeCleanup(originalText, newContext) {
-    let newText = await newContext.getText({ purge: true });
-    newText = newText.replace(/\n*<noinclude>__TOC__.*\n/ig, "");
-    newText = newText.replace(spiHelperArchiveNoticeRegex, "");
-    newText = newText.replace(spiHelperPriorCasesRegex, "");
-    newText = originalText + `
-` + newText;
-    await newContext.edit({
-      newText,
-      summary: "Re-adding previous cases following merge",
       watch: spiHelperSettings.watch.case,
       watchExpiry: spiHelperSettings.expiry.case
     });
@@ -3507,13 +3512,6 @@ $2`);
         ignoreWarnings: false,
         moveSubpages: false
       });
-      await spiHelperEditPage({
-        title: context.archiveName,
-        newText: "",
-        summary: "Removing redirect",
-        createonly: false,
-        watch: "nochange"
-      });
     }
     const archiveExists = newArchiveText !== "";
     if (archiveExists) {
@@ -3608,7 +3606,7 @@ $2`);
       investigationMessage.update({ type: "success", content: "Archive sections loaded" });
       const sectionDate = parseSectionDate(section.name);
       if (!sectionDate) {
-        new VueMessage({ type: "error", content: "Failed to parse date from section header" }).show();
+        new VueMessage({ type: "error", content: `Failed to parse date from section header '${section.name}'` }).show();
         return;
       }
       parsedArchiveSections.push({ header: sectionDate, fullText: sectionText });
@@ -4415,7 +4413,8 @@ ${comment}
             content: "Can't find archivenotice template! Automatically adding the archive notice to the page."
           }).show();
           mw.notify("Can't find archivenotice template! Adding the archive notice to the page", { type: "warn" });
-          spiHelperAddArchiveNotice(context.casePageName, this.state);
+          console.warn("archivenoticeResult is null");
+          await spiHelperAddArchiveNotice(context.casePageName, this.state);
         } else {
           this.state.archiveNotice = archiveNoticeResult;
         }
@@ -5040,7 +5039,8 @@ ${comment}
   var CommentActionComponent = defineComponent({
     props: {
       enabled: { type: Boolean, required: true },
-      text: { type: String, required: true }
+      text: { type: String, required: true },
+      selectedSection: { type: Object, required: true }
     },
     emits: ["update:enabled", "update:text"],
     data() {
@@ -5064,6 +5064,7 @@ ${comment}
         cuTemplates,
         loadingPreview: false,
         htmlPreview: "",
+        fullPreview: spiHelperSettings.interface.fullPreview,
         cdxIconReload: U7
       };
     },
@@ -5086,8 +5087,28 @@ ${comment}
       },
       async updatePreview() {
         this.loadingPreview = true;
-        this.htmlPreview = await spiHelperRenderText(context.pageName, addSignature(this.text));
-        this.loadingPreview = false;
+        const userText = addSignature(this.text);
+        try {
+          if (this.fullPreview && this.selectedSection?.type === "specific") {
+            const sectionText = await loadSectionText(this.selectedSection.section);
+            let startIndex;
+            let endIndex;
+            if (spiHelperIsClerk() || spiHelperIsAdmin()) {
+              startIndex = spiHelperAdminSectionWithPrecedingNewlinesRegex.exec(sectionText)?.index;
+              endIndex = /\n*----(?!.*----)/s.exec(sectionText)?.index;
+            } else {
+              startIndex = /\s*====\s*<big>Comments by other users<\/big>\s*====\s*/i.exec(sectionText)?.index;
+              endIndex = spiHelperAdminSectionWithPrecedingNewlinesRegex.exec(sectionText)?.index;
+            }
+            const subsectionText = sectionText.slice(startIndex ?? 0, endIndex ?? 0).trim() + `
+` + userText;
+            this.htmlPreview = await spiHelperRenderText(context.pageName, subsectionText);
+          } else {
+            this.htmlPreview = await spiHelperRenderText(context.pageName, userText);
+          }
+        } finally {
+          this.loadingPreview = false;
+        }
       },
       insertNote(noteValue) {
         const newText = this.text.replace(/^(\s*\*\s*)?({{[\w\s]*note[\w\s]*}}\s*)?/i, "* {{" + noteValue + "}} ");
@@ -6619,6 +6640,11 @@ ${comment}
       unseenChanges: { type: Array, required: true },
       openState: { type: Object, required: true }
     },
+    data() {
+      return {
+        beta: MODE !== "production"
+      };
+    },
     methods: {
       onClose() {
         this.openState.isOpen = false;
@@ -6632,11 +6658,17 @@ ${comment}
         @update:open="onClose"
     >
       <div v-for="[version, entry] in unseenChanges" :key="version">
-        <h3 style="display: inline;">{{ version }}</h3> · <span class="cdx-muted-text">{{ entry.date }}</span>
+        <h3 style="display: inline;">{{ version }}</h3> · {{ entry.date }}
         <ul>
           <li v-for="change in entry.changes" :key="change">{{ change }}</li>
         </ul>
       </div>
+      
+      <cdx-message v-if="beta" style="padding: 12px; margin-top: 32px">
+        <p><strong>Beta Reminder</strong></p>
+        <p>You are running a beta version.</p>
+        <p>It is recommended to double-check your edits, especially ones that are impacted by a recent change.</p>
+      </cdx-message>
 
       <template #footer>
         <cdx-button action="progressive" @click="onClose">Got it</cdx-button>
@@ -6696,9 +6728,13 @@ ${comment}
       const Vue = require2("vue");
       const Codex = require2("@wikimedia/codex");
       const feedbackDialog = new mw.Feedback(FeedbackConfig);
-      if (false) {} else if (true) {
+      if (MODE === "live") {
+        mw.loader.load("http://localhost:8080/spihelper.css", "text/css");
+      } else if (MODE === "dev") {
         importStylesheet("User:DatGuy/spihelper.dev.css");
-      } else {}
+      } else {
+        importStylesheet("User:DatGuy/spihelper.css");
+      }
       let targetSock;
       const caseState = Vue.reactive(new CaseState);
       if (pageType === "spi") {
@@ -6722,7 +6758,6 @@ ${comment}
       }
       const changelogState = Vue.reactive({ isOpen: false });
       if (spiHelperSettings.lastSeenVersion !== VERSION) {
-        console.log(spiHelperSettings.lastSeenVersion);
         getUnseenChanges(spiHelperSettings.lastSeenVersion).then((unseenChanges) => {
           const mountPoint = document.createElement("div");
           mountPoint.style.position = "absolute";
@@ -6736,7 +6771,7 @@ ${comment}
               changelogApp.unmount();
               mountPoint.remove();
             }
-          }).component("cdx-button", Codex.CdxButton).component("cdx-dialog", Codex.CdxDialog);
+          }).component("cdx-button", Codex.CdxButton).component("cdx-dialog", Codex.CdxDialog).component("cdx-message", Codex.CdxMessage);
           changelogApp.mount(mountPoint);
         }, () => {});
       }
