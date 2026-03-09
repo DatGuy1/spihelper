@@ -69,13 +69,6 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
       ignoreWarnings: false,
       moveSubpages: false,
     });
-    await spiHelperEditPage({
-      title: context.archiveName,
-      newText: '',
-      summary: 'Removing redirect',
-      createonly: false,
-      watch: 'nochange',
-    });
   }
   const archiveExists = newArchiveText !== '';
   // Update the archive
@@ -190,7 +183,7 @@ export async function spiHelperArchiveCaseSection(section: SectionEntry): Promis
     investigationMessage.update({ type: 'success', content: 'Archive sections loaded' });
     const sectionDate = parseSectionDate(section.name);
     if (!sectionDate) {
-      new VueMessage({ type: 'error', content: 'Failed to parse date from section header' }).show();
+      new VueMessage({ type: 'error', content: `Failed to parse date from section header '${section.name}'` }).show();
       return;
     }
     parsedArchiveSections.push({ header: sectionDate, fullText: sectionText });

@@ -252,11 +252,12 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
       ignoreWarnings: false,
     });
   }
-  await spiHelperPostRenameCleanup(oldContext, newContext, archiveNotice);
-  if (targetPageText) {
-    // If there was a page there before, also need to do post-merge cleanup
-    await spiHelperPostMergeCleanup(targetPageText, newContext);
-  }
+  await spiHelperPostRenameCleanup({
+    oldContext,
+    newContext,
+    oldNotice: archiveNotice,
+    preMergeText: targetPageText,
+  });
   if (archivesCopied) {
     new VueMessage({
       type: 'notice',
@@ -310,13 +311,18 @@ export async function spiHelperMoveCaseSection(mergeTarget: string, section: Sec
  * Cleanups following a rename - update the archive notice, add an archive notice to the
  * old case name, add the original sockmaster to the sock list for reference
  *
- * @param oldContext The previous case page's context
- * @param newContext The new case page's context
- * @param oldNotice Base archive notice to use for the new page
+ * @param opts.oldContext The previous case page's context
+ * @param opts.newContext The new case page's context
+ * @param opts.oldNotice Base archive notice to use for the new page
+ * @param opts.preMergeText Text that existed in the new case prior to the rename
  */
-async function spiHelperPostRenameCleanup(
-  oldContext: SpiPageContext, newContext: SpiPageContext, oldNotice: ParsedArchiveNotice,
-): Promise<void> {
+async function spiHelperPostRenameCleanup(opts: {
+  oldContext: SpiPageContext;
+  newContext: SpiPageContext;
+  oldNotice: ParsedArchiveNotice;
+  preMergeText?: string;
+}): Promise<void> {
+  const { oldContext, newContext, oldNotice, preMergeText } = opts;
   const newNotice = new ParsedArchiveNotice({ username: newContext.caseName });
   const replacementArchiveNotice = newNotice.generateWikitext();
   // After generating the replacement wikitext, add in the flags
@@ -370,6 +376,13 @@ async function spiHelperPostRenameCleanup(
 
   // The new case's archivenotice should be updated with the new name
   let newPageText = await newContext.getText({ purge: true, show: true });
+  // Merge in our old cases
+  if (preMergeText) {
+    let appendText = preMergeText.replace(/\n*<noinclude>__TOC__.*\n/ig, '');
+    appendText = appendText.replace(spiHelperArchiveNoticeRegex, '');
+    appendText = appendText.replace(spiHelperPriorCasesRegex, '');
+    newPageText = newPageText + '\n' + appendText;
+  }
   newPageText = newPageText.replace(spiHelperArchiveNoticeRegex, newNotice.generateWikitext());
   // We also want to add the previous master to the sock list
   // We use SOCK_SECTION_RE_WITH_NEWLINE to clean up any extraneous whitespace
@@ -386,31 +399,6 @@ async function spiHelperPostRenameCleanup(
   await newContext.edit({
     newText: newPageText,
     summary: 'Updating new case following page move',
-    watch: spiHelperSettings.watch.case,
-    watchExpiry: spiHelperSettings.expiry.case,
-  });
-}
-
-/**
- * Cleanups following a merge - re-insert the original page text
- *
- * @param {string} originalText Text of the page pre-merge
- * @param newContext Context of the new SPI page
- */
-async function spiHelperPostMergeCleanup(
-  originalText: string, newContext: SpiPageContext,
-): Promise<void> {
-  let newText = await newContext.getText({ purge: true });
-  // Remove the SPI header templates from the page
-  newText = newText.replace(/\n*<noinclude>__TOC__.*\n/ig, '');
-  newText = newText.replace(spiHelperArchiveNoticeRegex, '');
-  newText = newText.replace(spiHelperPriorCasesRegex, '');
-  newText = originalText + '\n' + newText;
-
-  // Write the updated case
-  await newContext.edit({
-    newText: newText,
-    summary: 'Re-adding previous cases following merge',
     watch: spiHelperSettings.watch.case,
     watchExpiry: spiHelperSettings.expiry.case,
   });
