@@ -2469,13 +2469,14 @@
     },
     methods: {
       onUpdateInputValue(value) {
-        this.menuConfig.searchQuery = value;
-        if (!value) {
+        const trimmedValue = value.trim();
+        this.menuConfig.searchQuery = trimmedValue;
+        if (!trimmedValue) {
           this.userSuggestions = [];
           return;
         }
-        spiHelperGetUsers(value, ITEM_LIMIT).then((users) => {
-          if (this.username !== value) {
+        spiHelperGetUsers(trimmedValue, ITEM_LIMIT).then((users) => {
+          if (this.username !== value && this.username !== trimmedValue) {
             return;
           }
           if (users.length === 0) {
@@ -2512,7 +2513,7 @@
           this.lookupStatus = "default";
           return;
         }
-        const selection = this.userSuggestions.find((item) => item.label === this.username) ?? null;
+        const selection = this.userSuggestions.find((item) => item.label === this.username || item.label?.trim() === this.username.trim()) ?? null;
         if (selection !== null) {
           this.$emit("user-selected", selection.customData);
           this.selection = selection.value;
@@ -2561,12 +2562,16 @@
   });
 
   // src/archivenotice.ts
-  async function spiHelperParseArchiveNotice(page, state) {
+  async function spiHelperParseArchiveNotice(opts) {
+    const { page, state, signal } = opts;
     let pageText;
     if (page === context.pageName && state) {
       pageText = await loadCaseText(state);
     } else {
       pageText = await spiHelperGetPageText(page, false);
+    }
+    if (signal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
     }
     if (pageText === "") {
       return null;
@@ -3173,7 +3178,7 @@
       pagesChecked.push(currentPageToCheck);
       const backlinks = await spiHelperGetSPIBacklinks(currentPageToCheck);
       for (const backlink of backlinks) {
-        const archiveNotice = await spiHelperParseArchiveNotice(backlink.title);
+        const archiveNotice = await spiHelperParseArchiveNotice({ page: backlink.title });
         if (!archiveNotice) {
           continue;
         }
@@ -4107,6 +4112,7 @@ ${comment}
         open: false,
         openHandler: null,
         beforeUnloadHandler: null,
+        abortController: null,
         actionsRunning: false,
         displayedForms: ["sections"],
         unpinned: !spiHelperSettings.interface.pinned,
@@ -4251,6 +4257,9 @@ ${comment}
       if (this.beforeUnloadHandler) {
         window.removeEventListener("beforeunload", this.beforeUnloadHandler);
       }
+    },
+    unmounted() {
+      this.abortController?.abort();
     },
     methods: {
       toggleButtonLayout() {
@@ -4405,19 +4414,36 @@ ${comment}
         return filteredRows;
       },
       async ensureArchiveNotice() {
-        const archiveNoticeResult = await spiHelperParseArchiveNotice(context.casePageName, this.state);
-        if (archiveNoticeResult === null) {
-          this.state.archiveNotice = new ParsedArchiveNotice({ username: context.caseName });
-          new VueMessage({
-            type: "warning",
-            content: "Can't find archivenotice template! Automatically adding the archive notice to the page."
-          }).show();
-          mw.notify("Can't find archivenotice template! Adding the archive notice to the page", { type: "warn" });
-          console.warn("archivenoticeResult is null");
+        if (this.state.archiveNotice) {
           return;
-          await spiHelperAddArchiveNotice(context.casePageName, this.state);
-        } else {
-          this.state.archiveNotice = archiveNoticeResult;
+        }
+        if (this.abortController) {
+          this.abortController.abort();
+        }
+        this.abortController = new AbortController;
+        try {
+          const archiveNoticeResult = await spiHelperParseArchiveNotice({
+            page: context.casePageName,
+            state: this.state,
+            signal: this.abortController.signal
+          });
+          if (archiveNoticeResult === null) {
+            this.state.archiveNotice = new ParsedArchiveNotice({ username: context.caseName });
+            new VueMessage({
+              type: "warning",
+              content: "Can't find archivenotice template! Automatically adding the archive notice to the page."
+            }).show();
+            mw.notify("Can't find archivenotice template! Adding the archive notice to the page", { type: "warn" });
+            console.warn("archivenoticeResult is null");
+            await spiHelperAddArchiveNotice(context.casePageName, this.state);
+          } else {
+            this.state.archiveNotice = archiveNoticeResult;
+          }
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            return;
+          }
+          throw error;
         }
       }
     },
@@ -6439,7 +6465,10 @@ ${comment}
       async loadCase(addRow) {
         this.caseLoading = true;
         setContext(this.pageName);
-        const archiveNoticeResult = await spiHelperParseArchiveNotice(this.pageName, this.state);
+        const archiveNoticeResult = await spiHelperParseArchiveNotice({
+          page: this.pageName,
+          state: this.state
+        });
         if (archiveNoticeResult === null) {
           this.state.archiveNotice = new ParsedArchiveNotice({ username: this.targetCase });
         } else {
