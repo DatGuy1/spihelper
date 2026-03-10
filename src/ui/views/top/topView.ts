@@ -419,6 +419,7 @@ export const TopViewComponent = defineComponent({
         }).show();
         mw.notify('Can\'t find archivenotice template! Adding the archive notice to the page', { type: 'warn' });
         console.warn('archivenoticeResult is null');
+        return;
         await spiHelperAddArchiveNotice(context.casePageName, this.state);
       }
       else {
