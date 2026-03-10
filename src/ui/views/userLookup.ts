@@ -81,17 +81,18 @@ export const UserLookupComponent = defineComponent({
   },
   methods: {
     onUpdateInputValue(value: string) {
-      this.menuConfig.searchQuery = value;
+      const trimmedValue = value.trim();
+      this.menuConfig.searchQuery = trimmedValue;
       // Clear menu items if there is no input.
-      if (!value) {
+      if (!trimmedValue) {
         this.userSuggestions = [];
         return;
       }
 
-      spiHelperGetUsers(value, ITEM_LIMIT)
+      spiHelperGetUsers(trimmedValue, ITEM_LIMIT)
         .then((users) => {
           // Make sure this data is still relevant first.
-          if (this.username !== value) {
+          if (this.username !== value && this.username !== trimmedValue) {
             return;
           }
 
@@ -143,7 +144,10 @@ export const UserLookupComponent = defineComponent({
         this.lookupStatus = 'default';
         return;
       }
-      const selection = this.userSuggestions.find(item => item.label === this.username) ?? null;
+      const selection = this.userSuggestions.find(item =>
+        item.label === this.username
+        || item.label?.trim() === this.username.trim(),
+      ) ?? null;
       if (selection !== null) {
         this.$emit('user-selected', selection.customData);
         (this.selection) = selection.value;
