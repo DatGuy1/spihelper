@@ -8,14 +8,18 @@ import { parseTemplates } from './template.ts';
 
 /**
  * Parse key features from an archivenotice
- * @param {string} page Page to parse
- * @param state State used in case we're fetching the page
+ * @param opts.page Page to parse
+ * @param opts.state State used in case we're fetching the page
+ * @param opts.signal Signal to check if aborted
+ * @throws {DOMException} Throws AbortError if signal is aborted
  * @return {Promise<ParsedArchiveNotice>} Parsed archivenotice
  */
-export async function spiHelperParseArchiveNotice(
-  page: string,
-  state?: CaseState,
-): Promise<ParsedArchiveNotice | null> {
+export async function spiHelperParseArchiveNotice(opts: {
+  page: string;
+  state?: CaseState;
+  signal?: AbortSignal;
+}): Promise<ParsedArchiveNotice | null> {
+  const { page, state, signal } = opts;
   let pageText: string;
   if (page === context.pageName && state) {
     pageText = await loadCaseText(state);
@@ -23,10 +27,16 @@ export async function spiHelperParseArchiveNotice(
   else {
     pageText = await spiHelperGetPageText(page, false);
   }
+
+  // Check if aborted
+  if (signal?.aborted) {
+    throw new DOMException('Aborted', 'AbortError');
+  }
   if (pageText === '') {
     // Page doesn't exist
     return null;
   }
+
   const templates = parseTemplates(pageText);
   const archiveNoticeTemplate = templates.find(tl => /SPI\s*archive notice/i.exec(tl.name));
   if (!archiveNoticeTemplate) {

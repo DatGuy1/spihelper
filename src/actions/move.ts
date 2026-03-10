@@ -347,7 +347,7 @@ async function spiHelperPostRenameCleanup(opts: {
     pagesChecked.push(currentPageToCheck);
     const backlinks = await spiHelperGetSPIBacklinks(currentPageToCheck);
     for (const backlink of backlinks) {
-      const archiveNotice = await spiHelperParseArchiveNotice(backlink.title);
+      const archiveNotice = await spiHelperParseArchiveNotice({ page: backlink.title });
       if (!archiveNotice) {
         continue;
       }

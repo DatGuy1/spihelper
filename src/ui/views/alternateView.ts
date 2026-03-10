@@ -218,7 +218,10 @@ export const AlternateViewComponent = defineComponent({
       // Set context
       setContext(this.pageName);
       // Load archivenotice params
-      const archiveNoticeResult = await spiHelperParseArchiveNotice(this.pageName, this.state);
+      const archiveNoticeResult = await spiHelperParseArchiveNotice({
+        page: this.pageName,
+        state: this.state,
+      });
       if (archiveNoticeResult === null) {
         // No archive notice was found, initialise default
         this.state.archiveNotice = new ParsedArchiveNotice({ username: this.targetCase });

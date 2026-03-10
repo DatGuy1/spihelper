@@ -39,6 +39,7 @@ interface Data {
   open: boolean;
   openHandler: ((e: Event) => void) | null;
   beforeUnloadHandler: ((e: Event) => void) | null;
+  abortController: AbortController | null;
   actionsRunning: boolean;
   displayedForms: CaseActionName[];
   cdxIconPushPin: typeof cdxIconPushPin;
@@ -69,6 +70,7 @@ export const TopViewComponent = defineComponent({
       open: false,
       openHandler: null,
       beforeUnloadHandler: null,
+      abortController: null,
       actionsRunning: false,
       displayedForms: ['sections'],
       unpinned: !spiHelperSettings.interface.pinned,
@@ -226,6 +228,10 @@ export const TopViewComponent = defineComponent({
     if (this.beforeUnloadHandler) {
       window.removeEventListener('beforeunload', this.beforeUnloadHandler);
     }
+  },
+  unmounted() {
+    // Cancel on unmount. Hopefully this fixes the event loop continuing after switching pages
+    this.abortController?.abort();
   },
   methods: {
     toggleButtonLayout() {
@@ -406,24 +412,41 @@ export const TopViewComponent = defineComponent({
       return filteredRows;
     },
     async ensureArchiveNotice() {
-      // Load archivenotice params
-      const archiveNoticeResult = await spiHelperParseArchiveNotice(
-        context.casePageName, this.state,
-      );
-      if (archiveNoticeResult === null) {
-        // No archive notice was found, initialise default and add it
-        this.state.archiveNotice = new ParsedArchiveNotice({ username: context.caseName });
-        new VueMessage({
-          type: 'warning',
-          content: 'Can\'t find archivenotice template! Automatically adding the archive notice to the page.',
-        }).show();
-        mw.notify('Can\'t find archivenotice template! Adding the archive notice to the page', { type: 'warn' });
-        console.warn('archivenoticeResult is null');
+      if (this.state.archiveNotice) {
         return;
-        await spiHelperAddArchiveNotice(context.casePageName, this.state);
       }
-      else {
-        this.state.archiveNotice = archiveNoticeResult;
+      // Cancel previous request
+      if (this.abortController) {
+        this.abortController.abort();
+      }
+      this.abortController = new AbortController();
+      try {
+        // Load archivenotice params
+        const archiveNoticeResult = await spiHelperParseArchiveNotice({
+          page: context.casePageName,
+          state: this.state,
+          signal: this.abortController.signal,
+        });
+        if (archiveNoticeResult === null) {
+          // No archive notice was found, initialise default and add it
+          this.state.archiveNotice = new ParsedArchiveNotice({ username: context.caseName });
+          new VueMessage({
+            type: 'warning',
+            content: 'Can\'t find archivenotice template! Automatically adding the archive notice to the page.',
+          }).show();
+          mw.notify('Can\'t find archivenotice template! Adding the archive notice to the page', { type: 'warn' });
+          console.warn('archivenoticeResult is null');
+          await spiHelperAddArchiveNotice(context.casePageName, this.state);
+        }
+        else {
+          this.state.archiveNotice = archiveNoticeResult;
+        }
+      }
+      catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+        throw error;
       }
     },
   },
