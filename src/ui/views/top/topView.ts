@@ -12,7 +12,7 @@ import type { MenuItemData } from '@wikimedia/codex';
 import { saveOptions, spiHelperSettings } from '../../../options';
 import { UpdateUserAllUserData } from '../userLookup.ts';
 import type { AllUser } from '../../../types/api.ts';
-import { spiHelperAddArchiveNotice, spiHelperParseArchiveNotice } from '../../../archivenotice.ts';
+import { spiHelperParseArchiveNotice } from '../../../archivenotice.ts';
 import { context } from '../../../context.ts';
 import {
   type CaseActionName,
@@ -39,7 +39,6 @@ interface Data {
   open: boolean;
   openHandler: ((e: Event) => void) | null;
   beforeUnloadHandler: ((e: Event) => void) | null;
-  abortController: AbortController | null;
   actionsRunning: boolean;
   displayedForms: CaseActionName[];
   cdxIconPushPin: typeof cdxIconPushPin;
@@ -70,7 +69,6 @@ export const TopViewComponent = defineComponent({
       open: false,
       openHandler: null,
       beforeUnloadHandler: null,
-      abortController: null,
       actionsRunning: false,
       displayedForms: ['sections'],
       unpinned: !spiHelperSettings.interface.pinned,
@@ -228,10 +226,6 @@ export const TopViewComponent = defineComponent({
     if (this.beforeUnloadHandler) {
       window.removeEventListener('beforeunload', this.beforeUnloadHandler);
     }
-  },
-  unmounted() {
-    // Cancel on unmount. Hopefully this fixes the event loop continuing after switching pages
-    this.abortController?.abort();
   },
   methods: {
     toggleButtonLayout() {
@@ -415,38 +409,24 @@ export const TopViewComponent = defineComponent({
       if (this.state.archiveNotice) {
         return;
       }
-      // Cancel previous request
-      if (this.abortController) {
-        this.abortController.abort();
+      // Load archivenotice params
+      const archiveNoticeResult = await spiHelperParseArchiveNotice({
+        page: context.casePageName,
+        state: this.state,
+      });
+      if (archiveNoticeResult === null) {
+        // No archive notice was found, initialise default and add it
+        this.state.archiveNotice = new ParsedArchiveNotice({ username: context.caseName });
+        new VueMessage({
+          type: 'warning',
+          content: 'Can\'t find archivenotice template! Automatically adding the archive notice to the page.',
+        }).show();
+        mw.notify('Can\'t find archivenotice template! If this is incorrect, please contact DatGuy', { type: 'warn' }); // Adding the archive notice to the page
+        console.warn('archivenoticeResult is null');
+        // await spiHelperAddArchiveNotice(context.casePageName, this.state);
       }
-      this.abortController = new AbortController();
-      try {
-        // Load archivenotice params
-        const archiveNoticeResult = await spiHelperParseArchiveNotice({
-          page: context.casePageName,
-          state: this.state,
-          signal: this.abortController.signal,
-        });
-        if (archiveNoticeResult === null) {
-          // No archive notice was found, initialise default and add it
-          this.state.archiveNotice = new ParsedArchiveNotice({ username: context.caseName });
-          new VueMessage({
-            type: 'warning',
-            content: 'Can\'t find archivenotice template! Automatically adding the archive notice to the page.',
-          }).show();
-          mw.notify('Can\'t find archivenotice template! Adding the archive notice to the page', { type: 'warn' });
-          console.warn('archivenoticeResult is null');
-          await spiHelperAddArchiveNotice(context.casePageName, this.state);
-        }
-        else {
-          this.state.archiveNotice = archiveNoticeResult;
-        }
-      }
-      catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-          return;
-        }
-        throw error;
+      else {
+        this.state.archiveNotice = archiveNoticeResult;
       }
     },
   },
