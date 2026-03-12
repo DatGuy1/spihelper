@@ -124,13 +124,17 @@ export async function spiHelperTagUser(opts: {
   });
 
   const oldTags = parseUserTags(pageText);
-  const uniqueTags = sock.block.tags.reduce<Tag[]>((acc, tag) => {
-    if (!acc.some(existing => existing.equals(tag))) {
+  // Remove invalid tags and make them unique
+  const cleanedTags = sock.block.tags.reduce<Tag[]>((acc, tag) => {
+    const isOrphanSockpuppet = isSockpuppetTag(tag) && !tag.master;
+    const alreadyAdded = acc.some(existing => existing.equals(tag));
+
+    if (!isOrphanSockpuppet && !alreadyAdded) {
       acc.push(tag);
     }
     return acc;
   }, []);
-  if (tagArraysEqual(oldTags, uniqueTags)) {
+  if (tagArraysEqual(oldTags, cleanedTags)) {
     const userLinkHtml = buildTitleLinkHtml(`User:${sock.username}`);
     new VueMessage({
       type: 'notice',
@@ -139,7 +143,7 @@ export async function spiHelperTagUser(opts: {
     }).show();
     return false;
   }
-  const tagText = uniqueTags.map(tag => tag.generateWikitext()).join('\n');
+  const tagText = cleanedTags.map(tag => tag.generateWikitext()).join('\n');
   const newText = replaceSockTemplates(pageText, tagText);
 
   return spiHelperEditPage({

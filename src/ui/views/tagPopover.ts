@@ -160,9 +160,9 @@ export const TagPopoverComponent = defineComponent({
       <cdx-toggle-button-group :buttons="tagCategoryButtons" v-model="tagCategory" class="tag-category" />
       <div v-if="tagCategory === 'sock'" class="edit-body">
         <cdx-toggle-button-group :buttons="sockTags" v-model="temporaryTag.status" />
-        <user-lookup label="Master" v-model="temporaryTag.master" />
+        <user-lookup label="Master" v-model="temporaryTag.master" :allow-empty="false" />
         <user-lookup label="Alternate Master" v-model="temporaryTag.altmaster" />
-        <cdx-toggle-button-group v-if="temporaryTag.altmaster" :buttons="altmasterTags"
+        <cdx-toggle-button-group v-show="temporaryTag.altmaster" :buttons="altmasterTags"
                                  v-model="temporaryTag.altmasterStatus" />
         <cdx-accordion separation="minimal">
           <template #title>

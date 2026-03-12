@@ -9,7 +9,7 @@ import {
 import type { AllUser, BlockEntry } from '../../../../types/api.ts';
 import { spiHelperIsAdmin, spiHelperIsCheckuser, spiHelperIsClerk } from '../../../../role.ts';
 import { type BlockOptions, type BlockRowData, SockpuppetTag, type Tag, type UserRow } from '../../../../types/spi.ts';
-import { isNonRegisteredAccount, isSockmasterTag } from '../../../../utils.ts';
+import { isNonRegisteredAccount, isSockmasterTag, isSockpuppetTag } from '../../../../utils.ts';
 
 export const BlockActionComponent = defineComponent({
   props: {
@@ -237,6 +237,10 @@ export const BlockActionComponent = defineComponent({
         row.block.tags.length = 0;
       }
     },
+    validateTag(tag: Tag) {
+      // Ensure it isn't a sockpuppet tag without a master
+      return !(isSockpuppetTag(tag) && !tag.master);
+    },
   },
   template: `
     <!--suppress VueUnrecognizedDirective, VueUnrecognizedSlot -->
@@ -438,7 +442,7 @@ export const BlockActionComponent = defineComponent({
 
         <template #item-tag="{ item, row }">
           <cdx-button v-for="(tag, index) in getRowTagsWithDefault(row.block.tags)" class="userTag"
-                      @click="showTagPopover(tag, index, row.id, $event)">
+                      @click="showTagPopover(tag, index, row.id, $event)" :action="validateTag(tag) ? 'default' : 'destructive'">
             <cdx-icon v-if="tag !== null"
                       :icon="isSockmasterTag(tag) ? cdxIconUserAvatar : cdxIconUserAvatarOutline"
                       :title="isSockmasterTag(tag) ? 'Master' : 'Sockpuppet'" />

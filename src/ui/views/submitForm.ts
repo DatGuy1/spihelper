@@ -1,6 +1,6 @@
 import { type ComponentPublicInstance, type PropType, defineComponent } from 'vue';
 import type { BlockOptions, UserRow } from '../../types/spi.ts';
-import { isNonRegisteredAccount } from '../../utils.ts';
+import { isNonRegisteredAccount, isSockpuppetTag } from '../../utils.ts';
 import { isOpRunning } from '../../operations.ts';
 import { spiHelperGetPageRev } from '../../api.ts';
 import { context } from '../../context.ts';
@@ -59,6 +59,13 @@ export const SubmitFormComponent = defineComponent({
         && this.locks.get(sock.username) !== true,
       );
     },
+    hasInvalidTag() {
+      return this.accounts.some(user =>
+        user.block.tags.some(tag =>
+          isSockpuppetTag(tag) && !tag.master,
+        ),
+      );
+    },
     cuBlockConfirmationsNeeded(): Set<string> {
       // If you're not a checkuser, we've asked to overwrite existing blocks, and the block
       // target has a CU block on them, check whether that was intended
@@ -91,7 +98,7 @@ export const SubmitFormComponent = defineComponent({
       return skipCount > 0 && skipCount < this.cuBlockConfirmationsNeeded.size;
     },
     disableButton() {
-      return isOpRunning(this.actionName) || this.allDisabled;
+      return isOpRunning(this.actionName) || this.allDisabled || this.hasInvalidTag;
     },
     lockCommentValue: {
       get() {
@@ -147,16 +154,20 @@ export const SubmitFormComponent = defineComponent({
           {{ [...cuBlockConfirmationsNeeded].join(', ') }}
         </template>
       </cdx-checkbox>
-      <cdx-button ref="submitElement" action="progressive" weight="primary" @click="onSubmit" :disabled="disableButton">
-        Submit
-      </cdx-button>
-      <cdx-popover :anchor="submitElement"
-                   v-model:open="popover.show" :icon="cdxIconUpdate" title="Edit Conflict"
-                   close-button-label="Cancel"
-                   :primary-action="popover.continueAction" @primary="confirmSubmit"
-                   :default-action="popover.cancelAction" @default="popover.show = false">
-        The page has been edited after you loaded it. Do you want to continue?
-      </cdx-popover>
+      <div>
+        <cdx-message v-if="hasInvalidTag" type="error" :inline="true">A user has an invalid tag</cdx-message>
+        <cdx-button ref="submitElement" action="progressive" weight="primary" @click="onSubmit"
+                    :disabled="disableButton">
+          Submit
+        </cdx-button>
+        <cdx-popover :anchor="submitElement"
+                     v-model:open="popover.show" :icon="cdxIconUpdate" title="Edit Conflict"
+                     close-button-label="Cancel"
+                     :primary-action="popover.continueAction" @primary="confirmSubmit"
+                     :default-action="popover.cancelAction" @default="popover.show = false">
+          The page has been edited after you loaded it. Do you want to continue?
+        </cdx-popover>
+      </div>
     </div>
   `,
 });
