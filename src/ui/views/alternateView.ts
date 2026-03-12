@@ -217,43 +217,45 @@ export const AlternateViewComponent = defineComponent({
 
       // Set context
       setContext(this.pageName);
-      // Load archivenotice params
-      const archiveNoticeResult = await spiHelperParseArchiveNotice({
-        page: this.pageName,
-        state: this.state,
-      });
-      if (archiveNoticeResult === null) {
-        // No archive notice was found, initialise default
-        this.state.archiveNotice = new ParsedArchiveNotice({ username: this.targetCase });
-      }
-      else {
-        this.state.archiveNotice = archiveNoticeResult;
-      }
-
-      if (addRow) {
-        const userBlock = await spiHelperGetUserBlockSettings(this.targetCase);
-        if (userBlock !== null) {
-          this.blockData.userBlocks.set(this.targetCase, userBlock);
-        }
-        const userPageText = await spiHelperGetPageText(`User:${this.targetCase}`, false);
-        const { userRow, isLocked } = await setUserRowBlockData({
-          userRow: generateUserRow(this.targetCase, this.state),
-          block: userBlock,
-          userPage: userPageText,
-          defaultBlock: true,
-          checkLock: false,
+      if (this.targetCase) {
+        // Load archivenotice params
+        const archiveNoticeResult = await spiHelperParseArchiveNotice({
+          page: this.pageName,
           state: this.state,
         });
-        if (isLocked !== null) {
-          this.blockData.userLocks.set(this.targetCase, isLocked);
-        }
-        // Add or replace
-        const oldIndex = this.accounts.findIndex(user => user.username === userRow.username);
-        if (oldIndex === -1) {
-          this.accounts.splice(0, 0, userRow);
+        if (archiveNoticeResult === null) {
+          // No archive notice was found, initialise default
+          this.state.archiveNotice = new ParsedArchiveNotice({ username: this.targetCase });
         }
         else {
-          this.accounts.splice(oldIndex, 1, userRow);
+          this.state.archiveNotice = archiveNoticeResult;
+        }
+
+        if (addRow) {
+          const userBlock = await spiHelperGetUserBlockSettings(this.targetCase);
+          if (userBlock !== null) {
+            this.blockData.userBlocks.set(this.targetCase, userBlock);
+          }
+          const userPageText = await spiHelperGetPageText(`User:${this.targetCase}`, false);
+          const { userRow, isLocked } = await setUserRowBlockData({
+            userRow: generateUserRow(this.targetCase, this.state),
+            block: userBlock,
+            userPage: userPageText,
+            defaultBlock: true,
+            checkLock: false,
+            state: this.state,
+          });
+          if (isLocked !== null) {
+            this.blockData.userLocks.set(this.targetCase, isLocked);
+          }
+          // Add or replace
+          const oldIndex = this.accounts.findIndex(user => user.username === userRow.username);
+          if (oldIndex === -1) {
+            this.accounts.splice(0, 0, userRow);
+          }
+          else {
+            this.accounts.splice(oldIndex, 1, userRow);
+          }
         }
       }
       this.blockData.master = this.targetCase;
@@ -392,7 +394,7 @@ export const AlternateViewComponent = defineComponent({
       <div id="spiHelper-CaseLoader">
         <page-lookup v-model="targetCase"
                      :namespace="4" prefix="Sockpuppet investigations/"
-                     placeholder="Case" label="Case title" />
+                     placeholder="Case" label="Case title" description="Optional but recommended" />
         <div style="display: flex; gap: 10px;">
           <cdx-button weight="primary" action="progressive" @click="loadCase(true)">Load</cdx-button>
           <cdx-progress-indicator v-show="caseLoading">Loading case</cdx-progress-indicator>

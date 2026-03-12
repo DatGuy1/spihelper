@@ -19,6 +19,7 @@ export const PageLookupComponent = defineComponent({
     modelValue: { type: String, required: true },
     placeholder: { type: String, default: 'Page' },
     label: { type: String, default: null },
+    description: { type: String, default: null },
     namespace: { type: Number, required: true },
     prefix: { type: String, default: '' },
   },
@@ -137,6 +138,9 @@ export const PageLookupComponent = defineComponent({
     <cdx-field :status="lookupStatus" :messages="messages" :hide-label="!label">
       <template v-if="label" #label>
         {{ label }}
+      </template>
+      <template v-if="description" #description>
+        {{ description }}
       </template>
       <cdx-lookup
           v-if="useLookup"

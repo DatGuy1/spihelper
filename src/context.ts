@@ -14,6 +14,8 @@ export class SpiPageContext {
   // Since pageName can be an archive, casePageName is the non-archive version
   readonly casePageName: string;
   readonly isArchive: boolean;
+  // Whether the SPI page is valid. Currently only if the page isn't empty
+  readonly valid: boolean;
   // used to check if the page has been edited since we opened it to prevent edit conflicts
   startingRevId: number;
 
@@ -27,6 +29,7 @@ export class SpiPageContext {
     this.userName = spiHelperNormalizeUsername(this.caseName);
     this.casePageName = 'Wikipedia:Sockpuppet investigations/' + this.caseName;
     this.archiveName = pageName + '/Archive';
+    this.valid = !!pageName.trim();
     if (currentPage) {
       this.startingRevId = mw.config.get('wgCurRevisionId');
     }
@@ -82,4 +85,8 @@ export let context: SpiPageContext;
 
 export function setContext(pageName: string) {
   context = new SpiPageContext(cleanPageName(pageName), pageName === mw.config.get('wgPageName'));
+}
+
+export function buildContextSummary(baseText: string) {
+  return context.valid ? baseText + ` per [[${context.prefixedName}]]` : baseText;
 }

@@ -5,7 +5,7 @@ import {
   spiHelperGetGlobalUser,
   spiHelperGetPageText,
 } from '../api.ts';
-import { context } from '../context.ts';
+import { buildContextSummary } from '../context.ts';
 import {
   buildTitleLinkHtml,
   isNonRegisteredAccount,
@@ -19,7 +19,7 @@ function createCategoryPage(title: string) {
   return spiHelperEditPage({
     title,
     newText: '{{sockpuppet category}}',
-    summary: `Creating sockpuppet category per [[${context.prefixedName}]]`,
+    summary: buildContextSummary('Creating sockpuppet category'),
     createonly: true,
     watch: spiHelperSettings.watch.categories,
     watchExpiry: spiHelperSettings.expiry.categories,
@@ -146,10 +146,11 @@ export async function spiHelperTagUser(opts: {
   const tagText = cleanedTags.map(tag => tag.generateWikitext()).join('\n');
   const newText = replaceSockTemplates(pageText, tagText);
 
+  const baseSummary = oldTags.length < cleanedTags.length ? 'Adding' : 'Updating';
   return spiHelperEditPage({
     title: `User:${sock.username}`,
     newText,
-    summary: `Adding sockpuppetry tag per [[${context.prefixedName}]]`,
+    summary: buildContextSummary(`${baseSummary} sockpuppetry tag`),
     createonly: false,
     watch: spiHelperSettings.watch.tagged,
     watchExpiry: spiHelperSettings.expiry.tagged,

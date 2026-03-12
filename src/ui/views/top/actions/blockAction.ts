@@ -91,6 +91,13 @@ export const BlockActionComponent = defineComponent({
         .map(index => this.accounts[index]?.id)
         .filter((id): id is string => !!id);
     },
+    allowLockOption(): boolean {
+      return this.accounts.some(user =>
+        user.block.lock
+        && !isNonRegisteredAccount(user.username)
+        && !this.userLocks.get(user.username),
+      );
+    },
   },
   methods: {
     isNonRegisteredAccount,
@@ -276,7 +283,7 @@ export const BlockActionComponent = defineComponent({
         <cdx-checkbox v-model="blockOptions.blankTalk" v-if="isAdmin">
           Blank the talk page when adding talk notices
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.lockHideNames">
+        <cdx-checkbox v-model="blockOptions.lockHideNames" :disabled="!allowLockOption">
           Hide usernames when requesting global locks
         </cdx-checkbox>
       </div>
@@ -442,7 +449,8 @@ export const BlockActionComponent = defineComponent({
 
         <template #item-tag="{ item, row }">
           <cdx-button v-for="(tag, index) in getRowTagsWithDefault(row.block.tags)" class="userTag"
-                      @click="showTagPopover(tag, index, row.id, $event)" :action="validateTag(tag) ? 'default' : 'destructive'">
+                      @click="showTagPopover(tag, index, row.id, $event)"
+                      :action="validateTag(tag) ? 'default' : 'destructive'">
             <cdx-icon v-if="tag !== null"
                       :icon="isSockmasterTag(tag) ? cdxIconUserAvatar : cdxIconUserAvatarOutline"
                       :title="isSockmasterTag(tag) ? 'Master' : 'Sockpuppet'" />

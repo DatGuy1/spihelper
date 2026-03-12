@@ -6,13 +6,19 @@ import { spiHelperSettings } from '../options';
 import { type BlockOptions, type UserRow } from '../types/spi.ts';
 import { spiHelperIsCheckuser } from '../role.ts';
 import { isNoExpiry, isSockpuppetTag, spiHelperNormalizeUsername } from '../utils.ts';
-import { context } from '../context.ts';
+import { buildContextSummary, context } from '../context.ts';
 
-function buildTalkNotice(sock: UserRow, noticeType: 'master' | 'sock', sockmaster: string, cuBlock: boolean) {
+function buildTalkNotice(opts: {
+  sock: UserRow;
+  noticeType: 'master' | 'sock';
+  sockmaster: string;
+  cuBlock: boolean;
+}) {
+  const { sock, noticeType, sockmaster, cuBlock } = opts;
   let newText: string;
   let isSock = noticeType === 'sock';
   // Hacky workaround for when we didn't make a master tag
-  if (isSock && sock.username === spiHelperNormalizeUsername(sockmaster)) {
+  if (isSock && sockmaster && sock.username === spiHelperNormalizeUsername(sockmaster)) {
     isSock = false;
   }
   if (isSock) {
@@ -40,7 +46,7 @@ function buildTalkNotice(sock: UserRow, noticeType: 'master' | 'sock', sockmaste
   if (sock.block.ntp) {
     newText += '|notalk=yes';
   }
-  if (isSock) {
+  if (isSock && sockmaster) {
     newText += '|master=' + sockmaster;
   }
   newText += '}}';
@@ -117,14 +123,14 @@ export async function spiHelperProcessBlockRow(opts: {
     const userTalkPage = `User talk:${sock.username}`;
     let newText = blockOptions.blankTalk ? '' : userTalkContent ?? '';
     for (const talkNotice of talkNotices) {
-      newText += '\n' + buildTalkNotice(sock, talkNotice, sockmaster, cuBlock);
+      newText += '\n' + buildTalkNotice({ sock, noticeType: talkNotice, sockmaster, cuBlock });
     }
     // Hardcode the watch setting to 'nochange' since we will have either
     // watched or not watched based on the boolean watchBlockedUser
     await spiHelperEditPage({
       title: userTalkPage,
       newText,
-      summary: `Adding sockpuppetry block notice per [[${context.prefixedName}]]`,
+      summary: buildContextSummary('Adding sockpuppetry block notice'),
       createonly: false,
       watch: 'nochange',
     });

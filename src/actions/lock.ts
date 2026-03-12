@@ -50,7 +50,7 @@ export async function spiHelperRequestLocks(opts: {
   }
   let heading: string;
   let headingText: string;
-  if (hideNames) {
+  if (hideNames || !master) {
     heading = usePlural ? `${lockTargets.length} sockpuppets` : 'a sockpuppet';
     headingText = heading;
   }
@@ -73,15 +73,15 @@ export async function spiHelperRequestLocks(opts: {
   let srgText = await spiHelperGetPageText('meta:Steward requests/Global', false);
   srgText = srgText.replace(/\n+(== See also == *\n)/, '\n\n' + message + '\n\n$1');
   new VueMessage({ type: 'notice', content: 'Filing global lock request' }).show();
-  const editSuccess = await spiHelperEditPage({
+  const editId = await spiHelperEditPage({
     title: 'meta:Steward requests/Global',
     newText: srgText,
     summary: `Global lock request for ${heading}`,
     createonly: false,
     watch: 'nochange',
   }) !== null;
-  if (editSuccess) {
-    const linkHtml = buildTitleLinkHtml(`meta:Steward requests/Global#${headingText}`, 'filed');
+  if (editId) {
+    const linkHtml = buildTitleLinkHtml(`meta:Special:Diff/${editId}#${headingText}`, 'filed');
     new VueMessage({ type: 'success', content: `Global lock request ${linkHtml} successfully!`, isHtml: true }).show();
   }
   else {
