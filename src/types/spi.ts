@@ -78,7 +78,7 @@ export class SockpuppetTag {
     }
     if (this.altmaster) {
       tag += `\n| altmaster = ${this.altmaster}`;
-      tag += `\n| altmaster-status = ${this.altmasterStatus}`;
+      tag += `\n| altmaster-status = ${this.altmasterStatus ?? 'suspected'}`;
     }
     tag += '\n}}';
     return tag;
