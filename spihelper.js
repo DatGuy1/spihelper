@@ -115,7 +115,7 @@
         tag += `
 | altmaster = ${this.altmaster}`;
         tag += `
-| altmaster-status = ${this.altmasterStatus}`;
+| altmaster-status = ${this.altmasterStatus ?? "suspected"}`;
       }
       tag += `
 }}`;
@@ -1412,6 +1412,7 @@
     archiveName;
     casePageName;
     isArchive;
+    valid;
     startingRevId;
     _text = null;
     constructor(pageName, currentPage = false) {
@@ -1422,6 +1423,7 @@
       this.userName = spiHelperNormalizeUsername(this.caseName);
       this.casePageName = "Wikipedia:Sockpuppet investigations/" + this.caseName;
       this.archiveName = pageName + "/Archive";
+      this.valid = !!pageName.trim();
       if (currentPage) {
         this.startingRevId = mw.config.get("wgCurRevisionId");
       } else {
@@ -1461,6 +1463,9 @@
   var context;
   function setContext(pageName) {
     context = new SpiPageContext(cleanPageName(pageName), pageName === mw.config.get("wgPageName"));
+  }
+  function buildContextSummary(baseText) {
+    return context.valid ? baseText + ` per [[${context.prefixedName}]]` : baseText;
   }
 
   // src/state.ts
@@ -2436,7 +2441,8 @@
   var UserLookupComponent = defineComponent({
     props: {
       modelValue: { type: String, required: true },
-      label: { type: String, required: false, default: "" }
+      label: { type: String, required: false, default: "" },
+      allowEmpty: { type: Boolean, default: true }
     },
     emits: ["update:modelValue", "user-selected"],
     data() {
@@ -2446,7 +2452,8 @@
       };
       const messages2 = {
         success: "Valid user",
-        warning: "User not found"
+        warning: "User not found",
+        error: "Field must not be empty"
       };
       return {
         lookupStatus: "default",
@@ -2509,7 +2516,11 @@
       },
       async validateInstantly() {
         await this.$nextTick();
-        if (this.username.length === 0 || mw.util.isIPAddress(this.username)) {
+        if (this.username.length === 0) {
+          this.lookupStatus = this.allowEmpty ? "default" : "error";
+          return;
+        }
+        if (mw.util.isIPAddress(this.username)) {
           this.lookupStatus = "default";
           return;
         }
@@ -2563,15 +2574,12 @@
 
   // src/archivenotice.ts
   async function spiHelperParseArchiveNotice(opts) {
-    const { page, state, signal } = opts;
+    const { page, state } = opts;
     let pageText;
     if (page === context.pageName && state) {
       pageText = await loadCaseText(state);
     } else {
       pageText = await spiHelperGetPageText(page, false);
-    }
-    if (signal?.aborted) {
-      throw new DOMException("Aborted", "AbortError");
     }
     if (pageText === "") {
       return null;
@@ -2603,51 +2611,6 @@
       }
     }
     return new ParsedArchiveNotice({ username, ...flags });
-  }
-  async function spiHelperAddArchiveNotice(page, state) {
-    let pageText;
-    if (page === context.pageName) {
-      pageText = await loadCaseText(state);
-    } else {
-      pageText = await spiHelperGetPageText(page, false);
-    }
-    if (spiHelperPriorCasesRegex.exec(pageText) === null) {
-      pageText = `{{SPIpriorcases}}
-` + pageText;
-    }
-    const archiveNotice = state.archiveNotice ?? new ParsedArchiveNotice({ username: context.caseName });
-    const archiveNoticeText = archiveNotice.generateWikitext();
-    const tocMatch = /(<noinclude>)?__TOC__(<\/noinclude>)?/.exec(pageText);
-    if (tocMatch) {
-      const tocEnd = tocMatch.index + tocMatch[0].length;
-      pageText = pageText.slice(0, tocEnd) + `
-` + archiveNoticeText + `
-` + pageText.slice(tocEnd);
-    } else {
-      pageText = `<noinclude>__TOC__</noinclude>
-` + archiveNoticeText + `
-` + pageText;
-    }
-    if (page === context.pageName) {
-      const newRevId = await context.edit({
-        newText: pageText,
-        summary: "Adding archive notice",
-        watch: spiHelperSettings.watch.case,
-        watchExpiry: spiHelperSettings.expiry.case,
-        baseRevId: context.startingRevId
-      });
-      if (newRevId !== null) {
-        context.startingRevId = newRevId;
-      }
-    } else {
-      await spiHelperEditPage({
-        title: page,
-        newText: pageText,
-        summary: "Adding archive notice",
-        watch: spiHelperSettings.watch.case,
-        watchExpiry: spiHelperSettings.expiry.case
-      });
-    }
   }
 
   // src/ui/utils.ts
@@ -3231,7 +3194,7 @@ $2`);
     return spiHelperEditPage({
       title,
       newText: "{{sockpuppet category}}",
-      summary: `Creating sockpuppet category per [[${context.prefixedName}]]`,
+      summary: buildContextSummary("Creating sockpuppet category"),
       createonly: true,
       watch: spiHelperSettings.watch.categories,
       watchExpiry: spiHelperSettings.expiry.categories
@@ -3303,13 +3266,15 @@ $2`);
       }
     });
     const oldTags = parseUserTags(pageText);
-    const uniqueTags = sock.block.tags.reduce((acc, tag) => {
-      if (!acc.some((existing) => existing.equals(tag))) {
+    const cleanedTags = sock.block.tags.reduce((acc, tag) => {
+      const isOrphanSockpuppet = isSockpuppetTag(tag) && !tag.master;
+      const alreadyAdded = acc.some((existing) => existing.equals(tag));
+      if (!isOrphanSockpuppet && !alreadyAdded) {
         acc.push(tag);
       }
       return acc;
     }, []);
-    if (tagArraysEqual(oldTags, uniqueTags)) {
+    if (tagArraysEqual(oldTags, cleanedTags)) {
       const userLinkHtml = buildTitleLinkHtml(`User:${sock.username}`);
       new VueMessage({
         type: "notice",
@@ -3318,13 +3283,14 @@ $2`);
       }).show();
       return false;
     }
-    const tagText = uniqueTags.map((tag) => tag.generateWikitext()).join(`
+    const tagText = cleanedTags.map((tag) => tag.generateWikitext()).join(`
 `);
     const newText = replaceSockTemplates(pageText, tagText);
+    const baseSummary = oldTags.length < cleanedTags.length ? "Adding" : "Updating";
     return spiHelperEditPage({
       title: `User:${sock.username}`,
       newText,
-      summary: `Adding sockpuppetry tag per [[${context.prefixedName}]]`,
+      summary: buildContextSummary(`${baseSummary} sockpuppetry tag`),
       createonly: false,
       watch: spiHelperSettings.watch.tagged,
       watchExpiry: spiHelperSettings.expiry.tagged
@@ -3386,10 +3352,11 @@ $2`);
   }
 
   // src/actions/block.ts
-  function buildTalkNotice(sock, noticeType, sockmaster, cuBlock) {
+  function buildTalkNotice(opts) {
+    const { sock, noticeType, sockmaster, cuBlock } = opts;
     let newText;
     let isSock = noticeType === "sock";
-    if (isSock && sock.username === spiHelperNormalizeUsername(sockmaster)) {
+    if (isSock && sockmaster && sock.username === spiHelperNormalizeUsername(sockmaster)) {
       isSock = false;
     }
     if (isSock) {
@@ -3416,7 +3383,7 @@ $2`);
     if (sock.block.ntp) {
       newText += "|notalk=yes";
     }
-    if (isSock) {
+    if (isSock && sockmaster) {
       newText += "|master=" + sockmaster;
     }
     newText += "}}";
@@ -3471,12 +3438,12 @@ $2`);
       let newText = blockOptions.blankTalk ? "" : userTalkContent ?? "";
       for (const talkNotice of talkNotices) {
         newText += `
-` + buildTalkNotice(sock, talkNotice, sockmaster, cuBlock);
+` + buildTalkNotice({ sock, noticeType: talkNotice, sockmaster, cuBlock });
       }
       await spiHelperEditPage({
         title: userTalkPage,
         newText,
-        summary: `Adding sockpuppetry block notice per [[${context.prefixedName}]]`,
+        summary: buildContextSummary("Adding sockpuppetry block notice"),
         createonly: false,
         watch: "nochange"
       });
@@ -3674,7 +3641,7 @@ $2`);
     }
     let heading;
     let headingText;
-    if (hideNames) {
+    if (hideNames || !master) {
       heading = usePlural ? `${lockTargets.length} sockpuppets` : "a sockpuppet";
       headingText = heading;
     } else {
@@ -3700,15 +3667,15 @@ ${usePlural ? "Sockpuppets" : "Sockpuppet"} found in enwiki sockpuppet investiga
 
 $1`);
     new VueMessage({ type: "notice", content: "Filing global lock request" }).show();
-    const editSuccess = await spiHelperEditPage({
+    const editId = await spiHelperEditPage({
       title: "meta:Steward requests/Global",
       newText: srgText,
       summary: `Global lock request for ${heading}`,
       createonly: false,
       watch: "nochange"
     }) !== null;
-    if (editSuccess) {
-      const linkHtml = buildTitleLinkHtml(`meta:Steward requests/Global#${headingText}`, "filed");
+    if (editId) {
+      const linkHtml = buildTitleLinkHtml(`meta:Special:Diff/${editId}#${headingText}`, "filed");
       new VueMessage({ type: "success", content: `Global lock request ${linkHtml} successfully!`, isHtml: true }).show();
     } else {
       new VueMessage({ type: "warning", content: "Global lock request failed." }).show();
@@ -4112,7 +4079,6 @@ ${comment}
         open: false,
         openHandler: null,
         beforeUnloadHandler: null,
-        abortController: null,
         actionsRunning: false,
         displayedForms: ["sections"],
         unpinned: !spiHelperSettings.interface.pinned,
@@ -4257,9 +4223,6 @@ ${comment}
       if (this.beforeUnloadHandler) {
         window.removeEventListener("beforeunload", this.beforeUnloadHandler);
       }
-    },
-    unmounted() {
-      this.abortController?.abort();
     },
     methods: {
       toggleButtonLayout() {
@@ -4417,33 +4380,20 @@ ${comment}
         if (this.state.archiveNotice) {
           return;
         }
-        if (this.abortController) {
-          this.abortController.abort();
-        }
-        this.abortController = new AbortController;
-        try {
-          const archiveNoticeResult = await spiHelperParseArchiveNotice({
-            page: context.casePageName,
-            state: this.state,
-            signal: this.abortController.signal
-          });
-          if (archiveNoticeResult === null) {
-            this.state.archiveNotice = new ParsedArchiveNotice({ username: context.caseName });
-            new VueMessage({
-              type: "warning",
-              content: "Can't find archivenotice template! Automatically adding the archive notice to the page."
-            }).show();
-            mw.notify("Can't find archivenotice template! Adding the archive notice to the page", { type: "warn" });
-            console.warn("archivenoticeResult is null");
-            await spiHelperAddArchiveNotice(context.casePageName, this.state);
-          } else {
-            this.state.archiveNotice = archiveNoticeResult;
-          }
-        } catch (error) {
-          if (error instanceof DOMException && error.name === "AbortError") {
-            return;
-          }
-          throw error;
+        const archiveNoticeResult = await spiHelperParseArchiveNotice({
+          page: context.casePageName,
+          state: this.state
+        });
+        if (archiveNoticeResult === null) {
+          this.state.archiveNotice = new ParsedArchiveNotice({ username: context.caseName });
+          new VueMessage({
+            type: "warning",
+            content: "Can't find archivenotice template! Automatically adding the archive notice to the page."
+          }).show();
+          mw.notify("Can't find archivenotice template! If this is incorrect, please contact DatGuy", { type: "warn" });
+          console.warn("archivenoticeResult is null");
+        } else {
+          this.state.archiveNotice = archiveNoticeResult;
         }
       }
     },
@@ -4641,6 +4591,9 @@ ${comment}
       },
       selectedRowIDs() {
         return this.selectedRows.map((index) => this.accounts[index]?.id).filter((id) => !!id);
+      },
+      allowLockOption() {
+        return this.accounts.some((user) => user.block.lock && !isNonRegisteredAccount(user.username) && !this.userLocks.get(user.username));
       }
     },
     methods: {
@@ -4767,6 +4720,9 @@ ${comment}
         for (const row of this.accounts) {
           row.block.tags.length = 0;
         }
+      },
+      validateTag(tag) {
+        return !(isSockpuppetTag(tag) && !tag.master);
       }
     },
     template: `
@@ -4803,7 +4759,7 @@ ${comment}
         <cdx-checkbox v-model="blockOptions.blankTalk" v-if="isAdmin">
           Blank the talk page when adding talk notices
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.lockHideNames">
+        <cdx-checkbox v-model="blockOptions.lockHideNames" :disabled="!allowLockOption">
           Hide usernames when requesting global locks
         </cdx-checkbox>
       </div>
@@ -4969,7 +4925,8 @@ ${comment}
 
         <template #item-tag="{ item, row }">
           <cdx-button v-for="(tag, index) in getRowTagsWithDefault(row.block.tags)" class="userTag"
-                      @click="showTagPopover(tag, index, row.id, $event)">
+                      @click="showTagPopover(tag, index, row.id, $event)"
+                      :action="validateTag(tag) ? 'default' : 'destructive'">
             <cdx-icon v-if="tag !== null"
                       :icon="isSockmasterTag(tag) ? cdxIconUserAvatar : cdxIconUserAvatarOutline"
                       :title="isSockmasterTag(tag) ? 'Master' : 'Sockpuppet'" />
@@ -5809,6 +5766,7 @@ ${comment}
       modelValue: { type: String, required: true },
       placeholder: { type: String, default: "Page" },
       label: { type: String, default: null },
+      description: { type: String, default: null },
       namespace: { type: Number, required: true },
       prefix: { type: String, default: "" }
     },
@@ -5908,6 +5866,9 @@ ${comment}
       <template v-if="label" #label>
         {{ label }}
       </template>
+      <template v-if="description" #description>
+        {{ description }}
+      </template>
       <cdx-lookup
           v-if="useLookup"
           v-model:selected="selection"
@@ -5965,6 +5926,9 @@ ${comment}
       needsLockComment() {
         return this.accounts.some((sock) => sock.block.lock && !isNonRegisteredAccount(sock.username) && this.locks.get(sock.username) !== true);
       },
+      hasInvalidTag() {
+        return this.accounts.some((user) => user.block.tags.some((tag) => isSockpuppetTag(tag) && !tag.master));
+      },
       cuBlockConfirmationsNeeded() {
         const neededUsers = new Set;
         if (spiHelperIsCheckuser() || !this.blockOptions.override || this.blockOptions.noBlock) {
@@ -5994,7 +5958,7 @@ ${comment}
         return skipCount > 0 && skipCount < this.cuBlockConfirmationsNeeded.size;
       },
       disableButton() {
-        return isOpRunning(this.actionName) || this.allDisabled;
+        return isOpRunning(this.actionName) || this.allDisabled || this.hasInvalidTag;
       },
       lockCommentValue: {
         get() {
@@ -6042,16 +6006,20 @@ ${comment}
           {{ [...cuBlockConfirmationsNeeded].join(', ') }}
         </template>
       </cdx-checkbox>
-      <cdx-button ref="submitElement" action="progressive" weight="primary" @click="onSubmit" :disabled="disableButton">
-        Submit
-      </cdx-button>
-      <cdx-popover :anchor="submitElement"
-                   v-model:open="popover.show" :icon="cdxIconUpdate" title="Edit Conflict"
-                   close-button-label="Cancel"
-                   :primary-action="popover.continueAction" @primary="confirmSubmit"
-                   :default-action="popover.cancelAction" @default="popover.show = false">
-        The page has been edited after you loaded it. Do you want to continue?
-      </cdx-popover>
+      <div>
+        <cdx-message v-if="hasInvalidTag" type="error" :inline="true">A user has an invalid tag</cdx-message>
+        <cdx-button ref="submitElement" action="progressive" weight="primary" @click="onSubmit"
+                    :disabled="disableButton">
+          Submit
+        </cdx-button>
+        <cdx-popover :anchor="submitElement"
+                     v-model:open="popover.show" :icon="cdxIconUpdate" title="Edit Conflict"
+                     close-button-label="Cancel"
+                     :primary-action="popover.continueAction" @primary="confirmSubmit"
+                     :default-action="popover.cancelAction" @default="popover.show = false">
+          The page has been edited after you loaded it. Do you want to continue?
+        </cdx-popover>
+      </div>
     </div>
   `
   });
@@ -6194,9 +6162,9 @@ ${comment}
       <cdx-toggle-button-group :buttons="tagCategoryButtons" v-model="tagCategory" class="tag-category" />
       <div v-if="tagCategory === 'sock'" class="edit-body">
         <cdx-toggle-button-group :buttons="sockTags" v-model="temporaryTag.status" />
-        <user-lookup label="Master" v-model="temporaryTag.master" />
+        <user-lookup label="Master" v-model="temporaryTag.master" :allow-empty="false" />
         <user-lookup label="Alternate Master" v-model="temporaryTag.altmaster" />
-        <cdx-toggle-button-group v-if="temporaryTag.altmaster" :buttons="altmasterTags"
+        <cdx-toggle-button-group v-show="temporaryTag.altmaster" :buttons="altmasterTags"
                                  v-model="temporaryTag.altmasterStatus" />
         <cdx-accordion separation="minimal">
           <template #title>
@@ -6465,37 +6433,39 @@ ${comment}
       async loadCase(addRow) {
         this.caseLoading = true;
         setContext(this.pageName);
-        const archiveNoticeResult = await spiHelperParseArchiveNotice({
-          page: this.pageName,
-          state: this.state
-        });
-        if (archiveNoticeResult === null) {
-          this.state.archiveNotice = new ParsedArchiveNotice({ username: this.targetCase });
-        } else {
-          this.state.archiveNotice = archiveNoticeResult;
-        }
-        if (addRow) {
-          const userBlock = await spiHelperGetUserBlockSettings(this.targetCase);
-          if (userBlock !== null) {
-            this.blockData.userBlocks.set(this.targetCase, userBlock);
-          }
-          const userPageText = await spiHelperGetPageText(`User:${this.targetCase}`, false);
-          const { userRow, isLocked } = await setUserRowBlockData({
-            userRow: generateUserRow(this.targetCase, this.state),
-            block: userBlock,
-            userPage: userPageText,
-            defaultBlock: true,
-            checkLock: false,
+        if (this.targetCase) {
+          const archiveNoticeResult = await spiHelperParseArchiveNotice({
+            page: this.pageName,
             state: this.state
           });
-          if (isLocked !== null) {
-            this.blockData.userLocks.set(this.targetCase, isLocked);
-          }
-          const oldIndex = this.accounts.findIndex((user) => user.username === userRow.username);
-          if (oldIndex === -1) {
-            this.accounts.splice(0, 0, userRow);
+          if (archiveNoticeResult === null) {
+            this.state.archiveNotice = new ParsedArchiveNotice({ username: this.targetCase });
           } else {
-            this.accounts.splice(oldIndex, 1, userRow);
+            this.state.archiveNotice = archiveNoticeResult;
+          }
+          if (addRow) {
+            const userBlock = await spiHelperGetUserBlockSettings(this.targetCase);
+            if (userBlock !== null) {
+              this.blockData.userBlocks.set(this.targetCase, userBlock);
+            }
+            const userPageText = await spiHelperGetPageText(`User:${this.targetCase}`, false);
+            const { userRow, isLocked } = await setUserRowBlockData({
+              userRow: generateUserRow(this.targetCase, this.state),
+              block: userBlock,
+              userPage: userPageText,
+              defaultBlock: true,
+              checkLock: false,
+              state: this.state
+            });
+            if (isLocked !== null) {
+              this.blockData.userLocks.set(this.targetCase, isLocked);
+            }
+            const oldIndex = this.accounts.findIndex((user) => user.username === userRow.username);
+            if (oldIndex === -1) {
+              this.accounts.splice(0, 0, userRow);
+            } else {
+              this.accounts.splice(oldIndex, 1, userRow);
+            }
           }
         }
         this.blockData.master = this.targetCase;
@@ -6619,7 +6589,7 @@ ${comment}
       <div id="spiHelper-CaseLoader">
         <page-lookup v-model="targetCase"
                      :namespace="4" prefix="Sockpuppet investigations/"
-                     placeholder="Case" label="Case title" />
+                     placeholder="Case" label="Case title" description="Optional but recommended" />
         <div style="display: flex; gap: 10px;">
           <cdx-button weight="primary" action="progressive" @click="loadCase(true)">Load</cdx-button>
           <cdx-progress-indicator v-show="caseLoading">Loading case</cdx-progress-indicator>
