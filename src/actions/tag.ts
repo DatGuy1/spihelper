@@ -87,15 +87,17 @@ function replaceSockTemplates(pageText: string, replacement: string): string {
  * Given a tag entry, runs the required logic and tags the user
  * @param {UserRow} opts.sock Sock to run the logic for
  * @param {string} opts.pageText Text of the userpage
+ * @param opts.blocked Whether the user is blocked
  * @param {boolean} opts.tagNonLocalAccounts Whether to tag accounts that don't exist locally
  * @return {Promise<boolean>} Whether the tag was successfully applied
  */
 export async function spiHelperTagUser(opts: {
   sock: UserRow;
   pageText: string;
+  blocked: boolean;
   tagNonLocalAccounts: boolean;
 }): Promise<boolean> {
-  const { sock, pageText, tagNonLocalAccounts } = opts;
+  const { sock, pageText, blocked, tagNonLocalAccounts } = opts;
   if (isNonRegisteredAccount(sock.username)) {
     return false; // do not support tagging IPs
   }
@@ -143,7 +145,7 @@ export async function spiHelperTagUser(opts: {
     }).show();
     return false;
   }
-  const tagText = cleanedTags.map(tag => tag.generateWikitext()).join('\n');
+  const tagText = cleanedTags.map(tag => tag.generateWikitext(blocked)).join('\n');
   const newText = replaceSockTemplates(pageText, tagText);
 
   const baseSummary = oldTags.length < cleanedTags.length ? 'Adding' : 'Updating';
@@ -190,6 +192,9 @@ export async function createSockCategories(userRows: UserRow[]): Promise<Map<str
   const categoryNeeds = collectCategoryNeeds(userRows);
 
   for (const [master, { confirmed, suspected }] of categoryNeeds) {
+    if (!master) {
+      continue;
+    }
     let created = false;
     if (confirmed) {
       const catName = `Category:Wikipedia sockpuppets of ${master}`;

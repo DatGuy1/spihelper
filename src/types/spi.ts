@@ -66,12 +66,16 @@ export class SockpuppetTag {
     this.altmasterStatus = opts.altmasterStatus;
   }
 
-  generateWikitext(): string {
+  generateWikitext(blocked?: boolean): string {
     let tag = '{{sockpuppet';
     tag += `\n| 1 = ${this.master}`;
     tag += `\n| 2 = ${this.status}`;
     if (this.locked) {
-      tag += `\n| locked = yes`;
+      tag += '\n| locked = yes';
+    }
+    // Explicit comparison to not match undefined
+    if (blocked === false) {
+      tag += '\n| notblocked = yes';
     }
     if (this.evidence) {
       tag += `\n| evidence = ${this.evidence}`;
@@ -131,7 +135,7 @@ export class SockmasterTag {
     let tag = '{{sockpuppeteer';
     tag += `\n| 1 = ${this.status}`;
     if (this.checked) {
-      tag += `\n| checked = yes`;
+      tag += '\n| checked = yes';
     }
     if (this.ltapage) {
       tag += `\n| ltapage = ${this.ltapage}`;

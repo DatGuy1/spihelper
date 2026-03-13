@@ -390,10 +390,11 @@ export async function spiHelperHandleBlocks(opts: {
     spiHelperGetBulkPageText(allUserTalkPages),
   ]);
   fetchMessage.update({ type: 'success', content: 'Got previous blocks and tags' });
-  const tagSock = async (userRow: UserRow): Promise<string | null> => {
+  const tagSock = async (userRow: UserRow, blocked: boolean): Promise<string | null> => {
     const tagSuccess = await spiHelperTagUser({
       sock: userRow,
       pageText: userPages.get(userRow.username) ?? '',
+      blocked,
       tagNonLocalAccounts: blockOptions.tagUnattached,
     });
     /* Disabling to see if necessary. TODO: Check in later
@@ -433,7 +434,7 @@ export async function spiHelperHandleBlocks(opts: {
           const alreadyBlockedWarning = new VueMessage({ type: 'warning', content: `Block target ${userRow.username} is already blocked. ` });
           if (userRow.block.tags.length > 0) {
             alreadyBlockedWarning.content += 'Proceeding with tagging';
-            tagPromises.push(tagSock(userRow));
+            tagPromises.push(tagSock(userRow, true));
           }
           else {
             // If the user is already blocked, and we haven't asked
@@ -479,13 +480,13 @@ export async function spiHelperHandleBlocks(opts: {
         }
 
         if (userRow.block.tags.length > 0) {
-          tagPromises.push(tagSock(userRow));
+          tagPromises.push(tagSock(userRow, true));
         }
         return userRow.username;
       })());
     }
     else if (userRow.block.tags.length > 0) {
-      tagPromises.push(tagSock(userRow));
+      tagPromises.push(tagSock(userRow, userBlocks.has(userRow.username)));
     }
   }
 
