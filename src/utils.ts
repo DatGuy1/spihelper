@@ -199,6 +199,12 @@ export function buildTitleLinkHtml(title: string, text?: string): string {
   return $link.prop('outerHTML') as string;
 }
 
+export function buildURLLinkHtml(url: string, text: string, title?: string): string {
+  title ??= url;
+  const $link = $('<a>').attr('href', url).attr('title', title).text(text);
+  return $link.prop('outerHTML') as string;
+}
+
 export function buildUserActionLogMessage(opts: {
   blockedUsers: (string | null)[];
   taggedUsers: (string | null)[];

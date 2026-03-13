@@ -27,6 +27,7 @@ import type {
   AllUser,
   AllUsersResponse,
   BacklinksResponse,
+  BlockActionResponse,
   BlockEntry,
   BlocksResponse,
   CategoriesResponse,
@@ -44,7 +45,7 @@ import type {
   SiteInfoResponse,
   WatchOption,
 } from './types/api.ts';
-import { buildTitleLinkHtml, spiHelperStripXWikiPrefix } from './utils.ts';
+import { buildTitleLinkHtml, buildURLLinkHtml, spiHelperStripXWikiPrefix } from './utils.ts';
 import { OpState, finishOp, startOp } from './operations.ts';
 import { VERSION, spiHelperAdvert } from './constants/settings.ts';
 import { SectionEntry } from './state.ts';
@@ -655,10 +656,10 @@ export async function spiHelperBlockUser(opts: {
   startOp(activeOpKey);
 
   const userPage = 'User:' + user;
-  const linkHtml = buildTitleLinkHtml(userPage);
+  const userLinkHtml = buildTitleLinkHtml(userPage);
   const message = new VueMessage({
     type: 'notice',
-    content: `Blocking ${linkHtml}`,
+    content: `Blocking ${userLinkHtml}`,
     isHtml: true,
   }).show();
 
@@ -677,17 +678,19 @@ export async function spiHelperBlockUser(opts: {
     watchuser: watchBlockedUser,
     watchlistexpiry: watchExpiry,
     user: user,
+    formatversion: '2',
   };
   try {
-    await api.postWithToken('csrf', request);
-    message.update({ type: 'success', content: `Blocked ${linkHtml}` });
+    const response = await api.postWithToken('csrf', request) as BlockActionResponse;
+    const blockLinkHtml = buildURLLinkHtml(mw.util.getUrl('Special:BlockList', { wpTarget: `#${response.block.id}` }), 'Blocked', 'Special:BlockList');
+    message.update({ type: 'success', content: `${blockLinkHtml} user ${userLinkHtml}` });
     finishOp(activeOpKey, OpState.Success);
     return true;
   }
   catch (error) {
     message.update({
       type: 'error',
-      content: `Failed to block ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`,
+      content: `Failed to block ${userLinkHtml}: ${mw.html.escape(JSON.stringify(error))}`,
     });
     finishOp(activeOpKey, OpState.Failed);
     return false;
@@ -851,7 +854,8 @@ export async function spiHelperEditPage(opts: {
   }
   try {
     const response = await api.postWithToken('csrf', request) as EditResponse;
-    const diffLinkHtml = buildTitleLinkHtml(`Special:Diff/${response.edit.newrevid}`, 'Saved');
+    const diffId = response.edit.newrevid;
+    const diffLinkHtml = buildURLLinkHtml(mw.util.getUrl('', { diff: diffId }), 'Saved', `View diff ${diffId}`);
     message.update({ type: 'success', content: `${diffLinkHtml} page ${pageLinkHtml}`, isHtml: true });
     finishOp(activeOpKey, OpState.Success);
     return response.edit.newrevid;
