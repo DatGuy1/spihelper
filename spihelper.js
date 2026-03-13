@@ -97,7 +97,7 @@
       this.altmaster = opts.altmaster ?? "";
       this.altmasterStatus = opts.altmasterStatus;
     }
-    generateWikitext() {
+    generateWikitext(blocked) {
       let tag = "{{sockpuppet";
       tag += `
 | 1 = ${this.master}`;
@@ -106,6 +106,10 @@
       if (this.locked) {
         tag += `
 | locked = yes`;
+      }
+      if (blocked === false) {
+        tag += `
+| notblocked = yes`;
       }
       if (this.evidence) {
         tag += `
@@ -408,6 +412,11 @@
   function buildTitleLinkHtml(title, text) {
     text ??= title;
     const $link = $("<a>").attr("href", mw.util.getUrl(title)).attr("title", title).text(text);
+    return $link.prop("outerHTML");
+  }
+  function buildURLLinkHtml(url, text, title) {
+    title ??= url;
+    const $link = $("<a>").attr("href", url).attr("title", title).text(text);
     return $link.prop("outerHTML");
   }
   function buildUserActionLogMessage(opts) {
@@ -1108,10 +1117,10 @@
     const activeOpKey = "block_" + user;
     startOp(activeOpKey);
     const userPage = "User:" + user;
-    const linkHtml = buildTitleLinkHtml(userPage);
+    const userLinkHtml = buildTitleLinkHtml(userPage);
     const message = new VueMessage({
       type: "notice",
-      content: `Blocking ${linkHtml}`,
+      content: `Blocking ${userLinkHtml}`,
       isHtml: true
     }).show();
     const api = spiHelperGetAPI();
@@ -1127,17 +1136,19 @@
       noemail,
       watchuser: watchBlockedUser,
       watchlistexpiry: watchExpiry,
-      user
+      user,
+      formatversion: "2"
     };
     try {
-      await api.postWithToken("csrf", request);
-      message.update({ type: "success", content: `Blocked ${linkHtml}` });
+      const response = await api.postWithToken("csrf", request);
+      const blockLinkHtml = buildURLLinkHtml(mw.util.getUrl("Special:BlockList", { wpTarget: `#${response.block.id}` }), "Blocked", "Special:BlockList");
+      message.update({ type: "success", content: `${blockLinkHtml} user ${userLinkHtml}` });
       finishOp(activeOpKey, "success" /* Success */);
       return true;
     } catch (error) {
       message.update({
         type: "error",
-        content: `Failed to block ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`
+        content: `Failed to block ${userLinkHtml}: ${mw.html.escape(JSON.stringify(error))}`
       });
       finishOp(activeOpKey, "failed" /* Failed */);
       return false;
@@ -1246,7 +1257,8 @@
     }
     try {
       const response = await api.postWithToken("csrf", request);
-      const diffLinkHtml = buildTitleLinkHtml(`Special:Diff/${response.edit.newrevid}`, "Saved");
+      const diffId = response.edit.newrevid;
+      const diffLinkHtml = buildURLLinkHtml(mw.util.getUrl("", { diff: diffId }), "Saved", `View diff ${diffId}`);
       message.update({ type: "success", content: `${diffLinkHtml} page ${pageLinkHtml}`, isHtml: true });
       finishOp(activeOpKey, "success" /* Success */);
       return response.edit.newrevid;
@@ -3241,7 +3253,7 @@ $2`);
     return pageText;
   }
   async function spiHelperTagUser(opts) {
-    const { sock, pageText, tagNonLocalAccounts } = opts;
+    const { sock, pageText, blocked, tagNonLocalAccounts } = opts;
     if (isNonRegisteredAccount(sock.username)) {
       return false;
     }
@@ -3283,7 +3295,7 @@ $2`);
       }).show();
       return false;
     }
-    const tagText = cleanedTags.map((tag) => tag.generateWikitext()).join(`
+    const tagText = cleanedTags.map((tag) => tag.generateWikitext(blocked)).join(`
 `);
     const newText = replaceSockTemplates(pageText, tagText);
     const baseSummary = oldTags.length < cleanedTags.length ? "Adding" : "Updating";
@@ -3329,6 +3341,9 @@ $2`);
     const purgeMap = new Map;
     const categoryNeeds = collectCategoryNeeds(userRows);
     for (const [master, { confirmed, suspected }] of categoryNeeds) {
+      if (!master) {
+        continue;
+      }
       let created = false;
       if (confirmed) {
         const catName = `Category:Wikipedia sockpuppets of ${master}`;
@@ -3977,10 +3992,11 @@ ${comment}
       spiHelperGetBulkPageText(allUserTalkPages)
     ]);
     fetchMessage.update({ type: "success", content: "Got previous blocks and tags" });
-    const tagSock = async (userRow) => {
+    const tagSock = async (userRow, blocked) => {
       const tagSuccess = await spiHelperTagUser({
         sock: userRow,
         pageText: userPages.get(userRow.username) ?? "",
+        blocked,
         tagNonLocalAccounts: blockOptions.tagUnattached
       });
       return tagSuccess ? userRow.username : null;
@@ -4006,7 +4022,7 @@ ${comment}
             const alreadyBlockedWarning = new VueMessage({ type: "warning", content: `Block target ${userRow.username} is already blocked. ` });
             if (userRow.block.tags.length > 0) {
               alreadyBlockedWarning.content += "Proceeding with tagging";
-              tagPromises.push(tagSock(userRow));
+              tagPromises.push(tagSock(userRow, true));
             } else {
               alreadyBlockedWarning.content += `Check the "override existing blocks" box to re-block them`;
             }
@@ -4041,12 +4057,12 @@ ${comment}
             return null;
           }
           if (userRow.block.tags.length > 0) {
-            tagPromises.push(tagSock(userRow));
+            tagPromises.push(tagSock(userRow, true));
           }
           return userRow.username;
         })());
       } else if (userRow.block.tags.length > 0) {
-        tagPromises.push(tagSock(userRow));
+        tagPromises.push(tagSock(userRow, userBlocks.has(userRow.username)));
       }
     }
     if (lockTargets.length > 0) {
