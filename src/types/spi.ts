@@ -133,8 +133,14 @@ export class SockmasterTag {
 
   generateWikitext(): string {
     let tag = '{{sockpuppeteer';
-    tag += `\n| 1 = ${this.status}`;
-    if (this.checked) {
+
+    // 'Confirmed' isn't a real option
+    const outputStatus = this.status === 'banned' ? 'banned' : 'blocked';
+    // 'Confirmed' or 'banned' neccesitate use of the CU tool, so mark as checked
+    const isChecked = this.checked || this.status !== 'blocked';
+
+    tag += `\n| 1 = ${outputStatus}`;
+    if (isChecked) {
       tag += '\n| checked = yes';
     }
     if (this.ltapage) {
