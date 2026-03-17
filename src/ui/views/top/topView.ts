@@ -271,7 +271,10 @@ export const TopViewComponent = defineComponent({
       const prevType = this.state.selectedSection?.type ?? null;
       const nextType = newSelection === 'all' ? 'all' : 'specific';
       if (prevType !== nextType) {
-        this.displayedForms = ['sections'];
+        const allowedFormNames: CaseActionName[] = ['sections', 'move', 'archive', 'block', 'link'];
+        this.displayedForms = this.displayedForms.filter(formName =>
+          allowedFormNames.includes(formName),
+        );
       }
 
       if (newSelection === 'all') {

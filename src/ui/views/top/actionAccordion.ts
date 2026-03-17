@@ -54,7 +54,7 @@ export const ActionAccordionComponent = defineComponent({
     <cdx-accordion
         v-if="showAccordion"
         :name="name"
-        :model-value="this.displayedForms.includes(name)"
+        :model-value="displayedForms.includes(name)"
         @click.prevent="$emit('actionToggled')"
         :class="{'action-enabled': showEnabledClass}"
     >
