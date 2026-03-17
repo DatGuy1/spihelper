@@ -2,7 +2,8 @@ import { type PropType, defineComponent } from 'vue';
 import type { SelectionType } from '../../../types/vue.ts';
 import type { ActionLabel, CaseActionName, CaseActionSection } from '../../../types/spi.ts';
 import { context } from '../../../context.ts';
-import { NonArchiveActions } from './utils/setup.ts';
+import { ClerkOnlyActions, NonArchiveActions } from './utils/setup.ts';
+import { spiHelperIsClerk } from '../../../role.ts';
 
 export const ActionButtonComponent = defineComponent({
   props: {
@@ -21,10 +22,12 @@ export const ActionButtonComponent = defineComponent({
     allSelected(): boolean {
       return this.selection === 'all';
     },
-
     showButton(): boolean {
       if (context.isArchive) {
         return !NonArchiveActions.has(this.name);
+      }
+      if (!spiHelperIsClerk() && ClerkOnlyActions.has(this.name)) {
+        return false;
       }
       if (this.name === 'sections') return true;
       if (this.selection === null) return false;

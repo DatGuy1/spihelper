@@ -100,3 +100,4 @@ export function getInitialCaseActions(): CaseActions {
 }
 
 export const NonArchiveActions = new Set<CaseActionName>(['status', 'management', 'comment', 'move', 'archive']);
+export const ClerkOnlyActions = new Set<CaseActionName>(['move', 'archive', 'management']);
