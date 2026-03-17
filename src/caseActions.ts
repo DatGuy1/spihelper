@@ -20,7 +20,6 @@ import {
   buildUserActionLogMessage,
   isNonRegisteredAccount,
   isSockmasterTag,
-  isSockpuppetTag,
   spiHelperNormalizeUsername,
 } from './utils.ts';
 import {
@@ -420,10 +419,16 @@ export async function spiHelperHandleBlocks(opts: {
     }
     if (blockAvailable && userRow.block.block) {
       const talkNotices: ('master' | 'sock')[] = [];
-      if (blockOptions.addMasterNotice && userRow.block.tags.some(tag => isSockmasterTag(tag))) {
+      // I really don't like this. It should be the way it was in 3af25ca since we
+      // support tagging multiple masters, but this is the legacy spihelper behaviour.
+      // May yet revert this back to 3af25ca.
+      if (blockOptions.addMasterNotice && (
+        userRow.block.tags.some(tag => isSockmasterTag(tag))
+        || userRow.username === master
+      )) {
         talkNotices.push('master');
       }
-      if (blockOptions.addSockNotice && userRow.block.tags.some(tag => isSockpuppetTag(tag))) {
+      else if (blockOptions.addSockNotice) {
         talkNotices.push('sock');
       }
 
@@ -431,7 +436,10 @@ export async function spiHelperHandleBlocks(opts: {
       blockPromises.push((async () => {
         const userBlock = userBlocks.get(userRow.username);
         if (userBlock !== undefined && !blockOptions.override) {
-          const alreadyBlockedWarning = new VueMessage({ type: 'warning', content: `Block target ${userRow.username} is already blocked. ` });
+          const alreadyBlockedWarning = new VueMessage({
+            type: 'warning',
+            content: `Block target ${userRow.username} is already blocked. `,
+          });
           if (userRow.block.tags.length > 0) {
             alreadyBlockedWarning.content += 'Proceeding with tagging';
             tagPromises.push(tagSock(userRow, true));
