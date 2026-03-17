@@ -162,6 +162,9 @@ export const TopViewComponent = defineComponent({
           await this.ensureArchiveNotice();
           await this.loadNewSection(firstSection);
         }
+        else {
+          this.caseActions.sections.data.section = 'all';
+        }
       }
     },
     archiveNotice(newNotice: ParsedArchiveNotice | null) {
