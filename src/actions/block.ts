@@ -33,7 +33,9 @@ function buildTalkNotice(opts: {
   else {
     newText += '{{subst:uw-sockblock|sig=yes';
   }
-  newText += '|spi=' + context.caseName;
+  if (context.valid) {
+    newText += '|spi=' + context.caseName;
+  }
   if (isNoExpiry(sock.block.duration)) {
     newText += '|indef=yes';
   }
