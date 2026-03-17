@@ -1,5 +1,5 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
-// v3.1.3
+// v3.1.4
 // <nowiki>
 'use strict';
 (() => {
@@ -678,7 +678,7 @@
     showUseragentCheckbox: true,
     useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
   };
-  var VERSION = "3.1.3";
+  var VERSION = "3.1.4";
   var MODE = "dev";
   var spiHelperDefaultSettings = {
     watch: {
@@ -701,7 +701,6 @@
       page: "spihelper_log"
     },
     clerk: true,
-    iUnderstandSectionMoves: false,
     tickArchiveWhenCaseClosed: false,
     useCheckuserblockAccount: mw.config.get("wgUserGroups")?.includes("checkuser") ?? false,
     useLookup: true,
@@ -1734,7 +1733,6 @@
     { oldPath: "clerk", newPath: ["clerk"], type: "boolean" },
     { oldPath: "log", newPath: ["log", "enabled"], type: "boolean" },
     { oldPath: "reversed_log", newPath: ["log", "reversed"], type: "boolean" },
-    { oldPath: "iUnderstandSectionMoves", newPath: ["iUnderstandSectionMoves"], type: "boolean" },
     { oldPath: "tickArchiveWhenCaseClosed", newPath: ["tickArchiveWhenCaseClosed"], type: "boolean" },
     { oldPath: "useCheckuserblockAccount", newPath: ["useCheckuserblockAccount"], type: "boolean" },
     { oldPath: "displayIPv6As64", newPath: ["interface", "displayIPv6As64"], type: "boolean" },
@@ -1910,7 +1908,7 @@
       return {
         open: false,
         openHandler: null,
-        showExtra: spiHelperSettings.debug.enabled || spiHelperSettings.iUnderstandSectionMoves,
+        showExtra: spiHelperSettings.debug.enabled,
         showExtraMessage: false,
         showExtraHandler: null,
         logPrefix,
@@ -1971,7 +1969,7 @@
         mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "options" });
       };
       this.openButton.addEventListener("click", this.openHandler);
-      //! Use the Konami code to unlock section moves
+      //! Use the Konami code to unlock debug menu
       const konami = [
         "ArrowUp",
         "ArrowUp",
@@ -2036,7 +2034,7 @@
       </template>
       <p>Configure your spiHelper options</p>
       <cdx-message v-if="showExtraMessage" type="success" :fade-in="true" :auto-dismiss="true" :display-time="3000">
-        I trust that you understand section moves
+        Debug menu enabled
       </cdx-message>
       <cdx-accordion :action-icon="icons.cdxIconWatchlist" :action-always-visible="true">
         <template #title>Watch</template>
@@ -2141,11 +2139,6 @@
             Actions to have enabled by default when opening the form
           </template>
         </cdx-field>
-        <div v-if="showExtra">
-          <cdx-toggle-switch v-model="spiHelperSettings.iUnderstandSectionMoves" :align-switch="true">
-            I understand section moves
-          </cdx-toggle-switch>
-        </div>
         <br>
         <cdx-button @click="loadDefaults">
           Load defaults
@@ -2246,6 +2239,7 @@
     };
   }
   var NonArchiveActions = new Set(["status", "management", "comment", "move", "archive"]);
+  var ClerkOnlyActions = new Set(["move", "archive", "management"]);
 
   // src/ui/views/top/actionAccordion.ts
   var ActionAccordionComponent = defineComponent({
@@ -2270,6 +2264,9 @@
       showAccordion() {
         if (context.isArchive) {
           return !NonArchiveActions.has(this.name);
+        }
+        if (!spiHelperIsClerk() && ClerkOnlyActions.has(this.name)) {
+          return false;
         }
         if (this.name === "sections")
           return true;
@@ -2325,6 +2322,9 @@
       showButton() {
         if (context.isArchive) {
           return !NonArchiveActions.has(this.name);
+        }
+        if (!spiHelperIsClerk() && ClerkOnlyActions.has(this.name)) {
+          return false;
         }
         if (this.name === "sections")
           return true;
@@ -4251,6 +4251,8 @@ ${comment}
             this.caseActions.sections.data.section = firstSection.id;
             await this.ensureArchiveNotice();
             await this.loadNewSection(firstSection);
+          } else {
+            this.caseActions.sections.data.section = "all";
           }
         }
       },
@@ -5719,9 +5721,6 @@ ${comment}
       };
     },
     computed: {
-      allowSectionMoves() {
-        return this.selectionType === "all" || this.isSectionMove && spiHelperSettings.iUnderstandSectionMoves;
-      },
       isSectionMove() {
         return this.selectionType === "specific";
       },
@@ -5735,23 +5734,13 @@ ${comment}
         return "section " + this.selection.section.name;
       },
       disabled() {
-        return this.archiveEnabled || this.isSectionMove && !this.allowSectionMoves;
+        return this.archiveEnabled;
       },
       selectionType() {
         return this.selection?.type ?? null;
       }
     },
     watch: {
-      selectionType: {
-        handler(newType) {
-          if (newType === "specific") {
-            if (!this.allowSectionMoves) {
-              this.$emit("update:enabled", false);
-            }
-          }
-        },
-        immediate: true
-      },
       archiveEnabled: {
         handler(enabled) {
           if (enabled) {
@@ -5785,9 +5774,6 @@ ${comment}
         </template>
       </cdx-checkbox>
     </action-container>
-    <cdx-message v-if="isSectionMove && !allowSectionMoves" type="error" :inline="true">
-      You do not yet understand section moves. You probably want to move the entire case.
-    </cdx-message>
     <cdx-message v-if="archiveEnabled" type="warning" :inline="true">
       Archival is enabled, which overrides moving.
     </cdx-message>
@@ -6782,8 +6768,10 @@ ${comment}
           <li v-for="change in entry.changes" :key="change">{{ change }}</li>
         </ul>
       </div>
+
+      <p style="margin-top: 12px;"><a href="//en.wikipedia.org/wiki/User:DatGuy/spihelper/changelog.json">See all change history</a></p>
       
-      <cdx-message v-if="beta" style="padding: 12px; margin-top: 32px">
+      <cdx-message v-if="beta" style="padding: 12px; margin-top: 24px">
         <p><strong>Beta Reminder</strong></p>
         <p>You are running a beta version.</p>
         <p>It is recommended to double-check your edits, especially ones that are impacted by a recent change.</p>
