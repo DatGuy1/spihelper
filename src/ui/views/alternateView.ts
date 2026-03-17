@@ -77,6 +77,18 @@ export const AlternateViewComponent = defineComponent({
     pageName() {
       return `Wikipedia:Sockpuppet investigations/${this.targetCase}`;
     },
+    // For compatibility with submitAction
+    caseActions() {
+      return {
+        block: {
+          enabled: true,
+          data: this.blockData,
+        },
+        move: {
+          enabled: false,
+        },
+      };
+    },
   },
   watch: {
     unpinned(newVal) {
@@ -421,9 +433,8 @@ export const AlternateViewComponent = defineComponent({
       <div v-if="caseLoaded">
         <submit-form :accounts="accounts"
                      v-model:lock-comment="blockData.lockcomment" v-model:skipCUVerifyUsers="blockData.skipCUVerifyUsers"
-                     :block-options="blockData.options" :blocks="blockData.userBlocks"
-                     :locks="blockData.userLocks" :state="state" :action-name="'alternateActions'"
-                     :check-conflict="false" :all-disabled="false"
+                     :case-actions="caseActions" :state="state"
+                     :all-disabled="false" :action-name="'alternateActions'" :check-conflict="false"
                      @on-submit="onSubmitActions" />
       </div>
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />

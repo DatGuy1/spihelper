@@ -515,9 +515,8 @@ export const TopViewComponent = defineComponent({
       <submit-form v-if="caseActions.sections.data.section !== null" :accounts="accounts"
                    v-model:lock-comment="caseActions.block.data.lockcomment"
                    v-model:skipCUVerifyUsers="caseActions.block.data.skipCUVerifyUsers"
-                   :block-options="caseActions.block.data.options"
-                   :locks="caseActions.block.data.userLocks" :blocks="caseActions.block.data.userBlocks"
-                   :all-disabled="allDisabled" :state="state" :action-name="'mainActions'" :check-conflict="true"
+                   :case-actions="caseActions" :state="state"
+                   :all-disabled="allDisabled" :action-name="'mainActions'" :check-conflict="true"
                    @on-submit="onSubmitActions" />
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
       <div id="messageRow">
@@ -529,6 +528,7 @@ export const TopViewComponent = defineComponent({
           </span>
         </cdx-message>
       </div>
+      <p>{{ caseActions }}</p>
     </div>
   `,
 });

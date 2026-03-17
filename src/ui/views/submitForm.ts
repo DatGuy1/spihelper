@@ -1,5 +1,5 @@
 import { type ComponentPublicInstance, type PropType, defineComponent } from 'vue';
-import type { BlockOptions, UserRow } from '../../types/spi.ts';
+import type { CaseActions, UserRow } from '../../types/spi.ts';
 import { isNonRegisteredAccount, isSockpuppetTag } from '../../utils.ts';
 import { isOpRunning } from '../../operations.ts';
 import { spiHelperGetPageRev } from '../../api.ts';
@@ -7,7 +7,6 @@ import { context } from '../../context.ts';
 import { cdxIconUpdate } from '@wikimedia/codex-icons';
 import { type ModalAction, type PrimaryModalAction } from '@wikimedia/codex';
 import { CaseState, loadCaseText, loadSectionText } from '../../state.ts';
-import type { BlockEntry } from '../../types/api.ts';
 import { spiHelperIsCheckuser } from '../../role.ts';
 import { spiHelperCUBlockRegex } from '../../constants/regex.ts';
 
@@ -24,15 +23,15 @@ interface Data {
 
 export const SubmitFormComponent = defineComponent({
   props: {
+    // These are v-models
+    lockComment: { type: String, required: true },
+    skipCUVerifyUsers: { type: Set as PropType<Set<string>>, required: true },
+    // These are static
     actionName: { type: String, required: true },
     checkConflict: { type: Boolean, required: true },
     state: { type: Object as PropType<CaseState>, required: true },
     accounts: { type: Array as PropType<UserRow[]>, required: true },
-    blockOptions: { type: Object as PropType<BlockOptions>, required: true },
-    blocks: { type: Map as PropType<Map<string, BlockEntry>>, required: true },
-    locks: { type: Map as PropType<Map<string, boolean>>, required: true },
-    lockComment: { type: String, required: true },
-    skipCUVerifyUsers: { type: Set as PropType<Set<string>>, required: true },
+    caseActions: { type: Object as PropType<CaseActions>, required: true },
     allDisabled: { type: Boolean, required: true },
   },
   emits: ['update:lockComment', 'update:skipCUVerifyUsers', 'onSubmit'],
@@ -52,25 +51,41 @@ export const SubmitFormComponent = defineComponent({
   },
   computed: {
     needsLockComment() {
+      const blockAction = this.caseActions.block;
+      if (!blockAction.enabled) {
+        return false;
+      }
       // Also check that our user isn't already locked because we'd skip them eventually
       return this.accounts.some(sock =>
         sock.block.lock
         && !isNonRegisteredAccount(sock.username)
-        && this.locks.get(sock.username) !== true,
+        && blockAction.data.userLocks.get(sock.username) !== true,
       );
     },
     hasInvalidTag() {
+      const blockAction = this.caseActions.block;
+      if (!blockAction.enabled) {
+        return false;
+      }
       return this.accounts.some(user =>
         user.block.tags.some(tag =>
           isSockpuppetTag(tag) && !tag.master,
         ),
       );
     },
+    hasInvalidMove() {
+      const moveAction = this.caseActions.move;
+      return moveAction.enabled && !moveAction.data.target;
+    },
     cuBlockConfirmationsNeeded(): Set<string> {
       // If you're not a checkuser, we've asked to overwrite existing blocks, and the block
       // target has a CU block on them, check whether that was intended
+      const blockData = this.caseActions.block.data;
       const neededUsers = new Set<string>();
-      if (spiHelperIsCheckuser() || !this.blockOptions.override || this.blockOptions.noBlock) {
+      if (spiHelperIsCheckuser()
+        || !this.caseActions.block.enabled
+        || !blockData.options.override
+        || !blockData.options.noBlock) {
         return neededUsers;
       }
 
@@ -78,7 +93,7 @@ export const SubmitFormComponent = defineComponent({
         if (!userRow.block.block) {
           continue;
         }
-        const blockReason = this.blocks.get(userRow.username)?.reason;
+        const blockReason = blockData.userBlocks.get(userRow.username)?.reason;
         if (blockReason && spiHelperCUBlockRegex.exec(blockReason)) {
           neededUsers.add(userRow.username);
         }
@@ -98,7 +113,8 @@ export const SubmitFormComponent = defineComponent({
       return skipCount > 0 && skipCount < this.cuBlockConfirmationsNeeded.size;
     },
     disableButton() {
-      return isOpRunning(this.actionName) || this.allDisabled || this.hasInvalidTag;
+      return isOpRunning(this.actionName) || this.allDisabled
+        || this.hasInvalidTag || this.hasInvalidMove;
     },
     lockCommentValue: {
       get() {
@@ -156,6 +172,7 @@ export const SubmitFormComponent = defineComponent({
       </cdx-checkbox>
       <div>
         <cdx-message v-if="hasInvalidTag" type="error" :inline="true">A user has an invalid tag</cdx-message>
+        <cdx-message v-if="hasInvalidMove" type="error" :inline="true"><b>Move</b> is enabled but has no target</cdx-message>
         <cdx-button ref="submitElement" action="progressive" weight="primary" @click="onSubmit"
                     :disabled="disableButton">
           Submit
