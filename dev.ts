@@ -17,7 +17,7 @@ async function build() {
       __VERSION__: JSON.stringify(version),
       __MODE__: '"live"',
     },
-    banner: `// v${version}`,
+    banner: `// v${version}\n'use strict';`,
   });
 
   if (!result.success) {

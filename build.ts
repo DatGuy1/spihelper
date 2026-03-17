@@ -22,7 +22,7 @@ await Bun.build({
     __VERSION__: JSON.stringify(version),
     __MODE__: `"${mode}"`,
   },
-  banner: '// ' + usyncTemplateJs + '\n// ' + versionBanner + '\n// <nowiki>',
+  banner: '// ' + usyncTemplateJs + '\n// ' + versionBanner + '\n// <nowiki>' + '\n\'use strict\';',
   footer: '// </nowiki>',
 });
 
