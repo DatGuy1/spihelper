@@ -212,11 +212,13 @@ export function buildUserActionLogMessage(opts: {
 }): string {
   const { blockedUsers, taggedUsers, lockedUsers } = opts;
   let logMessage = '';
-  if (blockedUsers.length > 0) {
-    logMessage += '\n** blocked ' + blockedUsers.filter(Boolean).join(', ');
+  const filteredBlocked = blockedUsers.filter(Boolean);
+  if (filteredBlocked.length > 0) {
+    logMessage += '\n** blocked ' + filteredBlocked.join(', ');
   }
-  if (taggedUsers.length > 0) {
-    logMessage += '\n** tagged ' + taggedUsers.filter(Boolean).join(', ');
+  const filteredTagged = taggedUsers.filter(Boolean);
+  if (filteredTagged.length > 0) {
+    logMessage += '\n** tagged ' + filteredTagged.join(', ');
   }
   if (lockedUsers.length > 0) {
     logMessage += '\n** requested locks for ' + lockedUsers.map(user => `{{noping|1=${user}}}`).join(', ');
