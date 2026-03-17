@@ -390,6 +390,9 @@ export function parseUserTags(userPage: string): Tag[] {
 
       const newTag = new SockmasterTag({ status: tagStatus, checked: sockChecked });
       // Only set these parameters if they exist to avoid adding too many needless parameters
+      if (template.params.locked === true) {
+        newTag.locked = true;
+      }
       if (template.params.ltapage) {
         newTag.ltapage = template.params.ltapage as string;
       }
@@ -455,6 +458,9 @@ export function parseUserTags(userPage: string): Tag[] {
 
       if (template.params.evidence) {
         newTag.evidence = template.params.evidence as string;
+      }
+      if (template.params.locked) {
+        newTag.locked = true;
       }
       tags.push(newTag);
     }

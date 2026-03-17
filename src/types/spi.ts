@@ -89,10 +89,10 @@ export class SockpuppetTag {
   }
 
   clone(): SockpuppetTag {
+    // Intentionally don't clone this.locked
     return new SockpuppetTag({
       master: this.master,
       status: this.status,
-      locked: this.locked,
       evidence: this.evidence,
       altmaster: this.altmaster,
       altmasterStatus: this.altmasterStatus,
@@ -113,6 +113,7 @@ export class SockpuppetTag {
 export class SockmasterTag {
   status: SockmasterTagStatus;
   checked: boolean;
+  locked: boolean;
   ltapage: string;
   spipage: string;
   evidence: string;
@@ -120,12 +121,14 @@ export class SockmasterTag {
   constructor(opts: {
     status: SockmasterTagStatus;
     checked?: boolean;
+    locked?: boolean;
     ltapage?: string;
     spipage?: string;
     evidence?: string;
   }) {
     this.status = opts.status;
     this.checked = opts.checked ?? false;
+    this.locked = opts.locked ?? false;
     this.ltapage = opts.ltapage ?? '';
     this.spipage = opts.spipage ?? '';
     this.evidence = opts.evidence ?? '';
@@ -143,6 +146,9 @@ export class SockmasterTag {
     if (isChecked) {
       tag += '\n| checked = yes';
     }
+    if (this.locked) {
+      tag += `\n| locked = yes`;
+    }
     if (this.ltapage) {
       tag += `\n| ltapage = ${this.ltapage}`;
     }
@@ -157,6 +163,7 @@ export class SockmasterTag {
   }
 
   clone(): SockmasterTag {
+    // Intentionally don't clone this.locked
     return new SockmasterTag({
       status: this.status,
       checked: this.checked,
@@ -170,6 +177,7 @@ export class SockmasterTag {
     if (!(other instanceof SockmasterTag)) return false;
     return this.status === other.status
       && this.checked === other.checked
+      && this.locked === other.locked
       && this.ltapage === other.ltapage
       && this.spipage === other.spipage
       && this.evidence === other.evidence;

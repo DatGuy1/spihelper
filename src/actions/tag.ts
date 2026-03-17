@@ -101,6 +101,8 @@ export async function spiHelperTagUser(opts: {
   if (isNonRegisteredAccount(sock.username)) {
     return false; // do not support tagging IPs
   }
+  // Might like to remove this and use userLocks, but this
+  // also checks whether the user exists to begin with
   const userInfo = await spiHelperGetGlobalUser(sock.username);
   if (!userInfo) {
     // Skip, don't tag accounts that don't exist
@@ -120,9 +122,7 @@ export async function spiHelperTagUser(opts: {
     return false;
   }
   sock.block.tags.forEach((tag) => {
-    if (isSockpuppetTag(tag)) {
-      tag.locked = userInfo.locked;
-    }
+    tag.locked = userInfo.locked;
   });
 
   const oldTags = parseUserTags(pageText);
