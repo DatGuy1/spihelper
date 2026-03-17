@@ -510,7 +510,6 @@ export const TopViewComponent = defineComponent({
         </action-accordion>
       </div>
       <submit-form v-if="caseActions.sections.data.section !== null" :accounts="accounts"
-                   v-model:master="caseActions.block.data.master"
                    v-model:lock-comment="caseActions.block.data.lockcomment"
                    v-model:skipCUVerifyUsers="caseActions.block.data.skipCUVerifyUsers"
                    :block-options="caseActions.block.data.options"

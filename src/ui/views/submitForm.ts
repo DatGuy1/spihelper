@@ -35,7 +35,7 @@ export const SubmitFormComponent = defineComponent({
     skipCUVerifyUsers: { type: Set as PropType<Set<string>>, required: true },
     allDisabled: { type: Boolean, required: true },
   },
-  emits: ['update:master', 'update:altmaster', 'update:lockComment', 'update:skipCUVerifyUsers', 'onSubmit'],
+  emits: ['update:lockComment', 'update:skipCUVerifyUsers', 'onSubmit'],
   data(): Data {
     const cancelAction: ModalAction = { label: 'Cancel' };
     const continueAction: PrimaryModalAction = { label: 'Continue', actionType: 'progressive' };
