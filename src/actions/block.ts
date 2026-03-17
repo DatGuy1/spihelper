@@ -1,7 +1,4 @@
-import {
-  spiHelperBlockUser,
-  spiHelperEditPage,
-} from '../api.ts';
+import { spiHelperBlockUser, spiHelperEditPage } from '../api.ts';
 import { spiHelperSettings } from '../options';
 import { type BlockOptions, type UserRow } from '../types/spi.ts';
 import { spiHelperIsCheckuser } from '../role.ts';
@@ -83,16 +80,13 @@ function buildBlockSummary(
  */
 export async function spiHelperProcessBlockRow(opts: {
   sock: UserRow;
-  userTalkContent: string | undefined;
   blockOptions: BlockOptions;
-  talkNotices: ('master' | 'sock')[];
-  defaultMaster: string;
 }): Promise<boolean> {
-  const { sock, userTalkContent, blockOptions, talkNotices, defaultMaster } = opts;
+  const { sock, blockOptions } = opts;
   const isIP = mw.util.isIPAddress(sock.username, true);
   const isIPRange = isIP && !mw.util.isIPAddress(sock.username, false);
   const blockSummary = buildBlockSummary(blockOptions, isIP, isIPRange, sock.block.acb);
-  const blockSuccess = await spiHelperBlockUser({
+  return await spiHelperBlockUser({
     user: sock.username,
     duration: sock.block.duration,
     reason: blockSummary,
@@ -105,38 +99,36 @@ export async function spiHelperProcessBlockRow(opts: {
     watchBlockedUser: spiHelperSettings.watch.blocked,
     watchExpiry: spiHelperSettings.expiry.blocked,
   });
+}
 
-  if (isIPRange) {
-    // There isn't really a talk page for an IP range, so return here before we reach that section
-    return blockSuccess;
+export async function spiHelperAddTalkBlockNotice(opts: {
+  sock: UserRow;
+  blockOptions: BlockOptions;
+  userTalkContent: string | undefined;
+  talkNotices: ('master' | 'sock')[];
+  defaultMaster: string;
+}): Promise<void> {
+  const { sock, blockOptions, userTalkContent, talkNotices, defaultMaster } = opts;
+  if (talkNotices.length === 0) {
+    return;
   }
-
-  if (!blockSuccess) {
-    // Don't add a block notice if we failed to block
-    return false;
-  }
-
   const sockmaster = sock.block.tags.find(tag => isSockpuppetTag(tag))?.master ?? defaultMaster;
   // Talk page notice
-  if (talkNotices.length > 0) {
-    const cuBlock = blockOptions.cuBlock
-      && spiHelperIsCheckuser()
-      && spiHelperSettings.useCheckuserblockAccount;
-    const userTalkPage = `User talk:${sock.username}`;
-    let newText = blockOptions.blankTalk ? '' : userTalkContent ?? '';
-    for (const talkNotice of talkNotices) {
-      newText += '\n' + buildTalkNotice({ sock, noticeType: talkNotice, sockmaster, cuBlock });
-    }
-    // Hardcode the watch setting to 'nochange' since we will have either
-    // watched or not watched based on the boolean watchBlockedUser
-    await spiHelperEditPage({
-      title: userTalkPage,
-      newText,
-      summary: buildContextSummary('Adding sockpuppetry block notice'),
-      createonly: false,
-      watch: 'nochange',
-    });
+  const cuBlock = blockOptions.cuBlock
+    && spiHelperIsCheckuser()
+    && spiHelperSettings.useCheckuserblockAccount;
+  const userTalkPage = `User talk:${sock.username}`;
+  let newText = blockOptions.blankTalk ? '' : userTalkContent ?? '';
+  for (const talkNotice of talkNotices) {
+    newText += '\n' + buildTalkNotice({ sock, noticeType: talkNotice, sockmaster, cuBlock });
   }
-
-  return true;
+  // Hardcode the watch setting to 'nochange' since we will have either
+  // watched or not watched based on the boolean watchBlockedUser
+  await spiHelperEditPage({
+    title: userTalkPage,
+    newText,
+    summary: buildContextSummary('Adding sockpuppetry block notice'),
+    createonly: false,
+    watch: 'nochange',
+  });
 }

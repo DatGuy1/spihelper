@@ -74,5 +74,5 @@ export const spiHelperDefaultSettings: ScriptSettings = {
     forceCheckuser: false,
     forceAdmin: false,
   },
-  lastSeenVersion: '0.0.0',
+  lastSeenVersion: VERSION,
 };

@@ -32,7 +32,7 @@ import {
 import { spiHelperIsAdmin, spiHelperIsCheckuser, spiHelperIsClerk } from './role.ts';
 import { spiHelperMoveCase, spiHelperMoveCaseSection } from './actions/move.ts';
 import { createSockCategories, spiHelperTagUser } from './actions/tag.ts';
-import { spiHelperProcessBlockRow } from './actions/block.ts';
+import { spiHelperAddTalkBlockNotice, spiHelperProcessBlockRow } from './actions/block.ts';
 import { spiHelperArchiveCase, spiHelperArchiveCaseSection } from './actions/archive.ts';
 import { spiHelperRequestLocks } from './actions/lock.ts';
 import { VueMessage } from './ui/messages.ts';
@@ -116,9 +116,10 @@ export async function spiHelperPerformActions(opts: {
 
   let blockPromises: Promise<string | null>[] = [];
   let tagPromises: Promise<string | null>[] = [];
+  let talkNoticePromises: Promise<void>[] = [];
   let lockPromise: Promise<string[]> = Promise.resolve([]);
   if (actions.block.enabled) {
-    ({ blockPromises, tagPromises, lockPromise } = await spiHelperHandleBlocks({
+    ({ blockPromises, tagPromises, talkNoticePromises, lockPromise } = await spiHelperHandleBlocks({
       accounts,
       blockData: actions.block.data,
     }));
@@ -128,6 +129,7 @@ export async function spiHelperPerformActions(opts: {
     Promise.all(tagPromises),
     lockPromise,
   ]);
+  const talkNoticePromise = Promise.all(talkNoticePromises);
 
   if (!context.isArchive) {
     if (sectionType === 'specific') {
@@ -241,6 +243,7 @@ export async function spiHelperPerformActions(opts: {
   }
 
   const [blockedUsers, taggedUsers, lockedUsers] = await userActionsPromise;
+  await talkNoticePromise;
   if (spiHelperSettings.log.enabled) {
     logMessage += buildUserActionLogMessage({ blockedUsers, taggedUsers, lockedUsers });
     await spiHelperLog(logMessage);
@@ -348,10 +351,12 @@ export async function spiHelperHandleBlocks(opts: {
 }): Promise<{
   blockPromises: Promise<string | null>[];
   tagPromises: Promise<string | null>[];
+  talkNoticePromises: Promise<void>[];
   lockPromise: Promise<string[]>;
 }> {
   const blockPromises: Promise<string | null>[] = [];
   const tagPromises: Promise<string | null>[] = [];
+  const talkNoticePromises: Promise<void>[] = [];
   let lockPromise: Promise<string[]> = Promise.resolve([]);
 
   const {
@@ -478,15 +483,21 @@ export async function spiHelperHandleBlocks(opts: {
 
         const blockSuccess = await spiHelperProcessBlockRow({
           sock: userRow,
-          userTalkContent: userTalkPages.get(userRow.username),
           blockOptions,
-          talkNotices,
-          defaultMaster: master,
         });
         if (!blockSuccess) {
           return null;
         }
 
+        if (talkNotices.length > 0) {
+          talkNoticePromises.push(spiHelperAddTalkBlockNotice({
+            sock: userRow,
+            userTalkContent: userTalkPages.get(userRow.username),
+            blockOptions,
+            talkNotices,
+            defaultMaster: master,
+          }));
+        }
         if (userRow.block.tags.length > 0) {
           tagPromises.push(tagSock(userRow, true));
         }
@@ -503,7 +514,7 @@ export async function spiHelperHandleBlocks(opts: {
     // Parts of this code were adapted from https://github.com/Xi-Plus/twinkle-global
     lockPromise = spiHelperRequestLocks({ lockTargets, hideNames, master, lockComment });
   }
-  return { blockPromises, tagPromises, lockPromise };
+  return { blockPromises, tagPromises, talkNoticePromises, lockPromise };
 }
 
 function formatEditSummary(editSummaryActions: string[]): string {
