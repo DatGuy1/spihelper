@@ -855,6 +855,12 @@ export async function spiHelperEditPage(opts: {
   try {
     const response = await api.postWithToken('csrf', request) as EditResponse;
     const diffId = response.edit.newrevid;
+    if (!diffId) {
+      message.update({ type: 'error', content: `Edit failed on ${pageLinkHtml}: ${mw.html.escape(JSON.stringify(response))}` });
+      console.error(response);
+      finishOp(activeOpKey, OpState.Failed);
+      return null;
+    }
     const diffLinkHtml = buildURLLinkHtml(mw.util.getUrl('', { diff: diffId }), 'Saved', `View diff ${diffId}`);
     message.update({ type: 'success', content: `${diffLinkHtml} page ${pageLinkHtml}`, isHtml: true });
     finishOp(activeOpKey, OpState.Success);
