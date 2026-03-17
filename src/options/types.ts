@@ -22,7 +22,6 @@ export interface ScriptSettings {
     reversed: boolean;
     page: string;
   };
-  iUnderstandSectionMoves: boolean;
   tickArchiveWhenCaseClosed: boolean;
   useCheckuserblockAccount: boolean;
   useLookup: boolean;

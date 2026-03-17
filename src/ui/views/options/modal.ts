@@ -66,7 +66,7 @@ export const OptionsComponent = defineComponent({
     return {
       open: false,
       openHandler: null,
-      showExtra: spiHelperSettings.debug.enabled || spiHelperSettings.iUnderstandSectionMoves,
+      showExtra: spiHelperSettings.debug.enabled,
       showExtraMessage: false,
       showExtraHandler: null,
       logPrefix,
@@ -130,11 +130,7 @@ export const OptionsComponent = defineComponent({
     };
     this.openButton.addEventListener('click', this.openHandler);
 
-    // https://discord.com/channels/1373700739951624272/1447651346508415110/1447681331634110575
-    // "SPIhelper won't let you do merges until you learn how to merge.
-    // if you figure out how to make SPIhelper let you merge,
-    // you are allowed to merge." -asilvering
-    //! Use the Konami code to unlock section moves
+    //! Use the Konami code to unlock debug menu
     const konami = [
       'ArrowUp', 'ArrowUp',
       'ArrowDown', 'ArrowDown',
@@ -200,7 +196,7 @@ export const OptionsComponent = defineComponent({
       </template>
       <p>Configure your spiHelper options</p>
       <cdx-message v-if="showExtraMessage" type="success" :fade-in="true" :auto-dismiss="true" :display-time="3000">
-        I trust that you understand section moves
+        Debug menu enabled
       </cdx-message>
       <cdx-accordion :action-icon="icons.cdxIconWatchlist" :action-always-visible="true">
         <template #title>Watch</template>
@@ -305,11 +301,6 @@ export const OptionsComponent = defineComponent({
             Actions to have enabled by default when opening the form
           </template>
         </cdx-field>
-        <div v-if="showExtra">
-          <cdx-toggle-switch v-model="spiHelperSettings.iUnderstandSectionMoves" :align-switch="true">
-            I understand section moves
-          </cdx-toggle-switch>
-        </div>
         <br>
         <cdx-button @click="loadDefaults">
           Load defaults

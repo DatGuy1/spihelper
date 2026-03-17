@@ -43,8 +43,6 @@ export const spiHelperDefaultSettings: ScriptSettings = {
   },
   // Lets people disable clerk options if they're not a clerk
   clerk: true,
-  // Enable the "move section" button
-  iUnderstandSectionMoves: false,
   // Automatically tick the "Archive case" option if the case is closed
   tickArchiveWhenCaseClosed: false,
   // Use checkuserblock-account when CU blocking. False when not a CU, by default true when a CU

@@ -1,5 +1,4 @@
 import { type PropType, defineComponent } from 'vue';
-import { spiHelperSettings } from '../../../../options';
 import type { SectionSelection } from '../../../../state.ts';
 import { spiHelperCanSuppressRedirect } from '../../../../role.ts';
 
@@ -18,10 +17,6 @@ export const MoveActionComponent = defineComponent({
     };
   },
   computed: {
-    allowSectionMoves(): boolean {
-      return this.selectionType === 'all'
-        || (this.isSectionMove && spiHelperSettings.iUnderstandSectionMoves);
-    },
     isSectionMove(): boolean {
       return this.selectionType === 'specific';
     },
@@ -35,23 +30,13 @@ export const MoveActionComponent = defineComponent({
       return 'section ' + this.selection.section.name;
     },
     disabled(): boolean {
-      return this.archiveEnabled || (this.isSectionMove && !this.allowSectionMoves);
+      return this.archiveEnabled;
     },
     selectionType() {
       return this.selection?.type ?? null;
     },
   },
   watch: {
-    selectionType: {
-      handler(newType: 'all' | 'specific' | null) {
-        if (newType === 'specific') {
-          if (!this.allowSectionMoves) {
-            this.$emit('update:enabled', false);
-          }
-        }
-      },
-      immediate: true,
-    },
     archiveEnabled: {
       handler(enabled: boolean) {
         if (enabled) {
@@ -85,9 +70,6 @@ export const MoveActionComponent = defineComponent({
         </template>
       </cdx-checkbox>
     </action-container>
-    <cdx-message v-if="isSectionMove && !allowSectionMoves" type="error" :inline="true">
-      You do not yet understand section moves. You probably want to move the entire case.
-    </cdx-message>
     <cdx-message v-if="archiveEnabled" type="warning" :inline="true">
       Archival is enabled, which overrides moving.
     </cdx-message>

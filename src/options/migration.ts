@@ -26,7 +26,6 @@ const migrationMap: MigrationRule[] = [
   { oldPath: 'clerk', newPath: ['clerk'], type: 'boolean' },
   { oldPath: 'log', newPath: ['log', 'enabled'], type: 'boolean' },
   { oldPath: 'reversed_log', newPath: ['log', 'reversed'], type: 'boolean' },
-  { oldPath: 'iUnderstandSectionMoves', newPath: ['iUnderstandSectionMoves'], type: 'boolean' },
   { oldPath: 'tickArchiveWhenCaseClosed', newPath: ['tickArchiveWhenCaseClosed'], type: 'boolean' },
   { oldPath: 'useCheckuserblockAccount', newPath: ['useCheckuserblockAccount'], type: 'boolean' },
   { oldPath: 'displayIPv6As64', newPath: ['interface', 'displayIPv6As64'], type: 'boolean' },
