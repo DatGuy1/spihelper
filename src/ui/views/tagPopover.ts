@@ -114,12 +114,6 @@ export const TagPopoverComponent = defineComponent({
         this.temporaryTag = newTag.clone();
       }
     },
-    open(newValue: boolean) {
-      // Reset the form when it's closed
-      if (!newValue) {
-        this.temporaryTag = null;
-      }
-    },
   },
   methods: {
     handleSave() {
