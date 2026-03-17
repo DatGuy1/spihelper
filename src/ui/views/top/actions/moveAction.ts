@@ -1,15 +1,22 @@
 import { type PropType, defineComponent } from 'vue';
 import { spiHelperSettings } from '../../../../options';
 import type { SectionSelection } from '../../../../state.ts';
+import { spiHelperCanSuppressRedirect } from '../../../../role.ts';
 
 export const MoveActionComponent = defineComponent({
   props: {
     enabled: { type: Boolean, required: true },
     target: { type: String, required: true },
+    suppress: { type: Boolean, required: true },
     selection: { type: Object as PropType<SectionSelection | null>, required: true },
     archiveEnabled: { type: Boolean, required: true },
   },
-  emits: ['update:enabled', 'update:target'],
+  emits: ['update:enabled', 'update:target', 'update:suppress'],
+  data() {
+    return {
+      canSuppressRedirect: spiHelperCanSuppressRedirect(),
+    };
+  },
   computed: {
     allowSectionMoves(): boolean {
       return this.selectionType === 'all'
@@ -65,6 +72,18 @@ export const MoveActionComponent = defineComponent({
         <p><strong>You are moving a section</strong></p>
         <p>Make sure you are expecting to only move the section and not the entire case.</p>
       </cdx-message>
+      <cdx-checkbox style="margin-top: 16px;" v-if="!isSectionMove" :model-value="suppress" @update:model-value="$emit('update:suppress', $event)">
+        {{ canSuppressRedirect ? 'Suppress redirect' : 'Request redirect deletion' }}
+        <template #description>
+          <template v-if="canSuppressRedirect">
+            Delete the old case page
+          </template>
+          <template v-else>
+            Request <a href="//en.wikipedia.org/wiki/Wikipedia:Speedy_deletion#G6._Technical_deletions">G6</a> deletion of the old case page
+          </template>
+          (one you're on right now)
+        </template>
+      </cdx-checkbox>
     </action-container>
     <cdx-message v-if="isSectionMove && !allowSectionMoves" type="error" :inline="true">
       You do not yet understand section moves. You probably want to move the entire case.

@@ -90,6 +90,7 @@ export function getInitialCaseActions(): CaseActions {
       enabled: false,
       data: {
         target: '',
+        suppress: false,
       },
     },
     archive: {

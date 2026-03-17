@@ -19,7 +19,7 @@ import {
   spiHelperSockSectionWithNewlineRegex,
 } from '../constants/regex.ts';
 import { SpiPageContext, context } from '../context.ts';
-import { spiHelperIsAdmin } from '../role.ts';
+import { spiHelperCanSuppressRedirect, spiHelperIsAdmin } from '../role.ts';
 import type { NewPendingChanges, Protection, Restrictions } from '../types/api.ts';
 import { spiHelperParseArchiveNotice } from '../archivenotice.ts';
 import { type SectionEntry, loadSectionText } from '../state.ts';
@@ -125,14 +125,17 @@ async function getNewPendingChanges(
 /**
  * Move or merge the selected case into a different case
  *
- * @param {string} target The username portion of the case this section should be merged into
- *                        (should have been normalized before getting passed in)
- * @param archiveNotice
+ * @param opts.target The username portion of the case this section should be merged into
+ * (should have been normalized before getting passed in)
+ * @param opts.suppress Whether to suppress the old case, or request deletion of it
+ * @param opts.archiveNotice Archivenotice used in the cleanup of the old page
  */
-export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArchiveNotice) {
-  // Move or merge an entire case
-  // Normalize: change underscores to spaces
-  // target = target
+export async function spiHelperMoveCase(opts: {
+  target: string;
+  suppress: boolean;
+  archiveNotice: ParsedArchiveNotice;
+}) {
+  const { target, suppress, archiveNotice } = opts;
   const oldContext = context;
   const newContext = new SpiPageContext(context.pageName.replace(context.caseName, target));
 
@@ -149,7 +152,7 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
     else {
       new VueMessage({
         type: 'warning',
-        content: 'Target page exists and you are not an admin, aborting merge',
+        content: 'Target page exists and you are unable to histmerge, aborting merge',
       }).show();
       return;
     }
@@ -161,6 +164,7 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
 
   let archivesCopied = false;
   if (targetPageText) {
+    // This branch requires the user to be an administrator
     // There's already a page there, we're going to merge
     // First, check if there's an archive; if so, copy its text over
     let sourceArchiveText = await spiHelperGetPageText(oldContext.archiveName, false);
@@ -218,18 +222,24 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
       destPage: newContext.pageName,
       summary: `Merging case to [[${newContext.prefixedName}]]`,
       ignoreWarnings: true,
+      suppressRedirect: suppress,
     });
     await spiHelperUndeletePage(newContext.pageName, 'Restoring page history after merge');
     if (archivesCopied) {
-      // Create a redirect
-      await spiHelperEditPage({
-        title: oldContext.archiveName,
-        newText: `#REDIRECT [[${newContext.archiveName}]]`,
-        summary: 'Redirecting old archive to new archive',
-        createonly: false,
-        watch: spiHelperSettings.watch.archive,
-        watchExpiry: spiHelperSettings.expiry.archive,
-      });
+      if (suppress) {
+        await spiHelperDeletePage(oldContext.archiveName, `Archives moved to [[${newContext.archiveName}]]`);
+      }
+      else {
+        // Create a redirect
+        await spiHelperEditPage({
+          title: oldContext.archiveName,
+          newText: `#REDIRECT [[${newContext.archiveName}]]`,
+          summary: 'Redirecting old archive to new archive',
+          createonly: false,
+          watch: spiHelperSettings.watch.archive,
+          watchExpiry: spiHelperSettings.expiry.archive,
+        });
+      }
     }
     // Now to protect both the oldPageName and newPageName with the protection
     // settings in newProtectionDict, unless it is empty (i.e. no protection needed)
@@ -237,11 +247,15 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
     // newStabilisationSettings has a non-empty protection_level
     if (newProtection.length !== 0) {
       await spiHelperProtectPage(newContext.pageName, newProtection);
-      await spiHelperProtectPage(oldContext.pageName, newProtection);
+      if (!suppress) {
+        await spiHelperProtectPage(oldContext.pageName, newProtection);
+      }
     }
     if (newPendingChanges.level !== '') {
       await spiHelperConfigurePendingChanges(newContext.pageName, newPendingChanges);
-      await spiHelperConfigurePendingChanges(oldContext.pageName, newPendingChanges);
+      if (!suppress) {
+        await spiHelperConfigurePendingChanges(oldContext.pageName, newPendingChanges);
+      }
     }
   }
   else {
@@ -249,6 +263,7 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
       sourcePage: oldContext.pageName,
       destPage: newContext.pageName,
       summary: `Moving case to [[${newContext.prefixedName}]]`,
+      suppressRedirect: suppress && spiHelperCanSuppressRedirect(),
       ignoreWarnings: false,
     });
   }
@@ -256,14 +271,9 @@ export async function spiHelperMoveCase(target: string, archiveNotice: ParsedArc
     oldContext,
     newContext,
     oldNotice: archiveNotice,
+    deleteOld: suppress,
     preMergeText: targetPageText,
   });
-  if (archivesCopied) {
-    new VueMessage({
-      type: 'notice',
-      content: 'Archives were merged during the case move, please reorder the archive sections',
-    }).show();
-  }
 }
 
 /**
@@ -314,15 +324,17 @@ export async function spiHelperMoveCaseSection(mergeTarget: string, section: Sec
  * @param opts.oldContext The previous case page's context
  * @param opts.newContext The new case page's context
  * @param opts.oldNotice Base archive notice to use for the new page
+ * @param opts.deleteOld Should we delete the previous case page
  * @param opts.preMergeText Text that existed in the new case prior to the rename
  */
 async function spiHelperPostRenameCleanup(opts: {
   oldContext: SpiPageContext;
   newContext: SpiPageContext;
   oldNotice: ParsedArchiveNotice;
+  deleteOld: boolean;
   preMergeText?: string;
 }): Promise<void> {
-  const { oldContext, newContext, oldNotice, preMergeText } = opts;
+  const { oldContext, newContext, oldNotice, deleteOld, preMergeText } = opts;
   const newNotice = new ParsedArchiveNotice({ username: newContext.caseName });
   const replacementArchiveNotice = newNotice.generateWikitext();
   // After generating the replacement wikitext, add in the flags
@@ -366,13 +378,27 @@ async function spiHelperPostRenameCleanup(opts: {
     }
   }
 
-  // The old case should just be the archivenotice template and point to the new case
-  await oldContext.edit({
-    newText: replacementArchiveNotice,
-    summary: 'Updating old case following page move',
-    watch: spiHelperSettings.watch.case,
-    watchExpiry: spiHelperSettings.expiry.case,
-  });
+  if (deleteOld) {
+    // If we can suppress the redirect then it's already gone
+    if (!spiHelperCanSuppressRedirect()) {
+      await oldContext.edit({
+        newText: `{{db-g6|rationale=Case moved to [[${newContext.pageName}]], requesting deletion as non-admin SPI clerk}}`,
+        summary: 'Requesting [[WP:G6|G6]] deletion after case move',
+        createonly: false,
+        watch: spiHelperSettings.watch.archive,
+        watchExpiry: spiHelperSettings.expiry.archive,
+      });
+    }
+  }
+  else {
+    // The old case should just be the archivenotice template and point to the new case
+    await oldContext.edit({
+      newText: replacementArchiveNotice,
+      summary: 'Updating old case following page move',
+      watch: spiHelperSettings.watch.case,
+      watchExpiry: spiHelperSettings.expiry.case,
+    });
+  }
 
   // The new case's archivenotice should be updated with the new name
   let newPageText = await newContext.getText({ purge: true, show: true });

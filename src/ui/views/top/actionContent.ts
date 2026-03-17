@@ -77,7 +77,7 @@ export const ActionContentComponent = defineComponent({
     <management-action v-else-if="name === 'management'" v-model:enabled="caseActions.management.enabled"
                        v-model:flags="caseActions.management.data.flags" />
     <move-action v-else-if="name === 'move'" v-model:enabled="caseActions.move.enabled"
-                 v-model:target="caseActions.move.data.target"
+                 v-model:target="caseActions.move.data.target" v-model:suppress="caseActions.move.data.suppress"
                  :selection="state.selectedSection" :archive-enabled="caseActions.archive.enabled" />
     <archive-action v-else-if="name === 'archive'" v-model:enabled="caseActions.archive.enabled"
                     :selection="caseActions.sections.data.section"

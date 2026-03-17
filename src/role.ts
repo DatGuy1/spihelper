@@ -36,3 +36,13 @@ export function spiHelperIsAdmin(): boolean {
   }
   return mw.config.get('wgUserGroups')?.includes('sysop') ?? false;
 }
+
+/**
+ * Whether the current user has admin/pagemover permissions,
+ * used to determine whether to allow suppressredirect or request G6 deletion
+ *
+ * @return {boolean} Whether the current user is an admin or pagemover
+ */
+export function spiHelperCanSuppressRedirect(): boolean {
+  return spiHelperIsAdmin() || (mw.config.get('wgUserGroups')?.includes('extendedmover') ?? false);
+}

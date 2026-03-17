@@ -528,7 +528,6 @@ export const TopViewComponent = defineComponent({
           </span>
         </cdx-message>
       </div>
-      <p>{{ caseActions }}</p>
     </div>
   `,
 });

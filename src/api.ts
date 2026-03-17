@@ -737,6 +737,7 @@ export async function spiHelperPurgePage(title: string): Promise<void> {
  * @param opts.summary Edit summary to use for the move
  * @param opts.ignoreWarnings Whether to ignore warnings on move
  * (used to force-move one page over another)
+ * @param opts.suppressRedirect Don't create a redirect
  * @param opts.moveSubpages Whether to move the subpages of the source page as well
  */
 export async function spiHelperMovePage(opts: {
@@ -744,9 +745,13 @@ export async function spiHelperMovePage(opts: {
   destPage: string;
   summary: string;
   ignoreWarnings: boolean;
+  suppressRedirect?: boolean;
   moveSubpages?: boolean;
 }) {
-  const { sourcePage, destPage, summary, ignoreWarnings, moveSubpages = true } = opts;
+  const {
+    sourcePage, destPage, summary, ignoreWarnings,
+    suppressRedirect = false, moveSubpages = true,
+  } = opts;
   const activeOpKey = 'move_' + sourcePage + '_' + destPage;
   startOp(activeOpKey);
 
@@ -767,7 +772,7 @@ export async function spiHelperMovePage(opts: {
     from: sourcePage,
     to: destPage,
     reason: summary + spiHelperAdvert,
-    noredirect: false,
+    noredirect: suppressRedirect,
     movesubpages: moveSubpages,
     ignoreWarnings: ignoreWarnings,
   };
@@ -856,7 +861,10 @@ export async function spiHelperEditPage(opts: {
     const response = await api.postWithToken('csrf', request) as EditResponse;
     const diffId = response.edit.newrevid;
     if (!diffId) {
-      message.update({ type: 'error', content: `Edit failed on ${pageLinkHtml}: ${mw.html.escape(JSON.stringify(response))}` });
+      message.update({
+        type: 'error',
+        content: `Edit failed on ${pageLinkHtml}: ${mw.html.escape(JSON.stringify(response))}`,
+      });
       console.error(response);
       finishOp(activeOpKey, OpState.Failed);
       return null;
@@ -1006,7 +1014,9 @@ export async function spiHelperGetPostExpandSize(
     // The page might not exist, so we need to handle that smartly
     return Number(response.parse?.limitreportdata.find(item => item.name === 'limitreport-postexpandincludesize')?.['0'] ?? 0);
   }
-  catch { /* empty */ }
+  catch {
+    /* empty */
+  }
 
   return 0;
 }

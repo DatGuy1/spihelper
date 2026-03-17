@@ -229,7 +229,11 @@ export async function spiHelperPerformActions(opts: {
         case 'all': {
           // Option 1: we selected "All cases," this is a whole-case move/merge
           logMessage += '\n** moved/merged case to ' + renameTarget;
-          await spiHelperMoveCase(renameTarget, state.archiveNotice);
+          await spiHelperMoveCase({
+            target: renameTarget,
+            suppress: actions.move.data.suppress,
+            archiveNotice: state.archiveNotice,
+          });
           break;
         }
         case 'specific': {
@@ -250,7 +254,10 @@ export async function spiHelperPerformActions(opts: {
   }
 
   // await spiHelperPurgePage(context.pageName);
-  await refreshSections(state);
+  if (!(actions.move.enabled && state.selectedSection.type === 'all')) {
+    // If we moved the entire page there's no point in refreshing sections
+    await refreshSections(state);
+  }
   new VueMessage({ type: 'success', content: 'Done!' }).show();
 }
 
