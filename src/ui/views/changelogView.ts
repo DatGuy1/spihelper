@@ -30,8 +30,10 @@ export const ChangelogViewComponent = defineComponent({
           <li v-for="change in entry.changes" :key="change">{{ change }}</li>
         </ul>
       </div>
+
+      <p style="margin-top: 12px;"><a href="//en.wikipedia.org/wiki/User:DatGuy/spihelper/changelog.json">See all change history</a></p>
       
-      <cdx-message v-if="beta" style="padding: 12px; margin-top: 32px">
+      <cdx-message v-if="beta" style="padding: 12px; margin-top: 24px">
         <p><strong>Beta Reminder</strong></p>
         <p>You are running a beta version.</p>
         <p>It is recommended to double-check your edits, especially ones that are impacted by a recent change.</p>
