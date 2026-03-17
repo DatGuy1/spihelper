@@ -1,6 +1,7 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
-// v3.1.2
+// v3.1.3
 // <nowiki>
+'use strict';
 (() => {
 
   // src/constants/regex.ts
@@ -129,7 +130,6 @@
       return new SockpuppetTag({
         master: this.master,
         status: this.status,
-        locked: this.locked,
         evidence: this.evidence,
         altmaster: this.altmaster,
         altmasterStatus: this.altmasterStatus
@@ -145,23 +145,31 @@
   class SockmasterTag {
     status;
     checked;
+    locked;
     ltapage;
     spipage;
     evidence;
     constructor(opts) {
       this.status = opts.status;
       this.checked = opts.checked ?? false;
+      this.locked = opts.locked ?? false;
       this.ltapage = opts.ltapage ?? "";
       this.spipage = opts.spipage ?? "";
       this.evidence = opts.evidence ?? "";
     }
     generateWikitext() {
       let tag = "{{sockpuppeteer";
+      const outputStatus = this.status === "banned" ? "banned" : "blocked";
+      const isChecked = this.checked || this.status !== "blocked";
       tag += `
-| 1 = ${this.status}`;
-      if (this.checked) {
+| 1 = ${outputStatus}`;
+      if (isChecked) {
         tag += `
 | checked = yes`;
+      }
+      if (this.locked) {
+        tag += `
+| locked = yes`;
       }
       if (this.ltapage) {
         tag += `
@@ -191,7 +199,7 @@
     equals(other) {
       if (!(other instanceof SockmasterTag))
         return false;
-      return this.status === other.status && this.checked === other.checked && this.ltapage === other.ltapage && this.spipage === other.spipage && this.evidence === other.evidence;
+      return this.status === other.status && this.checked === other.checked && this.locked === other.locked && this.ltapage === other.ltapage && this.spipage === other.spipage && this.evidence === other.evidence;
     }
   }
   var CASE_ACTION_NAMES = [
@@ -422,13 +430,15 @@
   function buildUserActionLogMessage(opts) {
     const { blockedUsers, taggedUsers, lockedUsers } = opts;
     let logMessage = "";
-    if (blockedUsers.length > 0) {
+    const filteredBlocked = blockedUsers.filter(Boolean);
+    if (filteredBlocked.length > 0) {
       logMessage += `
-** blocked ` + blockedUsers.filter(Boolean).join(", ");
+** blocked ` + filteredBlocked.join(", ");
     }
-    if (taggedUsers.length > 0) {
+    const filteredTagged = taggedUsers.filter(Boolean);
+    if (filteredTagged.length > 0) {
       logMessage += `
-** tagged ` + taggedUsers.filter(Boolean).join(", ");
+** tagged ` + filteredTagged.join(", ");
     }
     if (lockedUsers.length > 0) {
       logMessage += `
@@ -558,6 +568,9 @@
           continue;
         }
         const newTag = new SockmasterTag({ status: tagStatus, checked: sockChecked });
+        if (template.params.locked === true) {
+          newTag.locked = true;
+        }
         if (template.params.ltapage) {
           newTag.ltapage = template.params.ltapage;
         }
@@ -620,6 +633,9 @@
         if (template.params.evidence) {
           newTag.evidence = template.params.evidence;
         }
+        if (template.params.locked) {
+          newTag.locked = true;
+        }
         tags.push(newTag);
       }
     }
@@ -662,7 +678,7 @@
     showUseragentCheckbox: true,
     useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
   };
-  var VERSION = "3.1.2";
+  var VERSION = "3.1.3";
   var MODE = "dev";
   var spiHelperDefaultSettings = {
     watch: {
@@ -702,7 +718,7 @@
       forceCheckuser: false,
       forceAdmin: false
     },
-    lastSeenVersion: "0.0.0"
+    lastSeenVersion: VERSION
   };
 
   // src/api.ts
@@ -1178,7 +1194,14 @@
     }
   }
   async function spiHelperMovePage(opts) {
-    const { sourcePage, destPage, summary, ignoreWarnings, moveSubpages = true } = opts;
+    const {
+      sourcePage,
+      destPage,
+      summary,
+      ignoreWarnings,
+      suppressRedirect = false,
+      moveSubpages = true
+    } = opts;
     const activeOpKey = "move_" + sourcePage + "_" + destPage;
     startOp(activeOpKey);
     const api = spiHelperGetAPI();
@@ -1194,7 +1217,7 @@
       from: sourcePage,
       to: destPage,
       reason: summary + spiHelperAdvert,
-      noredirect: false,
+      noredirect: suppressRedirect,
       movesubpages: moveSubpages,
       ignoreWarnings
     };
@@ -1258,6 +1281,15 @@
     try {
       const response = await api.postWithToken("csrf", request);
       const diffId = response.edit.newrevid;
+      if (!diffId) {
+        message.update({
+          type: "error",
+          content: `Edit failed on ${pageLinkHtml}: ${mw.html.escape(JSON.stringify(response))}`
+        });
+        console.error(response);
+        finishOp(activeOpKey, "failed" /* Failed */);
+        return null;
+      }
       const diffLinkHtml = buildURLLinkHtml(mw.util.getUrl("", { diff: diffId }), "Saved", `View diff ${diffId}`);
       message.update({ type: "success", content: `${diffLinkHtml} page ${pageLinkHtml}`, isHtml: true });
       finishOp(activeOpKey, "success" /* Success */);
@@ -1792,6 +1824,9 @@
     }
     return mw.config.get("wgUserGroups")?.includes("sysop") ?? false;
   }
+  function spiHelperCanSuppressRedirect() {
+    return spiHelperIsAdmin() || (mw.config.get("wgUserGroups")?.includes("extendedmover") ?? false);
+  }
 
   // node_modules/@wikimedia/codex-icons/dist/codex-icons.js
   var M = '<path d="M11 9V4H9v5H4v2h5v5h2v-5h5V9z"/>';
@@ -2201,7 +2236,8 @@
       move: {
         enabled: false,
         data: {
-          target: ""
+          target: "",
+          suppress: false
         }
       },
       archive: {
@@ -2260,7 +2296,7 @@
     <cdx-accordion
         v-if="showAccordion"
         :name="name"
-        :model-value="this.displayedForms.includes(name)"
+        :model-value="displayedForms.includes(name)"
         @click.prevent="$emit('actionToggled')"
         :class="{'action-enabled': showEnabledClass}"
     >
@@ -2415,7 +2451,7 @@
     <management-action v-else-if="name === 'management'" v-model:enabled="caseActions.management.enabled"
                        v-model:flags="caseActions.management.data.flags" />
     <move-action v-else-if="name === 'move'" v-model:enabled="caseActions.move.enabled"
-                 v-model:target="caseActions.move.data.target"
+                 v-model:target="caseActions.move.data.target" v-model:suppress="caseActions.move.data.suppress"
                  :selection="state.selectedSection" :archive-enabled="caseActions.archive.enabled" />
     <archive-action v-else-if="name === 'archive'" v-model:enabled="caseActions.archive.enabled"
                     :selection="caseActions.sections.data.section"
@@ -2994,7 +3030,8 @@
     }
     return newStabilisationSettings;
   }
-  async function spiHelperMoveCase(target, archiveNotice) {
+  async function spiHelperMoveCase(opts) {
+    const { target, suppress, archiveNotice } = opts;
     const oldContext = context;
     const newContext = new SpiPageContext(context.pageName.replace(context.caseName, target));
     const targetPageText = await newContext.getText();
@@ -3008,7 +3045,7 @@
       } else {
         new VueMessage({
           type: "warning",
-          content: "Target page exists and you are not an admin, aborting merge"
+          content: "Target page exists and you are unable to histmerge, aborting merge"
         }).show();
         return;
       }
@@ -3061,32 +3098,42 @@
         sourcePage: oldContext.pageName,
         destPage: newContext.pageName,
         summary: `Merging case to [[${newContext.prefixedName}]]`,
-        ignoreWarnings: true
+        ignoreWarnings: true,
+        suppressRedirect: suppress
       });
       await spiHelperUndeletePage(newContext.pageName, "Restoring page history after merge");
       if (archivesCopied) {
-        await spiHelperEditPage({
-          title: oldContext.archiveName,
-          newText: `#REDIRECT [[${newContext.archiveName}]]`,
-          summary: "Redirecting old archive to new archive",
-          createonly: false,
-          watch: spiHelperSettings.watch.archive,
-          watchExpiry: spiHelperSettings.expiry.archive
-        });
+        if (suppress) {
+          await spiHelperDeletePage(oldContext.archiveName, `Archives moved to [[${newContext.archiveName}]]`);
+        } else {
+          await spiHelperEditPage({
+            title: oldContext.archiveName,
+            newText: `#REDIRECT [[${newContext.archiveName}]]`,
+            summary: "Redirecting old archive to new archive",
+            createonly: false,
+            watch: spiHelperSettings.watch.archive,
+            watchExpiry: spiHelperSettings.expiry.archive
+          });
+        }
       }
       if (newProtection.length !== 0) {
         await spiHelperProtectPage(newContext.pageName, newProtection);
-        await spiHelperProtectPage(oldContext.pageName, newProtection);
+        if (!suppress) {
+          await spiHelperProtectPage(oldContext.pageName, newProtection);
+        }
       }
       if (newPendingChanges.level !== "") {
         await spiHelperConfigurePendingChanges(newContext.pageName, newPendingChanges);
-        await spiHelperConfigurePendingChanges(oldContext.pageName, newPendingChanges);
+        if (!suppress) {
+          await spiHelperConfigurePendingChanges(oldContext.pageName, newPendingChanges);
+        }
       }
     } else {
       await spiHelperMovePage({
         sourcePage: oldContext.pageName,
         destPage: newContext.pageName,
         summary: `Moving case to [[${newContext.prefixedName}]]`,
+        suppressRedirect: suppress && spiHelperCanSuppressRedirect(),
         ignoreWarnings: false
       });
     }
@@ -3094,14 +3141,9 @@
       oldContext,
       newContext,
       oldNotice: archiveNotice,
+      deleteOld: suppress,
       preMergeText: targetPageText
     });
-    if (archivesCopied) {
-      new VueMessage({
-        type: "notice",
-        content: "Archives were merged during the case move, please reorder the archive sections"
-      }).show();
-    }
   }
   async function spiHelperMoveCaseSection(mergeTarget, section) {
     const newContext = new SpiPageContext(context.pageName.replace(context.caseName, mergeTarget));
@@ -3135,7 +3177,7 @@
     });
   }
   async function spiHelperPostRenameCleanup(opts) {
-    const { oldContext, newContext, oldNotice, preMergeText } = opts;
+    const { oldContext, newContext, oldNotice, deleteOld, preMergeText } = opts;
     const newNotice = new ParsedArchiveNotice({ username: newContext.caseName });
     const replacementArchiveNotice = newNotice.generateWikitext();
     newNotice.crosswiki = oldNotice.crosswiki;
@@ -3171,12 +3213,24 @@
         }
       }
     }
-    await oldContext.edit({
-      newText: replacementArchiveNotice,
-      summary: "Updating old case following page move",
-      watch: spiHelperSettings.watch.case,
-      watchExpiry: spiHelperSettings.expiry.case
-    });
+    if (deleteOld) {
+      if (!spiHelperCanSuppressRedirect()) {
+        await oldContext.edit({
+          newText: `{{db-g6|rationale=Case moved to [[${newContext.pageName}]], requesting deletion as non-admin SPI clerk}}`,
+          summary: "Requesting [[WP:G6|G6]] deletion after case move",
+          createonly: false,
+          watch: spiHelperSettings.watch.archive,
+          watchExpiry: spiHelperSettings.expiry.archive
+        });
+      }
+    } else {
+      await oldContext.edit({
+        newText: replacementArchiveNotice,
+        summary: "Updating old case following page move",
+        watch: spiHelperSettings.watch.case,
+        watchExpiry: spiHelperSettings.expiry.case
+      });
+    }
     let newPageText = await newContext.getText({ purge: true, show: true });
     if (preMergeText) {
       let appendText = preMergeText.replace(/\n*<noinclude>__TOC__.*\n/ig, "");
@@ -3273,9 +3327,7 @@ $2`);
       return false;
     }
     sock.block.tags.forEach((tag) => {
-      if (isSockpuppetTag(tag)) {
-        tag.locked = userInfo.locked;
-      }
+      tag.locked = userInfo.locked;
     });
     const oldTags = parseUserTags(pageText);
     const cleanedTags = sock.block.tags.reduce((acc, tag) => {
@@ -3386,7 +3438,9 @@ $2`);
     } else {
       newText += "{{subst:uw-sockblock|sig=yes";
     }
-    newText += "|spi=" + context.caseName;
+    if (context.valid) {
+      newText += "|spi=" + context.caseName;
+    }
     if (isNoExpiry(sock.block.duration)) {
       newText += "|indef=yes";
     } else {
@@ -3423,11 +3477,11 @@ $2`);
     return blockSummary;
   }
   async function spiHelperProcessBlockRow(opts) {
-    const { sock, userTalkContent, blockOptions, talkNotices, defaultMaster } = opts;
+    const { sock, blockOptions } = opts;
     const isIP = mw.util.isIPAddress(sock.username, true);
     const isIPRange = isIP && !mw.util.isIPAddress(sock.username, false);
     const blockSummary = buildBlockSummary(blockOptions, isIP, isIPRange, sock.block.acb);
-    const blockSuccess = await spiHelperBlockUser({
+    return await spiHelperBlockUser({
       user: sock.username,
       duration: sock.block.duration,
       reason: blockSummary,
@@ -3440,30 +3494,27 @@ $2`);
       watchBlockedUser: spiHelperSettings.watch.blocked,
       watchExpiry: spiHelperSettings.expiry.blocked
     });
-    if (isIPRange) {
-      return blockSuccess;
-    }
-    if (!blockSuccess) {
-      return false;
+  }
+  async function spiHelperAddTalkBlockNotice(opts) {
+    const { sock, blockOptions, userTalkContent, talkNotices, defaultMaster } = opts;
+    if (talkNotices.length === 0) {
+      return;
     }
     const sockmaster = sock.block.tags.find((tag) => isSockpuppetTag(tag))?.master ?? defaultMaster;
-    if (talkNotices.length > 0) {
-      const cuBlock = blockOptions.cuBlock && spiHelperIsCheckuser() && spiHelperSettings.useCheckuserblockAccount;
-      const userTalkPage = `User talk:${sock.username}`;
-      let newText = blockOptions.blankTalk ? "" : userTalkContent ?? "";
-      for (const talkNotice of talkNotices) {
-        newText += `
+    const cuBlock = blockOptions.cuBlock && spiHelperIsCheckuser() && spiHelperSettings.useCheckuserblockAccount;
+    const userTalkPage = `User talk:${sock.username}`;
+    let newText = blockOptions.blankTalk ? "" : userTalkContent ?? "";
+    for (const talkNotice of talkNotices) {
+      newText += `
 ` + buildTalkNotice({ sock, noticeType: talkNotice, sockmaster, cuBlock });
-      }
-      await spiHelperEditPage({
-        title: userTalkPage,
-        newText,
-        summary: buildContextSummary("Adding sockpuppetry block notice"),
-        createonly: false,
-        watch: "nochange"
-      });
     }
-    return true;
+    await spiHelperEditPage({
+      title: userTalkPage,
+      newText,
+      summary: buildContextSummary("Adding sockpuppetry block notice"),
+      createonly: false,
+      watch: "nochange"
+    });
   }
 
   // src/actions/archive.ts
@@ -3757,9 +3808,10 @@ $1`);
     const startText = targetText;
     let blockPromises = [];
     let tagPromises = [];
+    let talkNoticePromises = [];
     let lockPromise = Promise.resolve([]);
     if (actions.block.enabled) {
-      ({ blockPromises, tagPromises, lockPromise } = await spiHelperHandleBlocks({
+      ({ blockPromises, tagPromises, talkNoticePromises, lockPromise } = await spiHelperHandleBlocks({
         accounts,
         blockData: actions.block.data
       }));
@@ -3769,6 +3821,7 @@ $1`);
       Promise.all(tagPromises),
       lockPromise
     ]);
+    const talkNoticePromise = Promise.all(talkNoticePromises);
     if (!context.isArchive) {
       if (sectionType === "specific") {
         const caseStatusResult = spiHelperCaseStatusRegex.exec(targetText);
@@ -3855,7 +3908,11 @@ $1`);
           case "all": {
             logMessage += `
 ** moved/merged case to ` + renameTarget;
-            await spiHelperMoveCase(renameTarget, state.archiveNotice);
+            await spiHelperMoveCase({
+              target: renameTarget,
+              suppress: actions.move.data.suppress,
+              archiveNotice: state.archiveNotice
+            });
             break;
           }
           case "specific": {
@@ -3868,11 +3925,14 @@ $1`);
       }
     }
     const [blockedUsers, taggedUsers, lockedUsers] = await userActionsPromise;
+    await talkNoticePromise;
     if (spiHelperSettings.log.enabled) {
       logMessage += buildUserActionLogMessage({ blockedUsers, taggedUsers, lockedUsers });
       await spiHelperLog(logMessage);
     }
-    await refreshSections(state);
+    if (!(actions.move.enabled && state.selectedSection.type === "all")) {
+      await refreshSections(state);
+    }
     new VueMessage({ type: "success", content: "Done!" }).show();
   }
   function spiHelperHandleComment(targetText, comment) {
@@ -3967,6 +4027,7 @@ ${comment}
   async function spiHelperHandleBlocks(opts) {
     const blockPromises = [];
     const tagPromises = [];
+    const talkNoticePromises = [];
     let lockPromise = Promise.resolve([]);
     const {
       userLocks,
@@ -4009,17 +4070,19 @@ ${comment}
       }
       if (blockAvailable && userRow.block.block) {
         const talkNotices = [];
-        if (blockOptions.addMasterNotice && userRow.block.tags.some((tag) => isSockmasterTag(tag))) {
+        if (blockOptions.addMasterNotice && (userRow.block.tags.some((tag) => isSockmasterTag(tag)) || userRow.username === master)) {
           talkNotices.push("master");
-        }
-        if (blockOptions.addSockNotice && userRow.block.tags.some((tag) => isSockpuppetTag(tag))) {
+        } else if (blockOptions.addSockNotice) {
           talkNotices.push("sock");
         }
         const maxJitter = Math.max(500, userRows.length * 100);
         blockPromises.push((async () => {
           const userBlock = userBlocks.get(userRow.username);
           if (userBlock !== undefined && !blockOptions.override) {
-            const alreadyBlockedWarning = new VueMessage({ type: "warning", content: `Block target ${userRow.username} is already blocked. ` });
+            const alreadyBlockedWarning = new VueMessage({
+              type: "warning",
+              content: `Block target ${userRow.username} is already blocked. `
+            });
             if (userRow.block.tags.length > 0) {
               alreadyBlockedWarning.content += "Proceeding with tagging";
               tagPromises.push(tagSock(userRow, true));
@@ -4048,13 +4111,19 @@ ${comment}
           await new Promise((r) => setTimeout(r, Math.random() * maxJitter));
           const blockSuccess = await spiHelperProcessBlockRow({
             sock: userRow,
-            userTalkContent: userTalkPages.get(userRow.username),
-            blockOptions,
-            talkNotices,
-            defaultMaster: master
+            blockOptions
           });
           if (!blockSuccess) {
             return null;
+          }
+          if (talkNotices.length > 0) {
+            talkNoticePromises.push(spiHelperAddTalkBlockNotice({
+              sock: userRow,
+              userTalkContent: userTalkPages.get(userRow.username),
+              blockOptions,
+              talkNotices,
+              defaultMaster: master
+            }));
           }
           if (userRow.block.tags.length > 0) {
             tagPromises.push(tagSock(userRow, true));
@@ -4069,7 +4138,7 @@ ${comment}
       const hideNames = blockOptions.lockHideNames;
       lockPromise = spiHelperRequestLocks({ lockTargets, hideNames, master, lockComment });
     }
-    return { blockPromises, tagPromises, lockPromise };
+    return { blockPromises, tagPromises, talkNoticePromises, lockPromise };
   }
   function formatEditSummary(editSummaryActions) {
     const [firstAction, ...rest] = editSummaryActions;
@@ -4277,7 +4346,8 @@ ${comment}
         const prevType = this.state.selectedSection?.type ?? null;
         const nextType = newSelection === "all" ? "all" : "specific";
         if (prevType !== nextType) {
-          this.displayedForms = ["sections"];
+          const allowedFormNames = ["sections", "move", "archive", "block", "link"];
+          this.displayedForms = this.displayedForms.filter((formName) => allowedFormNames.includes(formName));
         }
         if (newSelection === "all") {
           this.state.selectedSection = { type: "all" };
@@ -4493,12 +4563,10 @@ ${comment}
         </action-accordion>
       </div>
       <submit-form v-if="caseActions.sections.data.section !== null" :accounts="accounts"
-                   v-model:master="caseActions.block.data.master"
                    v-model:lock-comment="caseActions.block.data.lockcomment"
                    v-model:skipCUVerifyUsers="caseActions.block.data.skipCUVerifyUsers"
-                   :block-options="caseActions.block.data.options"
-                   :locks="caseActions.block.data.userLocks" :blocks="caseActions.block.data.userBlocks"
-                   :all-disabled="allDisabled" :state="state" :action-name="'mainActions'" :check-conflict="true"
+                   :case-actions="caseActions" :state="state"
+                   :all-disabled="allDisabled" :action-name="'mainActions'" :check-conflict="true"
                    @on-submit="onSubmitActions" />
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
       <div id="messageRow">
@@ -5640,10 +5708,16 @@ ${comment}
     props: {
       enabled: { type: Boolean, required: true },
       target: { type: String, required: true },
+      suppress: { type: Boolean, required: true },
       selection: { type: Object, required: true },
       archiveEnabled: { type: Boolean, required: true }
     },
-    emits: ["update:enabled", "update:target"],
+    emits: ["update:enabled", "update:target", "update:suppress"],
+    data() {
+      return {
+        canSuppressRedirect: spiHelperCanSuppressRedirect()
+      };
+    },
     computed: {
       allowSectionMoves() {
         return this.selectionType === "all" || this.isSectionMove && spiHelperSettings.iUnderstandSectionMoves;
@@ -5698,6 +5772,18 @@ ${comment}
         <p><strong>You are moving a section</strong></p>
         <p>Make sure you are expecting to only move the section and not the entire case.</p>
       </cdx-message>
+      <cdx-checkbox style="margin-top: 16px;" v-if="!isSectionMove" :model-value="suppress" @update:model-value="$emit('update:suppress', $event)">
+        {{ canSuppressRedirect ? 'Suppress redirect' : 'Request redirect deletion' }}
+        <template #description>
+          <template v-if="canSuppressRedirect">
+            Delete the old case page
+          </template>
+          <template v-else>
+            Request <a href="//en.wikipedia.org/wiki/Wikipedia:Speedy_deletion#G6._Technical_deletions">G6</a> deletion of the old case page
+          </template>
+          (one you're on right now)
+        </template>
+      </cdx-checkbox>
     </action-container>
     <cdx-message v-if="isSectionMove && !allowSectionMoves" type="error" :inline="true">
       You do not yet understand section moves. You probably want to move the entire case.
@@ -5912,18 +5998,16 @@ ${comment}
   // src/ui/views/submitForm.ts
   var SubmitFormComponent = defineComponent({
     props: {
+      lockComment: { type: String, required: true },
+      skipCUVerifyUsers: { type: Set, required: true },
       actionName: { type: String, required: true },
       checkConflict: { type: Boolean, required: true },
       state: { type: Object, required: true },
       accounts: { type: Array, required: true },
-      blockOptions: { type: Object, required: true },
-      blocks: { type: Map, required: true },
-      locks: { type: Map, required: true },
-      lockComment: { type: String, required: true },
-      skipCUVerifyUsers: { type: Set, required: true },
+      caseActions: { type: Object, required: true },
       allDisabled: { type: Boolean, required: true }
     },
-    emits: ["update:master", "update:altmaster", "update:lockComment", "update:skipCUVerifyUsers", "onSubmit"],
+    emits: ["update:lockComment", "update:skipCUVerifyUsers", "onSubmit"],
     data() {
       const cancelAction = { label: "Cancel" };
       const continueAction = { label: "Continue", actionType: "progressive" };
@@ -5940,21 +6024,34 @@ ${comment}
     },
     computed: {
       needsLockComment() {
-        return this.accounts.some((sock) => sock.block.lock && !isNonRegisteredAccount(sock.username) && this.locks.get(sock.username) !== true);
+        const blockAction = this.caseActions.block;
+        if (!blockAction.enabled) {
+          return false;
+        }
+        return this.accounts.some((sock) => sock.block.lock && !isNonRegisteredAccount(sock.username) && blockAction.data.userLocks.get(sock.username) !== true);
       },
       hasInvalidTag() {
+        const blockAction = this.caseActions.block;
+        if (!blockAction.enabled) {
+          return false;
+        }
         return this.accounts.some((user) => user.block.tags.some((tag) => isSockpuppetTag(tag) && !tag.master));
       },
+      hasInvalidMove() {
+        const moveAction = this.caseActions.move;
+        return moveAction.enabled && !moveAction.data.target;
+      },
       cuBlockConfirmationsNeeded() {
+        const blockData = this.caseActions.block.data;
         const neededUsers = new Set;
-        if (spiHelperIsCheckuser() || !this.blockOptions.override || this.blockOptions.noBlock) {
+        if (spiHelperIsCheckuser() || !this.caseActions.block.enabled || !blockData.options.override || !blockData.options.noBlock) {
           return neededUsers;
         }
         for (const userRow of this.accounts) {
           if (!userRow.block.block) {
             continue;
           }
-          const blockReason = this.blocks.get(userRow.username)?.reason;
+          const blockReason = blockData.userBlocks.get(userRow.username)?.reason;
           if (blockReason && spiHelperCUBlockRegex.exec(blockReason)) {
             neededUsers.add(userRow.username);
           }
@@ -5974,7 +6071,7 @@ ${comment}
         return skipCount > 0 && skipCount < this.cuBlockConfirmationsNeeded.size;
       },
       disableButton() {
-        return isOpRunning(this.actionName) || this.allDisabled || this.hasInvalidTag;
+        return isOpRunning(this.actionName) || this.allDisabled || this.hasInvalidTag || this.hasInvalidMove;
       },
       lockCommentValue: {
         get() {
@@ -6024,6 +6121,7 @@ ${comment}
       </cdx-checkbox>
       <div>
         <cdx-message v-if="hasInvalidTag" type="error" :inline="true">A user has an invalid tag</cdx-message>
+        <cdx-message v-if="hasInvalidMove" type="error" :inline="true"><b>Move</b> is enabled but has no target</cdx-message>
         <cdx-button ref="submitElement" action="progressive" weight="primary" @click="onSubmit"
                     :disabled="disableButton">
           Submit
@@ -6131,11 +6229,6 @@ ${comment}
       tag(newTag) {
         if (newTag) {
           this.temporaryTag = newTag.clone();
-        }
-      },
-      open(newValue) {
-        if (!newValue) {
-          this.temporaryTag = null;
         }
       }
     },
@@ -6320,6 +6413,17 @@ ${comment}
       },
       pageName() {
         return `Wikipedia:Sockpuppet investigations/${this.targetCase}`;
+      },
+      caseActions() {
+        return {
+          block: {
+            enabled: true,
+            data: this.blockData
+          },
+          move: {
+            enabled: false
+          }
+        };
       }
     },
     watch: {
@@ -6632,9 +6736,8 @@ ${comment}
       <div v-if="caseLoaded">
         <submit-form :accounts="accounts"
                      v-model:lock-comment="blockData.lockcomment" v-model:skipCUVerifyUsers="blockData.skipCUVerifyUsers"
-                     :block-options="blockData.options" :blocks="blockData.userBlocks"
-                     :locks="blockData.userLocks" :state="state" :action-name="'alternateActions'"
-                     :check-conflict="false" :all-disabled="false"
+                     :case-actions="caseActions" :state="state"
+                     :all-disabled="false" :action-name="'alternateActions'" :check-conflict="false"
                      @on-submit="onSubmitActions" />
       </div>
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
