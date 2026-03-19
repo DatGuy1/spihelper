@@ -413,7 +413,8 @@ export const BlockActionComponent = defineComponent({
 
         <template #item-block="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.block"
-                        :disabled="blockOptions.noBlock || userBlocks.get(row.username) !== undefined">
+                        :disabled="blockOptions.noBlock 
+                        || (!blockOptions.override && userBlocks.get(row.username) !== undefined)">
             Block
           </cdx-checkbox>
         </template>
