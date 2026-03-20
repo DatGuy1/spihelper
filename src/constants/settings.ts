@@ -4,7 +4,7 @@ import type { ScriptSettings } from '../options/types.ts';
 export const spiHelperAdvert = ' (using [[:w:en:User:DatGuy/spihelper|User:DatGuy/spihelper.js]])';
 
 export const FeedbackConfig = {
-  title: new mw.Title('User talk:DatGuy/spihelper.js'),
+  title: new mw.Title('User talk:DatGuy/spihelper'),
   bugsLink: '//github.com/DatGuy1/spihelper/issues/new',
   showUseragentCheckbox: true,
   useragentCheckboxMessage: 'I want to share my user agent publicly alongside my feedback. This is optional.',
