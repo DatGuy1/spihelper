@@ -21,5 +21,8 @@ export const DefaultLinkRowData: LinkRowData = {
 export type SelectionType = 'section' | 'case' | 'both';
 
 export interface FeedbackDialog {
-  launch: unknown;
+  launch: ((contents?: {
+    subject?: string;
+    message?: string;
+  }) => void);
 }

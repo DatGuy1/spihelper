@@ -26,6 +26,7 @@ import { buildUserActionLogMessage, setupBlockActionData, spiHelperNormalizeUser
 import { spiHelperParseArchiveNotice } from '../../archivenotice.ts';
 import { spiHelperGetCategoryMembers, spiHelperGetPageText, spiHelperGetUserBlockSettings } from '../../api.ts';
 import { prefetchSockRows } from './top/utils';
+import { MODE, VERSION } from '../../constants/settings.ts';
 
 interface Data {
   open: boolean;
@@ -389,12 +390,19 @@ export const AlternateViewComponent = defineComponent({
       });
       this.massAddUserRows(allRows);
     },
+    launchFeedback() {
+      const viewPretty = this.view.charAt(0).toUpperCase() + this.view.slice(1);
+      this.feedbackDialog.launch({
+        subject: `Feedback from ${mw.config.get('wgUserName')}`,
+        message: `${viewPretty} form v${VERSION}-${MODE}`,
+      });
+    },
   },
   template: `
     <div id="spiHelper-alternateView" class="spiHelper-mainCard" v-if="open">
       <div id="spiHelper-alternateView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
-          <cdx-button aria-label="Give feedback" weight="quiet" @click="feedbackDialog.launch()">
+          <cdx-button aria-label="Give feedback" weight="quiet" @click="launchFeedback">
             <cdx-icon :icon="cdxIconFeedback" />
           </cdx-button>
           <cdx-button :action="unpinned ? 'default': 'progressive'" aria-label="Toggle pin"

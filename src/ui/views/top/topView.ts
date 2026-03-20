@@ -34,6 +34,7 @@ import { OpState, finishOp, getOpState, isOpRunning, startOp } from '../../../op
 import { spiHelperPerformActions } from '../../../caseActions.ts';
 import { VueMessage, messages } from '../../messages.ts';
 import { AllSectionActions, AlwaysAvailableActions, SpecificSectionActions } from './utils/setup.ts';
+import { MODE, VERSION } from '../../../constants/settings.ts';
 
 interface Data {
   open: boolean;
@@ -433,12 +434,18 @@ export const TopViewComponent = defineComponent({
         this.state.archiveNotice = archiveNoticeResult;
       }
     },
+    launchFeedback() {
+      this.feedbackDialog.launch({
+        subject: `Feedback from ${mw.config.get('wgUserName')}`,
+        message: `SPI form v${VERSION}-${MODE}`,
+      });
+    },
   },
   template: `
     <div id="spiHelper-topView" class="spiHelper-mainCard" v-if="open">
       <div id="spiHelper-topView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
-          <cdx-button aria-label="Give feedback" weight="quiet" @click="feedbackDialog.launch()">
+          <cdx-button aria-label="Give feedback" weight="quiet" @click="launchFeedback">
             <cdx-icon :icon="icons.cdxIconFeedback" />
           </cdx-button>
           <cdx-button aria-label="Toggle layout" weight="quiet" @click="toggleButtonLayout">

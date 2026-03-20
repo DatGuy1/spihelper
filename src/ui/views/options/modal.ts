@@ -10,7 +10,7 @@ import {
   cdxIconWatchlist,
 } from '@wikimedia/codex-icons';
 import { saveOptions, spiHelperSettings } from '../../../options';
-import { spiHelperDefaultSettings } from '../../../constants/settings.ts';
+import { MODE, VERSION, spiHelperDefaultSettings } from '../../../constants/settings.ts';
 import { getFullLogPage } from '../../../options/utils.ts';
 import type { ScriptSettings } from '../../../options/types.ts';
 import type { ChipInputItem, MenuItemData, MenuItemValue } from '@wikimedia/codex';
@@ -170,6 +170,13 @@ export const OptionsComponent = defineComponent({
       Object.assign(spiHelperSettings, spiHelperDefaultSettings);
       this.resetTrigger++;
     },
+    launchFeedback() {
+      this.open = false;
+      this.feedbackDialog.launch({
+        subject: `Feedback from ${mw.config.get('wgUserName')}`,
+        message: `Options form v${VERSION}-${MODE}`,
+      });
+    },
   },
   template: `
     <cdx-dialog v-model:open="open" title="spiHelper Options" id="spiHelper-opts-dialog" close-button-label="Close">
@@ -180,7 +187,7 @@ export const OptionsComponent = defineComponent({
           </h2>
         </div>
         <div>
-          <cdx-button weight="quiet" type="button" aria-label="Give feedback" @click="feedbackDialog.launch()">
+          <cdx-button weight="quiet" type="button" aria-label="Give feedback" @click="launchFeedback">
             <cdx-icon :icon="icons.cdxIconFeedback" />
           </cdx-button>
           <cdx-button
