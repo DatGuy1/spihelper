@@ -62,7 +62,7 @@ export const spiHelperDefaultSettings: ScriptSettings = {
     // Should we pin the top view to the top, or make it sticky
     pinned: true,
     // Whether to use the button layout (true) or the accordion layout (false)
-    buttonLayout: true,
+    buttonLayout: false,
   },
   // Should we highlight the selected section
   highlightSection: true,
