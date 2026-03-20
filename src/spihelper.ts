@@ -22,6 +22,7 @@ import {
   LinkActionComponent,
   ManagementActionComponent,
   MoveActionComponent,
+  SectionActionComponent,
   TopViewComponent,
 } from './ui/views/top';
 import {
@@ -179,6 +180,7 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
             .component('management-action', ManagementActionComponent)
             .component('archive-action', ArchiveActionComponent)
             .component('move-action', MoveActionComponent)
+            .component('section-action', SectionActionComponent)
             .component('user-lookup', UserLookupComponent)
             .component('page-lookup', PageLookupComponent)
             .component('expiry-input', ExpiryInputComponent)

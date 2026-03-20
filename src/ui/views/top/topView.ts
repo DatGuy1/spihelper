@@ -8,7 +8,6 @@ import {
   loadCaseText,
   loadSectionText,
 } from '../../../state.ts';
-import type { MenuItemData } from '@wikimedia/codex';
 import { saveOptions, spiHelperSettings } from '../../../options';
 import { UpdateUserAllUserData } from '../userLookup.ts';
 import type { AllUser } from '../../../types/api.ts';
@@ -95,14 +94,6 @@ export const TopViewComponent = defineComponent({
     };
   },
   computed: {
-    menuItems(): MenuItemData[] {
-      const items: MenuItemData[] = this.state.sections.map((s: SectionEntry) => ({
-        value: s.id,
-        label: s.name,
-      }));
-      items.push({ value: 'all', label: 'All Sections' });
-      return items;
-    },
     allDisabled(): boolean {
       for (const [name, action] of Object.entries(this.caseActions)) {
         // Don't count 'sections' or 'link' since they don't affect the edit
@@ -277,6 +268,7 @@ export const TopViewComponent = defineComponent({
       if (newSelection === null) {
         return;
       }
+      this.caseActions.sections.data.section = newSelection;
       // If we switch from a section to 'all' or vice versa, reset the displayed forms
       const prevType = this.state.selectedSection?.type ?? null;
       const nextType = newSelection === 'all' ? 'all' : 'specific';
@@ -481,7 +473,6 @@ export const TopViewComponent = defineComponent({
                 :case-actions="caseActions"
                 :accounts="accounts"
                 :state="state"
-                :menu-items="menuItems"
                 @update-section-selection="onUpdateSectionSelection"
                 @update-status="onUpdateNewStatus"
                 @user-selected="handleUserSelected"
@@ -509,7 +500,6 @@ export const TopViewComponent = defineComponent({
               :case-actions="caseActions"
               :accounts="accounts"
               :state="state"
-              :menu-items="menuItems"
               @update-section-selection="onUpdateSectionSelection"
               @update-status="onUpdateNewStatus"
               @user-selected="handleUserSelected"
