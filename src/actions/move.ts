@@ -288,7 +288,7 @@ export async function spiHelperMoveCaseSection(mergeTarget: string, section: Sec
   let sectionText = await loadSectionText(section);
   sectionText = sectionText.replace(
     /\n*----(?!(\n|.)*----)/,
-    '\n* {{clerknote}} originally filed under [[Wikipedia:Sockpuppet investigations/' + context.caseName + ']]. ~~~~\n----',
+    `\n* {{clerknote}} originally filed under [[${context.pageName}]]. ~~~~\n----`,
   );
 
   if (targetPageText === '') {
@@ -300,7 +300,7 @@ export async function spiHelperMoveCaseSection(mergeTarget: string, section: Sec
   // Intentionally not async - doesn't matter when this edit finishes
   void newContext.edit({
     newText: targetPageText,
-    summary: 'Moving case section from [[' + context.prefixedName + ']], see page history for attribution',
+    summary: `Moving case section from [[${context.prefixedName}]], see page history for attribution`,
     createonly: false,
     watch: spiHelperSettings.watch.case,
     watchExpiry: spiHelperSettings.expiry.case,
@@ -308,7 +308,7 @@ export async function spiHelperMoveCaseSection(mergeTarget: string, section: Sec
   // Blank the section we moved
   await context.edit({
     newText: '',
-    summary: 'Moving case section to [[' + newContext.prefixedName + ']]',
+    summary: `Moving case section to [[${newContext.prefixedName}]]`,
     createonly: false,
     watch: spiHelperSettings.watch.case,
     watchExpiry: spiHelperSettings.expiry.case,

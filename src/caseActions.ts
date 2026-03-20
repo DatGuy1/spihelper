@@ -203,6 +203,14 @@ export async function spiHelperPerformActions(opts: {
       new VueMessage({ type: 'error', content: 'Failed to save edit' }).show();
     }
     else {
+      // Update our text.
+      // This should be functionally (but not exactly) equivalent to loadText({ purge: true });
+      if (state.selectedSection.type === 'specific') {
+        state.selectedSection.section._text = targetText;
+      }
+      else {
+        context._text = targetText;
+      }
       context.startingRevId = newRevId;
     }
   }
