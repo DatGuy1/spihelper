@@ -26,7 +26,7 @@ export const ChangeStatusActionComponent = defineComponent({
           .flatMap(item => isMenuGroupData(item) ? item.items : [item])
           .find(item => item.value === this.newStatus);
 
-        return itemData?.value ?? null;
+        return itemData?.value ?? 'nochange';
       },
       set(value: MenuItemValue | null) {
         if (value === null) {
@@ -100,12 +100,8 @@ export const ChangeStatusActionComponent = defineComponent({
           clerkItems.push({ label: 'Request more information for CheckUser', value: 'cumoreinfo' });
         }
       }
-      if (isCheckuser) {
-        clerkItems.push({ label: 'Place case on CU hold', value: 'cuhold' });
-      }
-      else { // I guess it's okay for anyone to have this option
-        clerkItems.push({ label: 'Place case on hold', value: 'hold' });
-      }
+      clerkItems.push({ label: 'Place case on CU hold', value: 'cuhold' });
+      clerkItems.push({ label: 'Place case on hold', value: 'hold' });
       deferItems.push({ label: 'Request clerk action', value: 'clerk' });
       if (spiHelperIsAdmin() || isClerk) {
         deferItems.push({ label: 'Request admin action', value: 'admin' });
@@ -117,9 +113,6 @@ export const ChangeStatusActionComponent = defineComponent({
       ].filter(g => g !== null);
       return [...mainItems, ...groups];
     },
-  },
-  methods: {
-
   },
   template: `
     <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
