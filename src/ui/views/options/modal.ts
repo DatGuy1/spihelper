@@ -301,6 +301,12 @@ export const OptionsComponent = defineComponent({
             Actions to have enabled by default when opening the form
           </template>
         </cdx-field>
+        <cdx-toggle-switch v-model="spiHelperSettings.highlightSection" :align-switch="true">
+          Highlight section
+          <template #description>
+            Highlight the selected SPI section to prevent editing the wrong one
+          </template>
+        </cdx-toggle-switch>
         <br>
         <cdx-button @click="loadDefaults">
           Load defaults

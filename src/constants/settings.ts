@@ -64,6 +64,8 @@ export const spiHelperDefaultSettings: ScriptSettings = {
     // Whether to use the button layout (true) or the accordion layout (false)
     buttonLayout: true,
   },
+  // Should we highlight the selected section
+  highlightSection: true,
   // These are for debugging to view as other roles. If you're picking apart the code and
   // decide to set these (especially the CU option), it is YOUR responsibility to make sure
   // you don't do something that violates policy

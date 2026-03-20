@@ -97,6 +97,31 @@
     flex-direction: column;
 }
 
+.spiHelper-section-selector {
+    display: flex;
+    gap: 8px;
+    max-width: 560px;
+}
+
+.spiHelper-section-overlay {
+    position: absolute;
+    left: -12px;
+    right: -12px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: -1;
+}
+
+.spiHelper-section-overlay--selected {
+    border: 3px solid var(--border-color-progressive, #36c);
+    background-color: var(--background-color-progressive-subtle, #e8f1ff);
+}
+
+.spiHelper-section-overlay--preview {
+    border: 1px dashed var(--border-color-progressive, #36c);
+    background-color: var(--background-color-progressive-subtle, #f3f7ff);
+}
+
 #contentRow > div.is-visible ~ div.is-visible {
     border-top: 1px solid var(--color-base--subtle);
     padding-top: 16px;

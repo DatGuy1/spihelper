@@ -33,6 +33,7 @@ export interface ScriptSettings {
     pinned: boolean;
     buttonLayout: boolean;
   };
+  highlightSection: boolean;
   debug: {
     enabled: boolean;
     forceCheckuser: boolean;
