@@ -11,12 +11,12 @@ export const ActionButtonComponent = defineComponent({
     name: { type: String as PropType<CaseActionName>, required: true },
     label: { type: [String, Object] as PropType<string | ActionLabel>, required: true },
     selectionType: { type: String as PropType<SelectionType>, required: true },
-    displayedForms: { type: Array as PropType<CaseActionName[]>, required: true },
+    displayedForms: { type: Set as PropType<Set<CaseActionName>>, required: true },
     actionEnabled: { type: Boolean, required: true },
   },
   computed: {
     buttonEnabled(): boolean {
-      return this.displayedForms.includes(this.name) || this.actionEnabled;
+      return this.displayedForms.has(this.name) || this.actionEnabled;
     },
 
     allSelected(): boolean {
@@ -42,7 +42,7 @@ export const ActionButtonComponent = defineComponent({
     buttonStyle(): Record<string, string | number> {
       return {
         opacity: this.buttonEnabled ? 1 : 0.7,
-        color: this.displayedForms.includes(this.name)
+        color: this.displayedForms.has(this.name)
           ? 'var(--color-base)'
           : '',
       };

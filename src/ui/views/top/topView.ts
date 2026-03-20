@@ -40,11 +40,13 @@ interface Data {
   openHandler: ((e: Event) => void) | null;
   beforeUnloadHandler: ((e: Event) => void) | null;
   actionsRunning: boolean;
-  displayedForms: CaseActionName[];
-  cdxIconPushPin: typeof cdxIconPushPin;
-  cdxIconCollapse: typeof cdxIconCollapse;
-  cdxIconExpand: typeof cdxIconExpand;
-  cdxIconFeedback: typeof cdxIconFeedback;
+  displayedForms: Set<CaseActionName>;
+  icons: {
+    cdxIconPushPin: typeof cdxIconPushPin;
+    cdxIconCollapse: typeof cdxIconCollapse;
+    cdxIconExpand: typeof cdxIconExpand;
+    cdxIconFeedback: typeof cdxIconFeedback;
+  };
   unpinned: boolean;
   buttonLayout: boolean;
   sectionAccountNames: Set<string>;
@@ -70,7 +72,7 @@ export const TopViewComponent = defineComponent({
       openHandler: null,
       beforeUnloadHandler: null,
       actionsRunning: false,
-      displayedForms: ['sections'],
+      displayedForms: new Set(['sections']),
       unpinned: !spiHelperSettings.interface.pinned,
       buttonLayout: spiHelperSettings.interface.buttonLayout,
       actionButtons,
@@ -170,7 +172,7 @@ export const TopViewComponent = defineComponent({
     archiveNotice(newNotice: ParsedArchiveNotice | null) {
       this.caseActions.management.data.flags = getManagementFlagsFromArchiveNotice(newNotice);
     },
-    // Disable actions when changing section
+    // Toggle actions when changing section
     'caseActions.sections.data.section'(newSection: CaseActionSection, oldSection: CaseActionSection) {
       // Is this even necessary?
       if (newSection === oldSection) {
@@ -181,7 +183,18 @@ export const TopViewComponent = defineComponent({
         if (caseAN === 'sections') {
           continue;
         }
-        caseAction.enabled = spiHelperSettings.defaultActions.includes(caseAN);
+        const actionDefaultEnabled = spiHelperSettings.defaultActions.includes(caseAN);
+        caseAction.enabled = actionDefaultEnabled;
+        // If the action is enabled by default, it's always available,
+        // or we're going to 'all' and it's supported by 'all sections',
+        // or we're going to specific section, and it's supported as such
+        if (actionDefaultEnabled && (
+          AlwaysAvailableActions.has(caseAN)
+          || (newSection === 'all' && AllSectionActions.has(caseAN))
+          || (typeof newSection === 'number' && SpecificSectionActions.has(caseAN))
+        )) {
+          this.displayedForms.add(caseAN);
+        }
       }
     },
   },
@@ -240,31 +253,29 @@ export const TopViewComponent = defineComponent({
       const formName = formNameString as CaseActionName;
       if (event.ctrlKey || event.metaKey) {
         // Add/remove from displayedForms
-        const formIndex = this.displayedForms.indexOf(formName);
-        if (formIndex === -1) {
-          this.displayedForms.push(formName);
+        if (this.displayedForms.has(formName)) {
+          this.displayedForms.delete(formName);
         }
         else {
-          this.displayedForms.splice(formIndex, 1);
+          this.displayedForms.add(formName);
         }
       }
       else {
         // Replace displayedForms
-        this.displayedForms = [formName];
+        this.displayedForms = new Set([formName]);
       }
     },
     onAccordionToggle(formNameString: string) {
       const formName = formNameString as CaseActionName;
-      const index = this.displayedForms.indexOf(formName);
-      if (index === -1) {
-        this.displayedForms.push(formName);
+      if (this.displayedForms.has(formName)) {
+        this.displayedForms.delete(formName);
       }
       else {
-        this.displayedForms.splice(index, 1);
+        this.displayedForms.add(formName);
       }
     },
     isVisible(name: CaseActionName): boolean {
-      return this.displayedForms.includes(name);
+      return this.displayedForms.has(name);
     },
     async onUpdateSectionSelection(newSelection: number | 'all' | null) {
       if (newSelection === null) {
@@ -274,10 +285,9 @@ export const TopViewComponent = defineComponent({
       const prevType = this.state.selectedSection?.type ?? null;
       const nextType = newSelection === 'all' ? 'all' : 'specific';
       if (prevType !== nextType) {
-        const allowedFormNames: CaseActionName[] = ['sections', 'move', 'archive', 'block', 'link'];
-        this.displayedForms = this.displayedForms.filter(formName =>
-          allowedFormNames.includes(formName),
-        );
+        this.displayedForms = new Set(Array.from(this.displayedForms).filter(formName =>
+          AlwaysAvailableActions.has(formName),
+        ));
       }
 
       if (newSelection === 'all') {

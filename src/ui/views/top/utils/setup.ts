@@ -99,5 +99,13 @@ export function getInitialCaseActions(): CaseActions {
   };
 }
 
+// Actions that are only available when not in archives
 export const NonArchiveActions = new Set<CaseActionName>(['status', 'management', 'comment', 'move', 'archive']);
+// Actions only available for clerks
 export const ClerkOnlyActions = new Set<CaseActionName>(['move', 'archive', 'management']);
+// Actions available both for specific and for all sections
+export const AlwaysAvailableActions = new Set<CaseActionName>(['sections', 'move', 'archive', 'block', 'link']);
+// Actions available only when a specific section is selected
+export const SpecificSectionActions = new Set<CaseActionName>(['status', 'comment']);
+// Actions available only when 'all sections' is selected
+export const AllSectionActions = new Set<CaseActionName>(['management']);

@@ -11,7 +11,7 @@ export const ActionAccordionComponent = defineComponent({
     name: { type: String as PropType<CaseActionName>, required: true },
     label: { type: [String, Object] as PropType<string | ActionLabel>, required: true },
     selectionType: { type: String as PropType<SelectionType>, required: true },
-    displayedForms: { type: Array as PropType<CaseActionName[]>, required: true },
+    displayedForms: { type: Set as PropType<Set<CaseActionName>>, required: true },
     actionEnabled: { type: Boolean, required: true },
   },
   emits: ['actionToggled'],
@@ -58,7 +58,7 @@ export const ActionAccordionComponent = defineComponent({
     <cdx-accordion
         v-if="showAccordion"
         :name="name"
-        :model-value="displayedForms.includes(name)"
+        :model-value="displayedForms.has(name)"
         @click.prevent="$emit('actionToggled')"
         :class="{'action-enabled': showEnabledClass}"
     >
