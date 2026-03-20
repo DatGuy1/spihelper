@@ -1,5 +1,5 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
-// v3.1.4
+// v3.2.0
 // <nowiki>
 'use strict';
 (() => {
@@ -673,12 +673,12 @@
   // src/constants/settings.ts
   var spiHelperAdvert = " (using [[:w:en:User:DatGuy/spihelper|User:DatGuy/spihelper.js]])";
   var FeedbackConfig = {
-    title: new mw.Title("User talk:DatGuy/spihelper.js"),
+    title: new mw.Title("User talk:DatGuy/spihelper"),
     bugsLink: "//github.com/DatGuy1/spihelper/issues/new",
     showUseragentCheckbox: true,
     useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
   };
-  var VERSION = "3.1.4";
+  var VERSION = "3.2.0";
   var MODE = "dev";
   var spiHelperDefaultSettings = {
     watch: {
@@ -710,8 +710,9 @@
       displayIPv6As64: true,
       fullPreview: false,
       pinned: true,
-      buttonLayout: true
+      buttonLayout: false
     },
+    highlightSection: true,
     debug: {
       enabled: false,
       forceCheckuser: false,
@@ -2007,6 +2008,13 @@
         this.spiHelperSettings = JSON.parse(JSON.stringify(spiHelperDefaultSettings));
         Object.assign(spiHelperSettings, spiHelperDefaultSettings);
         this.resetTrigger++;
+      },
+      launchFeedback() {
+        this.open = false;
+        this.feedbackDialog.launch({
+          subject: `Feedback from ${mw.config.get("wgUserName")}`,
+          message: `Options form v${VERSION}-${MODE}`
+        });
       }
     },
     template: `
@@ -2018,7 +2026,7 @@
           </h2>
         </div>
         <div>
-          <cdx-button weight="quiet" type="button" aria-label="Give feedback" @click="feedbackDialog.launch()">
+          <cdx-button weight="quiet" type="button" aria-label="Give feedback" @click="launchFeedback">
             <cdx-icon :icon="icons.cdxIconFeedback" />
           </cdx-button>
           <cdx-button
@@ -2139,6 +2147,12 @@
             Actions to have enabled by default when opening the form
           </template>
         </cdx-field>
+        <cdx-toggle-switch v-model="spiHelperSettings.highlightSection" :align-switch="true">
+          Highlight section
+          <template #description>
+            Highlight the selected SPI section to prevent editing the wrong one
+          </template>
+        </cdx-toggle-switch>
         <br>
         <cdx-button @click="loadDefaults">
           Load defaults
@@ -2240,6 +2254,9 @@
   }
   var NonArchiveActions = new Set(["status", "management", "comment", "move", "archive"]);
   var ClerkOnlyActions = new Set(["move", "archive", "management"]);
+  var AlwaysAvailableActions = new Set(["sections", "move", "archive", "block", "link"]);
+  var SpecificSectionActions = new Set(["status", "comment"]);
+  var AllSectionActions = new Set(["management"]);
 
   // src/ui/views/top/actionAccordion.ts
   var ActionAccordionComponent = defineComponent({
@@ -2248,7 +2265,7 @@
       name: { type: String, required: true },
       label: { type: [String, Object], required: true },
       selectionType: { type: String, required: true },
-      displayedForms: { type: Array, required: true },
+      displayedForms: { type: Set, required: true },
       actionEnabled: { type: Boolean, required: true }
     },
     emits: ["actionToggled"],
@@ -2293,7 +2310,7 @@
     <cdx-accordion
         v-if="showAccordion"
         :name="name"
-        :model-value="displayedForms.includes(name)"
+        :model-value="displayedForms.has(name)"
         @click.prevent="$emit('actionToggled')"
         :class="{'action-enabled': showEnabledClass}"
     >
@@ -2309,12 +2326,12 @@
       name: { type: String, required: true },
       label: { type: [String, Object], required: true },
       selectionType: { type: String, required: true },
-      displayedForms: { type: Array, required: true },
+      displayedForms: { type: Set, required: true },
       actionEnabled: { type: Boolean, required: true }
     },
     computed: {
       buttonEnabled() {
-        return this.displayedForms.includes(this.name) || this.actionEnabled;
+        return this.displayedForms.has(this.name) || this.actionEnabled;
       },
       allSelected() {
         return this.selection === "all";
@@ -2340,7 +2357,7 @@
       buttonStyle() {
         return {
           opacity: this.buttonEnabled ? 1 : 0.7,
-          color: this.displayedForms.includes(this.name) ? "var(--color-base)" : ""
+          color: this.displayedForms.has(this.name) ? "var(--color-base)" : ""
         };
       },
       text() {
@@ -2387,9 +2404,7 @@
       name: { type: String, required: true },
       caseActions: { type: Object, required: true },
       accounts: { type: Array, required: true },
-      state: { type: Object, required: true },
-      menuItems: { type: Array, required: true },
-      currentStatus: { type: String, required: true }
+      state: { type: Object, required: true }
     },
     emits: [
       "update-section-selection",
@@ -2426,11 +2441,9 @@
     },
     template: `
     <!-- Sections special case -->
-    <div v-if="name === 'sections'">
-      <cdx-select :menu-items="menuItems" v-model:selected="caseActions.sections.data.section"
-                  @update:selected="handleUpdateSectionSelection" />
-    </div>
-
+    <section-action v-if="name === 'sections'"
+                    :selected-section="caseActions.sections.data.section" :all-sections="state.sections"
+                    @update-section-selection="handleUpdateSectionSelection" />
     <!-- Other actions -->
     <comment-action v-else-if="name === 'comment'" v-model:enabled="caseActions.comment.enabled"
                     v-model:text="caseActions.comment.data.text" :selected-section="state.selectedSection" />
@@ -2455,7 +2468,7 @@
                  :selection="state.selectedSection" :archive-enabled="caseActions.archive.enabled" />
     <archive-action v-else-if="name === 'archive'" v-model:enabled="caseActions.archive.enabled"
                     :selection="caseActions.sections.data.section"
-                    :status="currentStatus" />
+                    :status-data="caseActions.status.data" />
   `
   });
   // src/ui/views/userLookup.ts
@@ -2916,6 +2929,8 @@
       return "hold";
     if (/^cuhold$/i.test(caseStatus))
       return "cuhold";
+    if (/^clerk$/i.test(caseStatus))
+      return "clerk";
     return "new";
   }
   // src/actions/log.ts
@@ -3150,7 +3165,7 @@
     let targetPageText = await newContext.getText();
     let sectionText = await loadSectionText(section);
     sectionText = sectionText.replace(/\n*----(?!(\n|.)*----)/, `
-* {{clerknote}} originally filed under [[Wikipedia:Sockpuppet investigations/` + context.caseName + `]]. ~~~~
+* {{clerknote}} originally filed under [[${context.pageName}]]. ~~~~
 ----`);
     if (targetPageText === "") {
       targetPageText = `<noinclude>__TOC__</noinclude>
@@ -3161,14 +3176,14 @@
 ` + sectionText;
     newContext.edit({
       newText: targetPageText,
-      summary: "Moving case section from [[" + context.prefixedName + "]], see page history for attribution",
+      summary: `Moving case section from [[${context.prefixedName}]], see page history for attribution`,
       createonly: false,
       watch: spiHelperSettings.watch.case,
       watchExpiry: spiHelperSettings.expiry.case
     });
     await context.edit({
       newText: "",
-      summary: "Moving case section to [[" + newContext.prefixedName + "]]",
+      summary: `Moving case section to [[${newContext.prefixedName}]]`,
       createonly: false,
       watch: spiHelperSettings.watch.case,
       watchExpiry: spiHelperSettings.expiry.case,
@@ -3883,6 +3898,11 @@ $1`);
       if (newRevId === null) {
         new VueMessage({ type: "error", content: "Failed to save edit" }).show();
       } else {
+        if (state.selectedSection.type === "specific") {
+          state.selectedSection.section._text = targetText;
+        } else {
+          context._text = targetText;
+        }
         context.startingRevId = newRevId;
       }
     }
@@ -4162,10 +4182,12 @@ ${comment}
       const actionButtonKeys = Object.keys(actionButtons);
       return {
         open: false,
-        openHandler: null,
-        beforeUnloadHandler: null,
+        handlers: {
+          openHandler: null,
+          beforeUnloadHandler: null
+        },
         actionsRunning: false,
-        displayedForms: ["sections"],
+        displayedForms: new Set(["sections"]),
         unpinned: !spiHelperSettings.interface.pinned,
         buttonLayout: spiHelperSettings.interface.buttonLayout,
         actionButtons,
@@ -4174,32 +4196,15 @@ ${comment}
         caseActions: getInitialCaseActions(),
         accounts: [],
         messages,
-        cdxIconPushPin: y7,
-        cdxIconCollapse: z4,
-        cdxIconExpand: f4,
-        cdxIconFeedback: q4
+        icons: {
+          cdxIconPushPin: y7,
+          cdxIconCollapse: z4,
+          cdxIconExpand: f4,
+          cdxIconFeedback: q4
+        }
       };
     },
     computed: {
-      menuItems() {
-        const items = this.state.sections.map((s) => ({
-          value: s.id,
-          label: s.name
-        }));
-        items.push({ value: "all", label: "All Sections" });
-        return items;
-      },
-      currentStatus() {
-        const statuses = this.caseActions.status.data;
-        switch (statuses.new) {
-          case "nochange":
-            return statuses.old;
-          case "selfendorse":
-            return "endorse";
-          default:
-            return statuses.new;
-        }
-      },
       allDisabled() {
         for (const [name, action] of Object.entries(this.caseActions)) {
           if (name === "sections" || name === "link") {
@@ -4268,7 +4273,11 @@ ${comment}
           if (caseAN === "sections") {
             continue;
           }
-          caseAction.enabled = spiHelperSettings.defaultActions.includes(caseAN);
+          const actionDefaultEnabled = spiHelperSettings.defaultActions.includes(caseAN);
+          caseAction.enabled = actionDefaultEnabled;
+          if (actionDefaultEnabled && (AlwaysAvailableActions.has(caseAN) || newSection === "all" && AllSectionActions.has(caseAN) || typeof newSection === "number" && SpecificSectionActions.has(caseAN))) {
+            this.displayedForms.add(caseAN);
+          }
         }
       }
     },
@@ -4282,33 +4291,33 @@ ${comment}
       } else {
         this.mountPoint.classList.remove("unpinned");
       }
-      this.beforeUnloadHandler = (e) => {
+      this.handlers.beforeUnloadHandler = (e) => {
         const opState = getOpState("mainActions");
         if (!this.allDisabled && opState !== "success" /* Success */) {
           e.preventDefault();
         }
       };
-      this.openHandler = () => {
+      this.handlers.openHandler = () => {
         this.open = !this.open;
         if (this.open) {
           mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "open", type: "top" });
-        }
-        if (this.beforeUnloadHandler) {
-          if (this.open) {
-            window.addEventListener("beforeunload", this.beforeUnloadHandler);
-          } else {
-            window.removeEventListener("beforeunload", this.beforeUnloadHandler);
+          if (this.handlers.beforeUnloadHandler) {
+            window.addEventListener("beforeunload", this.handlers.beforeUnloadHandler);
+          }
+        } else {
+          if (this.handlers.beforeUnloadHandler) {
+            window.removeEventListener("beforeunload", this.handlers.beforeUnloadHandler);
           }
         }
       };
-      this.openButton.addEventListener("click", this.openHandler);
+      this.openButton.addEventListener("click", this.handlers.openHandler);
     },
     beforeUnmount() {
-      if (this.openHandler) {
-        this.openButton.removeEventListener("click", this.openHandler);
+      if (this.handlers.openHandler) {
+        this.openButton.removeEventListener("click", this.handlers.openHandler);
       }
-      if (this.beforeUnloadHandler) {
-        window.removeEventListener("beforeunload", this.beforeUnloadHandler);
+      if (this.handlers.beforeUnloadHandler) {
+        window.removeEventListener("beforeunload", this.handlers.beforeUnloadHandler);
       }
     },
     methods: {
@@ -4319,37 +4328,35 @@ ${comment}
       onActionClick(event, formNameString) {
         const formName = formNameString;
         if (event.ctrlKey || event.metaKey) {
-          const formIndex = this.displayedForms.indexOf(formName);
-          if (formIndex === -1) {
-            this.displayedForms.push(formName);
+          if (this.displayedForms.has(formName)) {
+            this.displayedForms.delete(formName);
           } else {
-            this.displayedForms.splice(formIndex, 1);
+            this.displayedForms.add(formName);
           }
         } else {
-          this.displayedForms = [formName];
+          this.displayedForms = new Set([formName]);
         }
       },
       onAccordionToggle(formNameString) {
         const formName = formNameString;
-        const index = this.displayedForms.indexOf(formName);
-        if (index === -1) {
-          this.displayedForms.push(formName);
+        if (this.displayedForms.has(formName)) {
+          this.displayedForms.delete(formName);
         } else {
-          this.displayedForms.splice(index, 1);
+          this.displayedForms.add(formName);
         }
       },
       isVisible(name) {
-        return this.displayedForms.includes(name);
+        return this.displayedForms.has(name);
       },
       async onUpdateSectionSelection(newSelection) {
         if (newSelection === null) {
           return;
         }
+        this.caseActions.sections.data.section = newSelection;
         const prevType = this.state.selectedSection?.type ?? null;
         const nextType = newSelection === "all" ? "all" : "specific";
         if (prevType !== nextType) {
-          const allowedFormNames = ["sections", "move", "archive", "block", "link"];
-          this.displayedForms = this.displayedForms.filter((formName) => allowedFormNames.includes(formName));
+          this.displayedForms = new Set(Array.from(this.displayedForms).filter((formName) => AlwaysAvailableActions.has(formName)));
         }
         if (newSelection === "all") {
           this.state.selectedSection = { type: "all" };
@@ -4483,21 +4490,27 @@ ${comment}
         } else {
           this.state.archiveNotice = archiveNoticeResult;
         }
+      },
+      launchFeedback() {
+        this.feedbackDialog.launch({
+          subject: `Feedback from ${mw.config.get("wgUserName")}`,
+          message: `SPI form v${VERSION}-${MODE}`
+        });
       }
     },
     template: `
     <div id="spiHelper-topView" class="spiHelper-mainCard" v-if="open">
       <div id="spiHelper-topView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
-          <cdx-button aria-label="Give feedback" weight="quiet" @click="feedbackDialog.launch()">
-            <cdx-icon :icon="cdxIconFeedback" />
+          <cdx-button aria-label="Give feedback" weight="quiet" @click="launchFeedback">
+            <cdx-icon :icon="icons.cdxIconFeedback" />
           </cdx-button>
           <cdx-button aria-label="Toggle layout" weight="quiet" @click="toggleButtonLayout">
-            <cdx-icon :icon="buttonLayout ? cdxIconExpand : cdxIconCollapse" />
+            <cdx-icon :icon="buttonLayout ? icons.cdxIconExpand : icons.cdxIconCollapse" />
           </cdx-button>
           <cdx-button :action="unpinned ? 'default': 'progressive'" aria-label="Toggle pin"
                       weight="quiet" @click="unpinned = !unpinned">
-            <cdx-icon :icon="cdxIconPushPin" />
+            <cdx-icon :icon="icons.cdxIconPushPin" />
           </cdx-button>
         </div>
       </div>
@@ -4524,8 +4537,6 @@ ${comment}
                 :case-actions="caseActions"
                 :accounts="accounts"
                 :state="state"
-                :menu-items="menuItems"
-                :current-status="currentStatus"
                 @update-section-selection="onUpdateSectionSelection"
                 @update-status="onUpdateNewStatus"
                 @user-selected="handleUserSelected"
@@ -4553,8 +4564,6 @@ ${comment}
               :case-actions="caseActions"
               :accounts="accounts"
               :state="state"
-              :menu-items="menuItems"
-              :current-status="currentStatus"
               @update-section-selection="onUpdateSectionSelection"
               @update-status="onUpdateNewStatus"
               @user-selected="handleUserSelected"
@@ -4587,13 +4596,23 @@ ${comment}
   var ArchiveActionComponent = defineComponent({
     props: {
       enabled: { type: Boolean, required: true },
-      status: { type: String, required: true },
-      selection: { type: Object, required: true }
+      selection: { type: Object, required: true },
+      statusData: { type: Object, required: true }
     },
     emits: ["update:enabled"],
     computed: {
       badStatus() {
         return this.selection !== "all" && this.status !== "closed";
+      },
+      status() {
+        switch (this.statusData.new) {
+          case "nochange":
+            return this.statusData.old;
+          case "selfendorse":
+            return "endorse";
+          default:
+            return this.statusData.new;
+        }
       }
     },
     template: `
@@ -4975,7 +4994,8 @@ ${comment}
 
         <template #item-block="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.block"
-                        :disabled="blockOptions.noBlock || userBlocks.get(row.username) !== undefined">
+                        :disabled="blockOptions.noBlock 
+                        || (!blockOptions.override && userBlocks.get(row.username) !== undefined)">
             Block
           </cdx-checkbox>
         </template>
@@ -5245,7 +5265,7 @@ ${comment}
             return "nochange";
           }
           const itemData = this.caseStatusItems.flatMap((item) => isMenuGroupData(item) ? item.items : [item]).find((item) => item.value === this.newStatus);
-          return itemData?.value ?? null;
+          return itemData?.value ?? "nochange";
         },
         set(value) {
           if (value === null) {
@@ -5307,11 +5327,8 @@ ${comment}
             clerkItems.push({ label: "Request more information for CheckUser", value: "cumoreinfo" });
           }
         }
-        if (isCheckuser) {
-          clerkItems.push({ label: "Place case on CU hold", value: "cuhold" });
-        } else {
-          clerkItems.push({ label: "Place case on hold", value: "hold" });
-        }
+        clerkItems.push({ label: "Place case on CU hold", value: "cuhold" });
+        clerkItems.push({ label: "Place case on hold", value: "hold" });
         deferItems.push({ label: "Request clerk action", value: "clerk" });
         if (spiHelperIsAdmin() || isClerk) {
           deferItems.push({ label: "Request admin action", value: "admin" });
@@ -5324,7 +5341,6 @@ ${comment}
         return [...mainItems, ...groups];
       }
     },
-    methods: {},
     template: `
     <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
       <cdx-select v-model:selected="selected" :menu-items="caseStatusItems" default-label="New case status" />
@@ -5777,6 +5793,214 @@ ${comment}
     <cdx-message v-if="archiveEnabled" type="warning" :inline="true">
       Archival is enabled, which overrides moving.
     </cdx-message>
+  `
+  });
+  // src/ui/dom.ts
+  var OVERLAY_TOP_OFFSET = 45;
+  function getSectionContainer(sectionId) {
+    const sectionLink = $(`a[href$="section=${sectionId}"]`).first();
+    if (sectionLink.length === 0) {
+      return null;
+    }
+    const sectionContainer = sectionLink.parentsUntil(":has(hr)").last().nextUntil("hr");
+    return sectionContainer.length > 0 ? sectionContainer : null;
+  }
+  function getSectionHeading(sectionId) {
+    const sectionLink = $(`a[href$="section=${sectionId}"]`).first();
+    if (sectionLink.length === 0) {
+      return null;
+    }
+    const heading = sectionLink.closest(".mw-heading");
+    return heading.length > 0 ? heading.get(0) ?? null : null;
+  }
+  function scrollToSection(sectionId) {
+    const heading = getSectionHeading(sectionId);
+    if (heading) {
+      heading.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+  function getSectionHighlightRoot() {
+    return document.querySelector(".mw-parser-output");
+  }
+  function getSectionBounds(sectionId) {
+    const root = getSectionHighlightRoot();
+    const heading = getSectionHeading(sectionId);
+    if (!root || !heading) {
+      return null;
+    }
+    const container = getSectionContainer(sectionId);
+    const lastElement = container?.last().get(0) ?? heading;
+    const rootRect = root.getBoundingClientRect();
+    const headingRect = heading.getBoundingClientRect();
+    const lastRect = lastElement.getBoundingClientRect();
+    const top = Math.min(headingRect.top, lastRect.top) - rootRect.top + root.scrollTop;
+    const bottom = Math.max(headingRect.bottom, lastRect.bottom) - rootRect.top + root.scrollTop;
+    return { top, height: Math.max(1, bottom - top) };
+  }
+  function createSectionOverlay() {
+    const root = getSectionHighlightRoot();
+    if (!root) {
+      return null;
+    }
+    const overlay = document.createElement("div");
+    overlay.style.display = "none";
+    overlay.className = "spiHelper-section-overlay";
+    root.appendChild(overlay);
+    return overlay;
+  }
+  function renderSectionOverlay(overlay, sectionId, type) {
+    const bounds = getSectionBounds(sectionId);
+    if (!overlay || !bounds) {
+      return;
+    }
+    overlay.style.top = `${Math.max(0, bounds.top + OVERLAY_TOP_OFFSET)}px`;
+    overlay.style.height = `${bounds.height + 8}px`;
+    overlay.style.display = "block";
+    overlay.classList.toggle("spiHelper-section-overlay--preview", type === "preview");
+    overlay.classList.toggle("spiHelper-section-overlay--selected", type === "selected");
+  }
+  function getSectionIdByMenuItem(menuItem, menuItems) {
+    const idResult = /v-\d+-(\d+)/.exec(menuItem.id);
+    if (idResult === null || idResult.length < 2)
+      return null;
+    const optionIndex = Number(idResult[1]);
+    const matchingMenuItem = menuItems[optionIndex - 1];
+    if (!matchingMenuItem || matchingMenuItem.value === "all") {
+      return null;
+    }
+    return typeof matchingMenuItem.value === "number" ? matchingMenuItem.value : null;
+  }
+
+  // src/ui/views/top/actions/sectionAction.ts
+  var SectionActionComponent = defineComponent({
+    props: {
+      allSections: { type: Array, required: true },
+      selectedSection: { type: Object, required: true }
+    },
+    emits: [
+      "update-section-selection"
+    ],
+    data() {
+      return {
+        menuPointerOverHandler: null,
+        menuPointerLeaveHandler: null,
+        menuFocusInHandler: null,
+        activeSectionId: null,
+        overlayType: null,
+        sectionOverlayEl: null
+      };
+    },
+    computed: {
+      canJumpToSelectedSection() {
+        return this.selectedSection !== null && this.selectedSection !== "all";
+      },
+      sectionSelectElement() {
+        const sectionSelect = this.$refs.sectionSelect;
+        return sectionSelect.$el;
+      },
+      menuItems() {
+        const items = this.allSections.map((s) => ({
+          value: s.id,
+          label: s.name
+        }));
+        items.push({ value: "all", label: "All Sections" });
+        return items;
+      }
+    },
+    mounted() {
+      if (!spiHelperSettings.highlightSection) {
+        return;
+      }
+      this.menuPointerOverHandler = (event) => {
+        this.handlePreviewEvent(event);
+      };
+      this.menuPointerLeaveHandler = () => {
+        if (this.overlayType === "preview") {
+          this.clearSectionHighlight();
+        }
+      };
+      this.menuFocusInHandler = (event) => {
+        this.handlePreviewEvent(event);
+      };
+      this.sectionSelectElement.addEventListener("pointerover", this.menuPointerOverHandler);
+      this.sectionSelectElement.addEventListener("pointerleave", this.menuPointerLeaveHandler);
+      this.sectionSelectElement.addEventListener("focusin", this.menuFocusInHandler);
+    },
+    beforeUnmount() {
+      if (this.menuPointerOverHandler) {
+        this.sectionSelectElement.removeEventListener("pointerover", this.menuPointerOverHandler);
+      }
+      if (this.menuPointerLeaveHandler) {
+        this.sectionSelectElement.removeEventListener("pointerleave", this.menuPointerLeaveHandler);
+      }
+      if (this.menuFocusInHandler) {
+        this.sectionSelectElement.removeEventListener("focusin", this.menuFocusInHandler);
+      }
+      this.clearSectionHighlight();
+    },
+    methods: {
+      handleUpdateSectionSelection(selection) {
+        if (spiHelperSettings.highlightSection) {
+          if (selection === "all") {
+            this.clearSectionHighlight();
+          } else if (typeof selection === "number") {
+            this.renderSectionOverlay(selection, "selected");
+          }
+        }
+        this.$emit("update-section-selection", selection);
+      },
+      jumpToSelectedSection() {
+        if (!this.canJumpToSelectedSection) {
+          return;
+        }
+        if (this.selectedSection === null || this.selectedSection === "all") {
+          return;
+        }
+        scrollToSection(this.selectedSection);
+      },
+      getOrCreateSectionOverlay() {
+        this.sectionOverlayEl ??= createSectionOverlay();
+        return this.sectionOverlayEl;
+      },
+      renderSectionOverlay(sectionId, type) {
+        const overlay = this.getOrCreateSectionOverlay();
+        this.overlayType = type;
+        renderSectionOverlay(overlay, sectionId, type);
+      },
+      clearSectionHighlight() {
+        if (this.sectionOverlayEl) {
+          this.sectionOverlayEl.style.display = "none";
+        }
+      },
+      handlePreviewEvent(event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+        const menuItem = target.closest(".cdx-menu-item");
+        if (!menuItem) {
+          return;
+        }
+        const sectionId = getSectionIdByMenuItem(menuItem, this.menuItems);
+        if (sectionId === null) {
+          this.activeSectionId = null;
+          this.clearSectionHighlight();
+          return;
+        }
+        if (sectionId !== this.activeSectionId) {
+          this.renderSectionOverlay(sectionId, "preview");
+        }
+      }
+    },
+    template: `
+    <!-- Sections special case -->
+    <div class="spiHelper-section-selector">
+      <cdx-select :menu-items="menuItems" :selected="selectedSection"
+                  @update:selected="handleUpdateSectionSelection" ref="sectionSelect" />
+      <cdx-button weight="normal" :disabled="!canJumpToSelectedSection" @click="jumpToSelectedSection">
+        Jump to section
+      </cdx-button>
+    </div>
   `
   });
   // src/ui/views/expiryInput.ts
@@ -6677,13 +6901,20 @@ ${comment}
           state: this.state
         });
         this.massAddUserRows(allRows);
+      },
+      launchFeedback() {
+        const viewPretty = this.view.charAt(0).toUpperCase() + this.view.slice(1);
+        this.feedbackDialog.launch({
+          subject: `Feedback from ${mw.config.get("wgUserName")}`,
+          message: `${viewPretty} form v${VERSION}-${MODE}`
+        });
       }
     },
     template: `
     <div id="spiHelper-alternateView" class="spiHelper-mainCard" v-if="open">
       <div id="spiHelper-alternateView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
-          <cdx-button aria-label="Give feedback" weight="quiet" @click="feedbackDialog.launch()">
+          <cdx-button aria-label="Give feedback" weight="quiet" @click="launchFeedback">
             <cdx-icon :icon="cdxIconFeedback" />
           </cdx-button>
           <cdx-button :action="unpinned ? 'default': 'progressive'" aria-label="Toggle pin"
@@ -6896,7 +7127,7 @@ ${comment}
               state: caseState,
               feedbackDialog,
               openButton: initLink
-            }).component("cdx-tabs", Codex.CdxTabs).component("cdx-tab", Codex.CdxTab).component("cdx-select", Codex.CdxSelect).component("cdx-card", Codex.CdxCard).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-text-area", Codex.CdxTextArea).component("cdx-toggle-button", Codex.CdxToggleButton).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("cdx-button", Codex.CdxButton).component("cdx-button-group", Codex.CdxButtonGroup).component("cdx-icon", Codex.CdxIcon).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-lookup", Codex.CdxLookup).component("cdx-field", Codex.CdxField).component("cdx-message", Codex.CdxMessage).component("cdx-progress-bar", Codex.CdxProgressBar).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-accordion", Codex.CdxAccordion).component("cdx-label", Codex.CdxLabel).component("cdx-popover", Codex.CdxPopover).component("action-accordion", ActionAccordionComponent).component("action-button", ActionButtonComponent).component("action-container", ActionContainerComponent).component("action-content", ActionContentComponent).component("submit-form", SubmitFormComponent).component("comment-action", CommentActionComponent).component("change-status-action", ChangeStatusActionComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("management-action", ManagementActionComponent).component("archive-action", ArchiveActionComponent).component("move-action", MoveActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).component("tag-popover", TagPopoverComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
+            }).component("cdx-tabs", Codex.CdxTabs).component("cdx-tab", Codex.CdxTab).component("cdx-select", Codex.CdxSelect).component("cdx-card", Codex.CdxCard).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-text-area", Codex.CdxTextArea).component("cdx-toggle-button", Codex.CdxToggleButton).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("cdx-button", Codex.CdxButton).component("cdx-button-group", Codex.CdxButtonGroup).component("cdx-icon", Codex.CdxIcon).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-lookup", Codex.CdxLookup).component("cdx-field", Codex.CdxField).component("cdx-message", Codex.CdxMessage).component("cdx-progress-bar", Codex.CdxProgressBar).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-accordion", Codex.CdxAccordion).component("cdx-label", Codex.CdxLabel).component("cdx-popover", Codex.CdxPopover).component("action-accordion", ActionAccordionComponent).component("action-button", ActionButtonComponent).component("action-container", ActionContainerComponent).component("action-content", ActionContentComponent).component("submit-form", SubmitFormComponent).component("comment-action", CommentActionComponent).component("change-status-action", ChangeStatusActionComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("management-action", ManagementActionComponent).component("archive-action", ArchiveActionComponent).component("move-action", MoveActionComponent).component("section-action", SectionActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).component("tag-popover", TagPopoverComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
             break;
           }
           case "checkuser": {

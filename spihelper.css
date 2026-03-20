@@ -1,5 +1,5 @@
 /* {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.css}} */
-/* v3.1.4 */
+/* v3.2.0 */
 /* src/spihelper.css */
 .spihelper-hovertext {
   text-decoration: underline dotted;
@@ -95,6 +95,31 @@
   display: flex;
   flex-direction: column;
   gap: .75em;
+}
+
+.spiHelper-section-selector {
+  display: flex;
+  gap: 8px;
+  max-width: 560px;
+}
+
+.spiHelper-section-overlay {
+  position: absolute;
+  pointer-events: none;
+  z-index: -1;
+  border-radius: 4px;
+  left: -12px;
+  right: -12px;
+}
+
+.spiHelper-section-overlay--selected {
+  border: 3px solid var(--border-color-progressive, #36c);
+  background-color: var(--background-color-progressive-subtle, #e8f1ff);
+}
+
+.spiHelper-section-overlay--preview {
+  border: 1px dashed var(--border-color-progressive, #36c);
+  background-color: var(--background-color-progressive-subtle, #f3f7ff);
 }
 
 #contentRow > div.is-visible ~ div.is-visible {
