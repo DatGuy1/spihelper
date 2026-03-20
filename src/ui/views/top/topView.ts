@@ -34,11 +34,14 @@ import { normalizeCaseStatus } from './utils/status.ts';
 import { OpState, finishOp, getOpState, isOpRunning, startOp } from '../../../operations.ts';
 import { spiHelperPerformActions } from '../../../caseActions.ts';
 import { VueMessage, messages } from '../../messages.ts';
+import { AllSectionActions, AlwaysAvailableActions, SpecificSectionActions } from './utils/setup.ts';
 
 interface Data {
   open: boolean;
-  openHandler: ((e: Event) => void) | null;
-  beforeUnloadHandler: ((e: Event) => void) | null;
+  handlers: {
+    openHandler: ((e: Event) => void) | null;
+    beforeUnloadHandler: ((e: Event) => void) | null;
+  };
   actionsRunning: boolean;
   displayedForms: Set<CaseActionName>;
   icons: {
@@ -69,8 +72,10 @@ export const TopViewComponent = defineComponent({
 
     return {
       open: false,
-      openHandler: null,
-      beforeUnloadHandler: null,
+      handlers: {
+        openHandler: null,
+        beforeUnloadHandler: null,
+      },
       actionsRunning: false,
       displayedForms: new Set(['sections']),
       unpinned: !spiHelperSettings.interface.pinned,
@@ -81,10 +86,12 @@ export const TopViewComponent = defineComponent({
       caseActions: getInitialCaseActions(),
       accounts: [],
       messages,
-      cdxIconPushPin,
-      cdxIconCollapse,
-      cdxIconExpand,
-      cdxIconFeedback,
+      icons: {
+        cdxIconPushPin,
+        cdxIconCollapse,
+        cdxIconExpand,
+        cdxIconFeedback,
+      },
     };
   },
   computed: {
@@ -95,17 +102,6 @@ export const TopViewComponent = defineComponent({
       }));
       items.push({ value: 'all', label: 'All Sections' });
       return items;
-    },
-    currentStatus(): string {
-      const statuses = this.caseActions.status.data;
-      switch (statuses.new) {
-        case 'nochange':
-          return statuses.old;
-        case 'selfendorse':
-          return 'endorse';
-        default:
-          return statuses.new;
-      }
     },
     allDisabled(): boolean {
       for (const [name, action] of Object.entries(this.caseActions)) {
@@ -211,7 +207,7 @@ export const TopViewComponent = defineComponent({
       this.mountPoint.classList.remove('unpinned');
     }
 
-    this.beforeUnloadHandler = (e) => {
+    this.handlers.beforeUnloadHandler = (e) => {
       const opState = getOpState('mainActions');
       // If we have actions enabled, and we haven't run (undefined), warn the user
       if (!this.allDisabled && opState !== OpState.Success) {
@@ -219,28 +215,28 @@ export const TopViewComponent = defineComponent({
       }
     };
 
-    this.openHandler = () => {
+    this.handlers.openHandler = () => {
       this.open = !this.open;
       if (this.open) {
         mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'open', type: 'top' });
-      }
-      if (this.beforeUnloadHandler) {
-        if (this.open) {
-          window.addEventListener('beforeunload', this.beforeUnloadHandler);
+        if (this.handlers.beforeUnloadHandler) {
+          window.addEventListener('beforeunload', this.handlers.beforeUnloadHandler);
         }
-        else {
-          window.removeEventListener('beforeunload', this.beforeUnloadHandler);
+      }
+      else {
+        if (this.handlers.beforeUnloadHandler) {
+          window.removeEventListener('beforeunload', this.handlers.beforeUnloadHandler);
         }
       }
     };
-    this.openButton.addEventListener('click', this.openHandler);
+    this.openButton.addEventListener('click', this.handlers.openHandler);
   },
   beforeUnmount() {
-    if (this.openHandler) {
-      this.openButton.removeEventListener('click', this.openHandler);
+    if (this.handlers.openHandler) {
+      this.openButton.removeEventListener('click', this.handlers.openHandler);
     }
-    if (this.beforeUnloadHandler) {
-      window.removeEventListener('beforeunload', this.beforeUnloadHandler);
+    if (this.handlers.beforeUnloadHandler) {
+      window.removeEventListener('beforeunload', this.handlers.beforeUnloadHandler);
     }
   },
   methods: {
@@ -451,14 +447,14 @@ export const TopViewComponent = defineComponent({
       <div id="spiHelper-topView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
           <cdx-button aria-label="Give feedback" weight="quiet" @click="feedbackDialog.launch()">
-            <cdx-icon :icon="cdxIconFeedback" />
+            <cdx-icon :icon="icons.cdxIconFeedback" />
           </cdx-button>
           <cdx-button aria-label="Toggle layout" weight="quiet" @click="toggleButtonLayout">
-            <cdx-icon :icon="buttonLayout ? cdxIconExpand : cdxIconCollapse" />
+            <cdx-icon :icon="buttonLayout ? icons.cdxIconExpand : icons.cdxIconCollapse" />
           </cdx-button>
           <cdx-button :action="unpinned ? 'default': 'progressive'" aria-label="Toggle pin"
                       weight="quiet" @click="unpinned = !unpinned">
-            <cdx-icon :icon="cdxIconPushPin" />
+            <cdx-icon :icon="icons.cdxIconPushPin" />
           </cdx-button>
         </div>
       </div>
@@ -486,7 +482,6 @@ export const TopViewComponent = defineComponent({
                 :accounts="accounts"
                 :state="state"
                 :menu-items="menuItems"
-                :current-status="currentStatus"
                 @update-section-selection="onUpdateSectionSelection"
                 @update-status="onUpdateNewStatus"
                 @user-selected="handleUserSelected"
@@ -515,7 +510,6 @@ export const TopViewComponent = defineComponent({
               :accounts="accounts"
               :state="state"
               :menu-items="menuItems"
-              :current-status="currentStatus"
               @update-section-selection="onUpdateSectionSelection"
               @update-status="onUpdateNewStatus"
               @user-selected="handleUserSelected"
