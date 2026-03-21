@@ -264,7 +264,7 @@ export function rebuildArchiveText(originalText: string, sections: ArchiveSectio
 
 export function getContentStartIndex(archiveText: string) {
   const firstSectionMatch = spiHelperSectionRegex.exec(archiveText);
-  return firstSectionMatch?.index ?? 0;
+  return firstSectionMatch?.index ?? archiveText.length;
 }
 
 export function parseArchiveSections(
