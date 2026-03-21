@@ -29,7 +29,7 @@ export class SpiPageContext {
     this.userName = spiHelperNormalizeUsername(this.caseName);
     this.casePageName = 'Wikipedia:Sockpuppet investigations/' + this.caseName;
     this.archiveName = pageName + '/Archive';
-    this.valid = !!pageName.trim();
+    this.valid = !!this.caseName.trim();
     if (currentPage) {
       this.startingRevId = mw.config.get('wgCurRevisionId');
     }

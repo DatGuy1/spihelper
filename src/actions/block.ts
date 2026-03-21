@@ -55,7 +55,10 @@ function buildTalkNotice(opts: {
 function buildBlockSummary(
   blockOptions: BlockOptions, isIP: boolean, isIPRange: boolean, acb: boolean,
 ) {
-  let blockSummary = `Abusing [[WP:SOCK|multiple accounts]]: Please see: [[${context.prefixedName}]]`;
+  let blockSummary = 'Abusing [[WP:SOCK|multiple accounts]]';
+  if (context.valid) {
+    blockSummary += `: Please see: [[${context.prefixedName}]]`;
+  }
   if (spiHelperIsCheckuser() && blockOptions.cuBlock) {
     const cuBlockTemplate = isIP ? '{{checkuserblock}}' : '{{checkuserblock-account}}';
     if (blockOptions.cuBlockOnly) {
