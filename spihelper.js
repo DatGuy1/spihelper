@@ -1467,7 +1467,7 @@
       this.userName = spiHelperNormalizeUsername(this.caseName);
       this.casePageName = "Wikipedia:Sockpuppet investigations/" + this.caseName;
       this.archiveName = pageName + "/Archive";
-      this.valid = !!pageName.trim();
+      this.valid = !!this.caseName.trim();
       if (currentPage) {
         this.startingRevId = mw.config.get("wgCurRevisionId");
       } else {
@@ -3474,7 +3474,10 @@ $2`);
     return newText;
   }
   function buildBlockSummary(blockOptions, isIP, isIPRange, acb) {
-    let blockSummary = `Abusing [[WP:SOCK|multiple accounts]]: Please see: [[${context.prefixedName}]]`;
+    let blockSummary = "Abusing [[WP:SOCK|multiple accounts]]";
+    if (context.valid) {
+      blockSummary += `: Please see: [[${context.prefixedName}]]`;
+    }
     if (spiHelperIsCheckuser() && blockOptions.cuBlock) {
       const cuBlockTemplate = isIP ? "{{checkuserblock}}" : "{{checkuserblock-account}}";
       if (blockOptions.cuBlockOnly) {
