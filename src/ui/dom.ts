@@ -1,7 +1,5 @@
 import type { MenuItemData } from '@wikimedia/codex';
 
-const OVERLAY_TOP_OFFSET = 45;
-
 export type SectionOverlayType = 'selected' | 'preview';
 
 function getSectionContainer(sectionId: number): JQuery | null {
@@ -68,7 +66,7 @@ export function renderSectionOverlay(overlay: HTMLElement | null, sectionId: num
   if (!overlay || !bounds) {
     return;
   }
-  overlay.style.top = `${Math.max(0, bounds.top + OVERLAY_TOP_OFFSET)}px`;
+  overlay.style.top = `${Math.max(0, bounds.top)}px`;
   overlay.style.height = `${bounds.height + 8}px`;
   overlay.style.display = 'block';
   overlay.classList.toggle('spiHelper-section-overlay--preview', type === 'preview');

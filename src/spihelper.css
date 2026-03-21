@@ -103,6 +103,13 @@
     max-width: 560px;
 }
 
+/* Absolute overlay children are positioned against this box; without this, the
+   containing block varies by skin/CSS and a fixed pixel fudge is needed per wiki.
+   Not a big fan of modifying the skin's style in general */
+.mw-parser-output:has(> .spiHelper-section-overlay) {
+    position: relative;
+}
+
 .spiHelper-section-overlay {
     position: absolute;
     left: -12px;
