@@ -103,6 +103,10 @@
   max-width: 560px;
 }
 
+.mw-parser-output:has( > .spiHelper-section-overlay) {
+  position: relative;
+}
+
 .spiHelper-section-overlay {
   position: absolute;
   pointer-events: none;

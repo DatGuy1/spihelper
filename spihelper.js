@@ -471,7 +471,7 @@
   }
   function getContentStartIndex(archiveText) {
     const firstSectionMatch = spiHelperSectionRegex.exec(archiveText);
-    return firstSectionMatch?.index ?? 0;
+    return firstSectionMatch?.index ?? archiveText.length;
   }
   function parseArchiveSections(archiveText, sectionEntries) {
     const sectionsResult = [];
@@ -973,7 +973,7 @@
       }
       const dateSections = [];
       for (const section of response.parse.tocdata.sections) {
-        if (section.tocLevel === 2) {
+        if (section.tocLevel === 2 || section.hLevel === 3) {
           dateSections.push(new SectionEntry(parseInt(section.index), section.line));
         }
       }
@@ -5796,7 +5796,6 @@ ${comment}
   `
   });
   // src/ui/dom.ts
-  var OVERLAY_TOP_OFFSET = 45;
   function getSectionContainer(sectionId) {
     const sectionLink = $(`a[href$="section=${sectionId}"]`).first();
     if (sectionLink.length === 0) {
@@ -5853,7 +5852,7 @@ ${comment}
     if (!overlay || !bounds) {
       return;
     }
-    overlay.style.top = `${Math.max(0, bounds.top + OVERLAY_TOP_OFFSET)}px`;
+    overlay.style.top = `${Math.max(0, bounds.top)}px`;
     overlay.style.height = `${bounds.height + 8}px`;
     overlay.style.display = "block";
     overlay.classList.toggle("spiHelper-section-overlay--preview", type === "preview");
