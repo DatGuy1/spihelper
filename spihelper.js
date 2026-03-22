@@ -3961,8 +3961,7 @@ $1`);
   function spiHelperHandleComment(targetText, comment) {
     if (!targetText.includes(`
 ----`)) {
-      targetText.replace("<!--- All comments go ABOVE this line, please. -->", "");
-      targetText.replace("<!-- All comments go ABOVE this line, please. -->", "");
+      targetText.replace(/<!-+ All comments go ABOVE this line, please. -+>/, "");
       targetText += `
 ----<!-- All comments go ABOVE this line, please. -->`;
     }
@@ -4260,7 +4259,7 @@ ${comment}
             await this.ensureArchiveNotice();
             await this.loadNewSection(firstSection);
           } else {
-            this.caseActions.sections.data.section = "all";
+            await this.onUpdateSectionSelection("all");
           }
         }
       },
