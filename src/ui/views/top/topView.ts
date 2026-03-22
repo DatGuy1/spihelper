@@ -153,7 +153,7 @@ export const TopViewComponent = defineComponent({
           await this.loadNewSection(firstSection);
         }
         else {
-          this.caseActions.sections.data.section = 'all';
+          await this.onUpdateSectionSelection('all');
         }
       }
     },
