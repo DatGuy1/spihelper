@@ -15,7 +15,7 @@ export class SpiPageContext {
   readonly casePageName: string;
   readonly isArchive: boolean;
   // Whether the SPI page is valid. Currently only if the page isn't empty
-  readonly valid: boolean;
+  valid: boolean;
   // used to check if the page has been edited since we opened it to prevent edit conflicts
   startingRevId: number;
 
@@ -29,6 +29,7 @@ export class SpiPageContext {
     this.userName = spiHelperNormalizeUsername(this.caseName);
     this.casePageName = 'Wikipedia:Sockpuppet investigations/' + this.caseName;
     this.archiveName = pageName + '/Archive';
+    // I'd like to make valid an API call, but then I'd have to make it async
     this.valid = !!this.caseName.trim();
     if (currentPage) {
       this.startingRevId = mw.config.get('wgCurRevisionId');

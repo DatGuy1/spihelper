@@ -236,6 +236,7 @@ export const AlternateViewComponent = defineComponent({
           page: this.pageName,
           state: this.state,
         });
+        context.valid = archiveNoticeResult !== null;
         if (archiveNoticeResult === null) {
           // No archive notice was found, initialise default
           this.state.archiveNotice = new ParsedArchiveNotice({ username: this.targetCase });
@@ -270,6 +271,9 @@ export const AlternateViewComponent = defineComponent({
             this.accounts.splice(oldIndex, 1, userRow);
           }
         }
+      }
+      else {
+        context.valid = false;
       }
       this.blockData.master = this.targetCase;
 
