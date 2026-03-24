@@ -1,5 +1,5 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
-// v3.2.0
+// v3.2.1
 // <nowiki>
 'use strict';
 (() => {
@@ -678,7 +678,7 @@
     showUseragentCheckbox: true,
     useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
   };
-  var VERSION = "3.2.0";
+  var VERSION = "3.2.1";
   var MODE = "dev";
   var spiHelperDefaultSettings = {
     watch: {
@@ -713,6 +713,9 @@
       buttonLayout: false
     },
     highlightSection: true,
+    custom: {
+      commentTemplates: []
+    },
     debug: {
       enabled: false,
       forceCheckuser: false,
@@ -1829,6 +1832,7 @@
 
   // node_modules/@wikimedia/codex-icons/dist/codex-icons.js
   var M = '<path d="M11 9V4H9v5H4v2h5v5h2v-5h5V9z"/>';
+  var L = '<path d="m2 10 1.42-1.41L9 14.17V2h2v12.17l5.59-5.58L18 10l-8 8z"/>';
   var r1 = '<path d="M10 0a10 10 0 1010 10A10 10 0 0010 0m2.5 14.5L9 11V4h2v6l3 3z"/>';
   var z1 = '<path d="m4.34 2.93 12.73 12.73-1.41 1.41L2.93 4.35z"/><path d="M17.07 4.34 4.34 17.07l-1.41-1.41L15.66 2.93z"/>';
   var i1 = '<path id="cdx-icon-code-a" d="M1 10.08V8.92h1.15c1.15 0 1.15 0 1.15-1.15V5a7.4 7.4 0 01.09-1.3 2 2 0 01.3-.7 1.84 1.84 0 01.93-.68A6.4 6.4 0 016.74 2h1.18v1.15h-.86A1.32 1.32 0 006 3.62a1.7 1.7 0 00-.36 1.23V7a3.2 3.2 0 01-.28 1.72 2 2 0 01-1.26.77 2.15 2.15 0 011.26.79A3.26 3.26 0 015.62 12v3.15A1.67 1.67 0 006 16.37a1.31 1.31 0 001.08.47h.87V18H6.74a6.3 6.3 0 01-2.12-.29 1.82 1.82 0 01-.93-.71 1.9 1.9 0 01-.3-.72A7.5 7.5 0 013.31 15v-3.77c0-1.15 0-1.15-1.15-1.15zm18 0V8.92h-1.15c-1.15 0-1.15 0-1.15-1.15V5a7.4 7.4 0 00-.08-1.32 2 2 0 00-.3-.73 1.84 1.84 0 00-.93-.68A6.4 6.4 0 0013.26 2h-1.18v1.15h.87a1.32 1.32 0 011.05.47 1.7 1.7 0 01.36 1.23V7a3.2 3.2 0 00.28 1.72 2 2 0 001.26.77 2.15 2.15 0 00-1.26.79 3.26 3.26 0 00-.26 1.72v3.15a1.67 1.67 0 01-.38 1.22 1.31 1.31 0 01-1.08.47h-.87V18h1.19a6.3 6.3 0 002.12-.29 1.82 1.82 0 00.93-.68 1.9 1.9 0 00.3-.72 7.5 7.5 0 00.1-1.31v-3.77c0-1.15 0-1.15 1.15-1.15z"/><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#cdx-icon-code-a" transform="matrix(-1 0 0 1 20 0)"/>';
@@ -1838,6 +1842,7 @@
   var q1 = '<path d="m17.5 4.75-7.5 7.5-7.5-7.5L1 6.25l9 9 9-9z"/>';
   var Z1 = '<path d="M19 16 2 12a3.83 3.83 0 01-1-2.5A3.83 3.83 0 012 7l17-4z"/><rect width="4" height="8" x="4" y="9" rx="2"/>';
   var A0 = '<path d="M2 18.5A1.5 1.5 0 003.5 20H5V0H3.5A1.5 1.5 0 002 1.5zM6 0v20h10a2 2 0 002-2V2a2 2 0 00-2-2zm7 8H8V7h5zm3-2H8V5h8z"/>';
+  var S0 = '<path d="M8 12V1H1v18h18v-7z"/><path d="M11 1v8h8V1zm6 6h-4V3h4z"/>';
   var B2 = '<path d="M13 15v2a3 3 0 01-3 3 10 10 0 1110-10 5 5 0 01-5 5ZM3 8.5a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0m3-4a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0m5 0a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0m3 4a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0"/>';
   var Z2 = '<path d="M3 3h8v2h2V3c0-1.1-.895-2-2-2H3c-1.1 0-2 .895-2 2v8c0 1.1.895 2 2 2h2v-2H3zm4 12v2c0 1.1.895 2 2 2h8c1.1 0 2-.895 2-2V9c0-1.1-.895-2-2-2h-2v2h2v8H9v-2z"/><path d="M10 5H8v3H5v2h3v3h2v-3h3V8h-3z"/>';
   var E2 = '<path d="M13 8V2a2 2 0 002-2H5a2 2 0 002 2v6H6a2 2 0 00-2 2v1h5v5l1 4 1-4v-5h5v-1a2 2 0 00-2-2z"/>';
@@ -1848,6 +1853,7 @@
   var l3 = '<path d="M10 8c1.7 0 3.06-1.35 3.06-3S11.7 2 10 2 6.94 3.35 6.94 5 8.3 8 10 8m0 2c-2.8 0-5.06-2.24-5.06-5S7.2 0 10 0s5.06 2.24 5.06 5-2.26 5-5.06 5m-7 8h14v-1.33c0-1.75-2.31-3.56-7-3.56s-7 1.81-7 3.56zm7-6.89c6.66 0 9 3.33 9 5.56V20H1v-3.33c0-2.23 2.34-5.56 9-5.56"/>';
   var V3 = '<path d="M1 3h16v2H1Zm0 6h6v2H1Zm0 6h8v2H1Zm8-4.24h3.85L14.5 7l1.65 3.76H20l-3 3.17.9 4.05-3.4-2.14L11.1 18l.9-4.05Z"/>';
   var k3 = M;
+  var b3 = L;
   var d4 = r1;
   var e4 = z1;
   var r4 = i1;
@@ -1864,6 +1870,10 @@
   };
   var z6 = {
     ltr: A0,
+    shouldFlip: true
+  };
+  var H6 = {
+    ltr: S0,
     shouldFlip: true
   };
   var u7 = {
@@ -1887,6 +1897,144 @@
     ltr: V3,
     shouldFlip: true
   };
+
+  // src/ui/utils.ts
+  function getSockEntries(opts) {
+    const { text, fullSearch, state } = opts;
+    const likelySocks = fullSearch ? [generateUserRow(context.caseName, state)] : [];
+    const possibleSocks = [];
+    const allUsernames = fullSearch ? new Set([context.caseName]) : new Set;
+    if (fullSearch) {
+      let $searchOrigin = $(document);
+      if (state.selectedSection?.type === "specific") {
+        $searchOrigin = $(`a[href$="section=${state.selectedSection.section.id}"]`).parentsUntil(":has(hr)").last().nextUntil("hr");
+      }
+      const sockList = $searchOrigin.find(".cuEntry").find("a:first");
+      for (const entryElement of sockList) {
+        const username = spiHelperNormalizeUsername($(entryElement).text());
+        if (allUsernames.has(username)) {
+          continue;
+        }
+        likelySocks.push(generateUserRow(username, state));
+        allUsernames.add(username);
+      }
+    }
+    const isRelevantTemplate = (templateName) => {
+      return /sock ?list/.exec(templateName) !== null || ["ip", "vandal", "user", "noping"].some((t) => templateName.includes(t));
+    };
+    const allTemplates = parseTemplates(text);
+    for (const template of allTemplates) {
+      if (isRelevantTemplate(template.name)) {
+        const templateUsernames = fetchTemplateArguments(template);
+        for (const templateUsername of templateUsernames) {
+          const username = spiHelperNormalizeUsername(templateUsername);
+          if (!allUsernames.has(username)) {
+            possibleSocks.push(generateUserRow(username, state));
+            allUsernames.add(username);
+          }
+        }
+      }
+    }
+    return [likelySocks, possibleSocks, allUsernames];
+  }
+  function generateUserRow(username, state) {
+    if (mw.util.isIPAddress(username, true)) {
+      if (spiHelperSettings.interface.displayIPv6As64 && mw.util.isIPv6Address(username, false)) {
+        return {
+          ...getDefaultUserRow(state.archiveNotice),
+          username: buildIPBlock(username)
+        };
+      } else {
+        return { ...getDefaultUserRow(state.archiveNotice), username };
+      }
+    } else {
+      return { ...getDefaultUserRow(state.archiveNotice), username };
+    }
+  }
+  function buildIPBlock(fullIP) {
+    if (!mw.util.isIPv6Address(fullIP, false)) {
+      return fullIP;
+    }
+    return fullIP.split(":").slice(0, 4).concat("0", "0", "0", "0").join(":") + "/64";
+  }
+  function getDefaultUserRow(archiveNotice) {
+    const newRow = {
+      id: crypto.randomUUID(),
+      username: "",
+      block: setupDefaultBlockRowData(),
+      link: { ...DefaultLinkRowData }
+    };
+    if (archiveNotice) {
+      if (archiveNotice.crosswiki) {
+        newRow.block.lock = true;
+      }
+      if (archiveNotice.notalk) {
+        newRow.block.nem = true;
+        newRow.block.ntp = true;
+      }
+    }
+    newRow.block.duration = spiHelperSettings.interface.defaultBlockDuration;
+    return newRow;
+  }
+  function updateUserBlockDataSettings(opts) {
+    const { userRow, currentBlock, userPage, defaultBlock } = opts;
+    if (currentBlock) {
+      userRow.block.block = true;
+      userRow.block.acb = currentBlock.acb;
+      userRow.block.abao = currentBlock.abao;
+      userRow.block.ntp = currentBlock.ntp;
+      userRow.block.nem = currentBlock.nem;
+      userRow.block.duration = currentBlock.duration;
+    } else {
+      userRow.block.block = defaultBlock;
+      if (mw.util.isIPAddress(userRow.username, true)) {
+        userRow.block.duration = "1 week";
+      }
+    }
+    if (userPage) {
+      userRow.block.tags = parseUserTags(userPage);
+    }
+    return userRow;
+  }
+  var isMenuGroupData = (item) => ("items" in item);
+  async function setUserRowBlockData(opts) {
+    const { block: blockSetting, userPage, defaultBlock, checkLock, state } = opts;
+    const userRow = updateUserBlockDataSettings({
+      userRow: opts.userRow,
+      defaultBlock,
+      currentBlock: blockSetting,
+      userPage
+    });
+    let isLocked = null;
+    if (checkLock) {
+      const globalUser = await spiHelperGetGlobalUser(userRow.username);
+      if (globalUser) {
+        isLocked = globalUser.locked;
+        if (globalUser.locked || state.archiveNotice?.crosswiki) {
+          userRow.block.lock = true;
+        } else {
+          userRow.block.lock = false;
+        }
+      }
+    }
+    return { userRow, isLocked };
+  }
+  function pruneMenuData(nodes) {
+    return nodes.map((node) => {
+      if (isMenuGroupData(node)) {
+        const cleanedItems = pruneMenuData(node.items);
+        if (cleanedItems.length === 0)
+          return null;
+        return {
+          ...node,
+          items: cleanedItems
+        };
+      }
+      if (!node.value)
+        return null;
+      return node;
+    }).filter((node) => node !== null);
+  }
 
   // src/ui/views/options/modal.ts
   var OptionsComponent = defineComponent({
@@ -1916,14 +2064,18 @@
         caseActionMenuItems,
         selectedChipItems: spiHelperSettings.defaultActions,
         icons: {
-          cdxIconWatchlist: t9,
+          cdxIconAdd: k3,
+          cdxIconArrowDown: b3,
           cdxIconClock: d4,
           cdxIconClose: e4,
           cdxIconCode: r4,
           cdxIconFeedback: q4,
           cdxIconJournal: z6,
+          cdxIconLayout: H6,
           cdxIconPalette: u7,
-          cdxIconReload: U7
+          cdxIconReload: U7,
+          cdxIconTrash: F8,
+          cdxIconWatchlist: t9
         },
         spiHelperSettings,
         resetTrigger: 0
@@ -2004,6 +2156,7 @@
       }
     },
     methods: {
+      isMenuGroupData,
       loadDefaults() {
         this.spiHelperSettings = JSON.parse(JSON.stringify(spiHelperDefaultSettings));
         Object.assign(spiHelperSettings, spiHelperDefaultSettings);
@@ -2015,6 +2168,23 @@
           subject: `Feedback from ${mw.config.get("wgUserName")}`,
           message: `Options form v${VERSION}-${MODE}`
         });
+      },
+      removeTemplateEntry(index) {
+        this.spiHelperSettings.custom.commentTemplates.splice(index, 1);
+      },
+      addTemplateEntry(type) {
+        if (type === "item") {
+          this.spiHelperSettings.custom.commentTemplates.push({ label: "", value: "" });
+        } else {
+          this.spiHelperSettings.custom.commentTemplates.push({ label: "", items: [] });
+        }
+      },
+      moveDown(arr, index) {
+        if (index < 0 || index >= arr.length - 1)
+          return arr;
+        const temp = arr[index + 1];
+        arr[index + 1] = arr[index];
+        arr[index] = temp;
       }
     },
     template: `
@@ -2088,7 +2258,7 @@
           </p>
         </div>
       </cdx-accordion>
-      <cdx-accordion :action-icon="icons.cdxIconPalette" :action-always-visible="true">
+      <cdx-accordion :action-icon="icons.cdxIconLayout" :action-always-visible="true">
         <template #title>Interface</template>
         <cdx-toggle-switch v-model="spiHelperSettings.interface.displayIPv6As64" :align-switch="true">
           Display IPv6 as /64
@@ -2099,7 +2269,68 @@
           <template #description>Include the entire section's text when previewing comments</template>
         </cdx-toggle-switch>
         <expiry-setting label="Default block duration" v-model="spiHelperSettings.interface.defaultBlockDuration"
-        :reset-trigger="resetTrigger" />
+                        :reset-trigger="resetTrigger" />
+      </cdx-accordion>
+      <cdx-accordion :action-icon="icons.cdxIconPalette" :action-always-visible="true">
+        <template #title>Customisation</template>
+        <div>
+          <h3 style="padding-top: 0;">Comment templates</h3>
+          <div class="spiHelper-template-container">
+            <div v-for="(entry, i) in spiHelperSettings.custom.commentTemplates" :key="i" class="spiHelper-template">
+              <div v-if="isMenuGroupData(entry)">
+                <div class="spiHelper-template-input">
+                  <cdx-text-input v-model="entry.label" placeholder="Group label" />
+                  <cdx-button @click="moveDown(spiHelperSettings.custom.commentTemplates, i)"
+                              aria-label="Move group down"
+                              :disabled="spiHelperSettings.custom.commentTemplates.length <= i + 1">
+                    <cdx-icon :icon="icons.cdxIconArrowDown" />
+                  </cdx-button>
+                  <cdx-button @click="entry.items.push({ label: '', value: '' })" action="progressive"
+                              aria-label="Add item to group">
+                    <cdx-icon :icon="icons.cdxIconAdd" />
+                  </cdx-button>
+                  <cdx-button @click="removeTemplateEntry(i)" action="destructive" aria-label="Delete group">
+                    <cdx-icon :icon="icons.cdxIconTrash" />
+                  </cdx-button>
+                </div>
+                <div v-for="(item, j) in entry.items" :key="j"
+                     class="spiHelper-template-group-item spiHelper-template-input">
+                  <cdx-text-input v-model="item.label" placeholder="Label" />
+                  <page-lookup v-model="item.value" placeholder="Template (no brackets)" :namespace="10"
+                               :validate-message="false" />
+                  <cdx-button @click="moveDown(entry.items, j)" aria-label="Move item down"
+                              :disabled="entry.items.length <= j + 1">
+                    <cdx-icon :icon="icons.cdxIconArrowDown" />
+                  </cdx-button>
+                  <cdx-button @click="entry.items.splice(j, 1)" action="destructive" aria-label="Delete item">
+                    <cdx-icon :icon="icons.cdxIconTrash" />
+                  </cdx-button>
+                </div>
+              </div>
+              <div v-else class="spiHelper-template-input">
+                <cdx-text-input v-model="entry.label" placeholder="Label" />
+                <page-lookup v-model="entry.value" placeholder="Template (no brackets)" :namespace="10"
+                             :validate-message="false" />
+                <cdx-button @click="moveDown(spiHelperSettings.custom.commentTemplates, i)" aria-label="Move item down"
+                            :disabled="spiHelperSettings.custom.commentTemplates.length <= i + 1">
+                  <cdx-icon :icon="icons.cdxIconArrowDown" />
+                </cdx-button>
+                <cdx-button @click="removeTemplateEntry(i)" action="destructive" aria-label="Delete item">
+                  <cdx-icon :icon="icons.cdxIconTrash" />
+                </cdx-button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <cdx-button @click="addTemplateEntry('item')" action="progressive">
+          <cdx-icon :icon="icons.cdxIconAdd" />
+          Add item
+        </cdx-button>
+        <cdx-button @click="addTemplateEntry('group')" action="progressive">
+          <cdx-icon :icon="icons.cdxIconAdd" />
+          Add group
+        </cdx-button>
       </cdx-accordion>
       <cdx-accordion :action-icon="icons.cdxIconCode" :action-always-visible="true" v-if="showExtra">
         <template #title>Debug</template>
@@ -2412,7 +2643,8 @@
       "user-selected",
       "remove-rows",
       "add-row",
-      "fetch-rows"
+      "fetch-rows",
+      "move-entire-case"
     ],
     computed: {
       caseName() {
@@ -2437,6 +2669,9 @@
       },
       handleFetchRows() {
         this.$emit("fetch-rows");
+      },
+      handleMoveEntireCase() {
+        this.$emit("move-entire-case");
       }
     },
     template: `
@@ -2465,7 +2700,8 @@
                        v-model:flags="caseActions.management.data.flags" />
     <move-action v-else-if="name === 'move'" v-model:enabled="caseActions.move.enabled"
                  v-model:target="caseActions.move.data.target" v-model:suppress="caseActions.move.data.suppress"
-                 :selection="state.selectedSection" :archive-enabled="caseActions.archive.enabled" />
+                 :selection="state.selectedSection" :archive-enabled="caseActions.archive.enabled"
+                 @move-entire-case="handleMoveEntireCase" />
     <archive-action v-else-if="name === 'archive'" v-model:enabled="caseActions.archive.enabled"
                     :selection="caseActions.sections.data.section"
                     :status-data="caseActions.status.data" />
@@ -2672,128 +2908,6 @@
       }
     }
     return new ParsedArchiveNotice({ username, ...flags });
-  }
-
-  // src/ui/utils.ts
-  function getSockEntries(opts) {
-    const { text, fullSearch, state } = opts;
-    const likelySocks = fullSearch ? [generateUserRow(context.caseName, state)] : [];
-    const possibleSocks = [];
-    const allUsernames = fullSearch ? new Set([context.caseName]) : new Set;
-    if (fullSearch) {
-      let $searchOrigin = $(document);
-      if (state.selectedSection?.type === "specific") {
-        $searchOrigin = $(`a[href$="section=${state.selectedSection.section.id}"]`).parentsUntil(":has(hr)").last().nextUntil("hr");
-      }
-      const sockList = $searchOrigin.find(".cuEntry").find("a:first");
-      for (const entryElement of sockList) {
-        const username = spiHelperNormalizeUsername($(entryElement).text());
-        if (allUsernames.has(username)) {
-          continue;
-        }
-        likelySocks.push(generateUserRow(username, state));
-        allUsernames.add(username);
-      }
-    }
-    const isRelevantTemplate = (templateName) => {
-      return /sock ?list/.exec(templateName) !== null || ["ip", "vandal", "user", "noping"].some((t) => templateName.includes(t));
-    };
-    const allTemplates = parseTemplates(text);
-    for (const template of allTemplates) {
-      if (isRelevantTemplate(template.name)) {
-        const templateUsernames = fetchTemplateArguments(template);
-        for (const templateUsername of templateUsernames) {
-          const username = spiHelperNormalizeUsername(templateUsername);
-          if (!allUsernames.has(username)) {
-            possibleSocks.push(generateUserRow(username, state));
-            allUsernames.add(username);
-          }
-        }
-      }
-    }
-    return [likelySocks, possibleSocks, allUsernames];
-  }
-  function generateUserRow(username, state) {
-    if (mw.util.isIPAddress(username, true)) {
-      if (spiHelperSettings.interface.displayIPv6As64 && mw.util.isIPv6Address(username, false)) {
-        return {
-          ...getDefaultUserRow(state.archiveNotice),
-          username: buildIPBlock(username)
-        };
-      } else {
-        return { ...getDefaultUserRow(state.archiveNotice), username };
-      }
-    } else {
-      return { ...getDefaultUserRow(state.archiveNotice), username };
-    }
-  }
-  function buildIPBlock(fullIP) {
-    if (!mw.util.isIPv6Address(fullIP, false)) {
-      return fullIP;
-    }
-    return fullIP.split(":").slice(0, 4).concat("0", "0", "0", "0").join(":") + "/64";
-  }
-  function getDefaultUserRow(archiveNotice) {
-    const newRow = {
-      id: crypto.randomUUID(),
-      username: "",
-      block: setupDefaultBlockRowData(),
-      link: { ...DefaultLinkRowData }
-    };
-    if (archiveNotice) {
-      if (archiveNotice.crosswiki) {
-        newRow.block.lock = true;
-      }
-      if (archiveNotice.notalk) {
-        newRow.block.nem = true;
-        newRow.block.ntp = true;
-      }
-    }
-    newRow.block.duration = spiHelperSettings.interface.defaultBlockDuration;
-    return newRow;
-  }
-  function updateUserBlockDataSettings(opts) {
-    const { userRow, currentBlock, userPage, defaultBlock } = opts;
-    if (currentBlock) {
-      userRow.block.block = true;
-      userRow.block.acb = currentBlock.acb;
-      userRow.block.abao = currentBlock.abao;
-      userRow.block.ntp = currentBlock.ntp;
-      userRow.block.nem = currentBlock.nem;
-      userRow.block.duration = currentBlock.duration;
-    } else {
-      userRow.block.block = defaultBlock;
-      if (mw.util.isIPAddress(userRow.username, true)) {
-        userRow.block.duration = "1 week";
-      }
-    }
-    if (userPage) {
-      userRow.block.tags = parseUserTags(userPage);
-    }
-    return userRow;
-  }
-  var isMenuGroupData = (item) => ("items" in item);
-  async function setUserRowBlockData(opts) {
-    const { block: blockSetting, userPage, defaultBlock, checkLock, state } = opts;
-    const userRow = updateUserBlockDataSettings({
-      userRow: opts.userRow,
-      defaultBlock,
-      currentBlock: blockSetting,
-      userPage
-    });
-    let isLocked = null;
-    if (checkLock) {
-      const globalUser = await spiHelperGetGlobalUser(userRow.username);
-      if (globalUser) {
-        isLocked = globalUser.locked;
-        if (globalUser.locked || state.archiveNotice?.crosswiki) {
-          userRow.block.lock = true;
-        } else {
-          userRow.block.lock = false;
-        }
-      }
-    }
-    return { userRow, isLocked };
   }
 
   // src/ui/views/top/utils/archive.ts
@@ -4498,6 +4612,10 @@ ${comment}
           subject: `Feedback from ${mw.config.get("wgUserName")}`,
           message: `SPI form v${VERSION}-${MODE}`
         });
+      },
+      async handleMoveEntireCase() {
+        await this.onUpdateSectionSelection("all");
+        this.caseActions.move.enabled = true;
       }
     },
     template: `
@@ -4545,6 +4663,7 @@ ${comment}
                 @remove-rows="handleRemoveRows"
                 @add-row="handleAddRow"
                 @fetch-rows="handleFetchRows"
+                @move-entire-case="handleMoveEntireCase"
             />
           </div>
         </div>
@@ -4572,6 +4691,7 @@ ${comment}
               @remove-rows="handleRemoveRows"
               @add-row="handleAddRow"
               @fetch-rows="handleFetchRows"
+              @move-entire-case="handleMoveEntireCase"
           />
         </action-accordion>
       </div>
@@ -5150,10 +5270,12 @@ ${comment}
       if (spiHelperIsClerk()) {
         noteTemplates.unshift({ value: "clerknote", label: "Clerk note" });
       }
+      const customTemplates = pruneMenuData(spiHelperSettings.custom.commentTemplates);
       return {
         noteTemplates,
         clerkTemplates,
         cuTemplates,
+        customTemplates,
         loadingPreview: false,
         htmlPreview: "",
         fullPreview: spiHelperSettings.interface.fullPreview,
@@ -5208,6 +5330,7 @@ ${comment}
         this.commentBox.focus();
       },
       insertText(templateValue) {
+        templateValue = `{{${templateValue.replace(/^{+|}+$/g, "")}}}`;
         const textareaElement = this.commentBox.$el.querySelector("textarea");
         if (!textareaElement) {
           console.error("commentAction: Unable to find textarea");
@@ -5229,10 +5352,12 @@ ${comment}
     },
     template: `
     <action-container v-model:enabled="enabled" @update:enabled="onEnable">
-      <div>
+      <div id="spiHelper-templateRow">
         <cdx-select :menu-items="noteTemplates" default-label="Comment templates" @update:selected="insertNote" />
         <cdx-select :menu-items="clerkTemplates" default-label="Admin/clerk templates" @update:selected="insertText" />
         <cdx-select :menu-items="cuTemplates" default-label="CheckUser templates" @update:selected="insertText" />
+        <cdx-select v-if="customTemplates.length > 0" :menu-items="customTemplates" default-label="Custom templates"
+                    @update:selected="insertText" />
       </div>
       <cdx-text-area ref="commentBox" :autosize="true" placeholder="Write your comment" :model-value="text"
                      @update:model-value="onTextUpdate" />
@@ -5255,28 +5380,22 @@ ${comment}
       newStatus: { type: String, required: true }
     },
     emits: ["update:enabled", "update:newStatus"],
-    data() {
-      return {
-        localStatus: this.oldStatus
-      };
-    },
     computed: {
       selected: {
         get() {
-          if (this.localStatus === "nochange") {
-            return "nochange";
+          const menuGroupData = this.caseStatusItems.flatMap((item) => isMenuGroupData(item) ? item.items : [item]);
+          if (this.newStatus === "nochange") {
+            const hasOldStatus = menuGroupData.some((item) => item.value === this.oldStatus);
+            return hasOldStatus ? this.oldStatus : "nochange";
           }
-          const itemData = this.caseStatusItems.flatMap((item) => isMenuGroupData(item) ? item.items : [item]).find((item) => item.value === this.newStatus);
-          return itemData?.value ?? "nochange";
+          const hasNewStatus = menuGroupData.some((item) => item.value === this.newStatus);
+          return hasNewStatus ? this.newStatus : "nochange";
         },
         set(value) {
           if (value === null) {
             return;
           }
-          this.localStatus = String(value);
-          if (value !== "nochange") {
-            this.$emit("update:newStatus", String(value));
-          }
+          this.$emit("update:newStatus", String(value));
         }
       },
       caseStatusItems() {
@@ -5289,7 +5408,8 @@ ${comment}
         const cuRequested = /^(?:CU|checkuser|CUrequest|request|cumoreinfo)$/i.test(this.oldStatus);
         const cuEndorsed = /^endorsed?$/i.test(this.oldStatus);
         const cuCompleted = /^(?:inprogress|checking|relist(ed)?|checked|completed|declined?|cudeclin(ed)?)$/i.test(this.oldStatus);
-        mainItems.push({ label: "No change", value: "nochange" });
+        const noChangeLabel = `No change (${this.oldStatus})`;
+        mainItems.push({ label: noChangeLabel, value: "nochange" });
         if (spiHelperCaseClosedRegex.test(this.oldStatus)) {
           mainItems.push({ label: "Reopen", value: "reopen" });
         } else {
@@ -5732,7 +5852,7 @@ ${comment}
       selection: { type: Object, required: true },
       archiveEnabled: { type: Boolean, required: true }
     },
-    emits: ["update:enabled", "update:target", "update:suppress"],
+    emits: ["update:enabled", "update:target", "update:suppress", "moveEntireCase"],
     data() {
       return {
         canSuppressRedirect: spiHelperCanSuppressRedirect()
@@ -5770,23 +5890,28 @@ ${comment}
     },
     template: `
     <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event);"
-                    :disabled="disabled">
+                      :disabled="disabled">
       <h3>Moving {{ moveTitle }}</h3>
       <page-lookup :model-value="target" @update:model-value="$emit('update:target', $event)"
                    :namespace="4" prefix="Sockpuppet investigations/"
                    placeholder="Title" label="New Case Name" />
       <cdx-message v-if="isSectionMove" type="notice" :allow-user-dismiss="true" style="margin-top: 16px;">
         <p><strong>You are moving a section</strong></p>
-        <p>Make sure you are expecting to only move the section and not the entire case.</p>
+        <p>
+          Make sure you are expecting to move only the section and not the entire case.
+          If you wish to move the entire case, <a @click="$emit('moveEntireCase')">click here</a>
+        </p>
       </cdx-message>
-      <cdx-checkbox style="margin-top: 16px;" v-if="!isSectionMove" :model-value="suppress" @update:model-value="$emit('update:suppress', $event)">
+      <cdx-checkbox style="margin-top: 16px;" v-if="!isSectionMove" :model-value="suppress"
+                    @update:model-value="$emit('update:suppress', $event)">
         {{ canSuppressRedirect ? 'Suppress redirect' : 'Request redirect deletion' }}
         <template #description>
           <template v-if="canSuppressRedirect">
             Delete the old case page
           </template>
           <template v-else>
-            Request <a href="//en.wikipedia.org/wiki/Wikipedia:Speedy_deletion#G6._Technical_deletions">G6</a> deletion of the old case page
+            Request <a href="//en.wikipedia.org/wiki/Wikipedia:Speedy_deletion#G6._Technical_deletions">G6</a> deletion
+            of the old case page
           </template>
           (one you're on right now)
         </template>
@@ -6081,7 +6206,8 @@ ${comment}
       label: { type: String, default: null },
       description: { type: String, default: null },
       namespace: { type: Number, required: true },
-      prefix: { type: String, default: "" }
+      prefix: { type: String, default: "" },
+      validateMessage: { type: Boolean, default: true }
     },
     emits: ["update:modelValue"],
     data() {
@@ -6123,7 +6249,7 @@ ${comment}
           return;
         }
         await this.$nextTick();
-        spiHelperGetPages(this.fullPagename, 4, ITEM_LIMIT2).then((pages) => {
+        spiHelperGetPages(this.fullPagename, this.namespace, ITEM_LIMIT2).then((pages) => {
           if (this.pagename !== value) {
             return;
           }
@@ -6143,7 +6269,7 @@ ${comment}
         if (!this.pagename) {
           return;
         }
-        spiHelperGetPages(this.fullPagename, 4, this.pageSuggestions.length + ITEM_LIMIT2).then((pages) => {
+        spiHelperGetPages(this.fullPagename, this.namespace, this.pageSuggestions.length + ITEM_LIMIT2).then((pages) => {
           if (pages.length === 0) {
             return;
           }
@@ -6171,11 +6297,17 @@ ${comment}
         }
       },
       stripTitle(fullTitle) {
-        return fullTitle.split(this.prefix)[1] ?? fullTitle;
+        if (this.prefix) {
+          return fullTitle.split(this.prefix)[1] ?? fullTitle;
+        }
+        if (this.namespace === 0) {
+          return fullTitle;
+        }
+        return fullTitle.split(":")[1] ?? fullTitle;
       }
     },
     template: `
-    <cdx-field :status="lookupStatus" :messages="messages" :hide-label="!label">
+    <cdx-field :status="lookupStatus" :messages="validateMessage ? messages : {}" :hide-label="!label">
       <template v-if="label" #label>
         {{ label }}
       </template>
@@ -6769,6 +6901,7 @@ ${comment}
             page: this.pageName,
             state: this.state
           });
+          context.valid = archiveNoticeResult !== null;
           if (archiveNoticeResult === null) {
             this.state.archiveNotice = new ParsedArchiveNotice({ username: this.targetCase });
           } else {
@@ -6798,6 +6931,8 @@ ${comment}
               this.accounts.splice(oldIndex, 1, userRow);
             }
           }
+        } else {
+          context.valid = false;
         }
         this.blockData.master = this.targetCase;
         this.caseLoading = false;
@@ -7180,7 +7315,7 @@ ${comment}
     const settingsLink = mw.util.addPortletLink("p-cactions", "#", "SPI-Beta-Options", "ca-spiHelperOpts", "Modify spiHelper settings");
     if (settingsLink) {
       const mountPoint = document.body.appendChild(document.createElement("div"));
-      Vue.createMwApp(OptionsComponent, { feedbackDialog, openButton: settingsLink }).component("cdx-button", Codex.CdxButton).component("cdx-dialog", Codex.CdxDialog).component("cdx-field", Codex.CdxField).component("cdx-select", Codex.CdxSelect).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-accordion", Codex.CdxAccordion).component("cdx-text-input", Codex.CdxTextInput).component("cdx-icon", Codex.CdxIcon).component("cdx-message", Codex.CdxMessage).component("cdx-multiselect-lookup", Codex.CdxMultiselectLookup).component("watch-setting", WatchSettingComponent).component("expiry-setting", ExpirySettingComponent).component("expiry-input", ExpiryInputComponent).component("log-page-setting", LogPageSettingComponent).mount(mountPoint);
+      Vue.createMwApp(OptionsComponent, { feedbackDialog, openButton: settingsLink }).component("cdx-button", Codex.CdxButton).component("cdx-dialog", Codex.CdxDialog).component("cdx-field", Codex.CdxField).component("cdx-lookup", Codex.CdxLookup).component("cdx-select", Codex.CdxSelect).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-accordion", Codex.CdxAccordion).component("cdx-text-input", Codex.CdxTextInput).component("cdx-icon", Codex.CdxIcon).component("cdx-message", Codex.CdxMessage).component("cdx-multiselect-lookup", Codex.CdxMultiselectLookup).component("watch-setting", WatchSettingComponent).component("expiry-setting", ExpirySettingComponent).component("expiry-input", ExpiryInputComponent).component("log-page-setting", LogPageSettingComponent).component("page-lookup", PageLookupComponent).mount(mountPoint);
     }
   }
   function createOCALink(Vue, Codex, caseState) {
