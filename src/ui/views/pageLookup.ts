@@ -22,6 +22,7 @@ export const PageLookupComponent = defineComponent({
     description: { type: String, default: null },
     namespace: { type: Number, required: true },
     prefix: { type: String, default: '' },
+    validateMessage: { type: Boolean, default: true },
   },
   emits: ['update:modelValue'],
   data(): Data {
@@ -66,7 +67,7 @@ export const PageLookupComponent = defineComponent({
       }
 
       await this.$nextTick();
-      spiHelperGetPages(this.fullPagename, 4, ITEM_LIMIT)
+      spiHelperGetPages(this.fullPagename, this.namespace, ITEM_LIMIT)
         .then((pages) => {
           // Make sure this data is still relevant first.
           if (this.pagename !== value) {
@@ -97,7 +98,7 @@ export const PageLookupComponent = defineComponent({
         return;
       }
 
-      spiHelperGetPages(this.fullPagename, 4, this.pageSuggestions.length + ITEM_LIMIT)
+      spiHelperGetPages(this.fullPagename, this.namespace, this.pageSuggestions.length + ITEM_LIMIT)
         .then((pages) => {
           if (pages.length === 0) {
             return;
@@ -131,11 +132,17 @@ export const PageLookupComponent = defineComponent({
       }
     },
     stripTitle(fullTitle: string): string {
-      return fullTitle.split(this.prefix)[1] ?? fullTitle;
+      if (this.prefix) {
+        return fullTitle.split(this.prefix)[1] ?? fullTitle;
+      }
+      if (this.namespace === 0) {
+        return fullTitle;
+      }
+      return fullTitle.split(':')[1] ?? fullTitle;
     },
   },
   template: `
-    <cdx-field :status="lookupStatus" :messages="messages" :hide-label="!label">
+    <cdx-field :status="lookupStatus" :messages="validateMessage ? messages : {}" :hide-label="!label">
       <template v-if="label" #label>
         {{ label }}
       </template>

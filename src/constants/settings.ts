@@ -66,6 +66,10 @@ export const spiHelperDefaultSettings: ScriptSettings = {
   },
   // Should we highlight the selected section
   highlightSection: true,
+  custom: {
+    // Custom templates for the comment action
+    commentTemplates: [],
+  },
   // These are for debugging to view as other roles. If you're picking apart the code and
   // decide to set these (especially the CU option), it is YOUR responsibility to make sure
   // you don't do something that violates policy

@@ -167,3 +167,27 @@ export async function setUserRowBlockData(opts: {
 
   return { userRow, isLocked };
 }
+
+type MenuNode = MenuItemData | MenuGroupData;
+export function pruneMenuData(nodes: MenuNode[]): MenuNode[] {
+  return nodes
+    .map((node) => {
+      if (isMenuGroupData(node)) {
+        const cleanedItems = pruneMenuData(node.items);
+
+        // Remove group if empty after cleaning
+        if (cleanedItems.length === 0) return null;
+
+        return {
+          ...node,
+          items: cleanedItems,
+        };
+      }
+
+      // Remove item if value is falsy
+      if (!node.value) return null;
+
+      return node;
+    })
+    .filter((node): node is MenuItemData => node !== null);
+}

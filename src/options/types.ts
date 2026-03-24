@@ -1,5 +1,6 @@
 import type { WatchOption } from '../types/api.ts';
 import type { CaseActionName } from '../types/spi.ts';
+import type { MenuGroupData, MenuItemData } from '@wikimedia/codex';
 
 export interface ScriptSettings {
   watch: {
@@ -34,6 +35,9 @@ export interface ScriptSettings {
     buttonLayout: boolean;
   };
   highlightSection: boolean;
+  custom: {
+    commentTemplates: (MenuItemData | MenuGroupData)[];
+  };
   debug: {
     enabled: boolean;
     forceCheckuser: boolean;

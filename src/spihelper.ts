@@ -306,6 +306,7 @@ function createSettingsLink(
       .component('cdx-button', Codex.CdxButton)
       .component('cdx-dialog', Codex.CdxDialog)
       .component('cdx-field', Codex.CdxField)
+      .component('cdx-lookup', Codex.CdxLookup)
       .component('cdx-select', Codex.CdxSelect)
       .component('cdx-toggle-switch', Codex.CdxToggleSwitch)
       .component('cdx-accordion', Codex.CdxAccordion)
@@ -317,6 +318,7 @@ function createSettingsLink(
       .component('expiry-setting', ExpirySettingComponent)
       .component('expiry-input', ExpiryInputComponent)
       .component('log-page-setting', LogPageSettingComponent)
+      .component('page-lookup', PageLookupComponent)
       .mount(mountPoint);
   }
 }

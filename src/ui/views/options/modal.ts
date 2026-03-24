@@ -1,12 +1,15 @@
 import { type PropType, defineComponent } from 'vue';
 import {
+  cdxIconAdd,
+  cdxIconArrowDown,
   cdxIconClock,
   cdxIconClose,
   cdxIconCode,
   cdxIconFeedback,
   cdxIconJournal,
+  cdxIconLayout,
   cdxIconPalette,
-  cdxIconReload,
+  cdxIconReload, cdxIconTrash,
   cdxIconWatchlist,
 } from '@wikimedia/codex-icons';
 import { saveOptions, spiHelperSettings } from '../../../options';
@@ -16,6 +19,7 @@ import type { ScriptSettings } from '../../../options/types.ts';
 import type { ChipInputItem, MenuItemData, MenuItemValue } from '@wikimedia/codex';
 import { CASE_ACTION_NAMES, type CaseActionName } from '../../../types/spi.ts';
 import type { FeedbackDialog } from '../../../types/vue.ts';
+import { isMenuGroupData } from '../../utils.ts';
 
 interface Data {
   open: boolean;
@@ -27,14 +31,18 @@ interface Data {
   caseActionMenuItems: MenuItemData[];
   selectedChipItems: MenuItemValue[];
   icons: {
-    cdxIconWatchlist: typeof cdxIconWatchlist;
+    cdxIconAdd: typeof cdxIconAdd;
+    cdxIconArrowDown: typeof cdxIconArrowDown;
     cdxIconClock: typeof cdxIconClock;
     cdxIconClose: typeof cdxIconClose;
     cdxIconCode: typeof cdxIconCode;
     cdxIconFeedback: typeof cdxIconFeedback;
     cdxIconJournal: typeof cdxIconJournal;
+    cdxIconLayout: typeof cdxIconLayout;
     cdxIconPalette: typeof cdxIconPalette;
     cdxIconReload: typeof cdxIconReload;
+    cdxIconTrash: typeof cdxIconTrash;
+    cdxIconWatchlist: typeof cdxIconWatchlist;
   };
   spiHelperSettings: typeof spiHelperSettings;
   resetTrigger: number;
@@ -73,14 +81,18 @@ export const OptionsComponent = defineComponent({
       caseActionMenuItems,
       selectedChipItems: spiHelperSettings.defaultActions,
       icons: {
-        cdxIconWatchlist,
+        cdxIconAdd,
+        cdxIconArrowDown,
         cdxIconClock,
         cdxIconClose,
         cdxIconCode,
         cdxIconFeedback,
         cdxIconJournal,
+        cdxIconLayout,
         cdxIconPalette,
         cdxIconReload,
+        cdxIconTrash,
+        cdxIconWatchlist,
       },
       spiHelperSettings,
       resetTrigger: 0,
@@ -162,6 +174,7 @@ export const OptionsComponent = defineComponent({
     }
   },
   methods: {
+    isMenuGroupData,
     loadDefaults() {
       // Create a deep copy and replace the reactive reference
       this.spiHelperSettings
@@ -176,6 +189,23 @@ export const OptionsComponent = defineComponent({
         subject: `Feedback from ${mw.config.get('wgUserName')}`,
         message: `Options form v${VERSION}-${MODE}`,
       });
+    },
+    removeTemplateEntry(index: number) {
+      this.spiHelperSettings.custom.commentTemplates.splice(index, 1);
+    },
+    addTemplateEntry(type: 'item' | 'group') {
+      if (type === 'item') {
+        this.spiHelperSettings.custom.commentTemplates.push({ label: '', value: '' });
+      }
+      else {
+        this.spiHelperSettings.custom.commentTemplates.push({ label: '', items: [] });
+      }
+    },
+    moveDown<T>(arr: T[], index: number) {
+      if (index < 0 || index >= arr.length - 1) return arr; // nothing to move
+      const temp = arr[index + 1] as T;
+      arr[index + 1] = arr[index] as T;
+      arr[index] = temp;
     },
   },
   template: `
@@ -249,7 +279,7 @@ export const OptionsComponent = defineComponent({
           </p>
         </div>
       </cdx-accordion>
-      <cdx-accordion :action-icon="icons.cdxIconPalette" :action-always-visible="true">
+      <cdx-accordion :action-icon="icons.cdxIconLayout" :action-always-visible="true">
         <template #title>Interface</template>
         <cdx-toggle-switch v-model="spiHelperSettings.interface.displayIPv6As64" :align-switch="true">
           Display IPv6 as /64
@@ -260,7 +290,68 @@ export const OptionsComponent = defineComponent({
           <template #description>Include the entire section's text when previewing comments</template>
         </cdx-toggle-switch>
         <expiry-setting label="Default block duration" v-model="spiHelperSettings.interface.defaultBlockDuration"
-        :reset-trigger="resetTrigger" />
+                        :reset-trigger="resetTrigger" />
+      </cdx-accordion>
+      <cdx-accordion :action-icon="icons.cdxIconPalette" :action-always-visible="true">
+        <template #title>Customisation</template>
+        <div>
+          <h3 style="padding-top: 0;">Comment templates</h3>
+          <div class="spiHelper-template-container">
+            <div v-for="(entry, i) in spiHelperSettings.custom.commentTemplates" :key="i" class="spiHelper-template">
+              <div v-if="isMenuGroupData(entry)">
+                <div class="spiHelper-template-input">
+                  <cdx-text-input v-model="entry.label" placeholder="Group label" />
+                  <cdx-button @click="moveDown(spiHelperSettings.custom.commentTemplates, i)"
+                              aria-label="Move group down"
+                              :disabled="spiHelperSettings.custom.commentTemplates.length <= i + 1">
+                    <cdx-icon :icon="icons.cdxIconArrowDown" />
+                  </cdx-button>
+                  <cdx-button @click="entry.items.push({ label: '', value: '' })" action="progressive"
+                              aria-label="Add item to group">
+                    <cdx-icon :icon="icons.cdxIconAdd" />
+                  </cdx-button>
+                  <cdx-button @click="removeTemplateEntry(i)" action="destructive" aria-label="Delete group">
+                    <cdx-icon :icon="icons.cdxIconTrash" />
+                  </cdx-button>
+                </div>
+                <div v-for="(item, j) in entry.items" :key="j"
+                     class="spiHelper-template-group-item spiHelper-template-input">
+                  <cdx-text-input v-model="item.label" placeholder="Label" />
+                  <page-lookup v-model="item.value" placeholder="Template (no brackets)" :namespace="10"
+                               :validate-message="false" />
+                  <cdx-button @click="moveDown(entry.items, j)" aria-label="Move item down"
+                              :disabled="entry.items.length <= j + 1">
+                    <cdx-icon :icon="icons.cdxIconArrowDown" />
+                  </cdx-button>
+                  <cdx-button @click="entry.items.splice(j, 1)" action="destructive" aria-label="Delete item">
+                    <cdx-icon :icon="icons.cdxIconTrash" />
+                  </cdx-button>
+                </div>
+              </div>
+              <div v-else class="spiHelper-template-input">
+                <cdx-text-input v-model="entry.label" placeholder="Label" />
+                <page-lookup v-model="entry.value" placeholder="Template (no brackets)" :namespace="10"
+                             :validate-message="false" />
+                <cdx-button @click="moveDown(spiHelperSettings.custom.commentTemplates, i)" aria-label="Move item down"
+                            :disabled="spiHelperSettings.custom.commentTemplates.length <= i + 1">
+                  <cdx-icon :icon="icons.cdxIconArrowDown" />
+                </cdx-button>
+                <cdx-button @click="removeTemplateEntry(i)" action="destructive" aria-label="Delete item">
+                  <cdx-icon :icon="icons.cdxIconTrash" />
+                </cdx-button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <cdx-button @click="addTemplateEntry('item')" action="progressive">
+          <cdx-icon :icon="icons.cdxIconAdd" />
+          Add item
+        </cdx-button>
+        <cdx-button @click="addTemplateEntry('group')" action="progressive">
+          <cdx-icon :icon="icons.cdxIconAdd" />
+          Add group
+        </cdx-button>
       </cdx-accordion>
       <cdx-accordion :action-icon="icons.cdxIconCode" :action-always-visible="true" v-if="showExtra">
         <template #title>Debug</template>

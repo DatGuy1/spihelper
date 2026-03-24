@@ -9,6 +9,7 @@ import { addSignature } from '../../../../utils.ts';
 import { type SectionSelection, loadSectionText } from '../../../../state.ts';
 import { spiHelperSettings } from '../../../../options';
 import { spiHelperAdminSectionWithPrecedingNewlinesRegex } from '../../../../constants/regex.ts';
+import { pruneMenuData } from '../../../utils.ts';
 
 export const CommentActionComponent = defineComponent({
   props: {
@@ -34,10 +35,13 @@ export const CommentActionComponent = defineComponent({
       noteTemplates.unshift({ value: 'clerknote', label: 'Clerk note' });
     }
 
+    const customTemplates = pruneMenuData(spiHelperSettings.custom.commentTemplates);
+
     return {
       noteTemplates,
       clerkTemplates,
       cuTemplates,
+      customTemplates,
       loadingPreview: false,
       htmlPreview: '',
       fullPreview: spiHelperSettings.interface.fullPreview,
@@ -106,6 +110,8 @@ export const CommentActionComponent = defineComponent({
      * Inserts text at the cursor's position
      */
     insertText(templateValue: string) {
+      // Strip brackets and readd them to ensure it's wrapped properly
+      templateValue = `{{${templateValue.replace(/^{+|}+$/g, '')}}}`;
       // https://stackoverflow.com/questions/11076975/how-to-insert-text-into-the-textarea-at-the-current-cursor-position
       const textareaElement = (this.commentBox.$el as HTMLElement).querySelector('textarea');
       if (!textareaElement) {
@@ -132,10 +138,12 @@ export const CommentActionComponent = defineComponent({
   },
   template: `
     <action-container v-model:enabled="enabled" @update:enabled="onEnable">
-      <div>
+      <div id="spiHelper-templateRow">
         <cdx-select :menu-items="noteTemplates" default-label="Comment templates" @update:selected="insertNote" />
         <cdx-select :menu-items="clerkTemplates" default-label="Admin/clerk templates" @update:selected="insertText" />
         <cdx-select :menu-items="cuTemplates" default-label="CheckUser templates" @update:selected="insertText" />
+        <cdx-select v-if="customTemplates.length > 0" :menu-items="customTemplates" default-label="Custom templates"
+                    @update:selected="insertText" />
       </div>
       <cdx-text-area ref="commentBox" :autosize="true" placeholder="Write your comment" :model-value="text"
                      @update:model-value="onTextUpdate" />

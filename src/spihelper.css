@@ -142,12 +142,46 @@
     margin-bottom: 12px;
 }
 
-#spiHelper-opts-dialog .cdx-dialog__header {
-    display: flex;
-    align-items: baseline;
-    justify-content: flex-end;
-    box-sizing: border-box;
-    width: 100%;
+#spiHelper-opts-dialog {
+    .cdx-dialog__header {
+        display: flex;
+        align-items: baseline;
+        justify-content: flex-end;
+        box-sizing: border-box;
+        width: 100%;
+    }
+
+    .spiHelper-template-container {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+
+        .cdx-field, .cdx-field__help-text, .cdx-field__validation-message {
+            margin: 0;
+        }
+
+        .cdx-text-input {
+            min-width: 0;
+        }
+
+        .spiHelper-template:last-child {
+            margin-bottom: 16px;
+        }
+
+        .spiHelper-template-group-item {
+            padding-left: 12px;
+        }
+
+        .spiHelper-template-input {
+            margin-top: 4px;
+            display: flex;
+
+            > .cdx-field, > .cdx-text-input {
+                flex-grow: 1;
+                width: 0;
+            }
+        }
+    }
 }
 
 .spiHelper-submitForm {
@@ -336,5 +370,17 @@ div.edit-tag-popover {
         .cdx-popover__footer__actions {
             gap: 0;
         }
+    }
+}
+
+#spiHelper-templateRow {
+    display: flex;
+
+    .cdx-select-vue__handle {
+        min-width: 0;
+    }
+
+    > .cdx-select-vue {
+        flex: 1;
     }
 }
