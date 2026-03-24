@@ -440,6 +440,10 @@ export const TopViewComponent = defineComponent({
         message: `SPI form v${VERSION}-${MODE}`,
       });
     },
+    async handleMoveEntireCase() {
+      await this.onUpdateSectionSelection('all');
+      this.caseActions.move.enabled = true;
+    },
   },
   template: `
     <div id="spiHelper-topView" class="spiHelper-mainCard" v-if="open">
@@ -486,6 +490,7 @@ export const TopViewComponent = defineComponent({
                 @remove-rows="handleRemoveRows"
                 @add-row="handleAddRow"
                 @fetch-rows="handleFetchRows"
+                @move-entire-case="handleMoveEntireCase"
             />
           </div>
         </div>
@@ -513,6 +518,7 @@ export const TopViewComponent = defineComponent({
               @remove-rows="handleRemoveRows"
               @add-row="handleAddRow"
               @fetch-rows="handleFetchRows"
+              @move-entire-case="handleMoveEntireCase"
           />
         </action-accordion>
       </div>

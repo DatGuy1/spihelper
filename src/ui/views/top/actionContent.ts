@@ -21,6 +21,7 @@ export const ActionContentComponent = defineComponent({
     'remove-rows',
     'add-row',
     'fetch-rows',
+    'move-entire-case',
   ],
   computed: {
     caseName(): string {
@@ -46,6 +47,9 @@ export const ActionContentComponent = defineComponent({
     },
     handleFetchRows() {
       this.$emit('fetch-rows');
+    },
+    handleMoveEntireCase() {
+      this.$emit('move-entire-case');
     },
   },
   template: `
@@ -74,7 +78,8 @@ export const ActionContentComponent = defineComponent({
                        v-model:flags="caseActions.management.data.flags" />
     <move-action v-else-if="name === 'move'" v-model:enabled="caseActions.move.enabled"
                  v-model:target="caseActions.move.data.target" v-model:suppress="caseActions.move.data.suppress"
-                 :selection="state.selectedSection" :archive-enabled="caseActions.archive.enabled" />
+                 :selection="state.selectedSection" :archive-enabled="caseActions.archive.enabled"
+                 @move-entire-case="handleMoveEntireCase" />
     <archive-action v-else-if="name === 'archive'" v-model:enabled="caseActions.archive.enabled"
                     :selection="caseActions.sections.data.section"
                     :status-data="caseActions.status.data" />

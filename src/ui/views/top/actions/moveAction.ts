@@ -10,7 +10,7 @@ export const MoveActionComponent = defineComponent({
     selection: { type: Object as PropType<SectionSelection | null>, required: true },
     archiveEnabled: { type: Boolean, required: true },
   },
-  emits: ['update:enabled', 'update:target', 'update:suppress'],
+  emits: ['update:enabled', 'update:target', 'update:suppress', 'moveEntireCase'],
   data() {
     return {
       canSuppressRedirect: spiHelperCanSuppressRedirect(),
@@ -48,23 +48,28 @@ export const MoveActionComponent = defineComponent({
   },
   template: `
     <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event);"
-                    :disabled="disabled">
+                      :disabled="disabled">
       <h3>Moving {{ moveTitle }}</h3>
       <page-lookup :model-value="target" @update:model-value="$emit('update:target', $event)"
                    :namespace="4" prefix="Sockpuppet investigations/"
                    placeholder="Title" label="New Case Name" />
       <cdx-message v-if="isSectionMove" type="notice" :allow-user-dismiss="true" style="margin-top: 16px;">
         <p><strong>You are moving a section</strong></p>
-        <p>Make sure you are expecting to only move the section and not the entire case.</p>
+        <p>
+          Make sure you are expecting to move only the section and not the entire case.
+          If you wish to move the entire case, <a @click="$emit('moveEntireCase')">click here</a>
+        </p>
       </cdx-message>
-      <cdx-checkbox style="margin-top: 16px;" v-if="!isSectionMove" :model-value="suppress" @update:model-value="$emit('update:suppress', $event)">
+      <cdx-checkbox style="margin-top: 16px;" v-if="!isSectionMove" :model-value="suppress"
+                    @update:model-value="$emit('update:suppress', $event)">
         {{ canSuppressRedirect ? 'Suppress redirect' : 'Request redirect deletion' }}
         <template #description>
           <template v-if="canSuppressRedirect">
             Delete the old case page
           </template>
           <template v-else>
-            Request <a href="//en.wikipedia.org/wiki/Wikipedia:Speedy_deletion#G6._Technical_deletions">G6</a> deletion of the old case page
+            Request <a href="//en.wikipedia.org/wiki/Wikipedia:Speedy_deletion#G6._Technical_deletions">G6</a> deletion
+            of the old case page
           </template>
           (one you're on right now)
         </template>
