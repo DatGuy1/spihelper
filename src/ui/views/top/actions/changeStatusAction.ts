@@ -11,31 +11,25 @@ export const ChangeStatusActionComponent = defineComponent({
     newStatus: { type: String, required: true },
   },
   emits: ['update:enabled', 'update:newStatus'],
-  data() {
-    return {
-      localStatus: this.oldStatus,
-    };
-  },
   computed: {
     selected: {
       get(): MenuItemValue | null {
-        if (this.localStatus === 'nochange') {
-          return 'nochange';
-        }
-        const itemData = this.caseStatusItems
-          .flatMap(item => isMenuGroupData(item) ? item.items : [item])
-          .find(item => item.value === this.newStatus);
+        const menuGroupData = this.caseStatusItems
+          .flatMap(item => isMenuGroupData(item) ? item.items : [item]);
 
-        return itemData?.value ?? 'nochange';
+        if (this.newStatus === 'nochange') {
+          const hasOldStatus = menuGroupData.some(item => item.value === this.oldStatus);
+          return hasOldStatus ? this.oldStatus : 'nochange';
+        }
+
+        const hasNewStatus = menuGroupData.some(item => item.value === this.newStatus);
+        return hasNewStatus ? this.newStatus : 'nochange';
       },
       set(value: MenuItemValue | null) {
         if (value === null) {
           return;
         }
-        this.localStatus = String(value);
-        if (value !== 'nochange') {
-          this.$emit('update:newStatus', String(value));
-        }
+        this.$emit('update:newStatus', String(value));
       },
     },
     caseStatusItems(): (MenuItemData | MenuGroupData)[] {
@@ -51,8 +45,8 @@ export const ChangeStatusActionComponent = defineComponent({
       const cuEndorsed = /^endorsed?$/i.test(this.oldStatus);
       const cuCompleted = /^(?:inprogress|checking|relist(ed)?|checked|completed|declined?|cudeclin(ed)?)$/i.test(this.oldStatus);
 
-      // We'd prefer for 'change status' to be disabled, but also add 'no change' for confused users
-      mainItems.push({ label: 'No change', value: 'nochange' });
+      const noChangeLabel = `No change (${this.oldStatus})`;
+      mainItems.push({ label: noChangeLabel, value: 'nochange' });
       if (spiHelperCaseClosedRegex.test(this.oldStatus)) {
         mainItems.push({ label: 'Reopen', value: 'reopen' });
       }
