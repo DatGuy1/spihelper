@@ -16,6 +16,8 @@ async function filterLockedAccounts(users: string[]): Promise<string[]> {
   return lockResults.filter(user => user !== null);
 }
 
+const MAX_LOCK_FILTER_REQUESTS = 6;
+
 export async function spiHelperRequestLocks(opts: {
   lockTargets: string[];
   master: string;
@@ -25,7 +27,7 @@ export async function spiHelperRequestLocks(opts: {
   const { master, hideNames } = opts;
   // If we're mass requesting locks don't do all those requests.
   // May want to change this in the future.
-  const lockTargets = opts.lockTargets.length < 6
+  const lockTargets = opts.lockTargets.length < MAX_LOCK_FILTER_REQUESTS
     ? await filterLockedAccounts(opts.lockTargets)
     : opts.lockTargets;
 
@@ -63,7 +65,13 @@ export async function spiHelperRequestLocks(opts: {
   let message = `=== Global lock for ${heading} ===`;
   message += '\n{{status}}';
   message += `\n${lockTemplate}`;
-  message += `\n${usePlural ? 'Sockpuppets' : 'Sockpuppet'} found in enwiki sockpuppet investigation, see [[${context.prefixedName}]].`;
+  message += `\n${usePlural ? 'Sockpuppets' : 'Sockpuppet'} found in enwiki sockpuppet investigation`;
+  if (context.valid) {
+    message += `, see [[${context.prefixedName}]].`;
+  }
+  else {
+    message += '.';
+  }
   if (lockComment !== '') {
     message += ` ${lockComment}.`;
   }
