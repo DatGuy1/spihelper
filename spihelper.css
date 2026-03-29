@@ -254,10 +254,6 @@
   min-width: 110px;
 }
 
-.spiHelper-sockTable div.tagOptions {
-  min-width: 130px;
-}
-
 .spiHelper-sockTable thead tr.blockSettingsRow th {
   white-space: nowrap;
   padding: 6px 4px;

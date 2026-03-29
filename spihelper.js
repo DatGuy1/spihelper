@@ -1851,50 +1851,50 @@
   var $5 = '<path d="m6.4 17-1.26-1.25 2.32-2.25H1v-1.75h6.46L5.14 9.5 6.4 8.25l4.5 4.38zm7.2-5.25L9.1 7.37 13.6 3l1.26 1.25-2.32 2.25H19v1.75h-6.46l2.32 2.25z"/>';
   var s3 = '<path d="M10 11c-5.92 0-8 3-8 5v3h16v-3c0-2-2.08-5-8-5"/><circle cx="10" cy="5.5" r="4.5"/>';
   var l3 = '<path d="M10 8c1.7 0 3.06-1.35 3.06-3S11.7 2 10 2 6.94 3.35 6.94 5 8.3 8 10 8m0 2c-2.8 0-5.06-2.24-5.06-5S7.2 0 10 0s5.06 2.24 5.06 5-2.26 5-5.06 5m-7 8h14v-1.33c0-1.75-2.31-3.56-7-3.56s-7 1.81-7 3.56zm7-6.89c6.66 0 9 3.33 9 5.56V20H1v-3.33c0-2.23 2.34-5.56 9-5.56"/>';
-  var V3 = '<path d="M1 3h16v2H1Zm0 6h6v2H1Zm0 6h8v2H1Zm8-4.24h3.85L14.5 7l1.65 3.76H20l-3 3.17.9 4.05-3.4-2.14L11.1 18l.9-4.05Z"/>';
-  var k3 = M;
-  var b3 = L;
-  var d4 = r1;
-  var e4 = z1;
-  var r4 = i1;
-  var z4 = p1;
-  var p4 = {
+  var u3 = '<path d="M1 3h16v2H1Zm0 6h6v2H1Zm0 6h8v2H1Zm8-4.24h3.85L14.5 7l1.65 3.76H20l-3 3.17.9 4.05-3.4-2.14L11.1 18l.9-4.05Z"/>';
+  var C3 = M;
+  var q3 = L;
+  var e4 = r1;
+  var r4 = z1;
+  var z4 = i1;
+  var i4 = p1;
+  var m4 = {
     ltr: M1,
     shouldFlip: true
   };
-  var u4 = I1;
-  var f4 = q1;
-  var q4 = {
+  var L4 = I1;
+  var S4 = q1;
+  var w4 = {
     ltr: Z1,
     shouldFlip: true
   };
-  var z6 = {
+  var i6 = {
     ltr: A0,
     shouldFlip: true
   };
-  var H6 = {
+  var x6 = {
     ltr: S0,
     shouldFlip: true
   };
-  var u7 = {
+  var L7 = {
     ltr: B2,
     shouldFlip: true
   };
-  var L7 = {
+  var I7 = {
     ltr: Z2,
     shouldFlip: true
   };
-  var y7 = E2;
-  var U7 = _2;
-  var F8 = N5;
-  var T8 = {
+  var f7 = E2;
+  var W7 = _2;
+  var y8 = N5;
+  var U8 = {
     ltr: $5,
     shouldFlip: true
   };
-  var P8 = s3;
-  var N8 = l3;
-  var t9 = {
-    ltr: V3,
+  var N8 = s3;
+  var O8 = l3;
+  var o9 = {
+    ltr: u3,
     shouldFlip: true
   };
 
@@ -2040,7 +2040,8 @@
   var OptionsComponent = defineComponent({
     props: {
       feedbackDialog: { type: Object, required: true },
-      openButton: { type: Object, required: true }
+      openButton: { type: Object, required: true },
+      toaster: { type: Object, required: true }
     },
     data: function() {
       const username = mw.config.get("wgUserName") ?? "";
@@ -2064,20 +2065,21 @@
         caseActionMenuItems,
         selectedChipItems: spiHelperSettings.defaultActions,
         icons: {
-          cdxIconAdd: k3,
-          cdxIconArrowDown: b3,
-          cdxIconClock: d4,
-          cdxIconClose: e4,
-          cdxIconCode: r4,
-          cdxIconFeedback: q4,
-          cdxIconJournal: z6,
-          cdxIconLayout: H6,
-          cdxIconPalette: u7,
-          cdxIconReload: U7,
-          cdxIconTrash: F8,
-          cdxIconWatchlist: t9
+          cdxIconAdd: C3,
+          cdxIconArrowDown: q3,
+          cdxIconClock: e4,
+          cdxIconClose: r4,
+          cdxIconCode: z4,
+          cdxIconFeedback: w4,
+          cdxIconJournal: i6,
+          cdxIconLayout: x6,
+          cdxIconPalette: L7,
+          cdxIconReload: W7,
+          cdxIconTrash: y8,
+          cdxIconWatchlist: o9
         },
-        spiHelperSettings,
+        instanceSettings: structuredClone(spiHelperSettings),
+        oldSettings: structuredClone(spiHelperSettings),
         resetTrigger: 0
       };
     },
@@ -2086,19 +2088,19 @@
         return `${mw.config.get("wgServer")}/wiki/${getFullLogPage(spiHelperSettings.log.page)}`;
       },
       isCheckUser() {
-        const { debug } = this.spiHelperSettings;
+        const { debug } = this.instanceSettings;
         const isCU = mw.config.get("wgUserGroups")?.includes("checkuser") ?? false;
         return isCU || debug.enabled && debug.forceCheckuser;
       },
       inputChipItems: {
         get() {
-          return this.spiHelperSettings.defaultActions.map((actionName) => ({
+          return this.instanceSettings.defaultActions.map((actionName) => ({
             value: actionName,
             label: actionName.charAt(0).toUpperCase() + actionName.slice(1)
           }));
         },
         set(value) {
-          this.spiHelperSettings.defaultActions = value.map((item) => item.value);
+          this.instanceSettings.defaultActions = value.map((item) => item.value);
         }
       }
     },
@@ -2109,7 +2111,19 @@
             window.addEventListener("keydown", this.showExtraHandler);
           }
         } else {
-          saveOptions();
+          const currentSettingsJson = JSON.stringify(this.instanceSettings);
+          const settingsDiffer = JSON.stringify(this.oldSettings) !== currentSettingsJson;
+          if (settingsDiffer) {
+            this.toaster.info("Saving settings...", { autoDismiss: false });
+            saveOptions().then((_) => {
+              this.toaster.success("Settings saved! Reload to apply them", { autoDismiss: true });
+            }).catch((error) => {
+              const message = error instanceof Error ? error.message : String(error);
+              this.toaster.error(`Failed to save settings: ${message}`, { autoDismiss: true });
+            }).always(() => {
+              this.oldSettings = JSON.parse(currentSettingsJson);
+            });
+          }
           if (this.showExtraHandler) {
             window.removeEventListener("keydown", this.showExtraHandler);
           }
@@ -2158,7 +2172,7 @@
     methods: {
       isMenuGroupData,
       loadDefaults() {
-        this.spiHelperSettings = JSON.parse(JSON.stringify(spiHelperDefaultSettings));
+        this.instanceSettings = JSON.parse(JSON.stringify(spiHelperDefaultSettings));
         Object.assign(spiHelperSettings, spiHelperDefaultSettings);
         this.resetTrigger++;
       },
@@ -2170,13 +2184,13 @@
         });
       },
       removeTemplateEntry(index) {
-        this.spiHelperSettings.custom.commentTemplates.splice(index, 1);
+        this.instanceSettings.custom.commentTemplates.splice(index, 1);
       },
       addTemplateEntry(type) {
         if (type === "item") {
-          this.spiHelperSettings.custom.commentTemplates.push({ label: "", value: "" });
+          this.instanceSettings.custom.commentTemplates.push({ label: "", value: "" });
         } else {
-          this.spiHelperSettings.custom.commentTemplates.push({ label: "", items: [] });
+          this.instanceSettings.custom.commentTemplates.push({ label: "", items: [] });
         }
       },
       moveDown(arr, index) {
@@ -2216,13 +2230,13 @@
       </cdx-message>
       <cdx-accordion :action-icon="icons.cdxIconWatchlist" :action-always-visible="true">
         <template #title>Watch</template>
-        <watch-setting label="Cases" v-model="spiHelperSettings.watch.case" :reset-trigger="resetTrigger" />
-        <watch-setting label="Archives" v-model="spiHelperSettings.watch.archive" :reset-trigger="resetTrigger" />
-        <watch-setting label="Tagged Users" v-model="spiHelperSettings.watch.tagged" :reset-trigger="resetTrigger" />
-        <watch-setting label="Categories" v-model="spiHelperSettings.watch.categories" :reset-trigger="resetTrigger" />
+        <watch-setting label="Cases" v-model="instanceSettings.watch.case" :reset-trigger="resetTrigger" />
+        <watch-setting label="Archives" v-model="instanceSettings.watch.archive" :reset-trigger="resetTrigger" />
+        <watch-setting label="Tagged Users" v-model="instanceSettings.watch.tagged" :reset-trigger="resetTrigger" />
+        <watch-setting label="Categories" v-model="instanceSettings.watch.categories" :reset-trigger="resetTrigger" />
         <cdx-field>
           <template #label>Blocked Users</template>
-          <cdx-toggle-switch v-model="spiHelperSettings.watch.blocked" />
+          <cdx-toggle-switch v-model="instanceSettings.watch.blocked" />
           <template #help-text>Due to API limitations, only a toggle is available</template>
         </cdx-field>
       </cdx-accordion>
@@ -2232,43 +2246,43 @@
           Expiry values may be relative (e.g. 5 months or 2 weeks) or absolute (e.g. 2014-09-18T12:34:56Z). For no
           expiry, use infinite, indefinite, infinity or never.
         </p>
-        <expiry-setting label="Cases" v-model="spiHelperSettings.expiry.case" :reset-trigger="resetTrigger" />
-        <expiry-setting label="Archives" v-model="spiHelperSettings.expiry.archive" :reset-trigger="resetTrigger" />
-        <expiry-setting label="Tagged Users" v-model="spiHelperSettings.expiry.tagged" :reset-trigger="resetTrigger" />
-        <expiry-setting label="Categories" v-model="spiHelperSettings.expiry.categories"
+        <expiry-setting label="Cases" v-model="instanceSettings.expiry.case" :reset-trigger="resetTrigger" />
+        <expiry-setting label="Archives" v-model="instanceSettings.expiry.archive" :reset-trigger="resetTrigger" />
+        <expiry-setting label="Tagged Users" v-model="instanceSettings.expiry.tagged" :reset-trigger="resetTrigger" />
+        <expiry-setting label="Categories" v-model="instanceSettings.expiry.categories"
                         :reset-trigger="resetTrigger" />
-        <expiry-setting label="Blocked Users" v-model="spiHelperSettings.expiry.blocked"
+        <expiry-setting label="Blocked Users" v-model="instanceSettings.expiry.blocked"
                         :reset-trigger="resetTrigger" />
       </cdx-accordion>
       <cdx-accordion :action-icon="icons.cdxIconJournal" :action-always-visible="true">
         <template #title>Log</template>
-        <cdx-toggle-switch v-model="spiHelperSettings.log.enabled">
+        <cdx-toggle-switch v-model="instanceSettings.log.enabled">
           Enabled
           <template #description>Log all actions to your userspace</template>
         </cdx-toggle-switch>
-        <div v-if="spiHelperSettings.log.enabled">
-          <log-page-setting v-model="spiHelperSettings.log.page" :prefix="logPrefix" />
+        <div v-if="instanceSettings.log.enabled">
+          <log-page-setting v-model="instanceSettings.log.page" :prefix="logPrefix" />
           <br>
-          <cdx-toggle-switch v-model="spiHelperSettings.log.reversed">
+          <cdx-toggle-switch v-model="instanceSettings.log.reversed">
             Reverse log
             <template #description>Reverse said log, so that the newest actions are at the top</template>
           </cdx-toggle-switch>
           <p style="word-wrap: anywhere">
-            Logging to [[<a :href="logPage">{{ logPrefix + spiHelperSettings.log.page }}</a>]]
+            Logging to [[<a :href="logPage">{{ logPrefix + instanceSettings.log.page }}</a>]]
           </p>
         </div>
       </cdx-accordion>
       <cdx-accordion :action-icon="icons.cdxIconLayout" :action-always-visible="true">
         <template #title>Interface</template>
-        <cdx-toggle-switch v-model="spiHelperSettings.interface.displayIPv6As64" :align-switch="true">
+        <cdx-toggle-switch v-model="instanceSettings.interface.displayIPv6As64" :align-switch="true">
           Display IPv6 as /64
           <template #description>Default IPv6 listings to /64 in the block/tag socks menu</template>
         </cdx-toggle-switch>
-        <cdx-toggle-switch v-model="spiHelperSettings.interface.fullPreview" :align-switch="true">
+        <cdx-toggle-switch v-model="instanceSettings.interface.fullPreview" :align-switch="true">
           Full preview
           <template #description>Include the entire section's text when previewing comments</template>
         </cdx-toggle-switch>
-        <expiry-setting label="Default block duration" v-model="spiHelperSettings.interface.defaultBlockDuration"
+        <expiry-setting label="Default block duration" v-model="instanceSettings.interface.defaultBlockDuration"
                         :reset-trigger="resetTrigger" />
       </cdx-accordion>
       <cdx-accordion :action-icon="icons.cdxIconPalette" :action-always-visible="true">
@@ -2276,13 +2290,13 @@
         <div>
           <h3 style="padding-top: 0;">Comment templates</h3>
           <div class="spiHelper-template-container">
-            <div v-for="(entry, i) in spiHelperSettings.custom.commentTemplates" :key="i" class="spiHelper-template">
+            <div v-for="(entry, i) in instanceSettings.custom.commentTemplates" :key="i" class="spiHelper-template">
               <div v-if="isMenuGroupData(entry)">
                 <div class="spiHelper-template-input">
                   <cdx-text-input v-model="entry.label" placeholder="Group label" />
-                  <cdx-button @click="moveDown(spiHelperSettings.custom.commentTemplates, i)"
+                  <cdx-button @click="moveDown(instanceSettings.custom.commentTemplates, i)"
                               aria-label="Move group down"
-                              :disabled="spiHelperSettings.custom.commentTemplates.length <= i + 1">
+                              :disabled="instanceSettings.custom.commentTemplates.length <= i + 1">
                     <cdx-icon :icon="icons.cdxIconArrowDown" />
                   </cdx-button>
                   <cdx-button @click="entry.items.push({ label: '', value: '' })" action="progressive"
@@ -2311,8 +2325,8 @@
                 <cdx-text-input v-model="entry.label" placeholder="Label" />
                 <page-lookup v-model="entry.value" placeholder="Template (no brackets)" :namespace="10"
                              :validate-message="false" />
-                <cdx-button @click="moveDown(spiHelperSettings.custom.commentTemplates, i)" aria-label="Move item down"
-                            :disabled="spiHelperSettings.custom.commentTemplates.length <= i + 1">
+                <cdx-button @click="moveDown(instanceSettings.custom.commentTemplates, i)" aria-label="Move item down"
+                            :disabled="instanceSettings.custom.commentTemplates.length <= i + 1">
                   <cdx-icon :icon="icons.cdxIconArrowDown" />
                 </cdx-button>
                 <cdx-button @click="removeTemplateEntry(i)" action="destructive" aria-label="Delete item">
@@ -2334,32 +2348,32 @@
       </cdx-accordion>
       <cdx-accordion :action-icon="icons.cdxIconCode" :action-always-visible="true" v-if="showExtra">
         <template #title>Debug</template>
-        <cdx-toggle-switch v-model="spiHelperSettings.debug.enabled" :align-switch="true">
+        <cdx-toggle-switch v-model="instanceSettings.debug.enabled" :align-switch="true">
           Enabled
         </cdx-toggle-switch>
-        <cdx-field v-if="spiHelperSettings.debug.enabled">
+        <cdx-field v-if="instanceSettings.debug.enabled">
           <template #description>These will override your roles. For example, if you are an administrator and force
             admin is unchecked, spiHelper will not consider you as an admninistrator.
           </template>
-          <cdx-toggle-switch v-model="spiHelperSettings.debug.forceCheckuser" :align-switch="true">
+          <cdx-toggle-switch v-model="instanceSettings.debug.forceCheckuser" :align-switch="true">
             Force CheckUser state
           </cdx-toggle-switch>
-          <cdx-toggle-switch v-model="spiHelperSettings.debug.forceAdmin" :align-switch="true">
+          <cdx-toggle-switch v-model="instanceSettings.debug.forceAdmin" :align-switch="true">
             Force Admin state
           </cdx-toggle-switch>
         </cdx-field>
       </cdx-accordion>
       <div class="spiHelper-setting">
-        <cdx-toggle-switch v-model="spiHelperSettings.clerk" :align-switch="true">Clerk</cdx-toggle-switch>
-        <cdx-toggle-switch v-model="spiHelperSettings.tickArchiveWhenCaseClosed" :align-switch="true">
+        <cdx-toggle-switch v-model="instanceSettings.clerk" :align-switch="true">Clerk</cdx-toggle-switch>
+        <cdx-toggle-switch v-model="instanceSettings.tickArchiveWhenCaseClosed" :align-switch="true">
           Archive closed by default
           <template #description>If the case is closed, enable archival by default</template>
         </cdx-toggle-switch>
-        <cdx-toggle-switch v-if="isCheckUser" v-model="spiHelperSettings.useCheckuserblockAccount" :align-switch="true">
+        <cdx-toggle-switch v-if="isCheckUser" v-model="instanceSettings.useCheckuserblockAccount" :align-switch="true">
           Use &#123;&#123;<a href="//en.wikipedia.org/wiki/Template:Checkuserblock-account">checkuserblock-account</a>&#125;&#125;
           when CU blocking
         </cdx-toggle-switch>
-        <cdx-toggle-switch v-model="spiHelperSettings.useLookup" :align-switch="true">
+        <cdx-toggle-switch v-model="instanceSettings.useLookup" :align-switch="true">
           Use lookups
           <template #description>Use the API to suggest autocompletions</template>
         </cdx-toggle-switch>
@@ -2378,7 +2392,7 @@
             Actions to have enabled by default when opening the form
           </template>
         </cdx-field>
-        <cdx-toggle-switch v-model="spiHelperSettings.highlightSection" :align-switch="true">
+        <cdx-toggle-switch v-model="instanceSettings.highlightSection" :align-switch="true">
           Highlight section
           <template #description>
             Highlight the selected SPI section to prevent editing the wrong one
@@ -3817,9 +3831,10 @@ $2`);
     const lockResults = await Promise.all(users.map(async (user) => (await spiHelperGetGlobalUser(user))?.locked ? null : user));
     return lockResults.filter((user) => user !== null);
   }
+  var MAX_LOCK_FILTER_REQUESTS = 6;
   async function spiHelperRequestLocks(opts) {
     const { master, hideNames } = opts;
-    const lockTargets = opts.lockTargets.length < 6 ? await filterLockedAccounts(opts.lockTargets) : opts.lockTargets;
+    const lockTargets = opts.lockTargets.length < MAX_LOCK_FILTER_REQUESTS ? await filterLockedAccounts(opts.lockTargets) : opts.lockTargets;
     if (lockTargets.length === 0) {
       return [];
     }
@@ -3853,7 +3868,12 @@ $2`);
     message += `
 ${lockTemplate}`;
     message += `
-${usePlural ? "Sockpuppets" : "Sockpuppet"} found in enwiki sockpuppet investigation, see [[${context.prefixedName}]].`;
+${usePlural ? "Sockpuppets" : "Sockpuppet"} found in enwiki sockpuppet investigation`;
+    if (context.valid) {
+      message += `, see [[${context.prefixedName}]].`;
+    } else {
+      message += ".";
+    }
     if (lockComment !== "") {
       message += ` ${lockComment}.`;
     }
@@ -4313,10 +4333,10 @@ ${comment}
         accounts: [],
         messages,
         icons: {
-          cdxIconPushPin: y7,
-          cdxIconCollapse: z4,
-          cdxIconExpand: f4,
-          cdxIconFeedback: q4
+          cdxIconPushPin: f7,
+          cdxIconCollapse: i4,
+          cdxIconExpand: S4,
+          cdxIconFeedback: w4
         }
       };
     },
@@ -4799,11 +4819,11 @@ ${comment}
         isCheckuser,
         isClerk,
         popovers,
-        cdxIconCopy: p4,
-        cdxIconDownload: u4,
-        cdxIconTrash: F8,
-        cdxIconUserAvatar: P8,
-        cdxIconUserAvatarOutline: N8
+        cdxIconCopy: m4,
+        cdxIconDownload: L4,
+        cdxIconTrash: y8,
+        cdxIconUserAvatar: N8,
+        cdxIconUserAvatarOutline: O8
       };
     },
     computed: {
@@ -4885,6 +4905,9 @@ ${comment}
       },
       setAllTags(tag) {
         for (const row of this.getTargetRows()) {
+          if (isNonRegisteredAccount(row.username)) {
+            continue;
+          }
           row.block.tags = [tag.clone()];
         }
       },
@@ -4939,12 +4962,15 @@ ${comment}
         }
       },
       handleTagAddAll() {
-        for (const row of this.accounts) {
+        for (const row of this.getTargetRows()) {
+          if (isNonRegisteredAccount(row.username)) {
+            continue;
+          }
           row.block.tags.push(new SockpuppetTag({ master: this.defaultMaster, status: "blocked" }));
         }
       },
       handleTagDeleteAll() {
-        for (const row of this.accounts) {
+        for (const row of this.getTargetRows()) {
           row.block.tags.length = 0;
         }
       },
@@ -5154,7 +5180,8 @@ ${comment}
         <template #item-tag="{ item, row }">
           <cdx-button v-for="(tag, index) in getRowTagsWithDefault(row.block.tags)" class="userTag"
                       @click="showTagPopover(tag, index, row.id, $event)"
-                      :action="validateTag(tag) ? 'default' : 'destructive'">
+                      :action="validateTag(tag) ? 'default' : 'destructive'"
+                      :disabled="isNonRegisteredAccount(row.username)">
             <cdx-icon v-if="tag !== null"
                       :icon="isSockmasterTag(tag) ? cdxIconUserAvatar : cdxIconUserAvatarOutline"
                       :title="isSockmasterTag(tag) ? 'Master' : 'Sockpuppet'" />
@@ -5279,7 +5306,7 @@ ${comment}
         loadingPreview: false,
         htmlPreview: "",
         fullPreview: spiHelperSettings.interface.fullPreview,
-        cdxIconReload: U7
+        cdxIconReload: W7
       };
     },
     computed: {
@@ -5573,8 +5600,8 @@ ${comment}
         columns,
         optionColumns,
         selectedRows,
-        cdxIconAdd: k3,
-        cdxIconTrash: F8
+        cdxIconAdd: C3,
+        cdxIconTrash: y8
       };
     },
     computed: {
@@ -6362,7 +6389,7 @@ ${comment}
           continueAction
         },
         submitElement: null,
-        cdxIconUpdate: T8
+        cdxIconUpdate: U8
       };
     },
     computed: {
@@ -6516,15 +6543,15 @@ ${comment}
         altmaster: "none"
       };
       const tagCategoryButtons = [
-        { value: "sock", label: "Sockpuppet", icon: N8 },
-        { value: "master", label: "Sockmaster", icon: P8 }
+        { value: "sock", label: "Sockpuppet", icon: O8 },
+        { value: "master", label: "Sockmaster", icon: N8 }
       ];
       const temporaryTag = null;
       const icons = {
-        cdxIconAdd: k3,
-        cdxIconCopy: p4,
-        cdxIconPaste: L7,
-        cdxIconTrash: F8
+        cdxIconAdd: C3,
+        cdxIconCopy: m4,
+        cdxIconPaste: I7,
+        cdxIconTrash: y8
       };
       return {
         sockTags,
@@ -6746,8 +6773,8 @@ ${comment}
         actionsRunning: false,
         unpinned: !spiHelperSettings.interface.pinned,
         messages,
-        cdxIconFeedback: q4,
-        cdxIconPushPin: y7
+        cdxIconFeedback: w4,
+        cdxIconPushPin: f7
       };
     },
     computed: {
@@ -7187,6 +7214,13 @@ ${comment}
     return false;
   }
 
+  // src/ui/views/toastView.ts
+  var ToastContainerComponent = defineComponent({
+    template: `
+    <cdx-toast-container />
+    `
+  });
+
   // src/spihelper.ts
   if (mw.config.get("wgPageName").includes("Wikipedia:Sockpuppet_investigations/") && !mw.config.get("wgPageName").includes("Wikipedia:Sockpuppet_investigations/SPI/")) {
     bootstrap("spi");
@@ -7230,6 +7264,7 @@ ${comment}
           saveOptions();
         })();
       }
+      mountToastContainer(Vue, Codex);
       const changelogState = Vue.reactive({ isOpen: false });
       if (spiHelperSettings.lastSeenVersion !== VERSION) {
         getUnseenChanges(spiHelperSettings.lastSeenVersion).then((unseenChanges) => {
@@ -7315,7 +7350,11 @@ ${comment}
     const settingsLink = mw.util.addPortletLink("p-cactions", "#", "SPI-Beta-Options", "ca-spiHelperOpts", "Modify spiHelper settings");
     if (settingsLink) {
       const mountPoint = document.body.appendChild(document.createElement("div"));
-      Vue.createMwApp(OptionsComponent, { feedbackDialog, openButton: settingsLink }).component("cdx-button", Codex.CdxButton).component("cdx-dialog", Codex.CdxDialog).component("cdx-field", Codex.CdxField).component("cdx-lookup", Codex.CdxLookup).component("cdx-select", Codex.CdxSelect).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-accordion", Codex.CdxAccordion).component("cdx-text-input", Codex.CdxTextInput).component("cdx-icon", Codex.CdxIcon).component("cdx-message", Codex.CdxMessage).component("cdx-multiselect-lookup", Codex.CdxMultiselectLookup).component("watch-setting", WatchSettingComponent).component("expiry-setting", ExpirySettingComponent).component("expiry-input", ExpiryInputComponent).component("log-page-setting", LogPageSettingComponent).component("page-lookup", PageLookupComponent).mount(mountPoint);
+      Vue.createMwApp(OptionsComponent, {
+        feedbackDialog,
+        openButton: settingsLink,
+        toaster: Codex.useToast()
+      }).component("cdx-button", Codex.CdxButton).component("cdx-dialog", Codex.CdxDialog).component("cdx-field", Codex.CdxField).component("cdx-lookup", Codex.CdxLookup).component("cdx-select", Codex.CdxSelect).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-accordion", Codex.CdxAccordion).component("cdx-text-input", Codex.CdxTextInput).component("cdx-icon", Codex.CdxIcon).component("cdx-message", Codex.CdxMessage).component("cdx-multiselect-lookup", Codex.CdxMultiselectLookup).component("watch-setting", WatchSettingComponent).component("expiry-setting", ExpirySettingComponent).component("expiry-input", ExpiryInputComponent).component("log-page-setting", LogPageSettingComponent).component("page-lookup", PageLookupComponent).mount(mountPoint);
     }
   }
   function createOCALink(Vue, Codex, caseState) {
@@ -7327,6 +7366,11 @@ ${comment}
         activateButton: oneClickArchiveLink
       }).component("cdx-dialog", Codex.CdxDialog).component("cdx-message", Codex.CdxMessage).component("cdx-progress-bar", Codex.CdxProgressBar).mount(mountPoint);
     }
+  }
+  function mountToastContainer(Vue, Codex) {
+    const toastApp = Vue.createMwApp(ToastContainerComponent).component("cdx-toast-container", Codex.CdxToastContainer);
+    const mountPoint = document.body.appendChild(document.createElement("div"));
+    toastApp.mount(mountPoint);
   }
 })();
 
