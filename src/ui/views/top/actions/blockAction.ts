@@ -176,6 +176,9 @@ export const BlockActionComponent = defineComponent({
     },
     setAllTags(tag: Tag) {
       for (const row of this.getTargetRows()) {
+        if (isNonRegisteredAccount(row.username)) {
+          continue;
+        }
         row.block.tags = [tag.clone()];
       }
     },
@@ -235,12 +238,15 @@ export const BlockActionComponent = defineComponent({
       }
     },
     handleTagAddAll() {
-      for (const row of this.accounts) {
+      for (const row of this.getTargetRows()) {
+        if (isNonRegisteredAccount(row.username)) {
+          continue;
+        }
         row.block.tags.push(new SockpuppetTag({ master: this.defaultMaster, status: 'blocked' }));
       }
     },
     handleTagDeleteAll() {
-      for (const row of this.accounts) {
+      for (const row of this.getTargetRows()) {
         row.block.tags.length = 0;
       }
     },
@@ -451,7 +457,8 @@ export const BlockActionComponent = defineComponent({
         <template #item-tag="{ item, row }">
           <cdx-button v-for="(tag, index) in getRowTagsWithDefault(row.block.tags)" class="userTag"
                       @click="showTagPopover(tag, index, row.id, $event)"
-                      :action="validateTag(tag) ? 'default' : 'destructive'">
+                      :action="validateTag(tag) ? 'default' : 'destructive'"
+                      :disabled="isNonRegisteredAccount(row.username)">
             <cdx-icon v-if="tag !== null"
                       :icon="isSockmasterTag(tag) ? cdxIconUserAvatar : cdxIconUserAvatarOutline"
                       :title="isSockmasterTag(tag) ? 'Master' : 'Sockpuppet'" />
