@@ -3,7 +3,7 @@ import { spiHelperEditPage, spiHelperGetPageText } from '../api.ts';
 import { getFullLogPage } from '../options/utils.ts';
 
 /**
- * Logs SPI actions to userspace a la Twinkle's CSD/prod/etc. logs
+ * Logs SPI actions to userspace à la Twinkle's CSD/prod/etc. logs
  *
  * @param {string} logString String with the changes the user made
  */

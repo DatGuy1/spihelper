@@ -247,10 +247,6 @@
         min-width: 110px;
     }
 
-    div.tagOptions {
-        min-width: 130px;
-    }
-
     thead tr.blockSettingsRow th {
         padding: 6px 4px;
         font-size: 0.75rem;
