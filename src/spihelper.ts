@@ -42,6 +42,7 @@ import type * as CodexType from '@wikimedia/codex';
 import type { FeedbackDialog } from './types/vue.ts';
 import { setContext } from './context.ts';
 import { getUnseenChanges } from './changelog.ts';
+import { ToastContainerComponent } from './ui/views/toastView.ts';
 
 // DatGuy's rewrite of GeneralNotability's rewrite of Tim's SPI helper script
 // With additional contributions from 0xDeadbeef, Dreamy Jazz,
@@ -105,6 +106,8 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
         saveOptions();
       })();
     }
+
+    mountToastContainer(Vue, Codex);
 
     const changelogState = Vue.reactive({ isOpen: false });
     if (spiHelperSettings.lastSeenVersion !== VERSION) {
@@ -302,7 +305,13 @@ function createSettingsLink(
   const settingsLink = mw.util.addPortletLink('p-cactions', '#', 'SPI-Beta-Options', 'ca-spiHelperOpts', 'Modify spiHelper settings');
   if (settingsLink) {
     const mountPoint = document.body.appendChild(document.createElement('div'));
-    Vue.createMwApp(OptionsComponent, { feedbackDialog, openButton: settingsLink })
+    Vue.createMwApp(
+      OptionsComponent,
+      {
+        feedbackDialog,
+        openButton: settingsLink,
+        toaster: Codex.useToast(),
+      })
       .component('cdx-button', Codex.CdxButton)
       .component('cdx-dialog', Codex.CdxDialog)
       .component('cdx-field', Codex.CdxField)
@@ -339,4 +348,10 @@ function createOCALink(Vue: typeof VueType, Codex: typeof CodexType, caseState: 
       .component('cdx-progress-bar', Codex.CdxProgressBar)
       .mount(mountPoint);
   }
+}
+
+function mountToastContainer(Vue: typeof VueType, Codex: typeof CodexType) {
+  const toastApp = Vue.createMwApp(ToastContainerComponent).component('cdx-toast-container', Codex.CdxToastContainer);
+  const mountPoint = document.body.appendChild(document.createElement('div'));
+  toastApp.mount(mountPoint);
 }

@@ -20,6 +20,9 @@ import type { ChipInputItem, MenuItemData, MenuItemValue } from '@wikimedia/code
 import { CASE_ACTION_NAMES, type CaseActionName } from '../../../types/spi.ts';
 import type { FeedbackDialog } from '../../../types/vue.ts';
 import { isMenuGroupData } from '../../utils.ts';
+import type { useToast } from '@wikimedia/codex';
+
+type UseToastReturn = ReturnType<typeof useToast>;
 
 interface Data {
   open: boolean;
@@ -44,7 +47,8 @@ interface Data {
     cdxIconTrash: typeof cdxIconTrash;
     cdxIconWatchlist: typeof cdxIconWatchlist;
   };
-  spiHelperSettings: typeof spiHelperSettings;
+  instanceSettings: ScriptSettings;
+  oldSettings: ScriptSettings;
   resetTrigger: number;
 }
 
@@ -52,6 +56,7 @@ export const OptionsComponent = defineComponent({
   props: {
     feedbackDialog: { type: Object as PropType<FeedbackDialog>, required: true },
     openButton: { type: Object as PropType<HTMLElement>, required: true },
+    toaster: { type: Object as PropType<UseToastReturn>, required: true },
   },
   data: function (): Data {
     const username = mw.config.get('wgUserName') ?? '';
@@ -94,7 +99,8 @@ export const OptionsComponent = defineComponent({
         cdxIconTrash,
         cdxIconWatchlist,
       },
-      spiHelperSettings,
+      instanceSettings: structuredClone(spiHelperSettings),
+      oldSettings: structuredClone(spiHelperSettings),
       resetTrigger: 0,
     };
   },
@@ -103,20 +109,20 @@ export const OptionsComponent = defineComponent({
       return `${mw.config.get('wgServer')}/wiki/${getFullLogPage(spiHelperSettings.log.page)}`;
     },
     isCheckUser(): boolean {
-      const { debug } = this.spiHelperSettings;
+      const { debug } = this.instanceSettings;
       const isCU = mw.config.get('wgUserGroups')?.includes('checkuser') ?? false;
 
       return isCU || (debug.enabled && debug.forceCheckuser);
     },
     inputChipItems: {
       get(): ChipInputItem[] {
-        return this.spiHelperSettings.defaultActions.map(actionName => ({
+        return this.instanceSettings.defaultActions.map(actionName => ({
           value: actionName,
           label: actionName.charAt(0).toUpperCase() + actionName.slice(1),
         }));
       },
       set(value: ChipInputItem[]) {
-        this.spiHelperSettings.defaultActions = value.map(item => item.value as CaseActionName);
+        this.instanceSettings.defaultActions = value.map(item => item.value as CaseActionName);
       },
     },
   },
@@ -128,7 +134,22 @@ export const OptionsComponent = defineComponent({
         }
       }
       else {
-        void saveOptions();
+        const currentSettingsJson = JSON.stringify(this.instanceSettings);
+        const settingsDiffer = JSON.stringify(this.oldSettings) !== currentSettingsJson;
+        if (settingsDiffer) {
+          this.toaster.info('Saving settings...', { autoDismiss: false });
+          saveOptions()
+            .then((_) => {
+              this.toaster.success('Settings saved! Reload to apply them', { autoDismiss: true });
+            })
+            .catch((error: unknown) => {
+              const message = error instanceof Error ? error.message : String(error);
+              this.toaster.error(`Failed to save settings: ${message}`, { autoDismiss: true });
+            })
+            .always(() => {
+              this.oldSettings = JSON.parse(currentSettingsJson) as ScriptSettings;
+            });
+        }
         if (this.showExtraHandler) {
           window.removeEventListener('keydown', this.showExtraHandler);
         }
@@ -177,7 +198,7 @@ export const OptionsComponent = defineComponent({
     isMenuGroupData,
     loadDefaults() {
       // Create a deep copy and replace the reactive reference
-      this.spiHelperSettings
+      this.instanceSettings
         = JSON.parse(JSON.stringify(spiHelperDefaultSettings)) as ScriptSettings;
       // Also update the global
       Object.assign(spiHelperSettings, spiHelperDefaultSettings);
@@ -191,14 +212,14 @@ export const OptionsComponent = defineComponent({
       });
     },
     removeTemplateEntry(index: number) {
-      this.spiHelperSettings.custom.commentTemplates.splice(index, 1);
+      this.instanceSettings.custom.commentTemplates.splice(index, 1);
     },
     addTemplateEntry(type: 'item' | 'group') {
       if (type === 'item') {
-        this.spiHelperSettings.custom.commentTemplates.push({ label: '', value: '' });
+        this.instanceSettings.custom.commentTemplates.push({ label: '', value: '' });
       }
       else {
-        this.spiHelperSettings.custom.commentTemplates.push({ label: '', items: [] });
+        this.instanceSettings.custom.commentTemplates.push({ label: '', items: [] });
       }
     },
     moveDown<T>(arr: T[], index: number) {
@@ -237,13 +258,13 @@ export const OptionsComponent = defineComponent({
       </cdx-message>
       <cdx-accordion :action-icon="icons.cdxIconWatchlist" :action-always-visible="true">
         <template #title>Watch</template>
-        <watch-setting label="Cases" v-model="spiHelperSettings.watch.case" :reset-trigger="resetTrigger" />
-        <watch-setting label="Archives" v-model="spiHelperSettings.watch.archive" :reset-trigger="resetTrigger" />
-        <watch-setting label="Tagged Users" v-model="spiHelperSettings.watch.tagged" :reset-trigger="resetTrigger" />
-        <watch-setting label="Categories" v-model="spiHelperSettings.watch.categories" :reset-trigger="resetTrigger" />
+        <watch-setting label="Cases" v-model="instanceSettings.watch.case" :reset-trigger="resetTrigger" />
+        <watch-setting label="Archives" v-model="instanceSettings.watch.archive" :reset-trigger="resetTrigger" />
+        <watch-setting label="Tagged Users" v-model="instanceSettings.watch.tagged" :reset-trigger="resetTrigger" />
+        <watch-setting label="Categories" v-model="instanceSettings.watch.categories" :reset-trigger="resetTrigger" />
         <cdx-field>
           <template #label>Blocked Users</template>
-          <cdx-toggle-switch v-model="spiHelperSettings.watch.blocked" />
+          <cdx-toggle-switch v-model="instanceSettings.watch.blocked" />
           <template #help-text>Due to API limitations, only a toggle is available</template>
         </cdx-field>
       </cdx-accordion>
@@ -253,43 +274,43 @@ export const OptionsComponent = defineComponent({
           Expiry values may be relative (e.g. 5 months or 2 weeks) or absolute (e.g. 2014-09-18T12:34:56Z). For no
           expiry, use infinite, indefinite, infinity or never.
         </p>
-        <expiry-setting label="Cases" v-model="spiHelperSettings.expiry.case" :reset-trigger="resetTrigger" />
-        <expiry-setting label="Archives" v-model="spiHelperSettings.expiry.archive" :reset-trigger="resetTrigger" />
-        <expiry-setting label="Tagged Users" v-model="spiHelperSettings.expiry.tagged" :reset-trigger="resetTrigger" />
-        <expiry-setting label="Categories" v-model="spiHelperSettings.expiry.categories"
+        <expiry-setting label="Cases" v-model="instanceSettings.expiry.case" :reset-trigger="resetTrigger" />
+        <expiry-setting label="Archives" v-model="instanceSettings.expiry.archive" :reset-trigger="resetTrigger" />
+        <expiry-setting label="Tagged Users" v-model="instanceSettings.expiry.tagged" :reset-trigger="resetTrigger" />
+        <expiry-setting label="Categories" v-model="instanceSettings.expiry.categories"
                         :reset-trigger="resetTrigger" />
-        <expiry-setting label="Blocked Users" v-model="spiHelperSettings.expiry.blocked"
+        <expiry-setting label="Blocked Users" v-model="instanceSettings.expiry.blocked"
                         :reset-trigger="resetTrigger" />
       </cdx-accordion>
       <cdx-accordion :action-icon="icons.cdxIconJournal" :action-always-visible="true">
         <template #title>Log</template>
-        <cdx-toggle-switch v-model="spiHelperSettings.log.enabled">
+        <cdx-toggle-switch v-model="instanceSettings.log.enabled">
           Enabled
           <template #description>Log all actions to your userspace</template>
         </cdx-toggle-switch>
-        <div v-if="spiHelperSettings.log.enabled">
-          <log-page-setting v-model="spiHelperSettings.log.page" :prefix="logPrefix" />
+        <div v-if="instanceSettings.log.enabled">
+          <log-page-setting v-model="instanceSettings.log.page" :prefix="logPrefix" />
           <br>
-          <cdx-toggle-switch v-model="spiHelperSettings.log.reversed">
+          <cdx-toggle-switch v-model="instanceSettings.log.reversed">
             Reverse log
             <template #description>Reverse said log, so that the newest actions are at the top</template>
           </cdx-toggle-switch>
           <p style="word-wrap: anywhere">
-            Logging to [[<a :href="logPage">{{ logPrefix + spiHelperSettings.log.page }}</a>]]
+            Logging to [[<a :href="logPage">{{ logPrefix + instanceSettings.log.page }}</a>]]
           </p>
         </div>
       </cdx-accordion>
       <cdx-accordion :action-icon="icons.cdxIconLayout" :action-always-visible="true">
         <template #title>Interface</template>
-        <cdx-toggle-switch v-model="spiHelperSettings.interface.displayIPv6As64" :align-switch="true">
+        <cdx-toggle-switch v-model="instanceSettings.interface.displayIPv6As64" :align-switch="true">
           Display IPv6 as /64
           <template #description>Default IPv6 listings to /64 in the block/tag socks menu</template>
         </cdx-toggle-switch>
-        <cdx-toggle-switch v-model="spiHelperSettings.interface.fullPreview" :align-switch="true">
+        <cdx-toggle-switch v-model="instanceSettings.interface.fullPreview" :align-switch="true">
           Full preview
           <template #description>Include the entire section's text when previewing comments</template>
         </cdx-toggle-switch>
-        <expiry-setting label="Default block duration" v-model="spiHelperSettings.interface.defaultBlockDuration"
+        <expiry-setting label="Default block duration" v-model="instanceSettings.interface.defaultBlockDuration"
                         :reset-trigger="resetTrigger" />
       </cdx-accordion>
       <cdx-accordion :action-icon="icons.cdxIconPalette" :action-always-visible="true">
@@ -297,13 +318,13 @@ export const OptionsComponent = defineComponent({
         <div>
           <h3 style="padding-top: 0;">Comment templates</h3>
           <div class="spiHelper-template-container">
-            <div v-for="(entry, i) in spiHelperSettings.custom.commentTemplates" :key="i" class="spiHelper-template">
+            <div v-for="(entry, i) in instanceSettings.custom.commentTemplates" :key="i" class="spiHelper-template">
               <div v-if="isMenuGroupData(entry)">
                 <div class="spiHelper-template-input">
                   <cdx-text-input v-model="entry.label" placeholder="Group label" />
-                  <cdx-button @click="moveDown(spiHelperSettings.custom.commentTemplates, i)"
+                  <cdx-button @click="moveDown(instanceSettings.custom.commentTemplates, i)"
                               aria-label="Move group down"
-                              :disabled="spiHelperSettings.custom.commentTemplates.length <= i + 1">
+                              :disabled="instanceSettings.custom.commentTemplates.length <= i + 1">
                     <cdx-icon :icon="icons.cdxIconArrowDown" />
                   </cdx-button>
                   <cdx-button @click="entry.items.push({ label: '', value: '' })" action="progressive"
@@ -332,8 +353,8 @@ export const OptionsComponent = defineComponent({
                 <cdx-text-input v-model="entry.label" placeholder="Label" />
                 <page-lookup v-model="entry.value" placeholder="Template (no brackets)" :namespace="10"
                              :validate-message="false" />
-                <cdx-button @click="moveDown(spiHelperSettings.custom.commentTemplates, i)" aria-label="Move item down"
-                            :disabled="spiHelperSettings.custom.commentTemplates.length <= i + 1">
+                <cdx-button @click="moveDown(instanceSettings.custom.commentTemplates, i)" aria-label="Move item down"
+                            :disabled="instanceSettings.custom.commentTemplates.length <= i + 1">
                   <cdx-icon :icon="icons.cdxIconArrowDown" />
                 </cdx-button>
                 <cdx-button @click="removeTemplateEntry(i)" action="destructive" aria-label="Delete item">
@@ -355,32 +376,32 @@ export const OptionsComponent = defineComponent({
       </cdx-accordion>
       <cdx-accordion :action-icon="icons.cdxIconCode" :action-always-visible="true" v-if="showExtra">
         <template #title>Debug</template>
-        <cdx-toggle-switch v-model="spiHelperSettings.debug.enabled" :align-switch="true">
+        <cdx-toggle-switch v-model="instanceSettings.debug.enabled" :align-switch="true">
           Enabled
         </cdx-toggle-switch>
-        <cdx-field v-if="spiHelperSettings.debug.enabled">
+        <cdx-field v-if="instanceSettings.debug.enabled">
           <template #description>These will override your roles. For example, if you are an administrator and force
             admin is unchecked, spiHelper will not consider you as an admninistrator.
           </template>
-          <cdx-toggle-switch v-model="spiHelperSettings.debug.forceCheckuser" :align-switch="true">
+          <cdx-toggle-switch v-model="instanceSettings.debug.forceCheckuser" :align-switch="true">
             Force CheckUser state
           </cdx-toggle-switch>
-          <cdx-toggle-switch v-model="spiHelperSettings.debug.forceAdmin" :align-switch="true">
+          <cdx-toggle-switch v-model="instanceSettings.debug.forceAdmin" :align-switch="true">
             Force Admin state
           </cdx-toggle-switch>
         </cdx-field>
       </cdx-accordion>
       <div class="spiHelper-setting">
-        <cdx-toggle-switch v-model="spiHelperSettings.clerk" :align-switch="true">Clerk</cdx-toggle-switch>
-        <cdx-toggle-switch v-model="spiHelperSettings.tickArchiveWhenCaseClosed" :align-switch="true">
+        <cdx-toggle-switch v-model="instanceSettings.clerk" :align-switch="true">Clerk</cdx-toggle-switch>
+        <cdx-toggle-switch v-model="instanceSettings.tickArchiveWhenCaseClosed" :align-switch="true">
           Archive closed by default
           <template #description>If the case is closed, enable archival by default</template>
         </cdx-toggle-switch>
-        <cdx-toggle-switch v-if="isCheckUser" v-model="spiHelperSettings.useCheckuserblockAccount" :align-switch="true">
+        <cdx-toggle-switch v-if="isCheckUser" v-model="instanceSettings.useCheckuserblockAccount" :align-switch="true">
           Use &#123;&#123;<a href="//en.wikipedia.org/wiki/Template:Checkuserblock-account">checkuserblock-account</a>&#125;&#125;
           when CU blocking
         </cdx-toggle-switch>
-        <cdx-toggle-switch v-model="spiHelperSettings.useLookup" :align-switch="true">
+        <cdx-toggle-switch v-model="instanceSettings.useLookup" :align-switch="true">
           Use lookups
           <template #description>Use the API to suggest autocompletions</template>
         </cdx-toggle-switch>
@@ -399,7 +420,7 @@ export const OptionsComponent = defineComponent({
             Actions to have enabled by default when opening the form
           </template>
         </cdx-field>
-        <cdx-toggle-switch v-model="spiHelperSettings.highlightSection" :align-switch="true">
+        <cdx-toggle-switch v-model="instanceSettings.highlightSection" :align-switch="true">
           Highlight section
           <template #description>
             Highlight the selected SPI section to prevent editing the wrong one
