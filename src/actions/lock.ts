@@ -87,7 +87,7 @@ export async function spiHelperRequestLocks(opts: {
     summary: `Global lock request for ${heading}`,
     createonly: false,
     watch: 'nochange',
-  }) !== null;
+  });
   if (editId) {
     const linkHtml = buildTitleLinkHtml(`meta:Special:Diff/${editId}#${headingText}`, 'filed');
     new VueMessage({ type: 'success', content: `Global lock request ${linkHtml} successfully!`, isHtml: true }).show();
