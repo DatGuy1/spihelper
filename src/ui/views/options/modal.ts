@@ -19,8 +19,9 @@ import type { ScriptSettings } from '../../../options/types.ts';
 import type { ChipInputItem, MenuItemData, MenuItemValue } from '@wikimedia/codex';
 import { CASE_ACTION_NAMES, type CaseActionName } from '../../../types/spi.ts';
 import type { FeedbackDialog } from '../../../types/vue.ts';
-import { isMenuGroupData } from '../../utils.ts';
+import { isMenuGroupData, toRaw } from '../../utils.ts';
 import type { useToast } from '@wikimedia/codex';
+import { setGlobalSettings } from '../../../options/options.ts';
 
 type UseToastReturn = ReturnType<typeof useToast>;
 
@@ -137,7 +138,14 @@ export const OptionsComponent = defineComponent({
         const currentSettingsJson = JSON.stringify(this.instanceSettings);
         const settingsDiffer = JSON.stringify(this.oldSettings) !== currentSettingsJson;
         if (settingsDiffer) {
-          this.toaster.info('Saving settings...', { autoDismiss: false });
+          if (toRaw) {
+            setGlobalSettings(toRaw(this.instanceSettings));
+          }
+          else {
+            this.toaster.error(`Failed to save settings`, { autoDismiss: true });
+            return;
+          }
+          const savingId = this.toaster.info('Saving settings...', { autoDismiss: false });
           saveOptions()
             .then((_) => {
               this.toaster.success('Settings saved! Reload to apply them', { autoDismiss: true });
@@ -148,6 +156,9 @@ export const OptionsComponent = defineComponent({
             })
             .always(() => {
               this.oldSettings = JSON.parse(currentSettingsJson) as ScriptSettings;
+              setTimeout(() => {
+                this.toaster.dismiss(savingId);
+              }, 3000);
             });
         }
         if (this.showExtraHandler) {

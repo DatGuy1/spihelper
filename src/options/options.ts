@@ -4,7 +4,10 @@ import type { ScriptSettings } from './types.ts';
 import { migrateSettings } from './migration.ts';
 import { spiHelperDefaultSettings } from '../constants/settings.ts';
 
-export const spiHelperSettings: ScriptSettings = structuredClone(spiHelperDefaultSettings);
+export let spiHelperSettings: ScriptSettings = structuredClone(spiHelperDefaultSettings);
+export function setGlobalSettings(settings: ScriptSettings) {
+  spiHelperSettings = structuredClone(settings);
+}
 
 const saveKey = 'userjs-spihelper';
 

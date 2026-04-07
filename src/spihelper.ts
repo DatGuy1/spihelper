@@ -43,6 +43,7 @@ import type { FeedbackDialog } from './types/vue.ts';
 import { setContext } from './context.ts';
 import { getUnseenChanges } from './changelog.ts';
 import { ToastContainerComponent } from './ui/views/toastView.ts';
+import { setToRaw } from './ui/utils.ts';
 
 // DatGuy's rewrite of GeneralNotability's rewrite of Tim's SPI helper script
 // With additional contributions from 0xDeadbeef, Dreamy Jazz,
@@ -68,6 +69,8 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
     const Vue = require('vue') as typeof VueType;
     const Codex = require('@wikimedia/codex') as typeof CodexType;
 
+    // Ugly ugly ugly
+    setToRaw(Vue.toRaw);
     // For some reason mw.Feedback isn't typed
     // @ts-expect-error - mw.Feedback exists at runtime but not in type definitions
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-call

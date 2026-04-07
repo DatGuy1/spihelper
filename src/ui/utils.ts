@@ -191,3 +191,8 @@ export function pruneMenuData(nodes: MenuNode[]): MenuNode[] {
     })
     .filter((node): node is MenuItemData => node !== null);
 }
+
+export let toRaw: (<T>(observed: T) => T) | null = null;
+export function setToRaw(toRawArg: <T>(observed: T) => T) {
+  toRaw = toRawArg;
+}
