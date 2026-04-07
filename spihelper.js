@@ -1785,6 +1785,9 @@
 
   // src/options/options.ts
   var spiHelperSettings = structuredClone(spiHelperDefaultSettings);
+  function setGlobalSettings(settings) {
+    spiHelperSettings = structuredClone(settings);
+  }
   var saveKey = "userjs-spihelper";
   function saveOptions() {
     return spiHelperGetAPI().saveOption(saveKey, JSON.stringify(spiHelperSettings));
@@ -2035,6 +2038,10 @@
       return node;
     }).filter((node) => node !== null);
   }
+  var toRaw = null;
+  function setToRaw(toRawArg) {
+    toRaw = toRawArg;
+  }
 
   // src/ui/views/options/modal.ts
   var OptionsComponent = defineComponent({
@@ -2114,7 +2121,13 @@
           const currentSettingsJson = JSON.stringify(this.instanceSettings);
           const settingsDiffer = JSON.stringify(this.oldSettings) !== currentSettingsJson;
           if (settingsDiffer) {
-            this.toaster.info("Saving settings...", { autoDismiss: false });
+            if (toRaw) {
+              setGlobalSettings(toRaw(this.instanceSettings));
+            } else {
+              this.toaster.error(`Failed to save settings`, { autoDismiss: true });
+              return;
+            }
+            const savingId = this.toaster.info("Saving settings...", { autoDismiss: false });
             saveOptions().then((_) => {
               this.toaster.success("Settings saved! Reload to apply them", { autoDismiss: true });
             }).catch((error) => {
@@ -2122,6 +2135,9 @@
               this.toaster.error(`Failed to save settings: ${message}`, { autoDismiss: true });
             }).always(() => {
               this.oldSettings = JSON.parse(currentSettingsJson);
+              setTimeout(() => {
+                this.toaster.dismiss(savingId);
+              }, 3000);
             });
           }
           if (this.showExtraHandler) {
@@ -3891,7 +3907,7 @@ $1`);
       summary: `Global lock request for ${heading}`,
       createonly: false,
       watch: "nochange"
-    }) !== null;
+    });
     if (editId) {
       const linkHtml = buildTitleLinkHtml(`meta:Special:Diff/${editId}#${headingText}`, "filed");
       new VueMessage({ type: "success", content: `Global lock request ${linkHtml} successfully!`, isHtml: true }).show();
@@ -7235,6 +7251,7 @@ ${comment}
     mw.loader.using(["vue", "@wikimedia/codex", "mediawiki.api", "mediawiki.util", "mediawiki.user", "mediawiki.feedback"], (require2) => {
       const Vue = require2("vue");
       const Codex = require2("@wikimedia/codex");
+      setToRaw(Vue.toRaw);
       const feedbackDialog = new mw.Feedback(FeedbackConfig);
       if (MODE === "live") {
         mw.loader.load("http://localhost:8080/spihelper.css", "text/css");
