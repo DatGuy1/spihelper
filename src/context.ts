@@ -1,4 +1,4 @@
-import { spiHelperEditPage, spiHelperGetPageRev, spiHelperGetPageText } from './api.ts';
+import { spiHelperEditPage, spiHelperGetPageRev } from './api.ts';
 import type { WatchOption } from './types/api.ts';
 import { spiHelperGetInterwikiPrefix, spiHelperNormalizeUsername } from './utils.ts';
 
@@ -18,8 +18,6 @@ export class SpiPageContext {
   valid: boolean;
   // used to check if the page has been edited since we opened it to prevent edit conflicts
   startingRevId: number;
-
-  _text: string | null = null;
 
   constructor(pageName: string, currentPage = false) {
     this.pageName = pageName;
@@ -41,14 +39,6 @@ export class SpiPageContext {
 
   async refreshRevId() {
     this.startingRevId = await spiHelperGetPageRev(this.pageName);
-  }
-
-  async getText(opts: { purge?: boolean; show?: boolean } = {}): Promise<string> {
-    const { purge = false, show = false } = opts;
-    if (purge || this._text === null) {
-      this._text = await spiHelperGetPageText(this.pageName, show);
-    }
-    return this._text;
   }
 
   async edit(opts: {

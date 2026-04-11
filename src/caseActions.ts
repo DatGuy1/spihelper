@@ -2,7 +2,6 @@ import { OpState, finishOp, startOp } from './operations.ts';
 import {
   spiHelperGetBulkPageText,
   spiHelperGetBulkUserBlockSettings,
-  spiHelperPurgePage,
 } from './api.ts';
 import { context } from './context.ts';
 import {
@@ -187,6 +186,7 @@ export async function spiHelperPerformActions(opts: {
     editSummaryActions.push('Saving page');
   }
 
+  const structureChanged = actions.move.enabled || actions.archive.enabled;
   // Make all the requested edits synchronously since we might make more changes to the page,
   // unless the page is an archive
   if (!context.isArchive && targetText !== startText) {
@@ -206,15 +206,22 @@ export async function spiHelperPerformActions(opts: {
     if (newRevId === null) {
       // Page edit failed (probably an edit conflict)
       new VueMessage({ type: 'error', content: 'Failed to save edit' }).show();
+      if (!structureChanged) {
+        // If structureChanged we'll refetch it below anyways
+        await context.refreshRevId();
+      }
     }
     else {
-      // Update our text.
-      // This should be functionally (but not exactly) equivalent to loadText({ purge: true });
+      // Update our text. This should be functionally (but not exactly) equivalent
+      // to loadCaseText({ purge: true }); loadSectionText({ purge: true });
       if (state.selectedSection.type === 'specific') {
         state.selectedSection.section._text = targetText;
+        if (state._text) {
+          state._text = state._text.replace(startText, targetText);
+        }
       }
       else {
-        context._text = targetText;
+        state._text = targetText;
       }
       context.startingRevId = newRevId;
     }
@@ -266,11 +273,17 @@ export async function spiHelperPerformActions(opts: {
     await spiHelperLog(logMessage);
   }
 
-  // await spiHelperPurgePage(context.pageName);
-  if (!(actions.move.enabled && state.selectedSection.type === 'all')) {
-    // If we moved the entire page there's no point in refreshing sections
-    await refreshSections(state);
+  if (structureChanged) {
+    const movedWholePage = actions.move.enabled && state.selectedSection.type === 'all';
+    if (movedWholePage) {
+      await refreshSections(state);
+    }
+    if (state.selectedSection.type === 'specific') {
+      state.selectedSection = null;
+    }
+    await context.refreshRevId();
   }
+
   new VueMessage({ type: 'success', content: 'Done!' }).show();
 }
 

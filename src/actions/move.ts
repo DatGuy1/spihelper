@@ -139,7 +139,7 @@ export async function spiHelperMoveCase(opts: {
   const oldContext = context;
   const newContext = new SpiPageContext(context.pageName.replace(context.caseName, target));
 
-  const targetPageText = await newContext.getText();
+  const targetPageText = await spiHelperGetPageText(newContext.pageName, false);
   // TODO: Move this to archiveAction.ts
   if (targetPageText) {
     if (spiHelperIsAdmin()) {
@@ -284,10 +284,10 @@ export async function spiHelperMoveCase(opts: {
  */
 export async function spiHelperMoveCaseSection(mergeTarget: string, section: SectionEntry) {
   const newContext = new SpiPageContext(context.pageName.replace(context.caseName, mergeTarget));
-  let targetPageText = await newContext.getText();
+  let targetPageText = await spiHelperGetPageText(newContext.pageName, false);
   let sectionText = await loadSectionText(section);
   sectionText = sectionText.replace(
-    /\n*----(?!(\n|.)*----)/,
+    /\n*----(?!([\n.])*----)/,
     `\n* {{clerknote}} originally filed under [[${context.pageName}]]. ~~~~\n----`,
   );
 
@@ -401,7 +401,7 @@ async function spiHelperPostRenameCleanup(opts: {
   }
 
   // The new case's archivenotice should be updated with the new name
-  let newPageText = await newContext.getText({ purge: true, show: true });
+  let newPageText = await spiHelperGetPageText(newContext.pageName, true);
   // Merge in our old cases
   if (preMergeText) {
     let appendText = preMergeText.replace(/\n*<noinclude>__TOC__.*\n/ig, '');
