@@ -1,4 +1,4 @@
-import { type CaseState, SectionEntry, loadCaseText, loadSectionText, refreshSections } from '../state.ts';
+import { type CaseState, SectionEntry, loadCaseText, loadSectionText } from '../state.ts';
 import { context } from '../context.ts';
 import {
   parseArchiveSections,
@@ -76,7 +76,7 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
     newArchiveText = newArchiveText.replace(/<br\s*\/>\s*{{SPIpriorcases}}/gi, '\n{{SPIpriorcases}}');
   }
   else {
-    newArchiveText = `__TOC__\n{{SPI archive notice|1=${context.caseName}}}\n{{SPIpriorcases}}\n\n`;
+    newArchiveText = `__TOC__\n{{SPI archive notice|1=${context.caseName}}}\n{{SPIpriorcases}}\n`;
   }
 
   // Get archive sections list once for efficient insertion
@@ -142,9 +142,6 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
     watchExpiry: spiHelperSettings.expiry.case,
     baseRevId: context.startingRevId,
   });
-  // Update to the latest revision ID
-  void context.refreshRevId();
-  void refreshSections(state);
 }
 
 /**
@@ -221,6 +218,4 @@ export async function spiHelperArchiveCaseSection(section: SectionEntry): Promis
     baseRevId: context.startingRevId,
     sectionId: section.id,
   });
-  // Update to the latest revision ID
-  await context.refreshRevId();
 }

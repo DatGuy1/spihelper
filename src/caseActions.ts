@@ -53,11 +53,16 @@ export async function spiHelperOneClickArchive(state: CaseState): Promise<void> 
   await refreshSections(state);
 
   await spiHelperArchiveCase(state);
-  await spiHelperPurgePage(context.pageName);
+  // await spiHelperPurgePage(context.pageName);
   const logMessage = `* [[${context.pageName}]]: used one-click archiver ~~~~~`;
   if (spiHelperSettings.log.enabled) {
     await spiHelperLog(logMessage);
   }
+
+  new VueMessage({ type: 'notice', content: 'Refreshing data' }).show();
+  // Update to the latest revision ID
+  await context.refreshRevId();
+  await refreshSections(state);
 
   new VueMessage({ type: 'success', content: 'Done!' }).show();
   finishOp('oneClickArchive', OpState.Success);
