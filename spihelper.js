@@ -1173,29 +1173,6 @@
       return false;
     }
   }
-  async function spiHelperPurgePage(title) {
-    const linkHtml = buildTitleLinkHtml(title);
-    const message = new VueMessage({
-      type: "notice",
-      content: `Purging ${linkHtml}`,
-      isHtml: true
-    }).show();
-    const strippedTitle = spiHelperStripXWikiPrefix(title);
-    const api = spiHelperGetAPI(title);
-    const request = {
-      action: "purge",
-      titles: strippedTitle
-    };
-    try {
-      await api.postWithToken("csrf", request);
-      message.update({ type: "success", content: `Purged ${linkHtml}` });
-    } catch (error) {
-      message.update({
-        type: "error",
-        content: `Failed to purge ${linkHtml}: ${mw.html.escape(JSON.stringify(error))}`
-      });
-    }
-  }
   async function spiHelperMovePage(opts) {
     const {
       sourcePage,
@@ -1461,7 +1438,6 @@
     isArchive;
     valid;
     startingRevId;
-    _text = null;
     constructor(pageName, currentPage = false) {
       this.pageName = pageName;
       this.prefixedName = spiHelperGetInterwikiPrefix() + pageName;
@@ -1479,13 +1455,6 @@
     }
     async refreshRevId() {
       this.startingRevId = await spiHelperGetPageRev(this.pageName);
-    }
-    async getText(opts = {}) {
-      const { purge = false, show = false } = opts;
-      if (purge || this._text === null) {
-        this._text = await spiHelperGetPageText(this.pageName, show);
-      }
-      return this._text;
     }
     async edit(opts) {
       return spiHelperEditPage({
@@ -3075,6 +3044,8 @@
       return "cuhold";
     if (/^clerk$/i.test(caseStatus))
       return "clerk";
+    if (/^admin$/i.test(caseStatus))
+      return "admin";
     return "new";
   }
   // src/actions/log.ts
@@ -3193,7 +3164,7 @@
     const { target, suppress, archiveNotice } = opts;
     const oldContext = context;
     const newContext = new SpiPageContext(context.pageName.replace(context.caseName, target));
-    const targetPageText = await newContext.getText();
+    const targetPageText = await spiHelperGetPageText(newContext.pageName, false);
     if (targetPageText) {
       if (spiHelperIsAdmin()) {
         const proceed = confirm("Target page exists, do you want to histmerge the cases?");
@@ -3306,9 +3277,9 @@
   }
   async function spiHelperMoveCaseSection(mergeTarget, section) {
     const newContext = new SpiPageContext(context.pageName.replace(context.caseName, mergeTarget));
-    let targetPageText = await newContext.getText();
+    let targetPageText = await spiHelperGetPageText(newContext.pageName, false);
     let sectionText = await loadSectionText(section);
-    sectionText = sectionText.replace(/\n*----(?!(\n|.)*----)/, `
+    sectionText = sectionText.replace(/\n*----(?!([\n.])*----)/, `
 * {{clerknote}} originally filed under [[${context.pageName}]]. ~~~~
 ----`);
     if (targetPageText === "") {
@@ -3390,7 +3361,7 @@
         watchExpiry: spiHelperSettings.expiry.case
       });
     }
-    let newPageText = await newContext.getText({ purge: true, show: true });
+    let newPageText = await spiHelperGetPageText(newContext.pageName, true);
     if (preMergeText) {
       let appendText = preMergeText.replace(/\n*<noinclude>__TOC__.*\n/ig, "");
       appendText = appendText.replace(spiHelperArchiveNoticeRegex, "");
@@ -3721,7 +3692,6 @@ $2`);
       newArchiveText = `__TOC__
 {{SPI archive notice|1=${context.caseName}}}
 {{SPIpriorcases}}
-
 `;
     }
     const archiveSectionEntries = archiveExists ? await spiHelperGetInvestigationSections({ pageName: context.archiveName }) : [];
@@ -3776,8 +3746,6 @@ $2`);
       watchExpiry: spiHelperSettings.expiry.case,
       baseRevId: context.startingRevId
     });
-    context.refreshRevId();
-    refreshSections(state);
   }
   async function spiHelperArchiveCaseSection(section) {
     let sectionText = await loadSectionText(section);
@@ -3839,7 +3807,6 @@ $2`);
       baseRevId: context.startingRevId,
       sectionId: section.id
     });
-    await context.refreshRevId();
   }
 
   // src/actions/lock.ts
@@ -3929,11 +3896,13 @@ $1`);
     }
     await refreshSections(state);
     await spiHelperArchiveCase(state);
-    await spiHelperPurgePage(context.pageName);
     const logMessage = `* [[${context.pageName}]]: used one-click archiver ~~~~~`;
     if (spiHelperSettings.log.enabled) {
       await spiHelperLog(logMessage);
     }
+    new VueMessage({ type: "notice", content: "Refreshing data" }).show();
+    await context.refreshRevId();
+    await refreshSections(state);
     new VueMessage({ type: "success", content: "Done!" }).show();
     finishOp("oneClickArchive", "success" /* Success */);
   }
@@ -4037,6 +4006,7 @@ $1`);
     if (editSummaryActions.length === 0) {
       editSummaryActions.push("Saving page");
     }
+    const structureChanged = actions.move.enabled || actions.archive.enabled;
     if (!context.isArchive && targetText !== startText) {
       const sectionId = state.selectedSection.type === "all" ? null : state.selectedSection.section.id;
       const editSummary = formatEditSummary(editSummaryActions);
@@ -4050,11 +4020,17 @@ $1`);
       });
       if (newRevId === null) {
         new VueMessage({ type: "error", content: "Failed to save edit" }).show();
+        if (!structureChanged) {
+          await context.refreshRevId();
+        }
       } else {
         if (state.selectedSection.type === "specific") {
           state.selectedSection.section._text = targetText;
+          if (state._text) {
+            state._text = state._text.replace(startText, targetText);
+          }
         } else {
-          context._text = targetText;
+          state._text = targetText;
         }
         context.startingRevId = newRevId;
       }
@@ -4103,8 +4079,15 @@ $1`);
       logMessage += buildUserActionLogMessage({ blockedUsers, taggedUsers, lockedUsers });
       await spiHelperLog(logMessage);
     }
-    if (!(actions.move.enabled && state.selectedSection.type === "all")) {
-      await refreshSections(state);
+    if (structureChanged) {
+      const movedWholePage = actions.move.enabled && state.selectedSection.type === "all";
+      if (movedWholePage) {
+        await refreshSections(state);
+      }
+      if (state.selectedSection.type === "specific") {
+        state.selectedSection = null;
+      }
+      await context.refreshRevId();
     }
     new VueMessage({ type: "success", content: "Done!" }).show();
   }
