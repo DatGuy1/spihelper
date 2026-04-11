@@ -75,6 +75,7 @@ export function normalizeCaseStatus(caseStatus: string) {
   if (/^hold$/i.test(caseStatus)) return 'hold';
   if (/^cuhold$/i.test(caseStatus)) return 'cuhold';
   if (/^clerk$/i.test(caseStatus)) return 'clerk';
+  if (/^admin$/i.test(caseStatus)) return 'admin';
 
   return 'new';
 }
