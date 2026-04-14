@@ -374,13 +374,18 @@ export function parseUserTags(userPage: string): Tag[] {
   const templates = parseTemplates(userPage);
   for (const template of templates) {
     if (['sockpuppeteer', 'sockmaster'].includes(template.name)) {
-      const firstParam = template.params['1'] ?? template.positional[0];
-      const sockChecked = template.params.checked === true;
+      const firstParam = (template.params['1'] ?? template.positional[0])?.toString();
+      const paramConfirmed = firstParam === 'cu' || (firstParam?.includes('confirmed') ?? false);
+      const sockChecked = template.params.checked === true || paramConfirmed;
+
       let tagStatus: SockmasterTagStatus | undefined;
-      if (firstParam === 'banned') {
+      if (paramConfirmed) {
+        tagStatus = 'confirmed';
+      }
+      else if (firstParam === 'banned') {
         tagStatus = 'banned';
       }
-      else if (firstParam === 'blocked') {
+      else if (firstParam?.includes('blocked')) {
         tagStatus = sockChecked ? 'confirmed' : 'blocked';
       }
       else {

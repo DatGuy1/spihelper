@@ -137,7 +137,7 @@ export class SockmasterTag {
   generateWikitext(): string {
     let tag = '{{sockpuppeteer';
 
-    // 'Confirmed' isn't a real option
+    // The template is very weird. 'Confirmed' is a sort of fake option
     const outputStatus = this.status === 'banned' ? 'banned' : 'blocked';
     // 'Confirmed' or 'banned' neccesitate use of the CU tool, so mark as checked
     const isChecked = this.checked || this.status !== 'blocked';
