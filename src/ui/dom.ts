@@ -28,7 +28,7 @@ export function scrollToSection(sectionId: number) {
 }
 
 function getSectionHighlightRoot(): HTMLElement | null {
-  return document.querySelector('.mw-parser-output');
+  return document.querySelector('#mw-content-text .mw-parser-output');
 }
 
 function getSectionBounds(sectionId: number): { top: number; height: number } | null {
