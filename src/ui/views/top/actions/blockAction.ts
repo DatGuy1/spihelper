@@ -272,7 +272,7 @@ export const BlockActionComponent = defineComponent({
         <cdx-checkbox v-model="blockOptions.tagUnattached" v-if="isClerk">
           Tag accounts without an attached local account
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.cuBlock" v-if="isCheckuser">
+        <cdx-checkbox v-model="blockOptions.cuBlock" v-if="isCheckuser" :disabled="blockOptions.noBlock">
           Mark blocks as Checkuser blocks
         </cdx-checkbox>
         <cdx-checkbox v-model="blockOptions.cuBlockOnly" v-if="isCheckuser" :disabled="!blockOptions.cuBlock">
@@ -280,13 +280,13 @@ export const BlockActionComponent = defineComponent({
             Suppress the usual block summary and only use {{checkuserblock-account}} and {{checkuserblock}}
           </span>
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.addMasterNotice" v-if="isAdmin">
+        <cdx-checkbox v-model="blockOptions.addMasterNotice" v-if="isAdmin" :disabled="blockOptions.noBlock">
           Add talk page notice when (re)blocking the sockmaster
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.addSockNotice" v-if="isAdmin">
+        <cdx-checkbox v-model="blockOptions.addSockNotice" v-if="isAdmin" :disabled="blockOptions.noBlock">
           Add talk page notice when blocking socks
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.blankTalk" v-if="isAdmin">
+        <cdx-checkbox v-model="blockOptions.blankTalk" v-if="isAdmin" :disabled="blockOptions.noBlock || (!blockOptions.addMasterNotice && !blockOptions.addSockNotice)">
           Blank the talk page when adding talk notices
         </cdx-checkbox>
         <cdx-checkbox v-model="blockOptions.lockHideNames" :disabled="!allowLockOption">
