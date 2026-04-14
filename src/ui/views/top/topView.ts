@@ -35,6 +35,7 @@ import { spiHelperPerformActions } from '../../../caseActions.ts';
 import { VueMessage, messages } from '../../messages.ts';
 import { AllSectionActions, AlwaysAvailableActions, SpecificSectionActions } from './utils/setup.ts';
 import { MODE, VERSION } from '../../../constants/settings.ts';
+import { hideSectionOverlay, showSectionOverlay } from '../../dom.ts';
 
 interface Data {
   open: boolean;
@@ -137,8 +138,10 @@ export const TopViewComponent = defineComponent({
     async open(newVal: boolean) {
       if (newVal) {
         await this.ensureArchiveNotice();
+        this.syncSelectedSectionOverlay();
       }
       else {
+        this.syncSelectedSectionOverlay();
         void saveOptions();
       }
     },
@@ -151,6 +154,7 @@ export const TopViewComponent = defineComponent({
           this.caseActions.sections.data.section = firstSection.id;
           await this.ensureArchiveNotice();
           await this.loadNewSection(firstSection);
+          this.syncSelectedSectionOverlay();
         }
         else {
           await this.onUpdateSectionSelection('all');
@@ -232,6 +236,20 @@ export const TopViewComponent = defineComponent({
     }
   },
   methods: {
+    syncSelectedSectionOverlay() {
+      if (!spiHelperSettings.highlightSection || !this.open) {
+        hideSectionOverlay();
+        return;
+      }
+
+      const selected = this.state.selectedSection;
+      if (selected?.type !== 'specific') {
+        hideSectionOverlay();
+        return;
+      }
+
+      showSectionOverlay(selected.section.id, 'selected');
+    },
     toggleButtonLayout() {
       this.buttonLayout = !this.buttonLayout;
       spiHelperSettings.interface.buttonLayout = this.buttonLayout;

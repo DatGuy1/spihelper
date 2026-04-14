@@ -1,10 +1,10 @@
 import { type PropType, defineComponent } from 'vue';
 import {
   type SectionOverlayType,
-  createSectionOverlay,
   getSectionIdByMenuItem,
-  renderSectionOverlay,
+  hideSectionOverlay,
   scrollToSection,
+  showSectionOverlay,
 } from '../../../dom.ts';
 import type { CdxSelect, MenuItemData } from '@wikimedia/codex';
 import { spiHelperSettings } from '../../../../options';
@@ -26,7 +26,6 @@ export const SectionActionComponent = defineComponent({
       menuFocusInHandler: null as ((e: Event) => void) | null,
       activeSectionId: null as number | null,
       overlayType: null as SectionOverlayType | null,
-      sectionOverlayEl: null as HTMLElement | null,
     };
   },
   computed: {
@@ -103,19 +102,12 @@ export const SectionActionComponent = defineComponent({
       }
       scrollToSection(this.selectedSection);
     },
-    getOrCreateSectionOverlay(): HTMLElement | null {
-      this.sectionOverlayEl ??= createSectionOverlay();
-      return this.sectionOverlayEl;
-    },
     renderSectionOverlay(sectionId: number, type: SectionOverlayType) {
-      const overlay = this.getOrCreateSectionOverlay();
       this.overlayType = type;
-      renderSectionOverlay(overlay, sectionId, type);
+      showSectionOverlay(sectionId, type);
     },
     clearSectionHighlight() {
-      if (this.sectionOverlayEl) {
-        this.sectionOverlayEl.style.display = 'none';
-      }
+      hideSectionOverlay();
     },
     handlePreviewEvent(event: Event) {
       const target = event.target;

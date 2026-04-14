@@ -49,7 +49,7 @@ function getSectionBounds(sectionId: number): { top: number; height: number } | 
   return { top, height: Math.max(1, bottom - top) };
 }
 
-export function createSectionOverlay(): HTMLElement | null {
+function createSectionOverlay(): HTMLElement | null {
   const root = getSectionHighlightRoot();
   if (!root) {
     return null;
@@ -61,7 +61,7 @@ export function createSectionOverlay(): HTMLElement | null {
   return overlay;
 }
 
-export function renderSectionOverlay(overlay: HTMLElement | null, sectionId: number, type: 'selected' | 'preview') {
+function renderSectionOverlay(overlay: HTMLElement | null, sectionId: number, type: 'selected' | 'preview') {
   const bounds = getSectionBounds(sectionId);
   if (!overlay || !bounds) {
     return;
@@ -92,4 +92,22 @@ export function getSectionIdByMenuItem(
     return null;
   }
   return typeof matchingMenuItem.value === 'number' ? matchingMenuItem.value : null;
+}
+
+let sectionOverlayEl: HTMLElement | null = null;
+
+function getOrCreateSectionOverlay(): HTMLElement | null {
+  sectionOverlayEl ??= createSectionOverlay();
+  return sectionOverlayEl;
+}
+
+export function showSectionOverlay(sectionId: number, type: SectionOverlayType): void {
+  const overlay = getOrCreateSectionOverlay();
+  renderSectionOverlay(overlay, sectionId, type);
+}
+
+export function hideSectionOverlay(): void {
+  if (sectionOverlayEl) {
+    sectionOverlayEl.style.display = 'none';
+  }
 }
