@@ -1,5 +1,5 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
-// v3.2.1
+// v3.2.2
 // <nowiki>
 'use strict';
 (() => {
@@ -556,12 +556,15 @@
     const templates = parseTemplates(userPage);
     for (const template of templates) {
       if (["sockpuppeteer", "sockmaster"].includes(template.name)) {
-        const firstParam = template.params["1"] ?? template.positional[0];
-        const sockChecked = template.params.checked === true;
+        const firstParam = (template.params["1"] ?? template.positional[0])?.toString();
+        const paramConfirmed = firstParam === "cu" || (firstParam?.includes("confirmed") ?? false);
+        const sockChecked = template.params.checked === true || paramConfirmed;
         let tagStatus;
-        if (firstParam === "banned") {
+        if (paramConfirmed) {
+          tagStatus = "confirmed";
+        } else if (firstParam === "banned") {
           tagStatus = "banned";
-        } else if (firstParam === "blocked") {
+        } else if (firstParam?.includes("blocked")) {
           tagStatus = sockChecked ? "confirmed" : "blocked";
         } else {
           console.warn("Unrecognised master status", firstParam);
@@ -678,7 +681,7 @@
     showUseragentCheckbox: true,
     useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
   };
-  var VERSION = "3.2.1";
+  var VERSION = "3.2.2";
   var MODE = "dev";
   var spiHelperDefaultSettings = {
     watch: {
@@ -4305,6 +4308,95 @@ ${comment}
     return formattedStart + remainder;
   }
 
+  // src/ui/dom.ts
+  function getSectionContainer(sectionId) {
+    const sectionLink = $(`a[href$="section=${sectionId}"]`).first();
+    if (sectionLink.length === 0) {
+      return null;
+    }
+    const sectionContainer = sectionLink.parentsUntil(":has(hr)").last().nextUntil("hr");
+    return sectionContainer.length > 0 ? sectionContainer : null;
+  }
+  function getSectionHeading(sectionId) {
+    const sectionLink = $(`a[href$="section=${sectionId}"]`).first();
+    if (sectionLink.length === 0) {
+      return null;
+    }
+    const heading = sectionLink.closest(".mw-heading");
+    return heading.length > 0 ? heading.get(0) ?? null : null;
+  }
+  function scrollToSection(sectionId) {
+    const heading = getSectionHeading(sectionId);
+    if (heading) {
+      heading.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+  function getSectionHighlightRoot() {
+    return document.querySelector("#mw-content-text .mw-parser-output");
+  }
+  function getSectionBounds(sectionId) {
+    const root = getSectionHighlightRoot();
+    const heading = getSectionHeading(sectionId);
+    if (!root || !heading) {
+      return null;
+    }
+    const container = getSectionContainer(sectionId);
+    const lastElement = container?.last().get(0) ?? heading;
+    const rootRect = root.getBoundingClientRect();
+    const headingRect = heading.getBoundingClientRect();
+    const lastRect = lastElement.getBoundingClientRect();
+    const top = Math.min(headingRect.top, lastRect.top) - rootRect.top + root.scrollTop;
+    const bottom = Math.max(headingRect.bottom, lastRect.bottom) - rootRect.top + root.scrollTop;
+    return { top, height: Math.max(1, bottom - top) };
+  }
+  function createSectionOverlay() {
+    const root = getSectionHighlightRoot();
+    if (!root) {
+      return null;
+    }
+    const overlay = document.createElement("div");
+    overlay.style.display = "none";
+    overlay.className = "spiHelper-section-overlay";
+    root.appendChild(overlay);
+    return overlay;
+  }
+  function renderSectionOverlay(overlay, sectionId, type) {
+    const bounds = getSectionBounds(sectionId);
+    if (!overlay || !bounds) {
+      return;
+    }
+    overlay.style.top = `${Math.max(0, bounds.top)}px`;
+    overlay.style.height = `${bounds.height + 8}px`;
+    overlay.style.display = "block";
+    overlay.classList.toggle("spiHelper-section-overlay--preview", type === "preview");
+    overlay.classList.toggle("spiHelper-section-overlay--selected", type === "selected");
+  }
+  function getSectionIdByMenuItem(menuItem, menuItems) {
+    const idResult = /v-\d+-(\d+)/.exec(menuItem.id);
+    if (idResult === null || idResult.length < 2)
+      return null;
+    const optionIndex = Number(idResult[1]);
+    const matchingMenuItem = menuItems[optionIndex - 1];
+    if (!matchingMenuItem || matchingMenuItem.value === "all") {
+      return null;
+    }
+    return typeof matchingMenuItem.value === "number" ? matchingMenuItem.value : null;
+  }
+  var sectionOverlayEl = null;
+  function getOrCreateSectionOverlay() {
+    sectionOverlayEl ??= createSectionOverlay();
+    return sectionOverlayEl;
+  }
+  function showSectionOverlay(sectionId, type) {
+    const overlay = getOrCreateSectionOverlay();
+    renderSectionOverlay(overlay, sectionId, type);
+  }
+  function hideSectionOverlay() {
+    if (sectionOverlayEl) {
+      sectionOverlayEl.style.display = "none";
+    }
+  }
+
   // src/ui/views/top/topView.ts
   var TopViewComponent = defineComponent({
     props: {
@@ -4380,7 +4472,9 @@ ${comment}
       async open(newVal) {
         if (newVal) {
           await this.ensureArchiveNotice();
+          this.syncSelectedSectionOverlay();
         } else {
+          this.syncSelectedSectionOverlay();
           saveOptions();
         }
       },
@@ -4391,6 +4485,7 @@ ${comment}
             this.caseActions.sections.data.section = firstSection.id;
             await this.ensureArchiveNotice();
             await this.loadNewSection(firstSection);
+            this.syncSelectedSectionOverlay();
           } else {
             await this.onUpdateSectionSelection("all");
           }
@@ -4456,6 +4551,18 @@ ${comment}
       }
     },
     methods: {
+      syncSelectedSectionOverlay() {
+        if (!spiHelperSettings.highlightSection || !this.open) {
+          hideSectionOverlay();
+          return;
+        }
+        const selected = this.state.selectedSection;
+        if (selected?.type !== "specific") {
+          hideSectionOverlay();
+          return;
+        }
+        showSectionOverlay(selected.section.id, "selected");
+      },
       toggleButtonLayout() {
         this.buttonLayout = !this.buttonLayout;
         spiHelperSettings.interface.buttonLayout = this.buttonLayout;
@@ -4994,7 +5101,7 @@ ${comment}
         <cdx-checkbox v-model="blockOptions.tagUnattached" v-if="isClerk">
           Tag accounts without an attached local account
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.cuBlock" v-if="isCheckuser">
+        <cdx-checkbox v-model="blockOptions.cuBlock" v-if="isCheckuser" :disabled="blockOptions.noBlock">
           Mark blocks as Checkuser blocks
         </cdx-checkbox>
         <cdx-checkbox v-model="blockOptions.cuBlockOnly" v-if="isCheckuser" :disabled="!blockOptions.cuBlock">
@@ -5002,13 +5109,13 @@ ${comment}
             Suppress the usual block summary and only use {{checkuserblock-account}} and {{checkuserblock}}
           </span>
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.addMasterNotice" v-if="isAdmin">
+        <cdx-checkbox v-model="blockOptions.addMasterNotice" v-if="isAdmin" :disabled="blockOptions.noBlock">
           Add talk page notice when (re)blocking the sockmaster
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.addSockNotice" v-if="isAdmin">
+        <cdx-checkbox v-model="blockOptions.addSockNotice" v-if="isAdmin" :disabled="blockOptions.noBlock">
           Add talk page notice when blocking socks
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.blankTalk" v-if="isAdmin">
+        <cdx-checkbox v-model="blockOptions.blankTalk" v-if="isAdmin" :disabled="blockOptions.noBlock || (!blockOptions.addMasterNotice && !blockOptions.addSockNotice)">
           Blank the talk page when adding talk notices
         </cdx-checkbox>
         <cdx-checkbox v-model="blockOptions.lockHideNames" :disabled="!allowLockOption">
@@ -5948,81 +6055,6 @@ ${comment}
     </cdx-message>
   `
   });
-  // src/ui/dom.ts
-  function getSectionContainer(sectionId) {
-    const sectionLink = $(`a[href$="section=${sectionId}"]`).first();
-    if (sectionLink.length === 0) {
-      return null;
-    }
-    const sectionContainer = sectionLink.parentsUntil(":has(hr)").last().nextUntil("hr");
-    return sectionContainer.length > 0 ? sectionContainer : null;
-  }
-  function getSectionHeading(sectionId) {
-    const sectionLink = $(`a[href$="section=${sectionId}"]`).first();
-    if (sectionLink.length === 0) {
-      return null;
-    }
-    const heading = sectionLink.closest(".mw-heading");
-    return heading.length > 0 ? heading.get(0) ?? null : null;
-  }
-  function scrollToSection(sectionId) {
-    const heading = getSectionHeading(sectionId);
-    if (heading) {
-      heading.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }
-  function getSectionHighlightRoot() {
-    return document.querySelector(".mw-parser-output");
-  }
-  function getSectionBounds(sectionId) {
-    const root = getSectionHighlightRoot();
-    const heading = getSectionHeading(sectionId);
-    if (!root || !heading) {
-      return null;
-    }
-    const container = getSectionContainer(sectionId);
-    const lastElement = container?.last().get(0) ?? heading;
-    const rootRect = root.getBoundingClientRect();
-    const headingRect = heading.getBoundingClientRect();
-    const lastRect = lastElement.getBoundingClientRect();
-    const top = Math.min(headingRect.top, lastRect.top) - rootRect.top + root.scrollTop;
-    const bottom = Math.max(headingRect.bottom, lastRect.bottom) - rootRect.top + root.scrollTop;
-    return { top, height: Math.max(1, bottom - top) };
-  }
-  function createSectionOverlay() {
-    const root = getSectionHighlightRoot();
-    if (!root) {
-      return null;
-    }
-    const overlay = document.createElement("div");
-    overlay.style.display = "none";
-    overlay.className = "spiHelper-section-overlay";
-    root.appendChild(overlay);
-    return overlay;
-  }
-  function renderSectionOverlay(overlay, sectionId, type) {
-    const bounds = getSectionBounds(sectionId);
-    if (!overlay || !bounds) {
-      return;
-    }
-    overlay.style.top = `${Math.max(0, bounds.top)}px`;
-    overlay.style.height = `${bounds.height + 8}px`;
-    overlay.style.display = "block";
-    overlay.classList.toggle("spiHelper-section-overlay--preview", type === "preview");
-    overlay.classList.toggle("spiHelper-section-overlay--selected", type === "selected");
-  }
-  function getSectionIdByMenuItem(menuItem, menuItems) {
-    const idResult = /v-\d+-(\d+)/.exec(menuItem.id);
-    if (idResult === null || idResult.length < 2)
-      return null;
-    const optionIndex = Number(idResult[1]);
-    const matchingMenuItem = menuItems[optionIndex - 1];
-    if (!matchingMenuItem || matchingMenuItem.value === "all") {
-      return null;
-    }
-    return typeof matchingMenuItem.value === "number" ? matchingMenuItem.value : null;
-  }
-
   // src/ui/views/top/actions/sectionAction.ts
   var SectionActionComponent = defineComponent({
     props: {
@@ -6038,8 +6070,7 @@ ${comment}
         menuPointerLeaveHandler: null,
         menuFocusInHandler: null,
         activeSectionId: null,
-        overlayType: null,
-        sectionOverlayEl: null
+        overlayType: null
       };
     },
     computed: {
@@ -6110,19 +6141,12 @@ ${comment}
         }
         scrollToSection(this.selectedSection);
       },
-      getOrCreateSectionOverlay() {
-        this.sectionOverlayEl ??= createSectionOverlay();
-        return this.sectionOverlayEl;
-      },
       renderSectionOverlay(sectionId, type) {
-        const overlay = this.getOrCreateSectionOverlay();
         this.overlayType = type;
-        renderSectionOverlay(overlay, sectionId, type);
+        showSectionOverlay(sectionId, type);
       },
       clearSectionHighlight() {
-        if (this.sectionOverlayEl) {
-          this.sectionOverlayEl.style.display = "none";
-        }
+        hideSectionOverlay();
       },
       handlePreviewEvent(event) {
         const target = event.target;
@@ -6479,7 +6503,7 @@ ${comment}
       <cdx-field v-if="needsLockComment">
         <template #label>Lock Comment</template>
         <template #description>Optional comment to include in the global lock request</template>
-        <cdx-text-input v-model="lockCommentValue" placeholder="Comment" />
+        <cdx-text-area v-model="lockCommentValue" placeholder="Comment" :autosize="true" />
       </cdx-field>
       <cdx-checkbox v-if="cuBlockConfirmationsNeeded.size > 0"
                     v-model="cuBlockOverrideChecked" :indeterminate="cuBlockOverrideIndeterminate">

@@ -1,5 +1,5 @@
 /* {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.css}} */
-/* v3.2.1 */
+/* v3.2.2 */
 /* src/spihelper.css */
 .spihelper-hovertext {
   text-decoration: underline dotted;
@@ -103,7 +103,7 @@
   max-width: 560px;
 }
 
-.mw-parser-output:has( > .spiHelper-section-overlay) {
+#mw-content-text .mw-parser-output:has( > .spiHelper-section-overlay) {
   position: relative;
 }
 
