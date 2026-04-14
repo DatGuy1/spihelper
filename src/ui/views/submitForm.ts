@@ -161,7 +161,7 @@ export const SubmitFormComponent = defineComponent({
       <cdx-field v-if="needsLockComment">
         <template #label>Lock Comment</template>
         <template #description>Optional comment to include in the global lock request</template>
-        <cdx-text-input v-model="lockCommentValue" placeholder="Comment" />
+        <cdx-text-area v-model="lockCommentValue" placeholder="Comment" :autosize="true" />
       </cdx-field>
       <cdx-checkbox v-if="cuBlockConfirmationsNeeded.size > 0"
                     v-model="cuBlockOverrideChecked" :indeterminate="cuBlockOverrideIndeterminate">
