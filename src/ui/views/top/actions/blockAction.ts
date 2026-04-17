@@ -156,19 +156,19 @@ export const BlockActionComponent = defineComponent({
         if (key === 'lock' && this.userLocks.get(row.username) === true) {
           continue;
         }
-        else if (key === 'block' && this.userBlocks.get(row.username) !== undefined) {
+        else if (key === 'block' && (!row.block.block || this.userBlocks.get(row.username) !== undefined)) {
           continue;
         }
-        else if (key === 'acb' && this.userBlocks.get(row.username)?.acb) {
+        else if (key === 'acb' && (!row.block.block || this.userBlocks.get(row.username)?.acb)) {
           continue;
         }
-        else if (key === 'abao' && this.userBlocks.get(row.username)?.abao) {
+        else if (key === 'abao' && (!row.block.block || this.userBlocks.get(row.username)?.abao)) {
           continue;
         }
-        else if (key === 'ntp' && this.userBlocks.get(row.username)?.ntp) {
+        else if (key === 'ntp' && (!row.block.block || this.userBlocks.get(row.username)?.ntp)) {
           continue;
         }
-        else if (key === 'nem' && this.userBlocks.get(row.username)?.nem) {
+        else if (key === 'nem' && (!row.block.block || this.userBlocks.get(row.username)?.nem)) {
           continue;
         }
         row.block[key] = value;
@@ -286,7 +286,8 @@ export const BlockActionComponent = defineComponent({
         <cdx-checkbox v-model="blockOptions.addSockNotice" v-if="isAdmin" :disabled="blockOptions.noBlock">
           Add talk page notice when blocking socks
         </cdx-checkbox>
-        <cdx-checkbox v-model="blockOptions.blankTalk" v-if="isAdmin" :disabled="blockOptions.noBlock || (!blockOptions.addMasterNotice && !blockOptions.addSockNotice)">
+        <cdx-checkbox v-model="blockOptions.blankTalk" v-if="isAdmin"
+                      :disabled="blockOptions.noBlock || (!blockOptions.addMasterNotice && !blockOptions.addSockNotice)">
           Blank the talk page when adding talk notices
         </cdx-checkbox>
         <cdx-checkbox v-model="blockOptions.lockHideNames" :disabled="!allowLockOption">
@@ -365,31 +366,37 @@ export const BlockActionComponent = defineComponent({
             <!-- Do this instead of rowspan="2" to align it properly -->
             <th scope="col" style="min-width: 150px;">(all users)</th>
             <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('block', $event)">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('block', $event)"
+                            :disabled="blockOptions.noBlock">
                 Set all block
               </cdx-checkbox>
             </th>
             <th scope="col" v-if="isAdmin">
-              <expiry-input placeholder="Duration" @update:model-value="setAllBlockFields('duration', $event)" />
+              <expiry-input placeholder="Duration" @update:model-value="setAllBlockFields('duration', $event)"
+                            :disabled="blockOptions.noBlock" />
             </th>
 
             <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('acb', $event)">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('acb', $event)"
+                            :disabled="blockOptions.noBlock">
                 Set all account creation blocked
               </cdx-checkbox>
             </th>
             <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('abao', $event)">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('abao', $event)"
+                            :disabled="blockOptions.noBlock">
                 Set all autoblock/anon-only
               </cdx-checkbox>
             </th>
             <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('ntp', $event)">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('ntp', $event)"
+                            :disabled="blockOptions.noBlock">
                 Set all no talk page
               </cdx-checkbox>
             </th>
             <th scope="col" v-if="isAdmin">
-              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('nem', $event)">
+              <cdx-checkbox :hide-label="true" @update:model-value="setAllBlockFields('nem', $event)"
+                            :disabled="blockOptions.noBlock">
                 Set all no email
               </cdx-checkbox>
             </th>
@@ -426,30 +433,32 @@ export const BlockActionComponent = defineComponent({
         </template>
 
         <template #item-duration="{ item, row }">
-          <expiry-input v-model="row.block.duration" :shortened="true" :auto-dismiss="true" placeholder="Duration" />
+          <expiry-input v-model="row.block.duration" :shortened="true" :auto-dismiss="true" :touched="true"
+                        :disabled="!row.block.block || blockOptions.noBlock || !blockOptions.override && userBlocks.get(row.username) !== undefined"
+                        placeholder="Duration" />
         </template>
 
         <template #item-acb="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.acb"
-                        :disabled="!blockOptions.override && userBlocks.get(row.username)?.acb">
+                        :disabled="!row.block.block || (!blockOptions.override && userBlocks.get(row.username)?.acb)">
             Account creation blocked
           </cdx-checkbox>
         </template>
         <template #item-abao="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.abao"
-                        :disabled="!blockOptions.override && userBlocks.get(row.username)?.abao">
+                        :disabled="!row.block.block || (!blockOptions.override && userBlocks.get(row.username)?.abao)">
             Autoblock/Anon-only
           </cdx-checkbox>
         </template>
         <template #item-ntp="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.ntp"
-                        :disabled="!blockOptions.override && userBlocks.get(row.username)?.ntp">
+                        :disabled="!row.block.block || (!blockOptions.override && userBlocks.get(row.username)?.ntp)">
             No talk page
           </cdx-checkbox>
         </template>
         <template #item-nem="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.nem"
-                        :disabled="!blockOptions.override && userBlocks.get(row.username)?.nem">
+                        :disabled="!row.block.block || (!blockOptions.override && userBlocks.get(row.username)?.nem)">
             No email
           </cdx-checkbox>
         </template>

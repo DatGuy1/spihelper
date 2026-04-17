@@ -27,7 +27,7 @@ export const ExpirySettingComponent = defineComponent({
       if (!this.isResetting) {
         this.touched = true;
       }
-      if (parseExpiry(newValue) !== null) {
+      if (newValue === '' || parseExpiry(newValue) !== null) {
         this.$emit('update:modelValue', newValue);
       }
     },

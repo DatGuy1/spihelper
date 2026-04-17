@@ -16,6 +16,7 @@ export const ExpiryInputComponent = defineComponent({
     touched: { type: Boolean, default: false },
     shortened: { type: Boolean, default: false },
     autoDismiss: { type: Boolean, default: false },
+    disabled: { type: Boolean, default: false },
   },
   emits: ['update:touched'],
   data(): Data {
@@ -34,7 +35,7 @@ export const ExpiryInputComponent = defineComponent({
       return parseExpiry(this.modelValue) !== null;
     },
     status() {
-      if (!this.internalTouched || this.modelValue.length === 0) return 'default';
+      if (this.disabled || !this.internalTouched) return 'default';
       if (this.valid) {
         return this.showSuccess ? 'success' : 'default';
       }
@@ -74,7 +75,7 @@ export const ExpiryInputComponent = defineComponent({
   template: `
     <cdx-field :status="status" :messages="messages" class="spihelper-expiry-input" :hide-label="!label">
       <template #label>{{ label }}</template>
-      <cdx-text-input v-model="modelValue" v-bind="$attrs" />
+      <cdx-text-input v-model="modelValue" :disabled="disabled" v-bind="$attrs" />
     </cdx-field>
   `,
 });
