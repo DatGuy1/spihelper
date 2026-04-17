@@ -51,14 +51,14 @@ export async function spiHelperRequestLocks(opts: {
     lockTemplate += '}}';
   }
   let heading: string;
-  let headingText: string;
+  let headingText = 'Global lock for ';
   if (hideNames || !master) {
     heading = usePlural ? `${lockTargets.length} sockpuppets` : 'a sockpuppet';
-    headingText = heading;
+    headingText += heading;
   }
   else {
     heading = `${lockTargets.length} [[Special:CentralAuth/${master}|${master}]] ${usePlural ? 'socks' : 'sock'}`;
-    headingText = `${lockTargets.length} ${master} ${usePlural ? 'socks' : 'sock'}`;
+    headingText += `${lockTargets.length} ${master} ${usePlural ? 'socks' : 'sock'}`;
   }
   // Trim and remove a trailing period since we add our own
   const lockComment = opts.lockComment.trim().replace(/\.+$/, '');
