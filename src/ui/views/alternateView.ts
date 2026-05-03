@@ -403,7 +403,7 @@ export const AlternateViewComponent = defineComponent({
     },
   },
   template: `
-    <div id="spiHelper-alternateView" class="spiHelper-mainCard" v-if="open">
+    <div id="spiHelper-alternateView" class="spiHelper-mainCard" v-if="open" @keydown.ctrl.enter.capture.prevent="$refs.submitForm?.onSubmit?.()">
       <div id="spiHelper-alternateView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
           <cdx-button aria-label="Give feedback" weight="quiet" @click="launchFeedback">
@@ -447,7 +447,7 @@ export const AlternateViewComponent = defineComponent({
                      v-model:lock-comment="blockData.lockcomment" v-model:skipCUVerifyUsers="blockData.skipCUVerifyUsers"
                      :case-actions="caseActions" :state="state"
                      :all-disabled="false" :action-name="'alternateActions'" :check-conflict="false"
-                     @on-submit="onSubmitActions" />
+                     @on-submit="onSubmitActions" ref="submitForm" />
       </div>
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
       <div id="messageRow">

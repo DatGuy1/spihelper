@@ -464,7 +464,7 @@ export const TopViewComponent = defineComponent({
     },
   },
   template: `
-    <div id="spiHelper-topView" class="spiHelper-mainCard" v-if="open">
+    <div id="spiHelper-topView" class="spiHelper-mainCard" v-if="open" @keydown.ctrl.enter.capture.prevent="$refs.submitForm?.onSubmit?.()">
       <div id="spiHelper-topView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
           <cdx-button aria-label="Give feedback" weight="quiet" @click="launchFeedback">
@@ -545,7 +545,7 @@ export const TopViewComponent = defineComponent({
                    v-model:skipCUVerifyUsers="caseActions.block.data.skipCUVerifyUsers"
                    :case-actions="caseActions" :state="state"
                    :all-disabled="allDisabled" :action-name="'mainActions'" :check-conflict="true"
-                   @on-submit="onSubmitActions" />
+                   @on-submit="onSubmitActions" ref="submitForm" />
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
       <div id="messageRow">
         <cdx-message v-for="(message, index) in messages" :key="index" :type="message.type" :fade-in="true"

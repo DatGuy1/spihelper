@@ -131,6 +131,9 @@ export const SubmitFormComponent = defineComponent({
   methods: {
     // Should this be in topView.ts?
     async onSubmit() {
+      if (this.disableButton) {
+        return;
+      }
       if (this.checkConflict) {
         // Store it in order to prevent calling spiHelperGetPageRev() again
         this.popover.revId = await spiHelperGetPageRev(context.pageName);
