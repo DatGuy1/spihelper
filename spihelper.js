@@ -1,5 +1,5 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
-// v3.2.2
+// v3.2.3
 // <nowiki>
 'use strict';
 (() => {
@@ -681,7 +681,7 @@
     showUseragentCheckbox: true,
     useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
   };
-  var VERSION = "3.2.2";
+  var VERSION = "3.2.3";
   var MODE = "dev";
   var spiHelperDefaultSettings = {
     watch: {
@@ -4745,7 +4745,7 @@ ${comment}
       }
     },
     template: `
-    <div id="spiHelper-topView" class="spiHelper-mainCard" v-if="open">
+    <div id="spiHelper-topView" class="spiHelper-mainCard" v-if="open" @keydown.ctrl.enter.capture.prevent="$refs.submitForm?.onSubmit?.()">
       <div id="spiHelper-topView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
           <cdx-button aria-label="Give feedback" weight="quiet" @click="launchFeedback">
@@ -4826,7 +4826,7 @@ ${comment}
                    v-model:skipCUVerifyUsers="caseActions.block.data.skipCUVerifyUsers"
                    :case-actions="caseActions" :state="state"
                    :all-disabled="allDisabled" :action-name="'mainActions'" :check-conflict="true"
-                   @on-submit="onSubmitActions" />
+                   @on-submit="onSubmitActions" ref="submitForm" />
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
       <div id="messageRow">
         <cdx-message v-for="(message, index) in messages" :key="index" :type="message.type" :fade-in="true"
@@ -6490,6 +6490,9 @@ ${comment}
     },
     methods: {
       async onSubmit() {
+        if (this.disableButton) {
+          return;
+        }
         if (this.checkConflict) {
           this.popover.revId = await spiHelperGetPageRev(context.pageName);
           if (this.popover.revId === context.startingRevId) {
@@ -7107,7 +7110,7 @@ ${comment}
       }
     },
     template: `
-    <div id="spiHelper-alternateView" class="spiHelper-mainCard" v-if="open">
+    <div id="spiHelper-alternateView" class="spiHelper-mainCard" v-if="open" @keydown.ctrl.enter.capture.prevent="$refs.submitForm?.onSubmit?.()">
       <div id="spiHelper-alternateView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
           <cdx-button aria-label="Give feedback" weight="quiet" @click="launchFeedback">
@@ -7151,7 +7154,7 @@ ${comment}
                      v-model:lock-comment="blockData.lockcomment" v-model:skipCUVerifyUsers="blockData.skipCUVerifyUsers"
                      :case-actions="caseActions" :state="state"
                      :all-disabled="false" :action-name="'alternateActions'" :check-conflict="false"
-                     @on-submit="onSubmitActions" />
+                     @on-submit="onSubmitActions" ref="submitForm" />
       </div>
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
       <div id="messageRow">
