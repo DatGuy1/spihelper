@@ -7321,7 +7321,7 @@ ${comment}
           changelogApp.mount(mountPoint);
         }, () => {});
       }
-      const initLink = mw.util.addPortletLink("p-cactions", "#", "SPI-Beta", "ca-spiHelper", "Run spiHelper");
+      const initLink = mw.util.addPortletLink("p-cactions", "#", MODE === "production" ? "SPI" : "SPI-Beta", "ca-spiHelper", "Run spiHelper");
       if (initLink) {
         const mountPoint = document.createElement("div");
         mountPoint.setAttribute("id", "spiHelper-vue-mount-point");
@@ -7384,7 +7384,7 @@ ${comment}
     });
   }
   function createSettingsLink(Vue, Codex, feedbackDialog) {
-    const settingsLink = mw.util.addPortletLink("p-cactions", "#", "SPI-Beta-Options", "ca-spiHelperOpts", "Modify spiHelper settings");
+    const settingsLink = mw.util.addPortletLink("p-cactions", "#", MODE === "production" ? "SPI-Options" : "SPI-Beta-Options", "ca-spiHelperOpts", "Modify spiHelper settings");
     if (settingsLink) {
       const mountPoint = document.body.appendChild(document.createElement("div"));
       Vue.createMwApp(OptionsComponent, {
@@ -7395,7 +7395,7 @@ ${comment}
     }
   }
   function createOCALink(Vue, Codex, caseState) {
-    const oneClickArchiveLink = mw.util.addPortletLink("p-cactions", "#", "SPI-Beta-Archive", "ca-spiHelperArchive", "Run one click archival");
+    const oneClickArchiveLink = mw.util.addPortletLink("p-cactions", "#", MODE === "production" ? "SPI-Archive" : "SPI-Beta-Archive", "ca-spiHelperArchive", "Run one click archival");
     if (oneClickArchiveLink) {
       const mountPoint = document.body.appendChild(document.createElement("div"));
       Vue.createMwApp(OneClickArchivalComponent, {
