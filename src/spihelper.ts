@@ -137,7 +137,7 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
         }, () => { /* empty */ });
     }
 
-    const initLink = mw.util.addPortletLink('p-cactions', '#', 'SPI-Beta', 'ca-spiHelper', 'Run spiHelper');
+    const initLink = mw.util.addPortletLink('p-cactions', '#', MODE === 'production' ? 'SPI' : 'SPI-Beta', 'ca-spiHelper', 'Run spiHelper');
     // Fails if we don't have a p-cactions menu
     if (initLink) {
       const mountPoint = document.createElement('div');
@@ -305,7 +305,7 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
 function createSettingsLink(
   Vue: typeof VueType, Codex: typeof CodexType, feedbackDialog: FeedbackDialog,
 ) {
-  const settingsLink = mw.util.addPortletLink('p-cactions', '#', 'SPI-Beta-Options', 'ca-spiHelperOpts', 'Modify spiHelper settings');
+  const settingsLink = mw.util.addPortletLink('p-cactions', '#', MODE === 'production' ? 'SPI-Options' : 'SPI-Beta-Options', 'ca-spiHelperOpts', 'Modify spiHelper settings');
   if (settingsLink) {
     const mountPoint = document.body.appendChild(document.createElement('div'));
     Vue.createMwApp(
@@ -336,7 +336,7 @@ function createSettingsLink(
 }
 
 function createOCALink(Vue: typeof VueType, Codex: typeof CodexType, caseState: CaseState) {
-  const oneClickArchiveLink = mw.util.addPortletLink('p-cactions', '#', 'SPI-Beta-Archive', 'ca-spiHelperArchive', 'Run one click archival');
+  const oneClickArchiveLink = mw.util.addPortletLink('p-cactions', '#', MODE === 'production' ? 'SPI-Archive' : 'SPI-Beta-Archive', 'ca-spiHelperArchive', 'Run one click archival');
   if (oneClickArchiveLink) {
     const mountPoint = document.body.appendChild(document.createElement('div'));
     Vue.createMwApp(
