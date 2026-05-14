@@ -1,11 +1,11 @@
 on:
   push:
     branches:
-      - main
+      - stable
       - develop
   pull_request:
     branches:
-      - main
+      - stable
       - develop
 
 permissions:
