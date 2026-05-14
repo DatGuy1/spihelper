@@ -674,7 +674,7 @@
   }
 
   // src/constants/settings.ts
-  var spiHelperAdvert = " (using [[:w:en:User:DatGuy/spihelper|User:DatGuy/spihelper.js]])";
+  var spiHelperAdvert = " (using [[:w:en:WP:SPIH-D|SPIH-D]])";
   var FeedbackConfig = {
     title: new mw.Title("User talk:DatGuy/spihelper"),
     bugsLink: "//github.com/DatGuy1/spihelper/issues/new",
