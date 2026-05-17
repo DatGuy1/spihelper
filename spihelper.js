@@ -1,9 +1,88 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
-// v3.2.3
+// v3.2.4
 // <nowiki>
 'use strict';
 (() => {
 
+  // src/constants/linkview.ts
+  var spiHelperLinkViewURLFormats = {
+    editorInteractionAnalyser: {
+      baseUrl: (_caseName) => new URL("https://sigma.toolforge.org/editorinteract.py"),
+      userQueryStringKey: "users",
+      userQueryStringSeparator: "&",
+      userQueryStringWrapper: "",
+      multipleUserQueryStringKeys: true
+    },
+    interactionTimeline: {
+      baseUrl: (_caseName) => new URL("https://interaction-timeline.toolforge.org"),
+      startingParams: new URLSearchParams("wiki=enwiki"),
+      userQueryStringKey: "user",
+      userQueryStringSeparator: "&",
+      userQueryStringWrapper: "",
+      multipleUserQueryStringKeys: true
+    },
+    SPITools: {
+      timecard: {
+        baseUrl: (caseName) => new URL("https://spi-tools.toolforge.org/spi/timecard/" + caseName),
+        userQueryStringKey: "users",
+        userQueryStringSeparator: "&",
+        userQueryStringWrapper: "",
+        multipleUserQueryStringKeys: true
+      },
+      consolidatedTimeline: {
+        baseUrl: (caseName) => new URL("https://spi-tools.toolforge.org/spi/timeline/" + caseName),
+        userQueryStringKey: "users",
+        userQueryStringSeparator: "&",
+        userQueryStringWrapper: "",
+        multipleUserQueryStringKeys: true
+      },
+      pages: {
+        baseUrl: (caseName) => new URL("https://spi-tools.toolforge.org/spi/pages/" + caseName),
+        userQueryStringKey: "users",
+        userQueryStringSeparator: "&",
+        userQueryStringWrapper: "",
+        multipleUserQueryStringKeys: true
+      }
+    },
+    sandals: {
+      timecard: {
+        baseUrl: (_caseName) => new URL("https://sandals.toolforge.org/timecard"),
+        userQueryStringKey: "users",
+        userQueryStringSeparator: "|",
+        userQueryStringWrapper: "",
+        multipleUserQueryStringKeys: false
+      },
+      consolidatedTimeline: {
+        baseUrl: (_caseName) => new URL("https://sandals.toolforge.org/timeline"),
+        userQueryStringKey: "users",
+        userQueryStringSeparator: "|",
+        userQueryStringWrapper: "",
+        multipleUserQueryStringKeys: false
+      },
+      pages: {
+        baseUrl: (_caseName) => new URL("https://sandals.toolforge.org/pages"),
+        userQueryStringKey: "users",
+        userQueryStringSeparator: "|",
+        userQueryStringWrapper: "",
+        multipleUserQueryStringKeys: false
+      },
+      summaries: {
+        baseUrl: (_caseName) => new URL("https://sandals.toolforge.org/summaries"),
+        userQueryStringKey: "users",
+        userQueryStringSeparator: "|",
+        userQueryStringWrapper: "",
+        multipleUserQueryStringKeys: false
+      }
+    },
+    checkUserWikiSearch: {
+      baseUrl: (_caseName) => new URL("https://checkuser.wikimedia.org/w/index.php"),
+      startingParams: new URLSearchParams("ns0=1"),
+      userQueryStringKey: "search",
+      userQueryStringSeparator: " OR ",
+      userQueryStringWrapper: '"',
+      multipleUserQueryStringKeys: false
+    }
+  };
   // src/constants/regex.ts
   var spiHelperCaseStatusRegex = /{{\s*SPI case status\s*\|?\s*(\S*?)\s*}}/i;
   var spiHelperCaseClosedRegex = /^closed?$/i;
@@ -16,7 +95,125 @@
   var spiHelperSectionRegex = /^(?:===[^=]*===|=====[^=]*=====)\s*$/m;
   var spiHelperHiddenCharNormRegex = /\u200E/g;
   var spiHelperSignatureRegex = /(?<!~)~~~~(?!~)/;
-
+  // src/constants/settings.ts
+  var spiHelperAdvert = " (using [[:w:en:WP:SPIH-D|SPIH-D]])";
+  var FeedbackConfig = {
+    title: new mw.Title("User talk:DatGuy/spihelper"),
+    bugsLink: "//github.com/DatGuy1/spihelper/issues/new",
+    showUseragentCheckbox: true,
+    useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
+  };
+  var VERSION = "3.2.4";
+  var MODE = "dev";
+  var spiHelperDefaultSettings = {
+    watch: {
+      case: "preferences",
+      archive: "nochange",
+      tagged: "preferences",
+      categories: "nochange",
+      blocked: true
+    },
+    expiry: {
+      case: "indefinite",
+      archive: "indefinite",
+      tagged: "indefinite",
+      categories: "indefinite",
+      blocked: "indefinite"
+    },
+    log: {
+      enabled: false,
+      reversed: false,
+      page: "spihelper_log"
+    },
+    clerk: true,
+    tickArchiveWhenCaseClosed: false,
+    useCheckuserblockAccount: mw.config.get("wgUserGroups")?.includes("checkuser") ?? false,
+    useLookup: true,
+    defaultActions: ["comment"],
+    interface: {
+      defaultBlockDuration: "indefinite",
+      displayIPv6As64: true,
+      fullPreview: false,
+      pinned: true,
+      buttonLayout: false
+    },
+    highlightSection: true,
+    custom: {
+      commentTemplates: []
+    },
+    debug: {
+      enabled: false,
+      forceCheckuser: false,
+      forceAdmin: false
+    },
+    lastSeenVersion: VERSION
+  };
+  // src/constants/spi.ts
+  var spiHelperCUTemplates = [
+    {
+      label: "Results",
+      items: [
+        { value: "{{confirmed}}", label: "Confirmed" },
+        { value: "{{confirmed-nc}}", label: "Confirmed, no comment for IPs" },
+        { value: "{{tallyho}}", label: "Indistinguishable" },
+        { value: "{{highly likely}}", label: "Highly likely" },
+        { value: "{{likely}}", label: "Likely" },
+        { value: "{{possilikely}}", label: "Possilikely" },
+        { value: "{{possible}}", label: "Possible" },
+        { value: "{{unlikely}}", label: "Unlikely" },
+        { value: "{{unrelated}}", label: "Unrelated" },
+        { value: "{{inconclusive}}", label: "Inconclusive" },
+        { value: "{{IPstale}}", label: "Stale" }
+      ]
+    },
+    {
+      label: "Addendums",
+      items: [
+        { value: "{{behav}}", label: "Needs behavioral evaluation" },
+        { value: "{{nosleepers}}", label: "No sleepers" },
+        { value: "{{ncip}}", label: "No comment for IPs" }
+      ]
+    },
+    {
+      label: "Novelties",
+      items: [
+        { value: "{{8ball}} ", label: "Magic 8-Ball" },
+        { value: "{{crystalball", label: "Not a crystal ball" },
+        { value: "{{fishing}}", label: "Not fishing" },
+        { value: "{{pixiedust}}", label: "Not pixie dust" }
+      ]
+    }
+  ];
+  var spiHelperClerkTemplates = [
+    {
+      label: "Ducks",
+      items: [
+        { value: "{{duck}}", label: "Duck" },
+        { value: "{{megaphone duck}}", label: "Megaphone duck" },
+        { value: "{{megaphone duck|ultimate}}", label: "Ultimate duck" }
+      ]
+    },
+    {
+      label: "Results",
+      items: [
+        { value: "{{IPblock}}", label: "IP blocked" },
+        { value: "{{bnt}}", label: "Blocked and tagged" },
+        { value: "{{bwt}}", label: "Blocked without tags" },
+        { value: "{{sblock}}", label: "Blocked, awaiting tags" },
+        { value: "{{btc}}", label: "Blocked, tagged, closed" },
+        { value: "{{Action and close}}", label: "Requested actions completed, closing" },
+        { value: "{{Closing without action}}", label: "Closing without action" }
+      ]
+    },
+    {
+      label: "Other",
+      items: [
+        { value: "{{subst:DiffsNeeded|moreinfo}}", label: "Diffs needed" },
+        { value: "{{GlobalLocksRequested}}", label: "Locks requested" },
+        { value: "{{Decline-IP}}", label: "IP check declined" }
+      ]
+    }
+  ];
   // src/ui/messages.ts
   class VueMessage {
     type;
@@ -49,7 +246,6 @@
     const Vue = require2("vue");
     messages = Vue.reactive(messages);
   });
-
   // src/types/spi.ts
   class ParsedArchiveNotice {
     username;
@@ -212,7 +408,22 @@
     "move",
     "archive"
   ];
-
+  // src/types/vue.ts
+  var WatchOptionsSelect = [
+    { label: "Follow preferences", value: "preferences" },
+    { label: "No change", value: "nochange" },
+    { label: "Watch", value: "watch" },
+    { label: "Unwatch", value: "unwatch" }
+  ];
+  var WatchOptions = ["preferences", "watch", "nochange", "unwatch"];
+  var DefaultLinkRowData = {
+    analyser: false,
+    timeline: false,
+    timecard: false,
+    pages: false,
+    summary: false,
+    cuwiki: false
+  };
   // src/template.ts
   function parseTemplates(wikitext) {
     const templates = [];
@@ -507,7 +718,7 @@
         }
         sectionsResult.push({ header: sectionDate, fullText });
       }
-      contentText = contentText.slice(fullText.length);
+      contentText = contentText.slice(sectionStartIndex + fullText.length);
     }
     return sectionsResult;
   }
@@ -673,63 +884,9 @@
     return activeOperations.get(name);
   }
 
-  // src/constants/settings.ts
-  var spiHelperAdvert = " (using [[:w:en:WP:SPIH-D|SPIH-D]])";
-  var FeedbackConfig = {
-    title: new mw.Title("User talk:DatGuy/spihelper"),
-    bugsLink: "//github.com/DatGuy1/spihelper/issues/new",
-    showUseragentCheckbox: true,
-    useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
-  };
-  var VERSION = "3.2.3";
-  var MODE = "dev";
-  var spiHelperDefaultSettings = {
-    watch: {
-      case: "preferences",
-      archive: "nochange",
-      tagged: "preferences",
-      categories: "nochange",
-      blocked: true
-    },
-    expiry: {
-      case: "indefinite",
-      archive: "indefinite",
-      tagged: "indefinite",
-      categories: "indefinite",
-      blocked: "indefinite"
-    },
-    log: {
-      enabled: false,
-      reversed: false,
-      page: "spihelper_log"
-    },
-    clerk: true,
-    tickArchiveWhenCaseClosed: false,
-    useCheckuserblockAccount: mw.config.get("wgUserGroups")?.includes("checkuser") ?? false,
-    useLookup: true,
-    defaultActions: ["comment"],
-    interface: {
-      defaultBlockDuration: "indefinite",
-      displayIPv6As64: true,
-      fullPreview: false,
-      pinned: true,
-      buttonLayout: false
-    },
-    highlightSection: true,
-    custom: {
-      commentTemplates: []
-    },
-    debug: {
-      enabled: false,
-      forceCheckuser: false,
-      forceAdmin: false
-    },
-    lastSeenVersion: VERSION
-  };
-
   // src/api.ts
   async function spiHelperGetUserBlockSettings(user) {
-    const api = spiHelperGetAPI();
+    const api2 = spiHelperGetAPI();
     const request = {
       action: "query",
       list: "blocks",
@@ -739,7 +896,7 @@
       formatversion: "2"
     };
     try {
-      const response = await api.get(request);
+      const response = await api2.get(request);
       const [firstBlock] = response.query.blocks;
       if (!firstBlock) {
         return null;
@@ -761,7 +918,7 @@
     if (titles.length === 0) {
       return new Map;
     }
-    const api = spiHelperGetAPI();
+    const api2 = spiHelperGetAPI();
     const resultMap = new Map;
     const request = {
       action: "query",
@@ -772,7 +929,7 @@
       formatversion: "2"
     };
     try {
-      const response = await api.get(request);
+      const response = await api2.get(request);
       for (const page of response.query.pages) {
         if (page.missing) {
           continue;
@@ -794,10 +951,10 @@
     return resultMap;
   }
   async function spiHelperGetBulkUserBlockSettings(usernames) {
-    if (usernames.size == 0) {
+    if (usernames.size === 0) {
       return new Map;
     }
-    const api = spiHelperGetAPI();
+    const api2 = spiHelperGetAPI();
     const resultMap = new Map;
     const request = {
       action: "query",
@@ -808,7 +965,7 @@
       formatversion: "2"
     };
     try {
-      const response = await api.get(request);
+      const response = await api2.get(request);
       for (const block of response.query.blocks) {
         resultMap.set(block.user, {
           username: block.user,
@@ -826,7 +983,7 @@
     return resultMap;
   }
   async function spiHelperGetGlobalUser(user) {
-    const api = spiHelperGetAPI();
+    const api2 = spiHelperGetAPI();
     const request = {
       action: "query",
       list: "globalallusers",
@@ -836,7 +993,7 @@
       aguprop: ["lockinfo", "existslocally"]
     };
     try {
-      const response = await api.get(request);
+      const response = await api2.get(request);
       const [globalUserData] = response.query.globalallusers;
       if (!globalUserData) {
         return null;
@@ -851,7 +1008,7 @@
     }
   }
   async function spiHelperGetUsers(from, limit) {
-    const api = spiHelperGetAPI();
+    const api2 = spiHelperGetAPI();
     const request = {
       action: "query",
       list: "allusers",
@@ -861,14 +1018,14 @@
       formatversion: "2"
     };
     try {
-      const response = await api.get(request);
+      const response = await api2.get(request);
       return response.query.allusers;
     } catch {
       return [];
     }
   }
   async function spiHelperGetPages(from, namespace, limit) {
-    const api = spiHelperGetAPI();
+    const api2 = spiHelperGetAPI();
     const request = {
       action: "query",
       list: "allpages",
@@ -878,7 +1035,7 @@
       formatversion: "2"
     };
     try {
-      const response = await api.get(request);
+      const response = await api2.get(request);
       return response.query.allpages;
     } catch {
       return [];
@@ -893,14 +1050,14 @@
       content: `Deleting ${linkHtml}`,
       isHtml: true
     }).show();
-    const api = spiHelperGetAPI(title);
+    const api2 = spiHelperGetAPI(title);
     const request = {
       action: "delete",
       title,
       reason
     };
     try {
-      await api.postWithToken("csrf", request);
+      await api2.postWithToken("csrf", request);
       message.update({ type: "success", content: `Deleted ${linkHtml}` });
       finishOp(activeOpKey, "success" /* Success */);
     } catch (error) {
@@ -920,14 +1077,14 @@
       content: `Undeleting ${linkHtml}`,
       isHtml: true
     }).show();
-    const api = spiHelperGetAPI(title);
+    const api2 = spiHelperGetAPI(title);
     const request = {
       action: "undelete",
       title,
       reason
     };
     try {
-      await api.postWithToken("csrf", request);
+      await api2.postWithToken("csrf", request);
       message.update({ type: "success", content: `Undeleted ${linkHtml}` });
       finishOp(activeOpKey, "success" /* Success */);
     } catch (error) {
@@ -947,7 +1104,7 @@
       title
     };
     try {
-      const response = await spiHelperGetAPI(title).get(request);
+      const response = await spiHelperGetAPI(title).post(request);
       return response.parse?.text["*"] ?? "";
     } catch (error) {
       console.error("Error rendering text:", error);
@@ -970,9 +1127,9 @@
       console.error("spiHelperGetInvestigationSections: No page name or content provided");
       return [];
     }
-    const api = spiHelperGetAPI();
+    const api2 = spiHelperGetAPI();
     try {
-      const response = await api.get(request);
+      const response = await api2.post(request);
       if (!response.parse) {
         console.error("spiHelperGetInvestigationSections: Could not parse sections");
         return [];
@@ -990,7 +1147,7 @@
     }
   }
   async function spiHelperGetSPIBacklinks(casePageName) {
-    const api = spiHelperGetAPI();
+    const api2 = spiHelperGetAPI();
     const request = {
       action: "query",
       format: "json",
@@ -1001,7 +1158,7 @@
       blfilterredir: "nonredirects"
     };
     try {
-      const response = await api.get(request);
+      const response = await api2.get(request);
       return response.query.backlinks.filter((dictEntry) => {
         return dictEntry.title.startsWith("Wikipedia:Sockpuppet investigations/") && !dictEntry.title.startsWith("Wikipedia:Sockpuppet investigations/SPI/") && !/Wikipedia:Sockpuppet investigations\/.*\/Archive.*/.exec(dictEntry.title);
       });
@@ -1010,7 +1167,7 @@
     }
   }
   async function spiHelperGetProtectionInformation(casePageName) {
-    const api = spiHelperGetAPI();
+    const api2 = spiHelperGetAPI();
     const request = {
       action: "query",
       format: "json",
@@ -1020,7 +1177,7 @@
       formatversion: "2"
     };
     try {
-      const response = await api.get(request);
+      const response = await api2.get(request);
       const [page] = response.query.pages;
       return page?.protection ?? [];
     } catch {
@@ -1028,7 +1185,7 @@
     }
   }
   async function spiHelperGetStabilisationSettings(pageName) {
-    const api = spiHelperGetAPI();
+    const api2 = spiHelperGetAPI();
     const request = {
       action: "query",
       format: "json",
@@ -1037,7 +1194,7 @@
       formatversion: "2"
     };
     try {
-      const response = await api.get(request);
+      const response = await api2.get(request);
       const [page] = response.query.pages;
       return page?.flagged ?? null;
     } catch {
@@ -1049,7 +1206,7 @@
     startOp(activeOpKey);
     const linkHtml = buildTitleLinkHtml(pageName);
     const message = new VueMessage({ type: "notice", content: `Protecting ${linkHtml}`, isHtml: true });
-    const api = spiHelperGetAPI();
+    const api2 = spiHelperGetAPI();
     try {
       let protectLevel = "";
       let expiryInfo = "";
@@ -1069,7 +1226,7 @@
         expiry: expiryInfo,
         reason: "Restoring protection after history merge"
       };
-      await api.postWithToken("csrf", request);
+      await api2.postWithToken("csrf", request);
       message.update({ type: "success", content: `Protected ${linkHtml}` });
       finishOp(activeOpKey, "success" /* Success */);
     } catch (error) {
@@ -1086,7 +1243,7 @@
     }
     const activeOpKey = "stabilize_" + casePageName;
     startOp(activeOpKey);
-    const api = spiHelperGetAPI();
+    const api2 = spiHelperGetAPI();
     const request = {
       action: "stabilize",
       format: "json",
@@ -1096,14 +1253,14 @@
       reason: "Restoring pending changes protection after history merge"
     };
     try {
-      await api.postWithToken("csrf", request);
+      await api2.postWithToken("csrf", request);
       finishOp(activeOpKey, "success" /* Success */);
     } catch {
       finishOp(activeOpKey, "failed" /* Failed */);
     }
   }
   async function spiHelperGetSiteRestrictionInformation() {
-    const api = spiHelperGetAPI();
+    const api2 = spiHelperGetAPI();
     const request = {
       action: "query",
       format: "json",
@@ -1111,7 +1268,7 @@
       siprop: "restrictions"
     };
     try {
-      const response = await api.get(request);
+      const response = await api2.get(request);
       return response.query.restrictions;
     } catch {
       return {
@@ -1145,7 +1302,7 @@
       content: `Blocking ${userLinkHtml}`,
       isHtml: true
     }).show();
-    const api = spiHelperGetAPI();
+    const api2 = spiHelperGetAPI();
     const request = {
       action: "block",
       expiry: duration,
@@ -1162,7 +1319,7 @@
       formatversion: "2"
     };
     try {
-      const response = await api.postWithToken("csrf", request);
+      const response = await api2.postWithToken("csrf", request);
       const blockLinkHtml = buildURLLinkHtml(mw.util.getUrl("Special:BlockList", { wpTarget: `#${response.block.id}` }), "Blocked", "Special:BlockList");
       message.update({ type: "success", content: `${blockLinkHtml} user ${userLinkHtml}` });
       finishOp(activeOpKey, "success" /* Success */);
@@ -1187,7 +1344,7 @@
     } = opts;
     const activeOpKey = "move_" + sourcePage + "_" + destPage;
     startOp(activeOpKey);
-    const api = spiHelperGetAPI();
+    const api2 = spiHelperGetAPI();
     const sourceLinkHtml = buildTitleLinkHtml(sourcePage);
     const destLinkHtml = buildTitleLinkHtml(destPage);
     const message = new VueMessage({
@@ -1205,7 +1362,7 @@
       ignoreWarnings
     };
     try {
-      await api.postWithToken("csrf", request);
+      await api2.postWithToken("csrf", request);
       message.update({
         type: "success",
         content: `Moved ${sourceLinkHtml} to ${destLinkHtml}`
@@ -1241,7 +1398,7 @@
       content: "Editing " + pageLinkHtml,
       isHtml: true
     }).show();
-    const api = spiHelperGetAPI(title);
+    const api2 = spiHelperGetAPI(title);
     const finalTitle = spiHelperStripXWikiPrefix(title);
     const request = {
       action: "edit",
@@ -1262,7 +1419,7 @@
       request.baserevid = baseRevId;
     }
     try {
-      const response = await api.postWithToken("csrf", request);
+      const response = await api2.postWithToken("csrf", request);
       const diffId = response.edit.newrevid;
       if (!diffId) {
         message.update({
@@ -1369,15 +1526,15 @@
     if (sectionId) {
       request.section = sectionId.toString();
     }
-    const api = spiHelperGetAPI(title);
+    const api2 = spiHelperGetAPI(title);
     try {
-      const response = await api.get(request);
+      const response = await api2.get(request);
       return Number(response.parse?.limitreportdata.find((item) => item.name === "limitreport-postexpandincludesize")?.["0"] ?? 0);
     } catch {}
     return 0;
   }
   async function spiHelperParseWikitext(wikitext) {
-    const api = spiHelperGetAPI();
+    const api2 = spiHelperGetAPI();
     const request = {
       action: "parse",
       prop: "text",
@@ -1388,14 +1545,14 @@
       contentmodel: "wikitext"
     };
     try {
-      const response = await api.get(request);
+      const response = await api2.post(request);
       return response.parse?.text["*"] ?? "";
     } catch {
       return "";
     }
   }
   async function spiHelperGetCategoryMembers(category) {
-    const api = spiHelperGetAPI();
+    const api2 = spiHelperGetAPI();
     const request = {
       action: "query",
       list: "categorymembers",
@@ -1405,7 +1562,7 @@
       formatversion: "2"
     };
     try {
-      const response = await api.get(request);
+      const response = await api2.get(request);
       return response.query.categorymembers.map((member) => member.title);
     } catch {
       return [];
@@ -1547,23 +1704,6 @@
 
   // node_modules/vue/dist/vue.runtime.esm-bundler.js
   var defineComponent = (c) => c;
-
-  // src/types/vue.ts
-  var WatchOptionsSelect = [
-    { label: "Follow preferences", value: "preferences" },
-    { label: "No change", value: "nochange" },
-    { label: "Watch", value: "watch" },
-    { label: "Unwatch", value: "unwatch" }
-  ];
-  var WatchOptions = ["preferences", "watch", "nochange", "unwatch"];
-  var DefaultLinkRowData = {
-    analyser: false,
-    timeline: false,
-    timecard: false,
-    pages: false,
-    summary: false,
-    cuwiki: false
-  };
 
   // src/ui/views/options/watchSetting.ts
   var WatchSettingComponent = defineComponent({
@@ -1757,8 +1897,8 @@
 
   // src/options/options.ts
   var spiHelperSettings = structuredClone(spiHelperDefaultSettings);
-  function setGlobalSettings(settings) {
-    spiHelperSettings = structuredClone(settings);
+  function setGlobalSettings(settings2) {
+    spiHelperSettings = structuredClone(settings2);
   }
   var saveKey = "userjs-spihelper";
   function saveOptions() {
@@ -3051,6 +3191,346 @@
       return "admin";
     return "new";
   }
+  // src/actions/archive.ts
+  async function spiHelperArchiveCase(state) {
+    const sectionFetchMessage = new VueMessage({ type: "notice", content: "Loading all sections" }).show();
+    const pageTextPromise = loadCaseText(state);
+    const sectionsToArchive = (await Promise.all(state.sections.map(async (section) => {
+      const sectionText = await loadSectionText(section);
+      const caseStatus = spiHelperCaseStatusRegex.exec(sectionText);
+      if (!caseStatus?.[1]) {
+        return null;
+      }
+      return spiHelperCaseClosedRegex.test(caseStatus[1]) ? section : null;
+    }))).filter((section) => section !== null);
+    let newText = await pageTextPromise;
+    sectionFetchMessage.update({ type: "success", content: "All sections loaded" });
+    if (sectionsToArchive.length === 0) {
+      new VueMessage({ type: "warning", content: "Nothing to archive" }).show();
+      return;
+    }
+    let newArchiveText = await spiHelperGetPageText(context.archiveName, true);
+    const postExpandPercent = (await spiHelperGetPostExpandSize(context.pageName) + await spiHelperGetPostExpandSize(context.archiveName)) / spiHelperGetMaxPostExpandSize();
+    if (postExpandPercent >= 1) {
+      let archiveId = 0;
+      while (newArchiveText !== "") {
+        if (archiveId > 30) {
+          new VueMessage({
+            type: "error",
+            content: "Reached upper bound on possible archives, something probably went catastrophically wrong. Exiting"
+          }).show();
+          return;
+        }
+        newArchiveText = await spiHelperGetPageText(`${context.archiveName}/${++archiveId}`, true);
+      }
+      const newArchiveName = `${context.archiveName}/${archiveId}`;
+      await spiHelperMovePage({
+        sourcePage: context.archiveName,
+        destPage: newArchiveName,
+        summary: "Moving archive to avoid exceeding post expand size limit",
+        ignoreWarnings: false,
+        moveSubpages: false
+      });
+    }
+    const archiveExists = newArchiveText !== "";
+    if (archiveExists) {
+      newArchiveText = newArchiveText.replace(/<br\s*\/>\s*{{SPIpriorcases}}/gi, `
+{{SPIpriorcases}}`);
+    } else {
+      newArchiveText = `__TOC__
+{{SPI archive notice|1=${context.caseName}}}
+{{SPIpriorcases}}
+`;
+    }
+    const archiveSectionEntries = archiveExists ? await spiHelperGetInvestigationSections({ pageName: context.archiveName }) : [];
+    const parsedArchiveSections = parseArchiveSections(newArchiveText, archiveSectionEntries);
+    if (!parsedArchiveSections) {
+      new VueMessage({ type: "notice", content: "Failed to parse existing archive sections, aborting archival" }).show();
+      return;
+    }
+    let sectionsAdded = 0;
+    for (const section of sectionsToArchive) {
+      const sectionText = await loadSectionText(section);
+      newText = newText.replace(sectionText + `
+`, "").replace(sectionText, "");
+      const cleanSectionText = sectionText.slice(sectionText.search(spiHelperSectionRegex)).replace(spiHelperCaseStatusRegex, "");
+      if (newArchiveText.includes(cleanSectionText)) {
+        new VueMessage({ type: "warning", content: `Section ${section.name} already exists in the archive` }).show();
+        continue;
+      }
+      const parsedDate = parseSectionDate(section.name);
+      if (!parsedDate) {
+        new VueMessage({
+          type: "error",
+          content: `Failed to parse date from section header "${section.name}", aborting archival`
+        }).show();
+        return;
+      }
+      parsedArchiveSections.push({ header: parsedDate, fullText: cleanSectionText });
+      sectionsAdded++;
+    }
+    if (sectionsAdded === 0) {
+      new VueMessage({ type: "warning", content: "Nothing to archive" }).show();
+      return;
+    }
+    newArchiveText = rebuildArchiveText(newArchiveText, parsedArchiveSections);
+    const usePlural = sectionsAdded > 1;
+    const summaryPrefix = `Archiving ${sectionsAdded} section${usePlural ? "s" : ""}`;
+    const archiveSuccess = await spiHelperEditPage({
+      title: context.archiveName,
+      newText: newArchiveText,
+      summary: `${summaryPrefix} from [[${context.prefixedName}]]`,
+      watch: spiHelperSettings.watch.archive,
+      watchExpiry: spiHelperSettings.expiry.archive
+    }) !== null;
+    if (!archiveSuccess) {
+      new VueMessage({ type: "error", content: "Failed to update archive, not removing sections from case page" }).show();
+      return;
+    }
+    await context.edit({
+      newText,
+      summary: `${summaryPrefix} to [[${spiHelperGetInterwikiPrefix()}${context.archiveName}]]`,
+      watch: spiHelperSettings.watch.case,
+      watchExpiry: spiHelperSettings.expiry.case,
+      baseRevId: context.startingRevId
+    });
+  }
+  async function spiHelperArchiveCaseSection(section) {
+    let sectionText = await loadSectionText(section);
+    sectionText = sectionText.replace(spiHelperCaseStatusRegex, "");
+    let archiveText = await spiHelperGetPageText(context.archiveName, true);
+    const message = new VueMessage({ type: "error", content: "" });
+    if (archiveText.includes(sectionText)) {
+      message.type = "warning";
+      message.content = "Looks like the page has been archived already";
+      message.show();
+      return;
+    }
+    if (archiveText === "") {
+      archiveText = `__TOC__
+{{SPI archive notice|1=` + context.caseName + `}}
+{{SPIpriorcases}}
+`;
+    } else {
+      archiveText = archiveText.replace(/<br\s*\/>\s*{{SPIpriorcases}}/gi, `
+{{SPIpriorcases}}`);
+    }
+    const investigationMessage = new VueMessage({ type: "notice", content: "Loading archive sections" }).show();
+    const archiveSectionEntries = await spiHelperGetInvestigationSections({ pageName: context.archiveName });
+    const parsedArchiveSections = parseArchiveSections(archiveText, archiveSectionEntries);
+    if (parsedArchiveSections) {
+      investigationMessage.update({ type: "success", content: "Archive sections loaded" });
+      const sectionDate = parseSectionDate(section.name);
+      if (!sectionDate) {
+        new VueMessage({ type: "error", content: `Failed to parse date from section header '${section.name}'` }).show();
+        return;
+      }
+      parsedArchiveSections.push({ header: sectionDate, fullText: sectionText });
+    } else {
+      investigationMessage.update({
+        type: "error",
+        content: "Failed to parse existing archive sections, aborting archival"
+      });
+      return;
+    }
+    archiveText = rebuildArchiveText(archiveText, parsedArchiveSections);
+    const archiveSuccess = await spiHelperEditPage({
+      title: context.archiveName,
+      newText: archiveText,
+      summary: `Archiving case section from [[${context.prefixedName}]]`,
+      createonly: false,
+      watch: spiHelperSettings.watch.archive,
+      watchExpiry: spiHelperSettings.expiry.archive
+    }) !== null;
+    if (!archiveSuccess) {
+      message.content = "Failed to update archive, not removing section from case page";
+      message.show();
+      return;
+    }
+    await context.edit({
+      newText: "",
+      summary: `Archiving case section to [[${spiHelperGetInterwikiPrefix()}${context.archiveName}]]`,
+      watch: spiHelperSettings.watch.case,
+      watchExpiry: spiHelperSettings.expiry.case,
+      baseRevId: context.startingRevId,
+      sectionId: section.id
+    });
+  }
+  // src/actions/block.ts
+  function buildTalkNotice(opts) {
+    const { sock, noticeType, sockmaster, cuBlock } = opts;
+    let newText;
+    let isSock = noticeType === "sock";
+    if (isSock && sockmaster && sock.username === spiHelperNormalizeUsername(sockmaster)) {
+      isSock = false;
+    }
+    if (isSock) {
+      newText = `== Blocked as a sockpuppet ==
+`;
+    } else {
+      newText = `== Blocked for sockpuppetry ==
+`;
+    }
+    if (cuBlock) {
+      newText += "{{checkuserblock-account|sig=~~~~";
+    } else {
+      newText += "{{subst:uw-sockblock|sig=yes";
+    }
+    if (context.valid) {
+      newText += "|spi=" + context.caseName;
+    }
+    if (isNoExpiry(sock.block.duration)) {
+      newText += "|indef=yes";
+    } else {
+      newText += "|time=" + sock.block.duration;
+      if (cuBlock) {
+        newText += "|indef=no";
+      }
+    }
+    if (sock.block.ntp) {
+      newText += "|notalk=yes";
+    }
+    if (isSock && sockmaster) {
+      newText += "|master=" + sockmaster;
+    }
+    newText += "}}";
+    return newText;
+  }
+  function buildBlockSummary(blockOptions, isIP, isIPRange, acb) {
+    let blockSummary = "Abusing [[WP:SOCK|multiple accounts]]";
+    if (context.valid) {
+      blockSummary += `: Please see: [[${context.prefixedName}]]`;
+    }
+    if (spiHelperIsCheckuser() && blockOptions.cuBlock) {
+      const cuBlockTemplate = isIP ? "{{checkuserblock}}" : "{{checkuserblock-account}}";
+      if (blockOptions.cuBlockOnly) {
+        blockSummary = cuBlockTemplate;
+      } else {
+        blockSummary = cuBlockTemplate + ": " + blockSummary;
+      }
+    } else if (isIPRange) {
+      blockSummary = `{{rangeblock|1=${blockSummary}`;
+      if (!acb) {
+        blockSummary += "|create=yes";
+      }
+      blockSummary += "}}";
+    }
+    return blockSummary;
+  }
+  async function spiHelperProcessBlockRow(opts) {
+    const { sock, blockOptions } = opts;
+    const isIP = mw.util.isIPAddress(sock.username, true);
+    const isIPRange = isIP && !mw.util.isIPAddress(sock.username, false);
+    const blockSummary = buildBlockSummary(blockOptions, isIP, isIPRange, sock.block.acb);
+    return await spiHelperBlockUser({
+      user: sock.username,
+      duration: sock.block.duration,
+      reason: blockSummary,
+      reblock: blockOptions.override,
+      anononly: isIP ? sock.block.abao : false,
+      accountcreation: sock.block.acb,
+      autoblock: isIP ? false : sock.block.abao,
+      notalkpage: sock.block.ntp,
+      noemail: sock.block.nem,
+      watchBlockedUser: spiHelperSettings.watch.blocked,
+      watchExpiry: spiHelperSettings.expiry.blocked
+    });
+  }
+  async function spiHelperAddTalkBlockNotice(opts) {
+    const { sock, blockOptions, userTalkContent, talkNotices, defaultMaster } = opts;
+    if (talkNotices.length === 0) {
+      return;
+    }
+    const sockmaster = sock.block.tags.find((tag) => isSockpuppetTag(tag))?.master ?? defaultMaster;
+    const cuBlock = blockOptions.cuBlock && spiHelperIsCheckuser() && spiHelperSettings.useCheckuserblockAccount;
+    const userTalkPage = `User talk:${sock.username}`;
+    let newText = blockOptions.blankTalk ? "" : userTalkContent ?? "";
+    for (const talkNotice of talkNotices) {
+      newText += `
+` + buildTalkNotice({ sock, noticeType: talkNotice, sockmaster, cuBlock });
+    }
+    await spiHelperEditPage({
+      title: userTalkPage,
+      newText,
+      summary: buildContextSummary("Adding sockpuppetry block notice"),
+      createonly: false,
+      watch: "nochange"
+    });
+  }
+  // src/actions/lock.ts
+  async function filterLockedAccounts(users) {
+    const lockResults = await Promise.all(users.map(async (user) => (await spiHelperGetGlobalUser(user))?.locked ? null : user));
+    return lockResults.filter((user) => user !== null);
+  }
+  var MAX_LOCK_FILTER_REQUESTS = 6;
+  async function spiHelperRequestLocks(opts) {
+    const { master, hideNames } = opts;
+    const lockTargets = opts.lockTargets.length < MAX_LOCK_FILTER_REQUESTS ? await filterLockedAccounts(opts.lockTargets) : opts.lockTargets;
+    if (lockTargets.length === 0) {
+      return [];
+    }
+    let lockTemplate;
+    const usePlural = lockTargets.length > 1;
+    if (!usePlural && lockTargets[0]) {
+      lockTemplate = `* {{LockHide|1=${lockTargets[0]}}}`;
+    } else {
+      lockTemplate = "{{MultiLock";
+      lockTargets.forEach((user, i) => {
+        lockTemplate += `|${i + 1}=${user}`;
+      });
+      if (hideNames) {
+        lockTemplate += "|hidename=1";
+      }
+      lockTemplate += "}}";
+    }
+    let heading;
+    let headingText = "Global lock for ";
+    if (hideNames || !master) {
+      heading = usePlural ? `${lockTargets.length} sockpuppets` : "a sockpuppet";
+      headingText += heading;
+    } else {
+      heading = `${lockTargets.length} [[Special:CentralAuth/${master}|${master}]] ${usePlural ? "socks" : "sock"}`;
+      headingText += `${lockTargets.length} ${master} ${usePlural ? "socks" : "sock"}`;
+    }
+    const lockComment = opts.lockComment.trim().replace(/\.+$/, "");
+    let message = `=== Global lock for ${heading} ===`;
+    message += `
+{{status}}`;
+    message += `
+${lockTemplate}`;
+    message += `
+${usePlural ? "Sockpuppets" : "Sockpuppet"} found in enwiki sockpuppet investigation`;
+    if (context.valid) {
+      message += `, see [[${context.prefixedName}]].`;
+    } else {
+      message += ".";
+    }
+    if (lockComment !== "") {
+      message += ` ${lockComment}.`;
+    }
+    message += " ~~~~";
+    let srgText = await spiHelperGetPageText("meta:Steward requests/Global", false);
+    srgText = srgText.replace(/\n+(== See also == *\n)/, `
+
+` + message + `
+
+$1`);
+    new VueMessage({ type: "notice", content: "Filing global lock request" }).show();
+    const editId = await spiHelperEditPage({
+      title: "meta:Steward requests/Global",
+      newText: srgText,
+      summary: `Global lock request for ${heading}`,
+      createonly: false,
+      watch: "nochange"
+    });
+    if (editId) {
+      const linkHtml = buildTitleLinkHtml(`meta:Special:Diff/${editId}#${headingText}`, "filed");
+      new VueMessage({ type: "success", content: `Global lock request ${linkHtml} successfully!`, isHtml: true }).show();
+    } else {
+      new VueMessage({ type: "warning", content: "Global lock request failed." }).show();
+    }
+    return lockTargets;
+  }
   // src/actions/log.ts
   async function spiHelperLog(logString) {
     const now = new Date;
@@ -3090,7 +3570,6 @@
       watch: "nochange"
     });
   }
-
   // src/actions/move.ts
   async function getNewProtection(oldTitle, newTitle, siteRestrictions) {
     const oldPageNameProtection = await spiHelperGetProtectionInformation(oldTitle);
@@ -3114,10 +3593,8 @@
           return;
         } else if (oldPageNameEntryLevelIndex > newPageNameEntryLevelIndex) {
           level = oldPageNameEntry.level;
-        } else if (oldPageNameEntryLevelIndex <= newPageNameEntryLevelIndex) {
-          level = newPageNameEntry.level;
         } else {
-          return;
+          level = newPageNameEntry.level;
         }
         newProtectionValues.push({ type: oldPageNameEntry.type, expiry, level });
       } else if (oldPageNameEntry) {
@@ -3214,7 +3691,6 @@
             watch: spiHelperSettings.watch.archive,
             watchExpiry: spiHelperSettings.expiry.archive
           });
-          await spiHelperDeletePage(oldContext.archiveName, "Deleting copied archive");
           archivesCopied = true;
         } else {
           new VueMessage({
@@ -3309,6 +3785,71 @@
       sectionId: section.id
     });
   }
+  function addOldMasterToSockList(pageText, oldMasterName) {
+    const sockListMatch = /\{\{sock\s+list[\s\S]*?\}\}/i.exec(pageText)?.[0];
+    if (!sockListMatch) {
+      return pageText.replace(spiHelperSockSectionWithNewlineRegex, `====Suspected sockpuppets====
+* {{checkuser|1=` + oldMasterName + `}} ({{clerknote}} original case name)
+`);
+    }
+    const sockListTemplate = parseTemplate(sockListMatch.slice(2, -2));
+    const isMultiLine = sockListMatch.includes(`
+`);
+    const sep = isMultiLine ? `
+` : "";
+    const escapedName = oldMasterName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const normalizedMaster = oldMasterName.toLowerCase();
+    const positionalIndex = sockListTemplate.positional.findIndex((u) => u.toLowerCase() === normalizedMaster);
+    let namedIndex = -1;
+    for (const [key, val] of Object.entries(sockListTemplate.params)) {
+      if (/^\d+$/.test(key) && val.toString().toLowerCase() === normalizedMaster) {
+        namedIndex = parseInt(key);
+        break;
+      }
+    }
+    let newSockList;
+    if (positionalIndex >= 0 || namedIndex >= 0) {
+      const entryIndex = namedIndex >= 0 ? namedIndex : positionalIndex + 1;
+      const noteKey = `note${entryIndex}`;
+      if (noteKey in sockListTemplate.params) {
+        newSockList = sockListMatch;
+      } else {
+        let entryStr;
+        if (namedIndex >= 0) {
+          const match = new RegExp(`\\|\\s*${namedIndex}\\s*=\\s*${escapedName}`, "i").exec(sockListMatch);
+          entryStr = match ? match[0] : undefined;
+        } else {
+          const match = new RegExp(`\\|(?![^|}\\n]*=)\\s*${escapedName}\\s*(?=[|}\\n])`, "i").exec(sockListMatch);
+          entryStr = match ? match[0] : undefined;
+        }
+        newSockList = entryStr ? sockListMatch.replace(entryStr, entryStr + `|note${entryIndex}=({{clerknote}} original case name)`) : sockListMatch;
+      }
+    } else {
+      const namedKeys = Object.keys(sockListTemplate.params).filter((k) => /^\d+$/.test(k)).map(Number);
+      const effectiveMax = Math.max(0, ...namedKeys, sockListTemplate.positional.length);
+      const newIndex = effectiveMax + 1;
+      const newEntry = `${sep}|${newIndex}=${oldMasterName}|note${newIndex}=({{clerknote}} original case name)`;
+      const nonEntryKeys = Object.keys(sockListTemplate.params).filter((k) => !/^\d+$/.test(k) && !/^note\d+$/.test(k));
+      let insertBefore = null;
+      for (const key of nonEntryKeys) {
+        const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const match = new RegExp(`(\\n?)\\|\\s*${escapedKey}\\s*=`).exec(sockListMatch);
+        if (match && (insertBefore === null || match.index < insertBefore.index)) {
+          insertBefore = { index: match.index, match };
+        }
+      }
+      let insertPos;
+      if (insertBefore) {
+        insertPos = insertBefore.match.index;
+      } else {
+        const closingPos = sockListMatch.lastIndexOf("}}");
+        insertPos = closingPos - (sockListMatch[closingPos - 1] === `
+` ? 1 : 0);
+      }
+      newSockList = sockListMatch.slice(0, insertPos) + newEntry + sockListMatch.slice(insertPos);
+    }
+    return pageText.replace(sockListMatch, newSockList);
+  }
   async function spiHelperPostRenameCleanup(opts) {
     const { oldContext, newContext, oldNotice, deleteOld, preMergeText } = opts;
     const newNotice = new ParsedArchiveNotice({ username: newContext.caseName });
@@ -3322,7 +3863,7 @@
     let currentPageToCheck = null;
     while (pagesToCheck.length !== 0) {
       currentPageToCheck = pagesToCheck.pop();
-      if (!currentPageToCheck || currentPageToCheck === newContext.pageName || currentPageToCheck === oldContext.pageName) {
+      if (!currentPageToCheck || currentPageToCheck === newContext.pageName) {
         continue;
       }
       pagesChecked.push(currentPageToCheck);
@@ -3340,7 +3881,7 @@
             watch: spiHelperSettings.watch.case,
             watchExpiry: spiHelperSettings.expiry.case
           });
-          if (pagesChecked.includes(backlink.title)) {
+          if (!pagesChecked.includes(backlink.title)) {
             pagesToCheck.push(backlink.title);
           }
         }
@@ -3373,9 +3914,7 @@
 ` + appendText;
     }
     newPageText = newPageText.replace(spiHelperArchiveNoticeRegex, newNotice.generateWikitext());
-    newPageText = newPageText.replace(spiHelperSockSectionWithNewlineRegex, "====Suspected sockpuppets====" + `
-* {{checkuser|1=` + oldContext.caseName + `}} ({{clerknote}} original case name)
-`);
+    newPageText = addOldMasterToSockList(newPageText, oldContext.caseName);
     const newMasterReString = "(sockpuppets\\s*====.*?)\\n^\\s*\\*\\s*{{checkuser\\|(?:1=)?" + newContext.caseName + "(?:\\|master name\\s*=.*?)?}}\\s*$(.*====\\s*<big>)";
     const newMasterRe = new RegExp(newMasterReString, "sm");
     newPageText = newPageText.replace(newMasterRe, `$1
@@ -3387,7 +3926,6 @@ $2`);
       watchExpiry: spiHelperSettings.expiry.case
     });
   }
-
   // src/actions/tag.ts
   function createCategoryPage(title) {
     return spiHelperEditPage({
@@ -3550,343 +4088,6 @@ $2`);
     }
     return purgeMap;
   }
-
-  // src/actions/block.ts
-  function buildTalkNotice(opts) {
-    const { sock, noticeType, sockmaster, cuBlock } = opts;
-    let newText;
-    let isSock = noticeType === "sock";
-    if (isSock && sockmaster && sock.username === spiHelperNormalizeUsername(sockmaster)) {
-      isSock = false;
-    }
-    if (isSock) {
-      newText = `== Blocked as a sockpuppet ==
-`;
-    } else {
-      newText = `== Blocked for sockpuppetry ==
-`;
-    }
-    if (cuBlock) {
-      newText += "{{checkuserblock-account|sig=~~~~";
-    } else {
-      newText += "{{subst:uw-sockblock|sig=yes";
-    }
-    if (context.valid) {
-      newText += "|spi=" + context.caseName;
-    }
-    if (isNoExpiry(sock.block.duration)) {
-      newText += "|indef=yes";
-    } else {
-      newText += "|time=" + sock.block.duration;
-      if (cuBlock) {
-        newText += "|indef=no";
-      }
-    }
-    if (sock.block.ntp) {
-      newText += "|notalk=yes";
-    }
-    if (isSock && sockmaster) {
-      newText += "|master=" + sockmaster;
-    }
-    newText += "}}";
-    return newText;
-  }
-  function buildBlockSummary(blockOptions, isIP, isIPRange, acb) {
-    let blockSummary = "Abusing [[WP:SOCK|multiple accounts]]";
-    if (context.valid) {
-      blockSummary += `: Please see: [[${context.prefixedName}]]`;
-    }
-    if (spiHelperIsCheckuser() && blockOptions.cuBlock) {
-      const cuBlockTemplate = isIP ? "{{checkuserblock}}" : "{{checkuserblock-account}}";
-      if (blockOptions.cuBlockOnly) {
-        blockSummary = cuBlockTemplate;
-      } else {
-        blockSummary = cuBlockTemplate + ": " + blockSummary;
-      }
-    } else if (isIPRange) {
-      blockSummary = `{{rangeblock|1=${blockSummary}`;
-      if (!acb) {
-        blockSummary += "|create=yes";
-      }
-      blockSummary += "}}";
-    }
-    return blockSummary;
-  }
-  async function spiHelperProcessBlockRow(opts) {
-    const { sock, blockOptions } = opts;
-    const isIP = mw.util.isIPAddress(sock.username, true);
-    const isIPRange = isIP && !mw.util.isIPAddress(sock.username, false);
-    const blockSummary = buildBlockSummary(blockOptions, isIP, isIPRange, sock.block.acb);
-    return await spiHelperBlockUser({
-      user: sock.username,
-      duration: sock.block.duration,
-      reason: blockSummary,
-      reblock: blockOptions.override,
-      anononly: isIP ? sock.block.abao : false,
-      accountcreation: sock.block.acb,
-      autoblock: isIP ? false : sock.block.abao,
-      notalkpage: sock.block.ntp,
-      noemail: sock.block.nem,
-      watchBlockedUser: spiHelperSettings.watch.blocked,
-      watchExpiry: spiHelperSettings.expiry.blocked
-    });
-  }
-  async function spiHelperAddTalkBlockNotice(opts) {
-    const { sock, blockOptions, userTalkContent, talkNotices, defaultMaster } = opts;
-    if (talkNotices.length === 0) {
-      return;
-    }
-    const sockmaster = sock.block.tags.find((tag) => isSockpuppetTag(tag))?.master ?? defaultMaster;
-    const cuBlock = blockOptions.cuBlock && spiHelperIsCheckuser() && spiHelperSettings.useCheckuserblockAccount;
-    const userTalkPage = `User talk:${sock.username}`;
-    let newText = blockOptions.blankTalk ? "" : userTalkContent ?? "";
-    for (const talkNotice of talkNotices) {
-      newText += `
-` + buildTalkNotice({ sock, noticeType: talkNotice, sockmaster, cuBlock });
-    }
-    await spiHelperEditPage({
-      title: userTalkPage,
-      newText,
-      summary: buildContextSummary("Adding sockpuppetry block notice"),
-      createonly: false,
-      watch: "nochange"
-    });
-  }
-
-  // src/actions/archive.ts
-  async function spiHelperArchiveCase(state) {
-    const sectionFetchMessage = new VueMessage({ type: "notice", content: "Loading all sections" }).show();
-    const pageTextPromise = loadCaseText(state);
-    const sectionsToArchive = (await Promise.all(state.sections.map(async (section) => {
-      const sectionText = await loadSectionText(section);
-      const caseStatus = spiHelperCaseStatusRegex.exec(sectionText);
-      if (!caseStatus?.[1]) {
-        return null;
-      }
-      return spiHelperCaseClosedRegex.test(caseStatus[1]) ? section : null;
-    }))).filter((section) => section !== null);
-    let newText = await pageTextPromise;
-    sectionFetchMessage.update({ type: "success", content: "All sections loaded" });
-    if (sectionsToArchive.length === 0) {
-      new VueMessage({ type: "warning", content: "Nothing to archive" }).show();
-      return;
-    }
-    let newArchiveText = await spiHelperGetPageText(context.archiveName, true);
-    const postExpandPercent = (await spiHelperGetPostExpandSize(context.pageName) + await spiHelperGetPostExpandSize(context.archiveName)) / spiHelperGetMaxPostExpandSize();
-    if (postExpandPercent >= 1) {
-      let archiveId = 0;
-      while (newArchiveText !== "") {
-        newArchiveText = await spiHelperGetPageText(`${context.archiveName}/${++archiveId}`, true);
-      }
-      const newArchiveName = `${context.archiveName}/${archiveId}`;
-      await spiHelperMovePage({
-        sourcePage: context.archiveName,
-        destPage: newArchiveName,
-        summary: "Moving archive to avoid exceeding post expand size limit",
-        ignoreWarnings: false,
-        moveSubpages: false
-      });
-    }
-    const archiveExists = newArchiveText !== "";
-    if (archiveExists) {
-      newArchiveText = newArchiveText.replace(/<br\s*\/>\s*{{SPIpriorcases}}/gi, `
-{{SPIpriorcases}}`);
-    } else {
-      newArchiveText = `__TOC__
-{{SPI archive notice|1=${context.caseName}}}
-{{SPIpriorcases}}
-`;
-    }
-    const archiveSectionEntries = archiveExists ? await spiHelperGetInvestigationSections({ pageName: context.archiveName }) : [];
-    const parsedArchiveSections = parseArchiveSections(newArchiveText, archiveSectionEntries);
-    if (!parsedArchiveSections) {
-      new VueMessage({ type: "notice", content: "Failed to parse existing archive sections, aborting archival" }).show();
-      return;
-    }
-    let sectionsAdded = 0;
-    for (const section of sectionsToArchive) {
-      const sectionText = await loadSectionText(section);
-      newText = newText.replace(sectionText + `
-`, "").replace(sectionText, "");
-      const cleanSectionText = sectionText.slice(sectionText.search(spiHelperSectionRegex)).replace(spiHelperCaseStatusRegex, "");
-      if (newArchiveText.includes(cleanSectionText)) {
-        new VueMessage({ type: "warning", content: `Section ${section.name} already exists in the archive` }).show();
-        continue;
-      }
-      const parsedDate = parseSectionDate(section.name);
-      if (!parsedDate) {
-        new VueMessage({
-          type: "error",
-          content: `Failed to parse date from section header "${section.name}", aborting archival`
-        }).show();
-        return;
-      }
-      parsedArchiveSections.push({ header: parsedDate, fullText: cleanSectionText });
-      sectionsAdded++;
-    }
-    if (sectionsAdded === 0) {
-      new VueMessage({ type: "warning", content: "Nothing to archive" }).show();
-      return;
-    }
-    newArchiveText = rebuildArchiveText(newArchiveText, parsedArchiveSections);
-    const usePlural = sectionsAdded > 1;
-    const summaryPrefix = `Archiving ${sectionsAdded} section${usePlural ? "s" : ""}`;
-    const archiveSuccess = await spiHelperEditPage({
-      title: context.archiveName,
-      newText: newArchiveText,
-      summary: `${summaryPrefix} from [[${context.prefixedName}]]`,
-      watch: spiHelperSettings.watch.archive,
-      watchExpiry: spiHelperSettings.expiry.archive
-    }) !== null;
-    if (!archiveSuccess) {
-      new VueMessage({ type: "error", content: "Failed to update archive, not removing sections from case page" }).show();
-      return;
-    }
-    await context.edit({
-      newText,
-      summary: `${summaryPrefix} to [[${spiHelperGetInterwikiPrefix()}${context.archiveName}]]`,
-      watch: spiHelperSettings.watch.case,
-      watchExpiry: spiHelperSettings.expiry.case,
-      baseRevId: context.startingRevId
-    });
-  }
-  async function spiHelperArchiveCaseSection(section) {
-    let sectionText = await loadSectionText(section);
-    sectionText = sectionText.replace(spiHelperCaseStatusRegex, "");
-    let archiveText = await spiHelperGetPageText(context.archiveName, true);
-    const message = new VueMessage({ type: "error", content: "" });
-    if (archiveText.includes(sectionText)) {
-      message.type = "warning";
-      message.content = "Looks like the page has been archived already";
-      message.show();
-      return;
-    }
-    if (archiveText === "") {
-      archiveText = `__TOC__
-{{SPI archive notice|1=` + context.caseName + `}}
-{{SPIpriorcases}}
-`;
-    } else {
-      archiveText = archiveText.replace(/<br\s*\/>\s*{{SPIpriorcases}}/gi, `
-{{SPIpriorcases}}`);
-    }
-    const investigationMessage = new VueMessage({ type: "notice", content: "Loading archive sections" }).show();
-    const archiveSectionEntries = await spiHelperGetInvestigationSections({ pageName: context.archiveName });
-    const parsedArchiveSections = parseArchiveSections(archiveText, archiveSectionEntries);
-    if (parsedArchiveSections) {
-      investigationMessage.update({ type: "success", content: "Archive sections loaded" });
-      const sectionDate = parseSectionDate(section.name);
-      if (!sectionDate) {
-        new VueMessage({ type: "error", content: `Failed to parse date from section header '${section.name}'` }).show();
-        return;
-      }
-      parsedArchiveSections.push({ header: sectionDate, fullText: sectionText });
-    } else {
-      investigationMessage.update({
-        type: "error",
-        content: "Failed to parse existing archive sections, aborting archival"
-      });
-      return;
-    }
-    archiveText = rebuildArchiveText(archiveText, parsedArchiveSections);
-    const archiveSuccess = await spiHelperEditPage({
-      title: context.archiveName,
-      newText: archiveText,
-      summary: `Archiving case section from [[${context.prefixedName}]]`,
-      createonly: false,
-      watch: spiHelperSettings.watch.archive,
-      watchExpiry: spiHelperSettings.expiry.archive
-    }) !== null;
-    if (!archiveSuccess) {
-      message.content = "Failed to update archive, not removing section from case page";
-      message.show();
-      return;
-    }
-    await context.edit({
-      newText: "",
-      summary: `Archiving case section to [[${spiHelperGetInterwikiPrefix()}${context.archiveName}]]`,
-      watch: spiHelperSettings.watch.case,
-      watchExpiry: spiHelperSettings.expiry.case,
-      baseRevId: context.startingRevId,
-      sectionId: section.id
-    });
-  }
-
-  // src/actions/lock.ts
-  async function filterLockedAccounts(users) {
-    const lockResults = await Promise.all(users.map(async (user) => (await spiHelperGetGlobalUser(user))?.locked ? null : user));
-    return lockResults.filter((user) => user !== null);
-  }
-  var MAX_LOCK_FILTER_REQUESTS = 6;
-  async function spiHelperRequestLocks(opts) {
-    const { master, hideNames } = opts;
-    const lockTargets = opts.lockTargets.length < MAX_LOCK_FILTER_REQUESTS ? await filterLockedAccounts(opts.lockTargets) : opts.lockTargets;
-    if (lockTargets.length === 0) {
-      return [];
-    }
-    let lockTemplate;
-    const usePlural = lockTargets.length > 1;
-    if (!usePlural && lockTargets[0]) {
-      lockTemplate = `* {{LockHide|1=${lockTargets[0]}}}`;
-    } else {
-      lockTemplate = "{{MultiLock";
-      lockTargets.forEach((user, i) => {
-        lockTemplate += `|${i + 1}=${user}`;
-      });
-      if (hideNames) {
-        lockTemplate += "|hidename=1";
-      }
-      lockTemplate += "}}";
-    }
-    let heading;
-    let headingText = "Global lock for ";
-    if (hideNames || !master) {
-      heading = usePlural ? `${lockTargets.length} sockpuppets` : "a sockpuppet";
-      headingText += heading;
-    } else {
-      heading = `${lockTargets.length} [[Special:CentralAuth/${master}|${master}]] ${usePlural ? "socks" : "sock"}`;
-      headingText += `${lockTargets.length} ${master} ${usePlural ? "socks" : "sock"}`;
-    }
-    const lockComment = opts.lockComment.trim().replace(/\.+$/, "");
-    let message = `=== Global lock for ${heading} ===`;
-    message += `
-{{status}}`;
-    message += `
-${lockTemplate}`;
-    message += `
-${usePlural ? "Sockpuppets" : "Sockpuppet"} found in enwiki sockpuppet investigation`;
-    if (context.valid) {
-      message += `, see [[${context.prefixedName}]].`;
-    } else {
-      message += ".";
-    }
-    if (lockComment !== "") {
-      message += ` ${lockComment}.`;
-    }
-    message += " ~~~~";
-    let srgText = await spiHelperGetPageText("meta:Steward requests/Global", false);
-    srgText = srgText.replace(/\n+(== See also == *\n)/, `
-
-` + message + `
-
-$1`);
-    new VueMessage({ type: "notice", content: "Filing global lock request" }).show();
-    const editId = await spiHelperEditPage({
-      title: "meta:Steward requests/Global",
-      newText: srgText,
-      summary: `Global lock request for ${heading}`,
-      createonly: false,
-      watch: "nochange"
-    });
-    if (editId) {
-      const linkHtml = buildTitleLinkHtml(`meta:Special:Diff/${editId}#${headingText}`, "filed");
-      new VueMessage({ type: "success", content: `Global lock request ${linkHtml} successfully!`, isHtml: true }).show();
-    } else {
-      new VueMessage({ type: "warning", content: "Global lock request failed." }).show();
-    }
-    return lockTargets;
-  }
-
   // src/caseActions.ts
   async function spiHelperOneClickArchive(state) {
     startOp("oneClickArchive");
@@ -4097,7 +4298,7 @@ $1`);
   function spiHelperHandleComment(targetText, comment) {
     if (!targetText.includes(`
 ----`)) {
-      targetText.replace(/<!-+ All comments go ABOVE this line, please. -+>/, "");
+      targetText = targetText.replace(/<!-+ All comments go ABOVE this line, please. -+>/, "");
       targetText += `
 ----<!-- All comments go ABOVE this line, please. -->`;
     }
@@ -4228,7 +4429,7 @@ ${comment}
       }
       if (blockAvailable && userRow.block.block) {
         const talkNotices = [];
-        if (blockOptions.addMasterNotice && (userRow.block.tags.some((tag) => isSockmasterTag(tag)) || userRow.username === master)) {
+        if (blockOptions.addMasterNotice && (userRow.block.tags.some((tag2) => isSockmasterTag(tag2)) || userRow.username === master)) {
           talkNotices.push("master");
         } else if (blockOptions.addSockNotice) {
           talkNotices.push("sock");
@@ -5009,12 +5210,12 @@ ${comment}
           row.block[key] = value;
         }
       },
-      setAllTags(tag) {
+      setAllTags(tag2) {
         for (const row of this.getTargetRows()) {
           if (isNonRegisteredAccount(row.username)) {
             continue;
           }
-          row.block.tags = [tag.clone()];
+          row.block.tags = [tag2.clone()];
         }
       },
       getTargetRows() {
@@ -5027,8 +5228,8 @@ ${comment}
         this.topButtonActions.fetched = true;
         this.$emit("fetchRows");
       },
-      showTagPopover(tag, tagIndex, rowId, $event) {
-        this.popovers.row.tag = tag;
+      showTagPopover(tag2, tagIndex, rowId, $event) {
+        this.popovers.row.tag = tag2;
         this.popovers.row.tagIndex = tagIndex;
         this.popovers.row.rowId = rowId;
         this.popovers.row.anchor = $event.currentTarget;
@@ -5080,8 +5281,8 @@ ${comment}
           row.block.tags.length = 0;
         }
       },
-      validateTag(tag) {
-        return !(isSockpuppetTag(tag) && !tag.master);
+      validateTag(tag2) {
+        return !(isSockpuppetTag(tag2) && !tag2.master);
       }
     },
     template: `
@@ -5322,73 +5523,6 @@ ${comment}
     </action-container>
   `
   });
-  // src/constants/spi.ts
-  var spiHelperCUTemplates = [
-    {
-      label: "Results",
-      items: [
-        { value: "{{confirmed}}", label: "Confirmed" },
-        { value: "{{confirmed-nc}}", label: "Confirmed, no comment for IPs" },
-        { value: "{{tallyho}}", label: "Indistinguishable" },
-        { value: "{{highly likely}}", label: "Highly likely" },
-        { value: "{{likely}}", label: "Likely" },
-        { value: "{{possilikely}}", label: "Possilikely" },
-        { value: "{{possible}}", label: "Possible" },
-        { value: "{{unlikely}}", label: "Unlikely" },
-        { value: "{{unrelated}}", label: "Unrelated" },
-        { value: "{{inconclusive}}", label: "Inconclusive" },
-        { value: "{{IPstale}}", label: "Stale" }
-      ]
-    },
-    {
-      label: "Addendums",
-      items: [
-        { value: "{{behav}}", label: "Needs behavioral evaluation" },
-        { value: "{{nosleepers}}", label: "No sleepers" },
-        { value: "{{ncip}}", label: "No comment for IPs" }
-      ]
-    },
-    {
-      label: "Novelties",
-      items: [
-        { value: "{{8ball}} ", label: "Magic 8-Ball" },
-        { value: "{{crystalball", label: "Not a crystal ball" },
-        { value: "{{fishing}}", label: "Not fishing" },
-        { value: "{{pixiedust}}", label: "Not pixie dust" }
-      ]
-    }
-  ];
-  var spiHelperClerkTemplates = [
-    {
-      label: "Ducks",
-      items: [
-        { value: "{{duck}}", label: "Duck" },
-        { value: "{{megaphone duck}}", label: "Megaphone duck" },
-        { value: "{{megaphone duck|ultimate}}", label: "Ultimate duck" }
-      ]
-    },
-    {
-      label: "Results",
-      items: [
-        { value: "{{IPblock}}", label: "IP blocked" },
-        { value: "{{bnt}}", label: "Blocked and tagged" },
-        { value: "{{bwt}}", label: "Blocked without tags" },
-        { value: "{{sblock}}", label: "Blocked, awaiting tags" },
-        { value: "{{btc}}", label: "Blocked, tagged, closed" },
-        { value: "{{Action and close}}", label: "Requested actions completed, closing" },
-        { value: "{{Closing without action}}", label: "Closing without action" }
-      ]
-    },
-    {
-      label: "Other",
-      items: [
-        { value: "{{subst:DiffsNeeded|moreinfo}}", label: "Diffs needed" },
-        { value: "{{GlobalLocksRequested}}", label: "Locks requested" },
-        { value: "{{Decline-IP}}", label: "IP check declined" }
-      ]
-    }
-  ];
-
   // src/ui/views/top/actions/commentAction.ts
   var CommentActionComponent = defineComponent({
     props: {
@@ -5611,86 +5745,6 @@ ${comment}
     </action-container>
   `
   });
-  // src/constants/linkview.ts
-  var spiHelperLinkViewURLFormats = {
-    editorInteractionAnalyser: {
-      baseUrl: (_caseName) => new URL("https://sigma.toolforge.org/editorinteract.py"),
-      userQueryStringKey: "users",
-      userQueryStringSeparator: "&",
-      userQueryStringWrapper: "",
-      multipleUserQueryStringKeys: true
-    },
-    interactionTimeline: {
-      baseUrl: (_caseName) => new URL("https://interaction-timeline.toolforge.org"),
-      startingParams: new URLSearchParams("wiki=enwiki"),
-      userQueryStringKey: "user",
-      userQueryStringSeparator: "&",
-      userQueryStringWrapper: "",
-      multipleUserQueryStringKeys: true
-    },
-    SPITools: {
-      timecard: {
-        baseUrl: (caseName) => new URL("https://spi-tools.toolforge.org/spi/timecard/" + caseName),
-        userQueryStringKey: "users",
-        userQueryStringSeparator: "&",
-        userQueryStringWrapper: "",
-        multipleUserQueryStringKeys: true
-      },
-      consolidatedTimeline: {
-        baseUrl: (caseName) => new URL("https://spi-tools.toolforge.org/spi/timeline/" + caseName),
-        userQueryStringKey: "users",
-        userQueryStringSeparator: "&",
-        userQueryStringWrapper: "",
-        multipleUserQueryStringKeys: true
-      },
-      pages: {
-        baseUrl: (caseName) => new URL("https://spi-tools.toolforge.org/spi/pages/" + caseName),
-        userQueryStringKey: "users",
-        userQueryStringSeparator: "&",
-        userQueryStringWrapper: "",
-        multipleUserQueryStringKeys: true
-      }
-    },
-    sandals: {
-      timecard: {
-        baseUrl: (_caseName) => new URL("https://sandals.toolforge.org/timecard"),
-        userQueryStringKey: "users",
-        userQueryStringSeparator: "|",
-        userQueryStringWrapper: "",
-        multipleUserQueryStringKeys: false
-      },
-      consolidatedTimeline: {
-        baseUrl: (_caseName) => new URL("https://sandals.toolforge.org/timeline"),
-        userQueryStringKey: "users",
-        userQueryStringSeparator: "|",
-        userQueryStringWrapper: "",
-        multipleUserQueryStringKeys: false
-      },
-      pages: {
-        baseUrl: (_caseName) => new URL("https://sandals.toolforge.org/pages"),
-        userQueryStringKey: "users",
-        userQueryStringSeparator: "|",
-        userQueryStringWrapper: "",
-        multipleUserQueryStringKeys: false
-      },
-      summaries: {
-        baseUrl: (_caseName) => new URL("https://sandals.toolforge.org/summaries"),
-        userQueryStringKey: "users",
-        userQueryStringSeparator: "|",
-        userQueryStringWrapper: "",
-        multipleUserQueryStringKeys: false
-      }
-    },
-    checkUserWikiSearch: {
-      baseUrl: (_caseName) => new URL("https://checkuser.wikimedia.org/w/index.php"),
-      startingParams: new URLSearchParams("ns0=1"),
-      userQueryStringKey: "search",
-      userQueryStringSeparator: " OR ",
-      userQueryStringWrapper: '"',
-      multipleUserQueryStringKeys: false
-    }
-  };
-
   // src/ui/views/top/actions/linkAction.ts
   var LinkActionComponent = defineComponent({
     props: {
@@ -6438,7 +6492,7 @@ ${comment}
         if (!blockAction.enabled) {
           return false;
         }
-        return this.accounts.some((user) => user.block.tags.some((tag) => isSockpuppetTag(tag) && !tag.master));
+        return this.accounts.some((user) => user.block.tags.some((tag2) => isSockpuppetTag(tag2) && !tag2.master));
       },
       hasInvalidMove() {
         const moveAction = this.caseActions.move;
@@ -7214,7 +7268,7 @@ ${comment}
   });
   // src/changelog.ts
   async function getChangelog() {
-    const api = spiHelperGetEnwikiAPI();
+    const api2 = spiHelperGetEnwikiAPI();
     const request = {
       action: "query",
       prop: "revisions",
@@ -7224,7 +7278,7 @@ ${comment}
       formatversion: "2"
     };
     try {
-      const response = await api.get(request);
+      const response = await api2.get(request);
       const content = response.query.pages[0]?.revisions?.[0]?.slots.main.content;
       if (content) {
         return JSON.parse(content);
