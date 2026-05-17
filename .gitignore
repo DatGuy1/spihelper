@@ -5,3 +5,6 @@ dist/
 # Editors
 .vscode/
 .idea/
+
+# Assistant
+.claude/

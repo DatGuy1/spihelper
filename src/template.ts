@@ -18,7 +18,7 @@ export function parseTemplates(wikitext: string): Template[] {
   return templates;
 }
 
-function parseTemplate(templateText: string): Template {
+export function parseTemplate(templateText: string): Template {
   const parts = templateText.split('|').map(p => p.trim());
   const name = parts.shift()?.toLowerCase() ?? 'unknown';
 

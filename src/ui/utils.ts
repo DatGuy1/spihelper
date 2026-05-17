@@ -1,4 +1,4 @@
-import { ParsedArchiveNotice, DefaultLinkRowData, type UserRow, type BlockEntry } from '../types';
+import { type BlockEntry, DefaultLinkRowData, ParsedArchiveNotice, type UserRow } from '../types';
 import { type CaseState } from '../state.ts';
 import { parseUserTags, setupDefaultBlockRowData, spiHelperNormalizeUsername } from '../utils.ts';
 import { spiHelperSettings } from '../options';

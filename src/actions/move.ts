@@ -1,5 +1,4 @@
 import { spiHelperSettings } from '../options';
-import { ParsedArchiveNotice } from '../types/spi.ts';
 import {
   spiHelperConfigurePendingChanges,
   spiHelperDeletePage,
@@ -11,20 +10,22 @@ import {
   spiHelperGetSiteRestrictionInformation,
   spiHelperGetStabilisationSettings,
   spiHelperMovePage,
-  spiHelperProtectPage, spiHelperUndeletePage,
+  spiHelperProtectPage,
+  spiHelperUndeletePage,
 } from '../api.ts';
 import {
   spiHelperArchiveNoticeRegex,
   spiHelperPriorCasesRegex,
   spiHelperSockSectionWithNewlineRegex,
-} from '../constants/regex.ts';
+} from '../constants';
 import { SpiPageContext, context } from '../context.ts';
 import { spiHelperCanSuppressRedirect, spiHelperIsAdmin } from '../role.ts';
-import type { NewPendingChanges, Protection, Restrictions } from '../types/api.ts';
+import { type NewPendingChanges, ParsedArchiveNotice, type Protection, type Restrictions } from '../types';
 import { spiHelperParseArchiveNotice } from '../archivenotice.ts';
 import { type SectionEntry, loadSectionText } from '../state.ts';
 import { VueMessage } from '../ui/messages.ts';
 import { isAbsoluteExpiry, parseArchiveSections, rebuildArchiveText } from '../utils.ts';
+import { parseTemplate } from '../template.ts';
 
 async function getNewProtection(
   oldTitle: string, newTitle: string, siteRestrictions: Restrictions,
@@ -318,6 +319,98 @@ export async function spiHelperMoveCaseSection(mergeTarget: string, section: Sec
 }
 
 /**
+ * Adds the old master as a numbered entry (with an "original case name" note) to the
+ * {{sock list}} template on the new case page.  If the master is already listed, only
+ * the note is added.  Falls back to a {{checkuser}} bullet when no sock list is present.
+ */
+export function addOldMasterToSockList(pageText: string, oldMasterName: string): string {
+  const sockListMatch = /\{\{sock\s+list[\s\S]*?\}\}/i.exec(pageText)?.[0];
+  if (!sockListMatch) {
+    return pageText.replace(
+      spiHelperSockSectionWithNewlineRegex,
+      '====Suspected sockpuppets====\n* {{checkuser|1=' + oldMasterName + '}} ({{clerknote}} original case name)\n',
+    );
+  }
+  const sockListTemplate = parseTemplate(sockListMatch.slice(2, -2));
+  const isMultiLine = sockListMatch.includes('\n');
+  const sep = isMultiLine ? '\n' : '';
+  const escapedName = oldMasterName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const normalizedMaster = oldMasterName.toLowerCase();
+
+  // Check if the old master is already listed as a positional or named numbered param
+  const positionalIndex = sockListTemplate.positional.findIndex(
+    u => u.toLowerCase() === normalizedMaster,
+  );
+  let namedIndex = -1;
+  for (const [key, val] of Object.entries(sockListTemplate.params)) {
+    if (/^\d+$/.test(key) && val.toString().toLowerCase() === normalizedMaster) {
+      namedIndex = parseInt(key);
+      break;
+    }
+  }
+
+  let newSockList: string;
+
+  if (positionalIndex >= 0 || namedIndex >= 0) {
+    const entryIndex = namedIndex >= 0 ? namedIndex : positionalIndex + 1;
+    const noteKey = `note${entryIndex}`;
+
+    if (noteKey in sockListTemplate.params) {
+      newSockList = sockListMatch;
+    }
+    else {
+      let entryStr: string | undefined;
+      if (namedIndex >= 0) {
+        const match = new RegExp(`\\|\\s*${namedIndex}\\s*=\\s*${escapedName}`, 'i').exec(sockListMatch);
+        entryStr = match ? match[0] : undefined;
+      }
+      else {
+        const match = new RegExp(`\\|(?![^|}\\n]*=)\\s*${escapedName}\\s*(?=[|}\\n])`, 'i').exec(sockListMatch);
+        entryStr = match ? match[0] : undefined;
+      }
+
+      newSockList = entryStr
+        ? sockListMatch.replace(entryStr, entryStr + `|note${entryIndex}=({{clerknote}} original case name)`)
+        : sockListMatch;
+    }
+  }
+  else {
+    // Not listed, compute the next index and insert as a new entry
+    const namedKeys = Object.keys(sockListTemplate.params)
+      .filter(k => /^\d+$/.test(k))
+      .map(Number);
+    const effectiveMax = Math.max(0, ...namedKeys, sockListTemplate.positional.length);
+    const newIndex = effectiveMax + 1;
+    const newEntry = `${sep}|${newIndex}=${oldMasterName}|note${newIndex}=({{clerknote}} original case name)`;
+
+    // Find the first non-entry named param (not |N= or |noteN=) as the insertion point
+    const nonEntryKeys = Object.keys(sockListTemplate.params)
+      .filter(k => !/^\d+$/.test(k) && !/^note\d+$/.test(k));
+
+    let insertBefore: { index: number; match: RegExpExecArray } | null = null;
+    for (const key of nonEntryKeys) {
+      const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const match = new RegExp(`(\\n?)\\|\\s*${escapedKey}\\s*=`).exec(sockListMatch);
+      if (match && (insertBefore === null || match.index < insertBefore.index)) {
+        insertBefore = { index: match.index, match };
+      }
+    }
+
+    let insertPos: number;
+    if (insertBefore) {
+      insertPos = insertBefore.match.index;
+    }
+    else {
+      const closingPos = sockListMatch.lastIndexOf('}}');
+      insertPos = closingPos - (sockListMatch[closingPos - 1] === '\n' ? 1 : 0);
+    }
+    newSockList = sockListMatch.slice(0, insertPos) + newEntry + sockListMatch.slice(insertPos);
+  }
+
+  return pageText.replace(sockListMatch, newSockList);
+}
+
+/**
  * Cleanups following a rename - update the archive notice, add an archive notice to the
  * old case name, add the original sockmaster to the sock list for reference
  *
@@ -406,9 +499,7 @@ async function spiHelperPostRenameCleanup(opts: {
     newPageText = newPageText + '\n' + appendText;
   }
   newPageText = newPageText.replace(spiHelperArchiveNoticeRegex, newNotice.generateWikitext());
-  // We also want to add the previous master to the sock list
-  // We use SOCK_SECTION_RE_WITH_NEWLINE to clean up any extraneous whitespace
-  newPageText = newPageText.replace(spiHelperSockSectionWithNewlineRegex, '====Suspected sockpuppets====' + '\n* {{checkuser|1=' + oldContext.caseName + '}} ({{clerknote}} original case name)\n');
+  newPageText = addOldMasterToSockList(newPageText, oldContext.caseName);
   // Also remove the new master if they're in the sock list
   // This RE is kind of ugly. The idea is that we find everything from the level 4 heading
   // ending with "sockpuppets" to the level 4 heading beginning with <big> and pull the checkuser
