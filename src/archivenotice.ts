@@ -1,6 +1,6 @@
-import { ParsedArchiveNotice } from './types/spi.ts';
+import { ParsedArchiveNotice } from './types';
 import { spiHelperEditPage, spiHelperGetPageText } from './api.ts';
-import { spiHelperPriorCasesRegex } from './constants/regex.ts';
+import { spiHelperPriorCasesRegex } from './constants';
 import { context } from './context.ts';
 import { spiHelperSettings } from './options';
 import { CaseState, loadCaseText } from './state.ts';

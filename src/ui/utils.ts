@@ -1,12 +1,10 @@
-import { ParsedArchiveNotice, type UserRow } from '../types/spi.ts';
+import { ParsedArchiveNotice, DefaultLinkRowData, type UserRow, type BlockEntry } from '../types';
 import { type CaseState } from '../state.ts';
-import { DefaultLinkRowData } from '../types/vue.ts';
 import { parseUserTags, setupDefaultBlockRowData, spiHelperNormalizeUsername } from '../utils.ts';
 import { spiHelperSettings } from '../options';
 import { fetchTemplateArguments, parseTemplates } from '../template.ts';
 import { context } from '../context.ts';
 import type { MenuGroupData, MenuItemData } from '@wikimedia/codex';
-import type { BlockEntry } from '../types/api.ts';
 import { spiHelperGetGlobalUser } from '../api.ts';
 
 export function getSockEntries(opts: {

@@ -2,8 +2,8 @@ import {
   spiHelperHiddenCharNormRegex,
   spiHelperSectionRegex,
   spiHelperSignatureRegex,
-} from './constants/regex.ts';
-import type { AbsoluteExpiry, Expiry, NoExpiry, RelativeExpiry } from './types/api.ts';
+} from './constants';
+import type { AbsoluteExpiry, Expiry, NoExpiry, RelativeExpiry } from './types';
 import { SectionEntry } from './state.ts';
 import { VueMessage } from './ui/messages.ts';
 import {
@@ -16,7 +16,7 @@ import {
   SockpuppetTag,
   type SockpuppetTagStatus,
   type Tag,
-} from './types/spi.ts';
+} from './types';
 import { parseTemplates } from './template.ts';
 
 /**

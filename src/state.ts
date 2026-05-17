@@ -1,7 +1,6 @@
-// src/state.ts
-import { context } from './context';
-import { spiHelperGetInvestigationSections, spiHelperGetPageText } from './api';
-import { type ParsedArchiveNotice } from './types/spi.ts';
+import { context } from './context.ts';
+import { spiHelperGetInvestigationSections, spiHelperGetPageText } from './api.ts';
+import { type ParsedArchiveNotice } from './types';
 
 export type SectionSelection = | { type: 'all' } | { type: 'specific'; section: SectionEntry };
 

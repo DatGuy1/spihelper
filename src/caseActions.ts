@@ -10,9 +10,20 @@ import {
   spiHelperCUBlockRegex,
   spiHelperCaseStatusRegex,
   spiHelperSectionRegex,
-} from './constants/regex.ts';
+} from './constants';
 import { spiHelperSettings } from './options';
-import { spiHelperLog } from './actions/log.ts';
+import {
+  createSockCategories,
+  spiHelperAddTalkBlockNotice,
+  spiHelperArchiveCase,
+  spiHelperArchiveCaseSection,
+  spiHelperLog,
+  spiHelperMoveCase,
+  spiHelperMoveCaseSection,
+  spiHelperProcessBlockRow,
+  spiHelperRequestLocks,
+  spiHelperTagUser,
+} from './actions';
 import { type CaseState, loadCaseText, loadSectionText, refreshSections } from './state.ts';
 import {
   addSignature,
@@ -27,13 +38,8 @@ import {
   type CaseActions,
   ParsedArchiveNotice,
   type UserRow,
-} from './types/spi.ts';
+} from './types';
 import { spiHelperIsAdmin, spiHelperIsCheckuser, spiHelperIsClerk } from './role.ts';
-import { spiHelperMoveCase, spiHelperMoveCaseSection } from './actions/move.ts';
-import { createSockCategories, spiHelperTagUser } from './actions/tag.ts';
-import { spiHelperAddTalkBlockNotice, spiHelperProcessBlockRow } from './actions/block.ts';
-import { spiHelperArchiveCase, spiHelperArchiveCaseSection } from './actions/archive.ts';
-import { spiHelperRequestLocks } from './actions/lock.ts';
 import { VueMessage } from './ui/messages.ts';
 
 /**
