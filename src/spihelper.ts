@@ -36,10 +36,10 @@ import {
   UserLookupComponent,
 } from './ui/views';
 import { hasRunningOps } from './operations.ts';
-import { FeedbackConfig, MODE, VERSION } from './constants/settings.ts';
+import { FeedbackConfig, MODE, VERSION } from './constants';
 import type * as VueType from 'vue';
 import type * as CodexType from '@wikimedia/codex';
-import type { FeedbackDialog } from './types/vue.ts';
+import type { FeedbackDialog } from './types';
 import { setContext } from './context.ts';
 import { getUnseenChanges } from './changelog.ts';
 import { ToastContainerComponent } from './ui/views/toastView.ts';
