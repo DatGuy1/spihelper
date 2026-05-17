@@ -141,7 +141,7 @@ export async function spiHelperGetBulkPageText(
 export async function spiHelperGetBulkUserBlockSettings(
   usernames: Set<string>,
 ): Promise<Map<string, BlockEntry>> {
-  if (usernames.size == 0) {
+  if (usernames.size === 0) {
     return new Map<string, BlockEntry>();
   }
   const api = spiHelperGetAPI();
@@ -381,7 +381,7 @@ export async function spiHelperRenderText(title: string, text: string): Promise<
   };
 
   try {
-    const response = await spiHelperGetAPI(title).get(request) as ParseResponse<'text'>;
+    const response = await spiHelperGetAPI(title).post(request) as ParseResponse<'text'>;
     return response.parse?.text['*'] ?? '';
   }
   catch (error) {
@@ -421,7 +421,7 @@ export async function spiHelperGetInvestigationSections(opts: {
   }
   const api = spiHelperGetAPI();
   try {
-    const response = await api.get(request) as ParseResponse<'toc'>;
+    const response = await api.post(request) as ParseResponse<'toc'>;
     if (!response.parse) {
       console.error('spiHelperGetInvestigationSections: Could not parse sections');
       return [];
@@ -1038,7 +1038,7 @@ export async function spiHelperParseWikitext(wikitext: string) {
     contentmodel: 'wikitext',
   };
   try {
-    const response = await api.get(request) as ParseResponse<'text'>;
+    const response = await api.post(request) as ParseResponse<'text'>;
     return response.parse?.text['*'] ?? '';
   }
   catch {
