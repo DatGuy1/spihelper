@@ -52,13 +52,14 @@ async function getNewProtection(
         return;
       }
       else if (oldPageNameEntryLevelIndex > newPageNameEntryLevelIndex) {
+        // If old page level is higher than new page level, use the old page level
         level = oldPageNameEntry.level;
       }
-      else if (oldPageNameEntryLevelIndex <= newPageNameEntryLevelIndex) {
-        level = newPageNameEntry.level;
-      }
       else {
-        return;
+        // If new page level is higher than new page level, or if
+        // the protection levels are equal, use the new page level
+        // (It doesn't really matter which level we use if it's equal)
+        level = newPageNameEntry.level;
       }
       newProtectionValues.push({ type: oldPageNameEntry.type, expiry: expiry, level: level });
     }
@@ -196,7 +197,6 @@ export async function spiHelperMoveCase(opts: {
           watch: spiHelperSettings.watch.archive,
           watchExpiry: spiHelperSettings.expiry.archive,
         });
-        await spiHelperDeletePage(oldContext.archiveName, 'Deleting copied archive');
         archivesCopied = true;
       }
       else {
@@ -349,11 +349,7 @@ async function spiHelperPostRenameCleanup(opts: {
   let currentPageToCheck = null;
   while (pagesToCheck.length !== 0) {
     currentPageToCheck = pagesToCheck.pop();
-    if (
-      !currentPageToCheck
-      || currentPageToCheck === newContext.pageName
-      || currentPageToCheck === oldContext.pageName
-    ) {
+    if (!currentPageToCheck || currentPageToCheck === newContext.pageName) {
       continue;
     }
     pagesChecked.push(currentPageToCheck);
@@ -371,7 +367,7 @@ async function spiHelperPostRenameCleanup(opts: {
           watch: spiHelperSettings.watch.case,
           watchExpiry: spiHelperSettings.expiry.case,
         });
-        if (pagesChecked.includes(backlink.title)) {
+        if (!pagesChecked.includes(backlink.title)) {
           pagesToCheck.push(backlink.title);
         }
       }

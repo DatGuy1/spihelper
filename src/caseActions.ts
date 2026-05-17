@@ -289,7 +289,7 @@ export async function spiHelperPerformActions(opts: {
 
 function spiHelperHandleComment(targetText: string, comment: string) {
   if (!targetText.includes('\n----')) {
-    targetText.replace(/<!-+ All comments go ABOVE this line, please. -+>/, '');
+    targetText = targetText.replace(/<!-+ All comments go ABOVE this line, please. -+>/, '');
     targetText += '\n----<!-- All comments go ABOVE this line, please. -->';
   }
   comment = addSignature(comment.trimEnd());

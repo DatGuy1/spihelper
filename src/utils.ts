@@ -311,7 +311,7 @@ export function parseArchiveSections(
       }
       sectionsResult.push({ header: sectionDate, fullText });
     }
-    contentText = contentText.slice(fullText.length);
+    contentText = contentText.slice(sectionStartIndex + fullText.length);
   }
 
   return sectionsResult;

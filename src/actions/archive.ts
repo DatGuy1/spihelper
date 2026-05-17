@@ -59,6 +59,13 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
     // Find the first empty archive page
     let archiveId = 0;
     while (newArchiveText !== '') {
+      if (archiveId > 30) {
+        new VueMessage({
+          type: 'error',
+          content: 'Reached upper bound on possible archives, something probably went catastrophically wrong. Exiting',
+        }).show();
+        return;
+      }
       newArchiveText = await spiHelperGetPageText(`${context.archiveName}/${++archiveId}`, true);
     }
     const newArchiveName = `${context.archiveName}/${archiveId}`;
