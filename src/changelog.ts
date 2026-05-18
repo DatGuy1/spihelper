@@ -1,9 +1,14 @@
 import { spiHelperGetEnwikiAPI } from './api.ts';
-import type { RevisionsResponse } from './types/api.ts';
+import type { RevisionsResponse } from './types';
 import type { ApiQueryRevisionsParams } from 'types-mediawiki-api';
 
+export interface VersionDate {
+  beta: string;
+  stable: string;
+}
+
 export interface ChangelogEntry {
-  date: string;
+  date: string | VersionDate;
   changes: string[];
 }
 

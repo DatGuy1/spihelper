@@ -1,6 +1,6 @@
 import { type PropType, defineComponent } from 'vue';
-import type { ChangelogEntry } from '../../changelog.ts';
-import { MODE } from '../../constants/settings.ts';
+import type { ChangelogEntry, VersionDate } from '../../changelog.ts';
+import { MODE } from '../../constants';
 
 export const ChangelogViewComponent = defineComponent({
   props: {
@@ -17,6 +17,10 @@ export const ChangelogViewComponent = defineComponent({
       this.openState.isOpen = false;
       this.$emit('dismissed');
     },
+    resolveDate(date: string | VersionDate): string {
+      if (typeof date === 'string') return date;
+      return this.beta ? date.beta : date.stable;
+    },
   },
   template: `
     <cdx-dialog
@@ -25,7 +29,7 @@ export const ChangelogViewComponent = defineComponent({
         @update:open="onClose"
     >
       <div v-for="[version, entry] in unseenChanges" :key="version">
-        <h3 style="display: inline;">{{ version }}</h3> · {{ entry.date }}
+        <h3 style="display: inline;">{{ version }}</h3> · {{ resolveDate(entry.date) }}
         <ul>
           <li v-for="change in entry.changes" :key="change">{{ change }}</li>
         </ul>
