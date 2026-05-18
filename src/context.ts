@@ -18,10 +18,12 @@ export class SpiPageContext {
   valid: boolean;
   // used to check if the page has been edited since we opened it to prevent edit conflicts
   startingRevId: number;
+  readonly source: 'spi' | 'alternate';
 
-  constructor(pageName: string, currentPage = false) {
+  constructor(pageName: string, currentPage = false, source: 'spi' | 'alternate' = 'spi') {
     this.pageName = pageName;
     this.prefixedName = spiHelperGetInterwikiPrefix() + pageName;
+    this.source = source;
     this.isArchive = /Wikipedia:Sockpuppet investigations\/.+\/Archive/.test(pageName);
     this.caseName = extractCaseName(pageName, this.isArchive);
     this.userName = spiHelperNormalizeUsername(this.caseName);
@@ -74,8 +76,8 @@ function cleanPageName(pageName: string): string {
 
 export let context: SpiPageContext;
 
-export function setContext(pageName: string) {
-  context = new SpiPageContext(cleanPageName(pageName), pageName === mw.config.get('wgPageName'));
+export function setContext(pageName: string, source: 'spi' | 'alternate' = 'spi') {
+  context = new SpiPageContext(cleanPageName(pageName), pageName === mw.config.get('wgPageName'), source);
 }
 
 export function buildContextSummary(baseText: string) {

@@ -229,7 +229,7 @@ export const AlternateViewComponent = defineComponent({
       this.caseLoading = true;
 
       // Set context
-      setContext(this.pageName);
+      setContext(this.pageName, 'alternate');
       if (this.targetCase) {
         // Load archivenotice params
         const archiveNoticeResult = await spiHelperParseArchiveNotice({

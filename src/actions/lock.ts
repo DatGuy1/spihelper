@@ -65,12 +65,14 @@ export async function spiHelperRequestLocks(opts: {
   let message = `=== Global lock for ${heading} ===`;
   message += '\n{{status}}';
   message += `\n${lockTemplate}`;
-  message += `\n${usePlural ? 'Sockpuppets' : 'Sockpuppet'} found in enwiki sockpuppet investigation`;
-  if (context.valid) {
-    message += `, see [[${context.prefixedName}]].`;
+  if (context.source === 'spi' && context.valid) {
+    message += `\n${usePlural ? 'Sockpuppets' : 'Sockpuppet'} found in enwiki sockpuppet investigation, see [[${context.prefixedName}]].`;
+  }
+  else if (context.source === 'spi') {
+    message += `\n${usePlural ? 'Sockpuppets' : 'Sockpuppet'} found in enwiki sockpuppet investigation.`;
   }
   else {
-    message += '.';
+    message += `\n${usePlural ? 'Sockpuppets' : 'Sockpuppet'} found in enwiki.`;
   }
   if (lockComment !== '') {
     message += ` ${lockComment}.`;
