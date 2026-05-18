@@ -217,7 +217,8 @@ export interface FlaggedResponse {
 
 export interface EditResponse {
   edit: {
-    newrevid: number;
+    newrevid?: number;
+    nochange?: boolean;
   };
 }
 

@@ -448,12 +448,15 @@ async function spiHelperPostRenameCleanup(opts: {
     pagesChecked.push(currentPageToCheck);
     const backlinks = await spiHelperGetSPIBacklinks(currentPageToCheck);
     for (const backlink of backlinks) {
+      if (backlink.title === newContext.pageName) {
+        continue;
+      }
       const archiveNotice = await spiHelperParseArchiveNotice({ page: backlink.title });
       if (!archiveNotice) {
         continue;
       }
       if (archiveNotice.username === currentPageToCheck.replace(/Wikipedia:Sockpuppet investigations\//g, '')) {
-        void spiHelperEditPage({
+        await spiHelperEditPage({
           title: backlink.title,
           newText: replacementArchiveNotice,
           summary: 'Updating backlink following page move',

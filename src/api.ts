@@ -808,7 +808,7 @@ export async function spiHelperMovePage(opts: {
  *                           we'll grab the current page ID.
  * @param {?number} [opts.sectionId=null] Section to edit - if null, edits the whole page
  *
- * @return {Promise<boolean>} Whether the edit was successful
+ * @return {Promise<number | null>} The new revision ID if successful, or null if failure
  */
 export async function spiHelperEditPage(opts: {
   title: string; newText: string; summary: string; createonly?: boolean;
@@ -872,7 +872,7 @@ export async function spiHelperEditPage(opts: {
     const diffLinkHtml = buildURLLinkHtml(mw.util.getUrl('', { diff: diffId }), 'Saved', `View diff ${diffId}`);
     message.update({ type: 'success', content: `${diffLinkHtml} page ${pageLinkHtml}`, isHtml: true });
     finishOp(activeOpKey, OpState.Success);
-    return response.edit.newrevid;
+    return response.edit.newrevid ?? null;
   }
   catch (error) {
     message.update({
