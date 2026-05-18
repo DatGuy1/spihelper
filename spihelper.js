@@ -1433,7 +1433,7 @@
       const diffLinkHtml = buildURLLinkHtml(mw.util.getUrl("", { diff: diffId }), "Saved", `View diff ${diffId}`);
       message.update({ type: "success", content: `${diffLinkHtml} page ${pageLinkHtml}`, isHtml: true });
       finishOp(activeOpKey, "success" /* Success */);
-      return response.edit.newrevid;
+      return response.edit.newrevid ?? null;
     } catch (error) {
       message.update({
         type: "error",
@@ -3874,12 +3874,15 @@ $1`);
       pagesChecked.push(currentPageToCheck);
       const backlinks = await spiHelperGetSPIBacklinks(currentPageToCheck);
       for (const backlink of backlinks) {
+        if (backlink.title === newContext.pageName) {
+          continue;
+        }
         const archiveNotice = await spiHelperParseArchiveNotice({ page: backlink.title });
         if (!archiveNotice) {
           continue;
         }
         if (archiveNotice.username === currentPageToCheck.replace(/Wikipedia:Sockpuppet investigations\//g, "")) {
-          spiHelperEditPage({
+          await spiHelperEditPage({
             title: backlink.title,
             newText: replacementArchiveNotice,
             summary: "Updating backlink following page move",
