@@ -1598,9 +1598,11 @@
     isArchive;
     valid;
     startingRevId;
-    constructor(pageName, currentPage = false) {
+    source;
+    constructor(pageName, currentPage = false, source = "spi") {
       this.pageName = pageName;
       this.prefixedName = spiHelperGetInterwikiPrefix() + pageName;
+      this.source = source;
       this.isArchive = /Wikipedia:Sockpuppet investigations\/.+\/Archive/.test(pageName);
       this.caseName = extractCaseName(pageName, this.isArchive);
       this.userName = spiHelperNormalizeUsername(this.caseName);
@@ -1637,8 +1639,8 @@
     return pageName.replaceAll(/_/g, " ");
   }
   var context;
-  function setContext(pageName) {
-    context = new SpiPageContext(cleanPageName(pageName), pageName === mw.config.get("wgPageName"));
+  function setContext(pageName, source = "spi") {
+    context = new SpiPageContext(cleanPageName(pageName), pageName === mw.config.get("wgPageName"), source);
   }
   function buildContextSummary(baseText) {
     return context.valid ? baseText + ` per [[${context.prefixedName}]]` : baseText;
@@ -3498,12 +3500,15 @@
 {{status}}`;
     message += `
 ${lockTemplate}`;
-    message += `
-${usePlural ? "Sockpuppets" : "Sockpuppet"} found in enwiki sockpuppet investigation`;
-    if (context.valid) {
-      message += `, see [[${context.prefixedName}]].`;
+    if (context.source === "spi" && context.valid) {
+      message += `
+${usePlural ? "Sockpuppets" : "Sockpuppet"} found in enwiki sockpuppet investigation, see [[${context.prefixedName}]].`;
+    } else if (context.source === "spi") {
+      message += `
+${usePlural ? "Sockpuppets" : "Sockpuppet"} found in enwiki sockpuppet investigation.`;
     } else {
-      message += ".";
+      message += `
+${usePlural ? "Sockpuppets" : "Sockpuppet"} found in enwiki.`;
     }
     if (lockComment !== "") {
       message += ` ${lockComment}.`;
@@ -7046,7 +7051,7 @@ ${comment}
       },
       async loadCase(addRow) {
         this.caseLoading = true;
-        setContext(this.pageName);
+        setContext(this.pageName, "alternate");
         if (this.targetCase) {
           const archiveNoticeResult = await spiHelperParseArchiveNotice({
             page: this.pageName,
@@ -7272,6 +7277,11 @@ ${comment}
       onClose() {
         this.openState.isOpen = false;
         this.$emit("dismissed");
+      },
+      resolveDate(date) {
+        if (typeof date === "string")
+          return date;
+        return this.beta ? date.beta : date.stable;
       }
     },
     template: `
@@ -7281,7 +7291,7 @@ ${comment}
         @update:open="onClose"
     >
       <div v-for="[version, entry] in unseenChanges" :key="version">
-        <h3 style="display: inline;">{{ version }}</h3> · {{ entry.date }}
+        <h3 style="display: inline;">{{ version }}</h3> · {{ resolveDate(entry.date) }}
         <ul>
           <li v-for="change in entry.changes" :key="change">{{ change }}</li>
         </ul>
@@ -7426,36 +7436,16 @@ ${comment}
             }).component("cdx-tabs", Codex.CdxTabs).component("cdx-tab", Codex.CdxTab).component("cdx-select", Codex.CdxSelect).component("cdx-card", Codex.CdxCard).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-text-area", Codex.CdxTextArea).component("cdx-toggle-button", Codex.CdxToggleButton).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("cdx-button", Codex.CdxButton).component("cdx-button-group", Codex.CdxButtonGroup).component("cdx-icon", Codex.CdxIcon).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-lookup", Codex.CdxLookup).component("cdx-field", Codex.CdxField).component("cdx-message", Codex.CdxMessage).component("cdx-progress-bar", Codex.CdxProgressBar).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-accordion", Codex.CdxAccordion).component("cdx-label", Codex.CdxLabel).component("cdx-popover", Codex.CdxPopover).component("action-accordion", ActionAccordionComponent).component("action-button", ActionButtonComponent).component("action-container", ActionContainerComponent).component("action-content", ActionContentComponent).component("submit-form", SubmitFormComponent).component("comment-action", CommentActionComponent).component("change-status-action", ChangeStatusActionComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("management-action", ManagementActionComponent).component("archive-action", ArchiveActionComponent).component("move-action", MoveActionComponent).component("section-action", SectionActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).component("tag-popover", TagPopoverComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
             break;
           }
-          case "checkuser": {
-            Vue.createMwApp(AlternateViewComponent, {
-              state: caseState,
-              feedbackDialog,
-              openButton: initLink,
-              view: "checkuser"
-            }).component("cdx-button", Codex.CdxButton).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-field", Codex.CdxField).component("cdx-icon", Codex.CdxIcon).component("cdx-label", Codex.CdxLabel).component("cdx-lookup", Codex.CdxLookup).component("cdx-message", Codex.CdxMessage).component("cdx-popover", Codex.CdxPopover).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-select", Codex.CdxSelect).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("submit-form", SubmitFormComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).component("tag-popover", TagPopoverComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
-            break;
-          }
-          case "category": {
-            if (!targetSock?.[1]) {
-              console.error("spiHelper bootstrap: expected targetSock");
-              return;
-            }
-            Vue.createMwApp(AlternateViewComponent, {
-              state: caseState,
-              feedbackDialog,
-              openButton: initLink,
-              view: "category",
-              defaultCase: targetSock[1]
-            }).component("cdx-button", Codex.CdxButton).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-field", Codex.CdxField).component("cdx-icon", Codex.CdxIcon).component("cdx-label", Codex.CdxLabel).component("cdx-lookup", Codex.CdxLookup).component("cdx-message", Codex.CdxMessage).component("cdx-popover", Codex.CdxPopover).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-select", Codex.CdxSelect).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("submit-form", SubmitFormComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).component("tag-popover", TagPopoverComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
-            break;
-          }
+          case "checkuser":
+          case "category":
           case "si": {
             Vue.createMwApp(AlternateViewComponent, {
               state: caseState,
               feedbackDialog,
               openButton: initLink,
-              view: "si"
-            }).component("cdx-button", Codex.CdxButton).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-field", Codex.CdxField).component("cdx-icon", Codex.CdxIcon).component("cdx-label", Codex.CdxLabel).component("cdx-lookup", Codex.CdxLookup).component("cdx-message", Codex.CdxMessage).component("cdx-popover", Codex.CdxPopover).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-select", Codex.CdxSelect).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("submit-form", SubmitFormComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).component("tag-popover", TagPopoverComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
+              view: pageType,
+              ...pageType === "category" ? { defaultCase: targetSock?.[1] ?? "" } : {}
+            }).component("cdx-button", Codex.CdxButton).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-field", Codex.CdxField).component("cdx-icon", Codex.CdxIcon).component("cdx-label", Codex.CdxLabel).component("cdx-lookup", Codex.CdxLookup).component("cdx-message", Codex.CdxMessage).component("cdx-popover", Codex.CdxPopover).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-select", Codex.CdxSelect).component("cdx-table", Codex.CdxTable).component("cdx-text-area", Codex.CdxTextArea).component("cdx-text-input", Codex.CdxTextInput).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("submit-form", SubmitFormComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).component("tag-popover", TagPopoverComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
             break;
           }
         }
