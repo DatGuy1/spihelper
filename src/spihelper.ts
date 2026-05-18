@@ -195,71 +195,13 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
             .mount(mountPoint);
           break;
         }
-        case 'checkuser': {
-          Vue.createMwApp(AlternateViewComponent, {
-            state: caseState, feedbackDialog, openButton: initLink, view: 'checkuser',
-          })
-            .component('cdx-button', Codex.CdxButton)
-            .component('cdx-checkbox', Codex.CdxCheckbox)
-            .component('cdx-field', Codex.CdxField)
-            .component('cdx-icon', Codex.CdxIcon)
-            .component('cdx-label', Codex.CdxLabel)
-            .component('cdx-lookup', Codex.CdxLookup)
-            .component('cdx-message', Codex.CdxMessage)
-            .component('cdx-popover', Codex.CdxPopover)
-            .component('cdx-progress-indicator', Codex.CdxProgressIndicator)
-            .component('cdx-select', Codex.CdxSelect)
-            .component('cdx-table', Codex.CdxTable)
-            .component('cdx-text-input', Codex.CdxTextInput)
-            .component('cdx-toggle-button-group', Codex.CdxToggleButtonGroup)
-            .component('submit-form', SubmitFormComponent)
-            .component('block-action', BlockActionComponent)
-            .component('link-action', LinkActionComponent)
-            .component('user-lookup', UserLookupComponent)
-            .component('page-lookup', PageLookupComponent)
-            .component('expiry-input', ExpiryInputComponent)
-            .component('tag-popover', TagPopoverComponent)
-            .directive('tooltip', Codex.CdxTooltip)
-            .mount(mountPoint);
-          break;
-        }
-        case 'category': {
-          if (!targetSock?.[1]) {
-            console.error('spiHelper bootstrap: expected targetSock');
-            return;
-          }
-          Vue.createMwApp(AlternateViewComponent, {
-            state: caseState, feedbackDialog, openButton: initLink,
-            view: 'category', defaultCase: targetSock[1],
-          })
-            .component('cdx-button', Codex.CdxButton)
-            .component('cdx-checkbox', Codex.CdxCheckbox)
-            .component('cdx-field', Codex.CdxField)
-            .component('cdx-icon', Codex.CdxIcon)
-            .component('cdx-label', Codex.CdxLabel)
-            .component('cdx-lookup', Codex.CdxLookup)
-            .component('cdx-message', Codex.CdxMessage)
-            .component('cdx-popover', Codex.CdxPopover)
-            .component('cdx-progress-indicator', Codex.CdxProgressIndicator)
-            .component('cdx-select', Codex.CdxSelect)
-            .component('cdx-table', Codex.CdxTable)
-            .component('cdx-text-input', Codex.CdxTextInput)
-            .component('cdx-toggle-button-group', Codex.CdxToggleButtonGroup)
-            .component('submit-form', SubmitFormComponent)
-            .component('block-action', BlockActionComponent)
-            .component('link-action', LinkActionComponent)
-            .component('user-lookup', UserLookupComponent)
-            .component('page-lookup', PageLookupComponent)
-            .component('expiry-input', ExpiryInputComponent)
-            .component('tag-popover', TagPopoverComponent)
-            .directive('tooltip', Codex.CdxTooltip)
-            .mount(mountPoint);
-          break;
-        }
+        case 'checkuser':
+        case 'category':
         case 'si': {
           Vue.createMwApp(AlternateViewComponent, {
             state: caseState, feedbackDialog, openButton: initLink,
-            view: 'si',
+            view: pageType,
+            ...(pageType === 'category' ? { defaultCase: targetSock?.[1] ?? '' } : {}),
           })
             .component('cdx-button', Codex.CdxButton)
             .component('cdx-checkbox', Codex.CdxCheckbox)
@@ -272,6 +214,7 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
             .component('cdx-progress-indicator', Codex.CdxProgressIndicator)
             .component('cdx-select', Codex.CdxSelect)
             .component('cdx-table', Codex.CdxTable)
+            .component('cdx-text-area', Codex.CdxTextArea)
             .component('cdx-text-input', Codex.CdxTextInput)
             .component('cdx-toggle-button-group', Codex.CdxToggleButtonGroup)
             .component('submit-form', SubmitFormComponent)
