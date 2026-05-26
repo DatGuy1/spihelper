@@ -4,11 +4,10 @@ import { spiHelperRenderText } from '../../../../api.ts';
 import { context } from '../../../../context.ts';
 import { cdxIconReload } from '@wikimedia/codex-icons';
 import { spiHelperIsAdmin, spiHelperIsCheckuser, spiHelperIsClerk } from '../../../../role.ts';
-import { spiHelperCUTemplates, spiHelperClerkTemplates } from '../../../../constants/spi.ts';
+import { spiHelperAdminSectionWithPrecedingNewlinesRegex, spiHelperCUTemplates, spiHelperClerkTemplates } from '../../../../constants';
 import { addSignature } from '../../../../utils.ts';
 import { type SectionSelection, loadSectionText } from '../../../../state.ts';
 import { spiHelperSettings } from '../../../../options';
-import { spiHelperAdminSectionWithPrecedingNewlinesRegex } from '../../../../constants/regex.ts';
 import { pruneMenuData } from '../../../utils.ts';
 
 export const CommentActionComponent = defineComponent({
@@ -19,25 +18,32 @@ export const CommentActionComponent = defineComponent({
   },
   emits: ['update:enabled', 'update:text'],
   data() {
+    const isClerk = spiHelperIsClerk();
+    const isAdmin = spiHelperIsAdmin();
+    const isCheckuser = spiHelperIsCheckuser();
+
     const noteTemplates: MenuItemData[] = [
       { value: 'takenote', label: 'Note' },
     ];
     const clerkTemplates = [...spiHelperClerkTemplates];
     const cuTemplates = [...spiHelperCUTemplates];
     // Unshift instead of push to maintain muscle memory with previous spihelper
-    if (spiHelperIsCheckuser()) {
+    if (isCheckuser) {
       noteTemplates.unshift({ value: 'cunote', label: 'CheckUser note' });
     }
-    if (spiHelperIsAdmin()) {
+    if (isAdmin) {
       noteTemplates.unshift({ value: 'adminnote', label: 'Administrator note' });
     }
-    if (spiHelperIsClerk()) {
+    if (isClerk) {
       noteTemplates.unshift({ value: 'clerknote', label: 'Clerk note' });
     }
 
     const customTemplates = pruneMenuData(spiHelperSettings.custom.commentTemplates);
 
     return {
+      isClerk,
+      isAdmin,
+      isCheckuser,
       noteTemplates,
       clerkTemplates,
       cuTemplates,
@@ -73,7 +79,7 @@ export const CommentActionComponent = defineComponent({
           const sectionText = await loadSectionText(this.selectedSection.section);
           let startIndex: number | undefined;
           let endIndex: number | undefined;
-          if (spiHelperIsClerk() || spiHelperIsAdmin()) {
+          if (this.isClerk || this.isAdmin) {
             // Find the invisible marker
             startIndex = spiHelperAdminSectionWithPrecedingNewlinesRegex.exec(sectionText)?.index;
             endIndex = /\n*----(?!.*----)/s.exec(sectionText)?.index;
@@ -140,8 +146,8 @@ export const CommentActionComponent = defineComponent({
     <action-container v-model:enabled="enabled" @update:enabled="onEnable">
       <div id="spiHelper-templateRow">
         <cdx-select :menu-items="noteTemplates" default-label="Comment templates" @update:selected="insertNote" />
-        <cdx-select :menu-items="clerkTemplates" default-label="Admin/clerk templates" @update:selected="insertText" />
-        <cdx-select :menu-items="cuTemplates" default-label="CheckUser templates" @update:selected="insertText" />
+        <cdx-select v-if="isClerk || isAdmin" :menu-items="clerkTemplates" default-label="Admin/clerk templates" @update:selected="insertText" />
+        <cdx-select v-if="isCheckuser" :menu-items="cuTemplates" default-label="CheckUser templates" @update:selected="insertText" />
         <cdx-select v-if="customTemplates.length > 0" :menu-items="customTemplates" default-label="Custom templates"
                     @update:selected="insertText" />
       </div>
