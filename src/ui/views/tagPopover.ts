@@ -5,7 +5,7 @@ import {
   SockpuppetTag,
   type SockpuppetTagStatus,
   type Tag,
-} from '../../types/spi.ts';
+} from '../../types';
 import {
   cdxIconAdd,
   cdxIconCopy,

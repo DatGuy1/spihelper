@@ -8,15 +8,16 @@ import {
 } from '@wikimedia/codex-icons';
 import { spiHelperIsAdmin, spiHelperIsCheckuser, spiHelperIsClerk } from '../../../../role.ts';
 import {
-  type AllUser,
-  type BlockEntry,
+  type AllUser, type BlockEntry,
   type BlockOptions,
   type BlockRowData,
+  type InputColumn,
   SockpuppetTag,
   type Tag,
   type UserRow,
 } from '../../../../types';
 import { isNonRegisteredAccount, isSockmasterTag, isSockpuppetTag } from '../../../../utils.ts';
+import { isInputDisabled } from '../../../utils.ts';
 
 export const BlockActionComponent = defineComponent({
   props: {
@@ -110,40 +111,18 @@ export const BlockActionComponent = defineComponent({
     isNonRegisteredAccount,
     isSockmasterTag,
     setAllValue(column: 'block' | 'acb' | 'abao' | 'ntp' | 'nem' | 'lock'): boolean {
-      const rows = this.getTargetRows().filter(row => !this.isCheckboxDisabled(row, column));
+      const rows = this.getTargetRows().filter(row => !this.isInputDisabled(row, column));
       return rows.length > 0 && rows.every(row => row.block[column]);
     },
     setAllIndeterminate(column: 'block' | 'acb' | 'abao' | 'ntp' | 'nem' | 'lock'): boolean {
-      const rows = this.getTargetRows().filter(row => !this.isCheckboxDisabled(row, column));
+      const rows = this.getTargetRows().filter(row => !this.isInputDisabled(row, column));
       const checkedCount = rows.filter(row => row.block[column]).length;
       return checkedCount > 0 && checkedCount < rows.length;
     },
-    isCheckboxDisabled(row: UserRow | null, column: 'block' | 'duration' | 'acb' | 'abao' | 'ntp' | 'nem' | 'lock'): boolean {
-      // row is null when it's for the set all checkboxes
-      if (column === 'lock') {
-        if (row === null) return false;
-        // Disabled if non-registered account or already locked
-        return isNonRegisteredAccount(row.username) || this.userLocks.get(row.username) === true;
-      }
-      if (column === 'block') {
-        if (row === null) return this.blockOptions.noBlock;
-        // Disabled if block disabled or we aren't overriding and we're already blocked
-        return this.blockOptions.noBlock
-          || (!this.blockOptions.override && this.userBlocks.get(row.username) !== undefined);
-      }
-      // Disabled if block disabled
-      if (this.blockOptions.noBlock) return true;
-      if (row === null) {
-        // Set all checkboxes disabled if all none of our rows are set to be blocked
-        return !this.getTargetRows().some(r => r.block.block);
-      }
-      if (!row.block.block) return true;
-      const userBlock = this.userBlocks.get(row.username);
-      if (column === 'duration') {
-        return !this.blockOptions.override && userBlock !== undefined;
-      }
-      // Block settings subcolumns
-      return !this.blockOptions.override && (userBlock?.[column] ?? false);
+    isInputDisabled(row: UserRow | null, column: InputColumn): boolean {
+      return isInputDisabled(
+        row, column, this.blockOptions, this.userBlocks, this.userLocks, this.getTargetRows(),
+      );
     },
     async copySocks() {
       if (this.selectedRows.length === 0) {
@@ -195,7 +174,7 @@ export const BlockActionComponent = defineComponent({
     },
     setAllBlockFields<K extends 'block' | 'duration' | 'acb' | 'abao' | 'ntp' | 'nem' | 'lock'>(key: K, value: BlockRowData[K]) {
       for (const row of this.getTargetRows()) {
-        if (this.isCheckboxDisabled(row, key)) continue;
+        if (this.isInputDisabled(row, key)) continue;
         row.block[key] = value;
       }
     },
@@ -394,20 +373,20 @@ export const BlockActionComponent = defineComponent({
               <cdx-checkbox :hide-label="true"
                             :model-value="setAllValue('block')" :indeterminate="setAllIndeterminate('block')"
                             @update:model-value="setAllBlockFields('block', $event)"
-                            :disabled="isCheckboxDisabled(null, 'block')">
+                            :disabled="isInputDisabled(null, 'block')">
                 Set all block
               </cdx-checkbox>
             </th>
             <th scope="col" v-if="isAdmin">
               <expiry-input placeholder="Duration" @update:model-value="setAllBlockFields('duration', $event)"
-                            :disabled="isCheckboxDisabled(null, 'duration')" />
+                            :disabled="isInputDisabled(null, 'duration')" />
             </th>
 
             <th scope="col" v-if="isAdmin">
               <cdx-checkbox :hide-label="true"
                             :model-value="setAllValue('acb')" :indeterminate="setAllIndeterminate('acb')"
                             @update:model-value="setAllBlockFields('acb', $event)"
-                            :disabled="isCheckboxDisabled(null, 'acb')">
+                            :disabled="isInputDisabled(null, 'acb')">
                 Set all account creation blocked
               </cdx-checkbox>
             </th>
@@ -415,7 +394,7 @@ export const BlockActionComponent = defineComponent({
               <cdx-checkbox :hide-label="true"
                             :model-value="setAllValue('abao')" :indeterminate="setAllIndeterminate('abao')"
                             @update:model-value="setAllBlockFields('abao', $event)"
-                            :disabled="isCheckboxDisabled(null, 'abao')">
+                            :disabled="isInputDisabled(null, 'abao')">
                 Set all autoblock/anon-only
               </cdx-checkbox>
             </th>
@@ -423,7 +402,7 @@ export const BlockActionComponent = defineComponent({
               <cdx-checkbox :hide-label="true"
                             :model-value="setAllValue('ntp')" :indeterminate="setAllIndeterminate('ntp')"
                             @update:model-value="setAllBlockFields('ntp', $event)"
-                            :disabled="isCheckboxDisabled(null, 'ntp')">
+                            :disabled="isInputDisabled(null, 'ntp')">
                 Set all no talk page
               </cdx-checkbox>
             </th>
@@ -431,7 +410,7 @@ export const BlockActionComponent = defineComponent({
               <cdx-checkbox :hide-label="true"
                             :model-value="setAllValue('nem')" :indeterminate="setAllIndeterminate('nem')"
                             @update:model-value="setAllBlockFields('nem', $event)"
-                            :disabled="isCheckboxDisabled(null, 'nem')">
+                            :disabled="isInputDisabled(null, 'nem')">
                 Set all no email
               </cdx-checkbox>
             </th>
@@ -451,7 +430,7 @@ export const BlockActionComponent = defineComponent({
               <cdx-checkbox :hide-label="true"
                             :model-value="setAllValue('lock')" :indeterminate="setAllIndeterminate('lock')"
                             @update:model-value="setAllBlockFields('lock', $event)"
-                            :disabled="isCheckboxDisabled(null, 'lock')">
+                            :disabled="isInputDisabled(null, 'lock')">
                 Set all request locks
               </cdx-checkbox>
             </th>
@@ -464,38 +443,38 @@ export const BlockActionComponent = defineComponent({
 
         <template #item-block="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.block"
-                        :disabled="isCheckboxDisabled(row, 'block')">
+                        :disabled="isInputDisabled(row, 'block')">
             Block
           </cdx-checkbox>
         </template>
 
         <template #item-duration="{ item, row }">
           <expiry-input v-model="row.block.duration" :shortened="true" :auto-dismiss="true" :touched="true"
-                        :disabled="isCheckboxDisabled(row, 'duration')"
+                        :disabled="isInputDisabled(row, 'duration')"
                         placeholder="Duration" />
         </template>
 
         <template #item-acb="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.acb"
-                        :disabled="isCheckboxDisabled(row, 'acb')">
+                        :disabled="isInputDisabled(row, 'acb')">
             Account creation blocked
           </cdx-checkbox>
         </template>
         <template #item-abao="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.abao"
-                        :disabled="isCheckboxDisabled(row, 'abao')">
+                        :disabled="isInputDisabled(row, 'abao')">
             Autoblock/Anon-only
           </cdx-checkbox>
         </template>
         <template #item-ntp="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.ntp"
-                        :disabled="isCheckboxDisabled(row, 'ntp')">
+                        :disabled="isInputDisabled(row, 'ntp')">
             No talk page
           </cdx-checkbox>
         </template>
         <template #item-nem="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.nem"
-                        :disabled="isCheckboxDisabled(row, 'nem')">
+                        :disabled="isInputDisabled(row, 'nem')">
             No email
           </cdx-checkbox>
         </template>
@@ -514,7 +493,7 @@ export const BlockActionComponent = defineComponent({
 
         <template #item-lock="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.lock"
-                        :disabled="isCheckboxDisabled(row, 'lock')">
+                        :disabled="isInputDisabled(row, 'lock')">
             Request lock
           </cdx-checkbox>
         </template>

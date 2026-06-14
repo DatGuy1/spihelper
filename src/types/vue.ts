@@ -26,3 +26,5 @@ export interface FeedbackDialog {
     message?: string;
   }) => void);
 }
+
+export type InputColumn = 'block' | 'duration' | 'acb' | 'abao' | 'ntp' | 'nem' | 'lock';

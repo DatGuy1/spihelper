@@ -1,6 +1,7 @@
 import { type ComponentPublicInstance, type PropType, defineComponent } from 'vue';
-import type { CaseActions, UserRow } from '../../types/spi.ts';
-import { isNonRegisteredAccount, isSockpuppetTag } from '../../utils.ts';
+import type { CaseActions, UserRow } from '../../types';
+import { isNonRegisteredAccount, isSockpuppetTag, parseExpiry } from '../../utils.ts';
+import { isInputDisabled } from '../utils.ts';
 import { isOpRunning } from '../../operations.ts';
 import { spiHelperGetPageRev } from '../../api.ts';
 import { context } from '../../context.ts';
@@ -8,7 +9,7 @@ import { cdxIconUpdate } from '@wikimedia/codex-icons';
 import { type ModalAction, type PrimaryModalAction } from '@wikimedia/codex';
 import { CaseState, loadCaseText, loadSectionText } from '../../state.ts';
 import { spiHelperIsCheckuser } from '../../role.ts';
-import { spiHelperCUBlockRegex } from '../../constants/regex.ts';
+import { spiHelperCUBlockRegex } from '../../constants';
 
 interface Data {
   popover: {
@@ -77,6 +78,15 @@ export const SubmitFormComponent = defineComponent({
       const moveAction = this.caseActions.move;
       return moveAction.enabled && !moveAction.data.target;
     },
+    hasInvalidDuration() {
+      const blockAction = this.caseActions.block;
+      if (!blockAction.enabled) return false;
+      const { options, userBlocks, userLocks } = blockAction.data;
+      return this.accounts.some(user =>
+        !isInputDisabled(user, 'duration', options, userBlocks, userLocks, this.accounts)
+        && parseExpiry(user.block.duration) === null,
+      );
+    },
     cuBlockConfirmationsNeeded(): Set<string> {
       // If you're not a checkuser, we've asked to overwrite existing blocks, and the block
       // target has a CU block on them, check whether that was intended
@@ -114,7 +124,7 @@ export const SubmitFormComponent = defineComponent({
     },
     disableButton() {
       return isOpRunning(this.actionName) || this.allDisabled
-        || this.hasInvalidTag || this.hasInvalidMove;
+        || this.hasInvalidTag || this.hasInvalidMove || this.hasInvalidDuration;
     },
     lockCommentValue: {
       get() {
@@ -176,6 +186,7 @@ export const SubmitFormComponent = defineComponent({
       <div>
         <cdx-message v-if="hasInvalidTag" type="error" :inline="true">A user has an invalid tag</cdx-message>
         <cdx-message v-if="hasInvalidMove" type="error" :inline="true"><b>Move</b> is enabled but has no target</cdx-message>
+        <cdx-message v-if="hasInvalidDuration" type="error" :inline="true">A user has an invalid block duration</cdx-message>
         <cdx-button ref="submitElement" action="progressive" weight="primary" @click="onSubmit"
                     :disabled="disableButton">
           Submit

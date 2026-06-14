@@ -1,6 +1,13 @@
-import { type BlockEntry, DefaultLinkRowData, ParsedArchiveNotice, type UserRow } from '../types';
+import {
+  type BlockEntry,
+  type BlockOptions,
+  DefaultLinkRowData,
+  type InputColumn,
+  ParsedArchiveNotice,
+  type UserRow,
+} from '../types';
 import { type CaseState } from '../state.ts';
-import { parseUserTags, setupDefaultBlockRowData, spiHelperNormalizeUsername } from '../utils.ts';
+import { isNonRegisteredAccount, parseUserTags, setupDefaultBlockRowData, spiHelperNormalizeUsername } from '../utils.ts';
 import { spiHelperSettings } from '../options';
 import { fetchTemplateArguments, parseTemplates } from '../template.ts';
 import { context } from '../context.ts';
@@ -192,6 +199,35 @@ export function pruneMenuData(nodes: MenuNode[]): MenuNode[] {
       return node;
     })
     .filter((node): node is MenuItemData => node !== null);
+}
+
+export function isInputDisabled(
+  row: UserRow | null,
+  column: InputColumn,
+  blockOptions: BlockOptions,
+  userBlocks: Map<string, BlockEntry>,
+  userLocks: Map<string, boolean>,
+  targetRows: UserRow[],
+): boolean {
+  if (column === 'lock') {
+    if (row === null) return false;
+    return isNonRegisteredAccount(row.username) || userLocks.get(row.username) === true;
+  }
+  if (column === 'block') {
+    if (row === null) return blockOptions.noBlock;
+    return blockOptions.noBlock
+      || (!blockOptions.override && userBlocks.get(row.username) !== undefined);
+  }
+  if (blockOptions.noBlock) return true;
+  if (row === null) {
+    return !targetRows.some(r => r.block.block);
+  }
+  if (!row.block.block) return true;
+  const userBlock = userBlocks.get(row.username);
+  if (column === 'duration') {
+    return !blockOptions.override && userBlock !== undefined;
+  }
+  return !blockOptions.override && (userBlock?.[column] ?? false);
 }
 
 export let toRaw: (<T>(observed: T) => T) | null = null;
