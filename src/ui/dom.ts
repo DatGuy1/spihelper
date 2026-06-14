@@ -111,3 +111,83 @@ export function hideSectionOverlay(): void {
     sectionOverlayEl.style.display = 'none';
   }
 }
+
+export const SECTION_BUTTON_LABEL = 'open in spiHelper';
+
+/*
+ * Inject "[open]" links into each section heading so users can click one to
+ * open spihelper to that section. Returns a cleanup function that removes all
+ * injected elements.
+ */
+export function addSectionButtons(
+  sectionIds: number[],
+  onClick: (sectionId: number) => void,
+): () => void {
+  const injected: HTMLElement[] = [];
+
+  for (const id of sectionIds) {
+    const heading = getSectionHeading(id);
+    if (!heading) {
+      continue;
+    }
+
+    // Check if we already have our brackets. If so, add it to the end of them.
+    const editSection = heading.querySelector<HTMLElement>('.mw-editsection');
+    if (editSection) {
+      const closingBracket = editSection.querySelector<HTMLElement>('.mw-editsection-bracket:last-child');
+
+      const divider = document.createElement('span');
+      divider.className = 'mw-editsection-divider';
+      divider.textContent = ' | ';
+
+      const link = document.createElement('a');
+      link.href = '#';
+      link.className = 'spiHelper-section-open';
+      link.textContent = SECTION_BUTTON_LABEL;
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        onClick(id);
+      });
+
+      if (closingBracket) {
+        editSection.insertBefore(divider, closingBracket);
+        editSection.insertBefore(link, closingBracket);
+      }
+      else {
+        editSection.append(divider, link);
+      }
+      injected.push(divider, link);
+    }
+    // If not, add our new bracket section
+    else {
+      const wrapper = document.createElement('span');
+      wrapper.className = 'mw-editsection-like spiHelper-section-open';
+
+      const openBracket = document.createElement('span');
+      openBracket.className = 'mw-editsection-bracket';
+      openBracket.textContent = '[';
+
+      const link = document.createElement('a');
+      link.href = '#';
+      link.textContent = SECTION_BUTTON_LABEL;
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        onClick(id);
+      });
+
+      const closeBracket = document.createElement('span');
+      closeBracket.className = 'mw-editsection-bracket';
+      closeBracket.textContent = ']';
+
+      wrapper.append(openBracket, link, closeBracket);
+      heading.appendChild(wrapper);
+      injected.push(wrapper);
+    }
+  }
+
+  return () => {
+    for (const el of injected) {
+      el.remove();
+    }
+  };
+}

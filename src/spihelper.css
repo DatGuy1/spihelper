@@ -1,3 +1,14 @@
+.spiHelper-section-open {
+    background-color: var(--background-color-progressive-subtle, #eaf3ff);
+    border-radius: 2px;
+    padding: 0 3px;
+
+    &:is(span) {
+        margin-inline-start: 0.5em;
+        text-transform: lowercase;
+    }
+}
+
 .spihelper-hovertext {
     text-decoration: underline dotted;
     text-underline-offset: 1px;
@@ -27,23 +38,23 @@
 
 #spiHelper-vue-mount-point.unpinned {
     position: sticky;
-    top: 60px;
+    inset-block-start: 60px;
     z-index: 5;
-}
 
-#spiHelper-vue-mount-point.unpinned .spiHelper-mainCard {
-    position: absolute;
-    width: 97.35%;
-    max-height: 40vh;
-    overflow-y: auto;
+    .spiHelper-mainCard {
+        position: absolute;
+        width: 97.35%;
+        max-height: 40vh;
+        overflow-y: auto;
+    }
 }
 
 .spiHelper-mainCard-Header {
     position: relative;
 
     .header-buttons {
-        top: 0;
-        right: 0;
+        inset-block-start: 0;
+        inset-inline-end: 0;
         position: absolute;
     }
 }
@@ -77,10 +88,10 @@
 
 #messageRow {
     width: 100%;
-}
 
-#messageRow:has(> *) {
-    padding-top: 20px;
+    &:has(> *) {
+        padding-top: 20px;
+    }
 }
 
 #contentRow {
@@ -89,12 +100,21 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
-}
 
-#contentRow > div {
-    display: flex;
-    gap: 0.75em;
-    flex-direction: column;
+    > div {
+        display: flex;
+        gap: 0.75em;
+        flex-direction: column;
+
+        &.is-visible ~ div.is-visible {
+            border-top: 1px solid var(--color-base--subtle);
+            padding-top: 16px;
+        }
+
+        &:not(.is-visible) {
+            display: none;
+        }
+    }
 }
 
 .spiHelper-section-selector {
@@ -112,30 +132,20 @@
 
 .spiHelper-section-overlay {
     position: absolute;
-    left: -12px;
-    right: -12px;
+    inset-inline: -12px;
     border-radius: 4px;
     pointer-events: none;
     z-index: -1;
-}
 
-.spiHelper-section-overlay--selected {
-    border: 3px solid var(--border-color-progressive, #36c);
-    background-color: var(--background-color-progressive-subtle, #e8f1ff);
-}
+    &--selected {
+        border: 3px solid var(--border-color-progressive, #36c);
+        background-color: var(--background-color-progressive-subtle, #e8f1ff);
+    }
 
-.spiHelper-section-overlay--preview {
-    border: 1px dashed var(--border-color-progressive, #36c);
-    background-color: var(--background-color-progressive-subtle, #f3f7ff);
-}
-
-#contentRow > div.is-visible ~ div.is-visible {
-    border-top: 1px solid var(--color-base--subtle);
-    padding-top: 16px;
-}
-
-#contentRow > div:not(.is-visible) {
-    display: none;
+    &--preview {
+        border: 1px dashed var(--border-color-progressive, #36c);
+        background-color: var(--background-color-progressive-subtle, #f3f7ff);
+    }
 }
 
 .spiHelper-blockoptions-group {
@@ -169,7 +179,7 @@
         }
 
         .spiHelper-template-group-item {
-            padding-left: 12px;
+            padding-inline-start: 12px;
         }
 
         .spiHelper-template-input {
@@ -224,7 +234,7 @@
                 align-items: center;
 
                 .cdx-message__content {
-                    margin-left: 4px;
+                    margin-inline-start: 4px;
                 }
             }
         }
@@ -256,7 +266,7 @@
     .cdx-checkbox {
         margin: 0 auto;
         width: min-content;
-        left: 1px;
+        inset-inline-start: 1px;
     }
 
     td:has(.cdx-checkbox), .setAllRow th:has(.cdx-checkbox) {
@@ -291,16 +301,16 @@
         justify-content: flex-start;
         padding: 0 5px;
         font-weight: normal;
+
+        & + button.userTag {
+            margin-top: 4px;
+        }
     }
-}
 
-button.userTag + button.userTag {
-    margin-top: 4px;
-}
-
-.spiHelper-sockTable.linkTable {
-    thead {
-        text-wrap: nowrap;
+    &.linkTable {
+        thead {
+            text-wrap: nowrap;
+        }
     }
 }
 
@@ -309,14 +319,14 @@ button.userTag + button.userTag {
 
     .cdx-button {
         position: absolute;
-        right: 8px;
-        top: 8px;
+        inset-inline-end: 8px;
+        inset-block-start: 8px;
     }
 
     #htmlPreview {
-        word-wrap: break-word;
+        overflow-wrap: break-word;
         width: 100%;
-        padding-right: 40px;
+        padding-inline-end: 40px;
         box-sizing: border-box
     }
 }

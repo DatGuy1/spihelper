@@ -1,6 +1,6 @@
 import { type PropType, defineComponent } from 'vue';
 import { cdxIconCollapse, cdxIconExpand, cdxIconFeedback, cdxIconPushPin } from '@wikimedia/codex-icons';
-import { type FeedbackDialog } from '../../../types/vue.ts';
+import { type FeedbackDialog } from '../../../types';
 import {
   type CaseState,
   type SectionEntry,
@@ -10,15 +10,16 @@ import {
 } from '../../../state.ts';
 import { saveOptions, spiHelperSettings } from '../../../options';
 import { UpdateUserAllUserData } from '../userLookup.ts';
-import type { AllUser } from '../../../types/api.ts';
 import { spiHelperParseArchiveNotice } from '../../../archivenotice.ts';
 import { context } from '../../../context.ts';
 import {
+  type AllUser,
   type CaseActionName,
-  type CaseActionSection, type CaseActions,
+  type CaseActionSection,
+  type CaseActions,
   ParsedArchiveNotice,
   type UserRow,
-} from '../../../types/spi.ts';
+} from '../../../types';
 import { getDefaultUserRow, getSockEntries, updateUserBlockDataSettings } from '../../utils.ts';
 import {
   type ActionButtons,
@@ -28,14 +29,13 @@ import {
   prefetchSockRows,
   updateCommentWithStatus,
 } from './utils';
-import { spiHelperCaseStatusRegex } from '../../../constants/regex.ts';
+import { MODE, VERSION, spiHelperCaseStatusRegex } from '../../../constants';
 import { normalizeCaseStatus } from './utils/status.ts';
 import { OpState, finishOp, getOpState, isOpRunning, startOp } from '../../../operations.ts';
 import { spiHelperPerformActions } from '../../../caseActions.ts';
 import { VueMessage, messages } from '../../messages.ts';
 import { AllSectionActions, AlwaysAvailableActions, SpecificSectionActions } from './utils/setup.ts';
-import { MODE, VERSION } from '../../../constants/settings.ts';
-import { hideSectionOverlay, showSectionOverlay } from '../../dom.ts';
+import { addSectionButtons, hideSectionOverlay, showSectionOverlay } from '../../dom.ts';
 
 interface Data {
   open: boolean;
@@ -59,6 +59,7 @@ interface Data {
   caseActions: CaseActions;
   accounts: UserRow[];
   messages: VueMessage[];
+  sectionClickCleanup: (() => void) | null;
 }
 
 export const TopViewComponent = defineComponent({
@@ -87,6 +88,7 @@ export const TopViewComponent = defineComponent({
       caseActions: getInitialCaseActions(),
       accounts: [],
       messages,
+      sectionClickCleanup: null,
       icons: {
         cdxIconPushPin,
         cdxIconCollapse,
@@ -147,6 +149,7 @@ export const TopViewComponent = defineComponent({
     },
     // Do we even want to load the section before user input?
     async stateSections(newValue: SectionEntry[]) {
+      this.setupSectionButtons();
       // Put it in watch in case our state loads after we open our form
       if (this.caseActions.sections.data.section === null) {
         const firstSection = newValue[0];
@@ -154,7 +157,6 @@ export const TopViewComponent = defineComponent({
           this.caseActions.sections.data.section = firstSection.id;
           await this.ensureArchiveNotice();
           await this.loadNewSection(firstSection);
-          this.syncSelectedSectionOverlay();
         }
         else {
           await this.onUpdateSectionSelection('all');
@@ -234,8 +236,23 @@ export const TopViewComponent = defineComponent({
     if (this.handlers.beforeUnloadHandler) {
       window.removeEventListener('beforeunload', this.handlers.beforeUnloadHandler);
     }
+    this.sectionClickCleanup?.();
+    this.sectionClickCleanup = null;
   },
   methods: {
+    setupSectionButtons() {
+      const ids = this.state.sections.map(s => s.id);
+      if (ids.length === 0) {
+        return;
+      }
+      this.sectionClickCleanup = addSectionButtons(ids, (sectionId) => {
+        // Might like to await this
+        void this.onUpdateSectionSelection(sectionId);
+        if (!this.open) {
+          this.open = true;
+        }
+      });
+    },
     syncSelectedSectionOverlay() {
       if (!spiHelperSettings.highlightSection || !this.open) {
         hideSectionOverlay();
@@ -300,6 +317,7 @@ export const TopViewComponent = defineComponent({
       if (newSelection === 'all') {
         this.state.selectedSection = { type: 'all' };
         void this.loadSectionAccounts(this.state.selectedSection);
+        this.syncSelectedSectionOverlay();
         return;
       }
       const targetSection = this.state.sections.find(section => section.id === newSelection);
@@ -320,6 +338,7 @@ export const TopViewComponent = defineComponent({
       if (normalisedStatus === 'closed' && spiHelperSettings.tickArchiveWhenCaseClosed) {
         this.caseActions.archive.enabled = true;
       }
+      this.syncSelectedSectionOverlay();
       void this.loadSectionAccounts(this.state.selectedSection);
     },
     async loadSectionAccounts(selection: SectionSelection) {
