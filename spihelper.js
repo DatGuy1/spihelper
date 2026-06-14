@@ -81,6 +81,13 @@
       userQueryStringSeparator: " OR ",
       userQueryStringWrapper: '"',
       multipleUserQueryStringKeys: false
+    },
+    interleaved: {
+      baseUrl: (_caseName) => new URL("https://interleaved.toolforge.org/"),
+      userQueryStringKey: "user",
+      userQueryStringSeparator: "|",
+      userQueryStringWrapper: "",
+      multipleUserQueryStringKeys: false
     }
   };
   // src/constants/regex.ts
@@ -422,7 +429,8 @@
     timecard: false,
     pages: false,
     summary: false,
-    cuwiki: false
+    cuwiki: false,
+    interleaved: false
   };
   // src/template.ts
   function parseTemplates(wikitext) {
@@ -436,8 +444,33 @@
     }
     return templates;
   }
+  function splitTemplateParts(text) {
+    const parts = [];
+    let depth = 0;
+    let current = "";
+    for (let i = 0;i < text.length; i++) {
+      const ch = text.charAt(i);
+      const next = text.charAt(i + 1);
+      if (ch === "[" && next === "[" || ch === "{" && next === "{") {
+        depth++;
+        current += ch + next;
+        i++;
+      } else if (ch === "]" && next === "]" || ch === "}" && next === "}") {
+        depth--;
+        current += ch + next;
+        i++;
+      } else if (ch === "|" && depth === 0) {
+        parts.push(current);
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+    parts.push(current);
+    return parts;
+  }
   function parseTemplate(templateText) {
-    const parts = templateText.split("|").map((p) => p.trim());
+    const parts = splitTemplateParts(templateText).map((p) => p.trim());
     const name = parts.shift()?.toLowerCase() ?? "unknown";
     const params = {};
     const positional = [];
@@ -582,7 +615,11 @@
     if (mw.util.isIPAddress(username, true)) {
       username = username.toUpperCase();
     } else if (username) {
-      username = new mw.Title(username).getMainText();
+      try {
+        username = new mw.Title(username).getMainText();
+      } catch (e) {
+        console.error(`Failed to parse username: ${username}.`, e);
+      }
     }
     return username;
   }
@@ -5889,7 +5926,8 @@ ${comment}
         { id: "timecard", label: "Timecard" },
         { id: "pages", label: "Pages" },
         { id: "summary", label: "Summaries" },
-        { id: "cuwiki", label: "CU wiki" }
+        { id: "cuwiki", label: "CU wiki" },
+        { id: "interleaved", label: "Interleaved" }
       ];
       const optionColumns = columns.slice(1);
       const selectedRows = [];
@@ -5939,6 +5977,11 @@ ${comment}
             continue;
           }
           const resultUrl = linkFormat.baseUrl(this.caseName);
+          if (linkFormat.startingParams) {
+            for (const [key, value] of linkFormat.startingParams) {
+              resultUrl.searchParams.set(key, value);
+            }
+          }
           const includedUsers = this.accounts.reduce((accumulator, row) => {
             if (row.link[linkColumn.id]) {
               accumulator.push(linkFormat.userQueryStringWrapper + row.username + linkFormat.userQueryStringWrapper);
@@ -6030,6 +6073,8 @@ ${comment}
             return spiHelperLinkViewURLFormats.editorInteractionAnalyser;
           case "cuwiki":
             return spiHelperLinkViewURLFormats.checkUserWikiSearch;
+          case "interleaved":
+            return spiHelperLinkViewURLFormats.interleaved;
           case "pages":
             return spiHelperLinkViewURLFormats.sandals.pages;
           case "summary":
@@ -6123,6 +6168,9 @@ ${comment}
         </template>
         <template #item-cuwiki="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.link.cuwiki">CheckUser wiki</cdx-checkbox>
+        </template>
+        <template #item-interleaved="{ item, row }">
+          <cdx-checkbox :hide-label="true" v-model="row.link.interleaved">Interleaved</cdx-checkbox>
         </template>
       </cdx-table>
       <ul>
