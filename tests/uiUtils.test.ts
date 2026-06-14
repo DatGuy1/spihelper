@@ -94,7 +94,9 @@ describe('menu data', () => {
       };
       const result = pruneMenuData([group]);
       expect(result).toHaveLength(1);
-      expect((result[0] as MenuGroupData).items).toEqual([{ value: 'good', label: 'Good' }]);
+      const item = result[0];
+      if (!item || !isMenuGroupData(item)) throw new Error('expected MenuGroupData');
+      expect(item.items).toEqual([{ value: 'good', label: 'Good' }]);
     });
   });
 });
@@ -192,8 +194,8 @@ describe('user rows', () => {
         userPage: '{{sockpuppet|1=Master|2=confirmed}}',
       });
       expect(result.block.tags).toHaveLength(1);
-      const tag = result.block.tags[0] as SockpuppetTag;
-      expect(tag).toBeInstanceOf(SockpuppetTag);
+      const tag = result.block.tags[0];
+      if (!(tag instanceof SockpuppetTag)) throw new Error('expected SockpuppetTag');
       expect(tag.master).toBe('Master');
       expect(tag.status).toBe('confirmed');
     });

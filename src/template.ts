@@ -18,8 +18,45 @@ export function parseTemplates(wikitext: string): Template[] {
   return templates;
 }
 
+/**
+ * Splits a template's inner text on '|' while ignoring pipes inside [[ ]] and {{ }}.
+ * A naive split('|') would break on pipe characters inside the template [[User|U]],
+ * the link display text would be misread as an argument separator.
+ * `depth` tracks how many levels of [[ or {{ nesting we're currently inside;
+ * only a pipe at depth 0 is a real argument boundary.
+ */
+function splitTemplateParts(text: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charAt(i);
+    const next = text.charAt(i + 1); // returns '' if out of bounds
+    if ((ch === '[' && next === '[') || (ch === '{' && next === '{')) {
+      depth++;
+      current += ch + next;
+      i++; // skip the second bracket/brace
+    }
+    else if ((ch === ']' && next === ']') || (ch === '}' && next === '}')) {
+      depth--;
+      current += ch + next;
+      i++;
+    }
+    else if (ch === '|' && depth === 0) {
+      // Real argument separator, end the accumulated segment and start fresh
+      parts.push(current);
+      current = '';
+    }
+    else {
+      current += ch;
+    }
+  }
+  parts.push(current); // commit the final segment
+  return parts;
+}
+
 export function parseTemplate(templateText: string): Template {
-  const parts = templateText.split('|').map(p => p.trim());
+  const parts = splitTemplateParts(templateText).map(p => p.trim());
   const name = parts.shift()?.toLowerCase() ?? 'unknown';
 
   const params: Record<string, string | number | boolean> = {};

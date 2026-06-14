@@ -146,7 +146,12 @@ export function spiHelperNormalizeUsername(username: string): string {
   else if (username) {
     // For actual usernames, make sure the first letter is capitalized
     // Ensure consistent case conversions with PHP as per https://phabricator.wikimedia.org/T292824
-    username = new mw.Title(username).getMainText();
+    try {
+      username = new mw.Title(username).getMainText();
+    }
+    catch (e) {
+      console.error(`Failed to parse username: ${username}.`, e);
+    }
   }
   return username;
 }
