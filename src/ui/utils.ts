@@ -25,7 +25,11 @@ export function getSockEntries(opts: {
     const sockList = $searchOrigin.find('.cuEntry').find('a:first');
 
     for (const entryElement of sockList) {
-      const username = spiHelperNormalizeUsername($(entryElement).text());
+      const filteredUsername = Array.from(entryElement.childNodes).find(n => n.nodeType === Node.TEXT_NODE)?.textContent ?? '';
+      if (!filteredUsername) {
+        continue;
+      }
+      const username = spiHelperNormalizeUsername(filteredUsername);
       if (allUsernames.has(username)) {
         continue;
       }
