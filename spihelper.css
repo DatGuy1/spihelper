@@ -1,6 +1,27 @@
 /* {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.css}} */
-/* v3.2.4 */
+/* v3.3.0 */
 /* src/spihelper.css */
+.spiHelper-section-open {
+  background-color: var(--background-color-progressive-subtle, #eaf3ff);
+  border-radius: 2px;
+  padding: 0 3px;
+}
+
+.spiHelper-section-open:-webkit-any(span) {
+  text-transform: lowercase;
+  margin-inline-start: .5em;
+}
+
+.spiHelper-section-open:-moz-any(span) {
+  text-transform: lowercase;
+  margin-inline-start: .5em;
+}
+
+.spiHelper-section-open:is(span) {
+  text-transform: lowercase;
+  margin-inline-start: .5em;
+}
+
 .spihelper-hovertext {
   text-decoration: underline dotted;
   text-underline-offset: 1px;
@@ -48,7 +69,30 @@
 .spiHelper-mainCard-Header .header-buttons {
   position: absolute;
   top: 0;
+}
+
+.spiHelper-mainCard-Header .header-buttons:not(:-webkit-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi))) {
   right: 0;
+}
+
+.spiHelper-mainCard-Header .header-buttons:not(:-moz-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi))) {
+  right: 0;
+}
+
+.spiHelper-mainCard-Header .header-buttons:not(:is(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi))) {
+  right: 0;
+}
+
+.spiHelper-mainCard-Header .header-buttons:-webkit-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi)) {
+  left: 0;
+}
+
+.spiHelper-mainCard-Header .header-buttons:-moz-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi)) {
+  left: 0;
+}
+
+.spiHelper-mainCard-Header .header-buttons:is(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi)) {
+  left: 0;
 }
 
 #spiHelper-topView-Accordion .cdx-accordion {
@@ -97,6 +141,15 @@
   gap: .75em;
 }
 
+#contentRow > div.is-visible ~ div.is-visible {
+  border-top: 1px solid var(--color-base--subtle);
+  padding-top: 16px;
+}
+
+#contentRow > div:not(.is-visible) {
+  display: none;
+}
+
 .spiHelper-section-selector {
   display: flex;
   gap: 8px;
@@ -116,23 +169,14 @@
   right: -12px;
 }
 
-.spiHelper-section-overlay--selected {
+--selected.spiHelper-section-overlay {
   border: 3px solid var(--border-color-progressive, #36c);
   background-color: var(--background-color-progressive-subtle, #e8f1ff);
 }
 
-.spiHelper-section-overlay--preview {
+--preview.spiHelper-section-overlay {
   border: 1px dashed var(--border-color-progressive, #36c);
   background-color: var(--background-color-progressive-subtle, #f3f7ff);
-}
-
-#contentRow > div.is-visible ~ div.is-visible {
-  border-top: 1px solid var(--color-base--subtle);
-  padding-top: 16px;
-}
-
-#contentRow > div:not(.is-visible) {
-  display: none;
 }
 
 .spiHelper-blockoptions-group {
@@ -174,7 +218,7 @@
 }
 
 #spiHelper-opts-dialog .spiHelper-template-container .spiHelper-template-group-item {
-  padding-left: 12px;
+  padding-inline-start: 12px;
 }
 
 #spiHelper-opts-dialog .spiHelper-template-container .spiHelper-template-input {
@@ -234,7 +278,7 @@
 }
 
 .spiHelper-sockTable .header-content .header-content-buttons .cdx-message .cdx-message__content {
-  margin-left: 4px;
+  margin-inline-start: 4px;
 }
 
 .spiHelper-sockTable th.tagHeader {
@@ -263,7 +307,30 @@
 .spiHelper-sockTable .cdx-checkbox {
   width: min-content;
   margin: 0 auto;
+}
+
+.spiHelper-sockTable .cdx-checkbox:not(:-webkit-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi))) {
   left: 1px;
+}
+
+.spiHelper-sockTable .cdx-checkbox:not(:-moz-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi))) {
+  left: 1px;
+}
+
+.spiHelper-sockTable .cdx-checkbox:not(:is(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi))) {
+  left: 1px;
+}
+
+.spiHelper-sockTable .cdx-checkbox:-webkit-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi)) {
+  right: 1px;
+}
+
+.spiHelper-sockTable .cdx-checkbox:-moz-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi)) {
+  right: 1px;
+}
+
+.spiHelper-sockTable .cdx-checkbox:is(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi)) {
+  right: 1px;
 }
 
 .spiHelper-sockTable td:has(.cdx-checkbox) {
@@ -305,7 +372,7 @@
   font-weight: normal;
 }
 
-button.userTag + button.userTag {
+.spiHelper-sockTable button.userTag + button.userTag {
   margin-top: 4px;
 }
 
@@ -320,14 +387,37 @@ button.userTag + button.userTag {
 #spiHelper-PreviewBox .cdx-button {
   position: absolute;
   top: 8px;
+}
+
+#spiHelper-PreviewBox .cdx-button:not(:-webkit-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi))) {
   right: 8px;
 }
 
+#spiHelper-PreviewBox .cdx-button:not(:-moz-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi))) {
+  right: 8px;
+}
+
+#spiHelper-PreviewBox .cdx-button:not(:is(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi))) {
+  right: 8px;
+}
+
+#spiHelper-PreviewBox .cdx-button:-webkit-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi)) {
+  left: 8px;
+}
+
+#spiHelper-PreviewBox .cdx-button:-moz-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi)) {
+  left: 8px;
+}
+
+#spiHelper-PreviewBox .cdx-button:is(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi)) {
+  left: 8px;
+}
+
 #spiHelper-PreviewBox #htmlPreview {
-  word-wrap: break-word;
+  overflow-wrap: break-word;
   box-sizing: border-box;
   width: 100%;
-  padding-right: 40px;
+  padding-inline-end: 40px;
 }
 
 #spiHelper-CaseLoader {

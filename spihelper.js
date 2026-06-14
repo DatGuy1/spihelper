@@ -1,5 +1,5 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
-// v3.2.4
+// v3.3.0
 // <nowiki>
 'use strict';
 (() => {
@@ -103,7 +103,7 @@
     showUseragentCheckbox: true,
     useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
   };
-  var VERSION = "3.2.4";
+  var VERSION = "3.3.0";
   var MODE = "dev";
   var spiHelperDefaultSettings = {
     watch: {
@@ -2028,7 +2028,11 @@
       }
       const sockList = $searchOrigin.find(".cuEntry").find("a:first");
       for (const entryElement of sockList) {
-        const username = spiHelperNormalizeUsername($(entryElement).text());
+        const filteredUsername = Array.from(entryElement.childNodes).find((n) => n.nodeType === Node.TEXT_NODE)?.textContent ?? "";
+        if (!filteredUsername) {
+          continue;
+        }
+        const username = spiHelperNormalizeUsername(filteredUsername);
         if (allUsernames.has(username)) {
           continue;
         }
@@ -2151,6 +2155,30 @@
         return null;
       return node;
     }).filter((node) => node !== null);
+  }
+  function isInputDisabled(row, column, blockOptions, userBlocks, userLocks, targetRows) {
+    if (column === "lock") {
+      if (row === null)
+        return false;
+      return isNonRegisteredAccount(row.username) || userLocks.get(row.username) === true;
+    }
+    if (column === "block") {
+      if (row === null)
+        return blockOptions.noBlock;
+      return blockOptions.noBlock || !blockOptions.override && userBlocks.get(row.username) !== undefined;
+    }
+    if (blockOptions.noBlock)
+      return true;
+    if (row === null) {
+      return !targetRows.some((r) => r.block.block);
+    }
+    if (!row.block.block)
+      return true;
+    const userBlock = userBlocks.get(row.username);
+    if (column === "duration") {
+      return !blockOptions.override && userBlock !== undefined;
+    }
+    return !blockOptions.override && (userBlock?.[column] ?? false);
   }
   var toRaw = null;
   function setToRaw(toRawArg) {
@@ -4605,6 +4633,62 @@ ${comment}
       sectionOverlayEl.style.display = "none";
     }
   }
+  var SECTION_BUTTON_LABEL = "open in spiHelper";
+  function addSectionButtons(sectionIds, onClick) {
+    const injected = [];
+    for (const id of sectionIds) {
+      const heading = getSectionHeading(id);
+      if (!heading) {
+        continue;
+      }
+      const editSection = heading.querySelector(".mw-editsection");
+      if (editSection) {
+        const closingBracket = editSection.querySelector(".mw-editsection-bracket:last-child");
+        const divider = document.createElement("span");
+        divider.className = "mw-editsection-divider";
+        divider.textContent = " | ";
+        const link = document.createElement("a");
+        link.href = "#";
+        link.className = "spiHelper-section-open";
+        link.textContent = SECTION_BUTTON_LABEL;
+        link.addEventListener("click", (e) => {
+          e.preventDefault();
+          onClick(id);
+        });
+        if (closingBracket) {
+          editSection.insertBefore(divider, closingBracket);
+          editSection.insertBefore(link, closingBracket);
+        } else {
+          editSection.append(divider, link);
+        }
+        injected.push(divider, link);
+      } else {
+        const wrapper = document.createElement("span");
+        wrapper.className = "mw-editsection-like spiHelper-section-open";
+        const openBracket = document.createElement("span");
+        openBracket.className = "mw-editsection-bracket";
+        openBracket.textContent = "[";
+        const link = document.createElement("a");
+        link.href = "#";
+        link.textContent = SECTION_BUTTON_LABEL;
+        link.addEventListener("click", (e) => {
+          e.preventDefault();
+          onClick(id);
+        });
+        const closeBracket = document.createElement("span");
+        closeBracket.className = "mw-editsection-bracket";
+        closeBracket.textContent = "]";
+        wrapper.append(openBracket, link, closeBracket);
+        heading.appendChild(wrapper);
+        injected.push(wrapper);
+      }
+    }
+    return () => {
+      for (const el of injected) {
+        el.remove();
+      }
+    };
+  }
 
   // src/ui/views/top/topView.ts
   var TopViewComponent = defineComponent({
@@ -4632,6 +4716,7 @@ ${comment}
         caseActions: getInitialCaseActions(),
         accounts: [],
         messages,
+        sectionClickCleanup: null,
         icons: {
           cdxIconPushPin: f7,
           cdxIconCollapse: i4,
@@ -4688,13 +4773,13 @@ ${comment}
         }
       },
       async stateSections(newValue) {
+        this.setupSectionButtons();
         if (this.caseActions.sections.data.section === null) {
           const firstSection = newValue[0];
           if (firstSection) {
             this.caseActions.sections.data.section = firstSection.id;
             await this.ensureArchiveNotice();
             await this.loadNewSection(firstSection);
-            this.syncSelectedSectionOverlay();
           } else {
             await this.onUpdateSectionSelection("all");
           }
@@ -4758,8 +4843,22 @@ ${comment}
       if (this.handlers.beforeUnloadHandler) {
         window.removeEventListener("beforeunload", this.handlers.beforeUnloadHandler);
       }
+      this.sectionClickCleanup?.();
+      this.sectionClickCleanup = null;
     },
     methods: {
+      setupSectionButtons() {
+        const ids = this.state.sections.map((s) => s.id);
+        if (ids.length === 0) {
+          return;
+        }
+        this.sectionClickCleanup = addSectionButtons(ids, (sectionId) => {
+          this.onUpdateSectionSelection(sectionId);
+          if (!this.open) {
+            this.open = true;
+          }
+        });
+      },
       syncSelectedSectionOverlay() {
         if (!spiHelperSettings.highlightSection || !this.open) {
           hideSectionOverlay();
@@ -4812,6 +4911,7 @@ ${comment}
         if (newSelection === "all") {
           this.state.selectedSection = { type: "all" };
           this.loadSectionAccounts(this.state.selectedSection);
+          this.syncSelectedSectionOverlay();
           return;
         }
         const targetSection = this.state.sections.find((section) => section.id === newSelection);
@@ -4831,6 +4931,7 @@ ${comment}
         if (normalisedStatus === "closed" && spiHelperSettings.tickArchiveWhenCaseClosed) {
           this.caseActions.archive.enabled = true;
         }
+        this.syncSelectedSectionOverlay();
         this.loadSectionAccounts(this.state.selectedSection);
       },
       async loadSectionAccounts(selection) {
@@ -5162,37 +5263,16 @@ ${comment}
       isNonRegisteredAccount,
       isSockmasterTag,
       setAllValue(column) {
-        const rows = this.getTargetRows().filter((row) => !this.isCheckboxDisabled(row, column));
+        const rows = this.getTargetRows().filter((row) => !this.isInputDisabled(row, column));
         return rows.length > 0 && rows.every((row) => row.block[column]);
       },
       setAllIndeterminate(column) {
-        const rows = this.getTargetRows().filter((row) => !this.isCheckboxDisabled(row, column));
+        const rows = this.getTargetRows().filter((row) => !this.isInputDisabled(row, column));
         const checkedCount = rows.filter((row) => row.block[column]).length;
         return checkedCount > 0 && checkedCount < rows.length;
       },
-      isCheckboxDisabled(row, column) {
-        if (column === "lock") {
-          if (row === null)
-            return false;
-          return isNonRegisteredAccount(row.username) || this.userLocks.get(row.username) === true;
-        }
-        if (column === "block") {
-          if (row === null)
-            return this.blockOptions.noBlock;
-          return this.blockOptions.noBlock || !this.blockOptions.override && this.userBlocks.get(row.username) !== undefined;
-        }
-        if (this.blockOptions.noBlock)
-          return true;
-        if (row === null) {
-          return !this.getTargetRows().some((r) => r.block.block);
-        }
-        if (!row.block.block)
-          return true;
-        const userBlock = this.userBlocks.get(row.username);
-        if (column === "duration") {
-          return !this.blockOptions.override && userBlock !== undefined;
-        }
-        return !this.blockOptions.override && (userBlock?.[column] ?? false);
+      isInputDisabled(row, column) {
+        return isInputDisabled(row, column, this.blockOptions, this.userBlocks, this.userLocks, this.getTargetRows());
       },
       async copySocks() {
         if (this.selectedRows.length === 0) {
@@ -5235,7 +5315,7 @@ ${comment}
       },
       setAllBlockFields(key, value) {
         for (const row of this.getTargetRows()) {
-          if (this.isCheckboxDisabled(row, key))
+          if (this.isInputDisabled(row, key))
             continue;
           row.block[key] = value;
         }
@@ -5429,20 +5509,20 @@ ${comment}
               <cdx-checkbox :hide-label="true"
                             :model-value="setAllValue('block')" :indeterminate="setAllIndeterminate('block')"
                             @update:model-value="setAllBlockFields('block', $event)"
-                            :disabled="isCheckboxDisabled(null, 'block')">
+                            :disabled="isInputDisabled(null, 'block')">
                 Set all block
               </cdx-checkbox>
             </th>
             <th scope="col" v-if="isAdmin">
               <expiry-input placeholder="Duration" @update:model-value="setAllBlockFields('duration', $event)"
-                            :disabled="isCheckboxDisabled(null, 'duration')" />
+                            :disabled="isInputDisabled(null, 'duration')" />
             </th>
 
             <th scope="col" v-if="isAdmin">
               <cdx-checkbox :hide-label="true"
                             :model-value="setAllValue('acb')" :indeterminate="setAllIndeterminate('acb')"
                             @update:model-value="setAllBlockFields('acb', $event)"
-                            :disabled="isCheckboxDisabled(null, 'acb')">
+                            :disabled="isInputDisabled(null, 'acb')">
                 Set all account creation blocked
               </cdx-checkbox>
             </th>
@@ -5450,7 +5530,7 @@ ${comment}
               <cdx-checkbox :hide-label="true"
                             :model-value="setAllValue('abao')" :indeterminate="setAllIndeterminate('abao')"
                             @update:model-value="setAllBlockFields('abao', $event)"
-                            :disabled="isCheckboxDisabled(null, 'abao')">
+                            :disabled="isInputDisabled(null, 'abao')">
                 Set all autoblock/anon-only
               </cdx-checkbox>
             </th>
@@ -5458,7 +5538,7 @@ ${comment}
               <cdx-checkbox :hide-label="true"
                             :model-value="setAllValue('ntp')" :indeterminate="setAllIndeterminate('ntp')"
                             @update:model-value="setAllBlockFields('ntp', $event)"
-                            :disabled="isCheckboxDisabled(null, 'ntp')">
+                            :disabled="isInputDisabled(null, 'ntp')">
                 Set all no talk page
               </cdx-checkbox>
             </th>
@@ -5466,7 +5546,7 @@ ${comment}
               <cdx-checkbox :hide-label="true"
                             :model-value="setAllValue('nem')" :indeterminate="setAllIndeterminate('nem')"
                             @update:model-value="setAllBlockFields('nem', $event)"
-                            :disabled="isCheckboxDisabled(null, 'nem')">
+                            :disabled="isInputDisabled(null, 'nem')">
                 Set all no email
               </cdx-checkbox>
             </th>
@@ -5486,7 +5566,7 @@ ${comment}
               <cdx-checkbox :hide-label="true"
                             :model-value="setAllValue('lock')" :indeterminate="setAllIndeterminate('lock')"
                             @update:model-value="setAllBlockFields('lock', $event)"
-                            :disabled="isCheckboxDisabled(null, 'lock')">
+                            :disabled="isInputDisabled(null, 'lock')">
                 Set all request locks
               </cdx-checkbox>
             </th>
@@ -5499,38 +5579,38 @@ ${comment}
 
         <template #item-block="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.block"
-                        :disabled="isCheckboxDisabled(row, 'block')">
+                        :disabled="isInputDisabled(row, 'block')">
             Block
           </cdx-checkbox>
         </template>
 
         <template #item-duration="{ item, row }">
           <expiry-input v-model="row.block.duration" :shortened="true" :auto-dismiss="true" :touched="true"
-                        :disabled="isCheckboxDisabled(row, 'duration')"
+                        :disabled="isInputDisabled(row, 'duration')"
                         placeholder="Duration" />
         </template>
 
         <template #item-acb="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.acb"
-                        :disabled="isCheckboxDisabled(row, 'acb')">
+                        :disabled="isInputDisabled(row, 'acb')">
             Account creation blocked
           </cdx-checkbox>
         </template>
         <template #item-abao="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.abao"
-                        :disabled="isCheckboxDisabled(row, 'abao')">
+                        :disabled="isInputDisabled(row, 'abao')">
             Autoblock/Anon-only
           </cdx-checkbox>
         </template>
         <template #item-ntp="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.ntp"
-                        :disabled="isCheckboxDisabled(row, 'ntp')">
+                        :disabled="isInputDisabled(row, 'ntp')">
             No talk page
           </cdx-checkbox>
         </template>
         <template #item-nem="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.nem"
-                        :disabled="isCheckboxDisabled(row, 'nem')">
+                        :disabled="isInputDisabled(row, 'nem')">
             No email
           </cdx-checkbox>
         </template>
@@ -5549,7 +5629,7 @@ ${comment}
 
         <template #item-lock="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.lock"
-                        :disabled="isCheckboxDisabled(row, 'lock')">
+                        :disabled="isInputDisabled(row, 'lock')">
             Request lock
           </cdx-checkbox>
         </template>
@@ -5574,22 +5654,28 @@ ${comment}
     },
     emits: ["update:enabled", "update:text"],
     data() {
+      const isClerk = spiHelperIsClerk();
+      const isAdmin = spiHelperIsAdmin();
+      const isCheckuser = spiHelperIsCheckuser();
       const noteTemplates = [
         { value: "takenote", label: "Note" }
       ];
       const clerkTemplates = [...spiHelperClerkTemplates];
       const cuTemplates = [...spiHelperCUTemplates];
-      if (spiHelperIsCheckuser()) {
+      if (isCheckuser) {
         noteTemplates.unshift({ value: "cunote", label: "CheckUser note" });
       }
-      if (spiHelperIsAdmin()) {
+      if (isAdmin) {
         noteTemplates.unshift({ value: "adminnote", label: "Administrator note" });
       }
-      if (spiHelperIsClerk()) {
+      if (isClerk) {
         noteTemplates.unshift({ value: "clerknote", label: "Clerk note" });
       }
       const customTemplates = pruneMenuData(spiHelperSettings.custom.commentTemplates);
       return {
+        isClerk,
+        isAdmin,
+        isCheckuser,
         noteTemplates,
         clerkTemplates,
         cuTemplates,
@@ -5625,7 +5711,7 @@ ${comment}
             const sectionText = await loadSectionText(this.selectedSection.section);
             let startIndex;
             let endIndex;
-            if (spiHelperIsClerk() || spiHelperIsAdmin()) {
+            if (this.isClerk || this.isAdmin) {
               startIndex = spiHelperAdminSectionWithPrecedingNewlinesRegex.exec(sectionText)?.index;
               endIndex = /\n*----(?!.*----)/s.exec(sectionText)?.index;
             } else {
@@ -5672,8 +5758,8 @@ ${comment}
     <action-container v-model:enabled="enabled" @update:enabled="onEnable">
       <div id="spiHelper-templateRow">
         <cdx-select :menu-items="noteTemplates" default-label="Comment templates" @update:selected="insertNote" />
-        <cdx-select :menu-items="clerkTemplates" default-label="Admin/clerk templates" @update:selected="insertText" />
-        <cdx-select :menu-items="cuTemplates" default-label="CheckUser templates" @update:selected="insertText" />
+        <cdx-select v-if="isClerk || isAdmin" :menu-items="clerkTemplates" default-label="Admin/clerk templates" @update:selected="insertText" />
+        <cdx-select v-if="isCheckuser" :menu-items="cuTemplates" default-label="CheckUser templates" @update:selected="insertText" />
         <cdx-select v-if="customTemplates.length > 0" :menu-items="customTemplates" default-label="Custom templates"
                     @update:selected="insertText" />
       </div>
@@ -6540,6 +6626,13 @@ ${comment}
         const moveAction = this.caseActions.move;
         return moveAction.enabled && !moveAction.data.target;
       },
+      hasInvalidDuration() {
+        const blockAction = this.caseActions.block;
+        if (!blockAction.enabled)
+          return false;
+        const { options, userBlocks, userLocks } = blockAction.data;
+        return this.accounts.some((user) => !isInputDisabled(user, "duration", options, userBlocks, userLocks, this.accounts) && parseExpiry(user.block.duration) === null);
+      },
       cuBlockConfirmationsNeeded() {
         const blockData = this.caseActions.block.data;
         const neededUsers = new Set;
@@ -6570,7 +6663,7 @@ ${comment}
         return skipCount > 0 && skipCount < this.cuBlockConfirmationsNeeded.size;
       },
       disableButton() {
-        return isOpRunning(this.actionName) || this.allDisabled || this.hasInvalidTag || this.hasInvalidMove;
+        return isOpRunning(this.actionName) || this.allDisabled || this.hasInvalidTag || this.hasInvalidMove || this.hasInvalidDuration;
       },
       lockCommentValue: {
         get() {
@@ -6624,6 +6717,7 @@ ${comment}
       <div>
         <cdx-message v-if="hasInvalidTag" type="error" :inline="true">A user has an invalid tag</cdx-message>
         <cdx-message v-if="hasInvalidMove" type="error" :inline="true"><b>Move</b> is enabled but has no target</cdx-message>
+        <cdx-message v-if="hasInvalidDuration" type="error" :inline="true">A user has an invalid block duration</cdx-message>
         <cdx-button ref="submitElement" action="progressive" weight="primary" @click="onSubmit"
                     :disabled="disableButton">
           Submit
