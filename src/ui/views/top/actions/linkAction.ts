@@ -4,8 +4,8 @@ import type { AllUser } from '../../../../types/api.ts';
 import { spiHelperLinkViewURLFormats } from '../../../../constants/linkview.ts';
 import type { UserRow } from '../../../../types/spi.ts';
 
-type ColumnId = 'analyser' | 'timeline' | 'timecard' | 'pages' | 'summary' | 'cuwiki';
-type LinkRecord = Record<ColumnId, { url: URL; label: string }>;
+export type ColumnId = 'analyser' | 'timeline' | 'timecard' | 'pages' | 'summary' | 'cuwiki' | 'interleaved';
+export type LinkRecord = Record<ColumnId, { url: URL; label: string }>;
 
 // noinspection DuplicatedCode
 export const LinkActionComponent = defineComponent({
@@ -24,6 +24,7 @@ export const LinkActionComponent = defineComponent({
       { id: 'pages', label: 'Pages' },
       { id: 'summary', label: 'Summaries' },
       { id: 'cuwiki', label: 'CU wiki' },
+      { id: 'interleaved', label: 'Interleaved' },
     ];
     const optionColumns = columns.slice(1) as { id: ColumnId; label: string }[];
 
@@ -88,6 +89,11 @@ export const LinkActionComponent = defineComponent({
         }
 
         const resultUrl = linkFormat.baseUrl(this.caseName);
+        if (linkFormat.startingParams) {
+          for (const [key, value] of linkFormat.startingParams) {
+            resultUrl.searchParams.set(key, value);
+          }
+        }
         const includedUsers: string[] = this.accounts.reduce((accumulator: string[], row) => {
           if (row.link[linkColumn.id]) {
             accumulator.push(
@@ -194,6 +200,8 @@ export const LinkActionComponent = defineComponent({
           return spiHelperLinkViewURLFormats.editorInteractionAnalyser;
         case 'cuwiki':
           return spiHelperLinkViewURLFormats.checkUserWikiSearch;
+        case 'interleaved':
+          return spiHelperLinkViewURLFormats.interleaved;
         case 'pages':
           return spiHelperLinkViewURLFormats.sandals.pages;
         case 'summary':
@@ -287,6 +295,9 @@ export const LinkActionComponent = defineComponent({
         </template>
         <template #item-cuwiki="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.link.cuwiki">CheckUser wiki</cdx-checkbox>
+        </template>
+        <template #item-interleaved="{ item, row }">
+          <cdx-checkbox :hide-label="true" v-model="row.link.interleaved">Interleaved</cdx-checkbox>
         </template>
       </cdx-table>
       <ul>

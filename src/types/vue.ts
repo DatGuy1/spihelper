@@ -16,6 +16,7 @@ export const DefaultLinkRowData: LinkRowData = {
   pages: false,
   summary: false,
   cuwiki: false,
+  interleaved: false,
 };
 
 export type SelectionType = 'section' | 'case' | 'both';

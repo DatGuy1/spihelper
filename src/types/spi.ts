@@ -277,6 +277,7 @@ export interface LinkRowData {
   pages: boolean;
   summary: boolean;
   cuwiki: boolean;
+  interleaved: boolean;
 }
 
 export interface ArchiveSection {

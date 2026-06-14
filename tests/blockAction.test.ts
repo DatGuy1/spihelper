@@ -52,6 +52,7 @@ function makeRow(username: string, block: Partial<BlockRowData> = {}): UserRow {
       pages: false,
       summary: false,
       cuwiki: false,
+      interleaved: false,
     },
     block: {
       block: false,

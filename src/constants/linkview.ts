@@ -2,6 +2,7 @@ interface LinkFormatCollection {
   editorInteractionAnalyser: LinkFormat;
   interactionTimeline: LinkFormat;
   checkUserWikiSearch: LinkFormat;
+  interleaved: LinkFormat;
   SPITools: {
     timecard: LinkFormat;
     consolidatedTimeline: LinkFormat;
@@ -100,6 +101,13 @@ export const spiHelperLinkViewURLFormats: LinkFormatCollection = {
     userQueryStringKey: 'search',
     userQueryStringSeparator: ' OR ',
     userQueryStringWrapper: '"',
+    multipleUserQueryStringKeys: false,
+  },
+  interleaved: {
+    baseUrl: (_caseName: string) => new URL('https://interleaved.toolforge.org/'),
+    userQueryStringKey: 'user',
+    userQueryStringSeparator: '|',
+    userQueryStringWrapper: '',
     multipleUserQueryStringKeys: false,
   },
 };
