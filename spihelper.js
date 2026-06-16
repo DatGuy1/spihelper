@@ -957,34 +957,37 @@
     }
     const api2 = spiHelperGetAPI();
     const resultMap = new Map;
-    const request = {
-      action: "query",
-      prop: "revisions",
-      rvprop: "content",
-      rvslots: "main",
-      titles,
-      formatversion: "2"
-    };
-    try {
-      const response = await api2.get(request);
-      for (const page of response.query.pages) {
-        if (page.missing) {
-          continue;
+    const chunkSize = await getApiChunkSize();
+    await Promise.all(chunkArray(titles, chunkSize).map(async (chunk) => {
+      const request = {
+        action: "query",
+        prop: "revisions",
+        rvprop: "content",
+        rvslots: "main",
+        titles: chunk,
+        formatversion: "2"
+      };
+      try {
+        const response = await api2.post(request);
+        for (const page of response.query.pages) {
+          if (page.missing) {
+            continue;
+          }
+          const latestRevision = page.revisions?.[0];
+          if (!latestRevision) {
+            continue;
+          }
+          const pageTitle = page.title.split(":", 2)[1];
+          if (!pageTitle) {
+            console.error("spiHelperGetBulkPageText: could not find name for", page.title);
+            continue;
+          }
+          resultMap.set(pageTitle, latestRevision.slots.main.content);
         }
-        const latestRevision = page.revisions?.[0];
-        if (!latestRevision) {
-          continue;
-        }
-        const pageTitle = page.title.split(":", 2)[1];
-        if (!pageTitle) {
-          console.error("spiHelperGetBulkPageText: could not find name for", page.title);
-          continue;
-        }
-        resultMap.set(pageTitle, latestRevision.slots.main.content);
+      } catch (error) {
+        console.error("spiHelperGetBulkPageText fetch error:", error);
       }
-    } catch (error) {
-      console.error("spiHelperGetBulkPageText fetch error:", error);
-    }
+    }));
     return resultMap;
   }
   async function spiHelperGetBulkUserBlockSettings(usernames) {
@@ -993,30 +996,33 @@
     }
     const api2 = spiHelperGetAPI();
     const resultMap = new Map;
-    const request = {
-      action: "query",
-      list: "blocks",
-      bklimit: "max",
-      bkusers: [...usernames],
-      bkprop: ["user", "reason", "flags", "expiry"],
-      formatversion: "2"
-    };
-    try {
-      const response = await api2.get(request);
-      for (const block of response.query.blocks) {
-        resultMap.set(block.user, {
-          username: block.user,
-          duration: block.expiry,
-          acb: block.nocreate,
-          abao: block.autoblock || block.anononly,
-          ntp: !block.allowusertalk,
-          nem: block.noemail,
-          reason: block.reason
-        });
+    const chunkSize = await getApiChunkSize();
+    await Promise.all(chunkArray([...usernames], chunkSize).map(async (chunk) => {
+      const request = {
+        action: "query",
+        list: "blocks",
+        bklimit: "max",
+        bkusers: chunk,
+        bkprop: ["user", "reason", "flags", "expiry"],
+        formatversion: "2"
+      };
+      try {
+        const response = await api2.post(request);
+        for (const block of response.query.blocks) {
+          resultMap.set(block.user, {
+            username: block.user,
+            duration: block.expiry,
+            acb: block.nocreate,
+            abao: block.autoblock || block.anononly,
+            ntp: !block.allowusertalk,
+            nem: block.noemail,
+            reason: block.reason
+          });
+        }
+      } catch (error) {
+        console.error("spiHelperGetBulkUserBlockSettings fetch error:", error);
       }
-    } catch (error) {
-      console.error("spiHelperGetBulkUserBlockSettings fetch error:", error);
-    }
+    }));
     return resultMap;
   }
   async function spiHelperGetGlobalUser(user) {
@@ -1570,6 +1576,20 @@
     } catch {}
     return 0;
   }
+  async function spiHelperGetPostExpandSizeFromText(text) {
+    const api2 = spiHelperGetAPI();
+    const request = {
+      action: "parse",
+      prop: "limitreportdata",
+      text,
+      contentmodel: "wikitext"
+    };
+    try {
+      const response = await api2.post(request);
+      return Number(response.parse?.limitreportdata.find((item) => item.name === "limitreport-postexpandincludesize")?.["0"] ?? 0);
+    } catch {}
+    return 0;
+  }
   async function spiHelperParseWikitext(wikitext) {
     const api2 = spiHelperGetAPI();
     const request = {
@@ -1604,6 +1624,17 @@
     } catch {
       return [];
     }
+  }
+  function chunkArray(arr, size) {
+    const chunks = [];
+    for (let i = 0;i < arr.length; i += size) {
+      chunks.push(arr.slice(i, i + size));
+    }
+    return chunks;
+  }
+  async function getApiChunkSize() {
+    const rights = await mw.user.getRights();
+    return rights.includes("apihighlimits") ? 500 : 50;
   }
   var userAgent = `MediaWiki-JS/${mw.config.get("wgVersion")} spihelper/${VERSION}`;
   var APIs = {
@@ -3277,28 +3308,11 @@
       return;
     }
     let newArchiveText = await spiHelperGetPageText(context.archiveName, true);
-    const postExpandPercent = (await spiHelperGetPostExpandSize(context.pageName) + await spiHelperGetPostExpandSize(context.archiveName)) / spiHelperGetMaxPostExpandSize();
-    if (postExpandPercent >= 1) {
-      let archiveId = 0;
-      while (newArchiveText !== "") {
-        if (archiveId > 30) {
-          new VueMessage({
-            type: "error",
-            content: "Reached upper bound on possible archives, something probably went catastrophically wrong. Exiting"
-          }).show();
-          return;
-        }
-        newArchiveText = await spiHelperGetPageText(`${context.archiveName}/${++archiveId}`, true);
-      }
-      const newArchiveName = `${context.archiveName}/${archiveId}`;
-      await spiHelperMovePage({
-        sourcePage: context.archiveName,
-        destPage: newArchiveName,
-        summary: "Moving archive to avoid exceeding post expand size limit",
-        ignoreWarnings: false,
-        moveSubpages: false
-      });
-    }
+    const overflowResult = await spiHelperMoveArchiveIfOverflowing(context.pageName, context.archiveName);
+    if (overflowResult === "abort")
+      return;
+    if (overflowResult === "moved")
+      newArchiveText = "";
     const archiveExists = newArchiveText !== "";
     if (archiveExists) {
       newArchiveText = newArchiveText.replace(/<br\s*\/>\s*{{SPIpriorcases}}/gi, `
@@ -3422,6 +3436,54 @@
       baseRevId: context.startingRevId,
       sectionId: section.id
     });
+  }
+  async function spiHelperMoveArchiveIfOverflowing(sourcePage, archiveName) {
+    const postExpandPercent = (await spiHelperGetPostExpandSize(sourcePage) + await spiHelperGetPostExpandSize(archiveName)) / spiHelperGetMaxPostExpandSize();
+    if (postExpandPercent < 1) {
+      return "ok";
+    }
+    const subArchiveId = await findFirstEmptySubArchive(archiveName);
+    if (subArchiveId === null) {
+      return "abort";
+    }
+    await spiHelperMovePage({
+      sourcePage: archiveName,
+      destPage: `${archiveName}/${subArchiveId}`,
+      summary: "Moving archive to avoid exceeding post expand size limit",
+      ignoreWarnings: false,
+      moveSubpages: false
+    });
+    return "moved";
+  }
+  async function findFirstEmptySubArchive(archiveName) {
+    let archiveId = 0;
+    let slotText = "sentinel";
+    while (slotText !== "") {
+      if (archiveId > 30) {
+        new VueMessage({
+          type: "error",
+          content: "Reached upper bound on possible archives, something probably went catastrophically wrong."
+        }).show();
+        return null;
+      }
+      slotText = await spiHelperGetPageText(`${archiveName}/${++archiveId}`, false);
+    }
+    return archiveId;
+  }
+  async function findArchiveSplitPoint(sections, archiveText) {
+    const maxSize = spiHelperGetMaxPostExpandSize();
+    let lo = 0;
+    let hi = sections.length;
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      const candidateText = rebuildArchiveText(archiveText, sections.slice(mid));
+      if (await spiHelperGetPostExpandSizeFromText(candidateText) < maxSize) {
+        hi = mid;
+      } else {
+        lo = mid + 1;
+      }
+    }
+    return lo;
   }
   // src/actions/block.ts
   function buildTalkNotice(opts) {
@@ -3753,6 +3815,37 @@ $1`);
         const parsedSections = parseArchiveSections(targetArchiveText, archiveSections);
         if (parsedSections) {
           targetArchiveText = rebuildArchiveText(targetArchiveText, parsedSections);
+          const maxSize = spiHelperGetMaxPostExpandSize();
+          if (await spiHelperGetPostExpandSizeFromText(targetArchiveText) >= maxSize) {
+            new VueMessage({
+              type: "notice",
+              content: "Running binary search to find cutoff point for post-expand include size"
+            }).show();
+            const splitPoint = await findArchiveSplitPoint(parsedSections, targetArchiveText);
+            if (splitPoint >= parsedSections.length) {
+              new VueMessage({
+                type: "error",
+                content: "Archives are too large to merge without hitting post-expand size limit. Please merge manually"
+              }).show();
+              return;
+            }
+            const subArchiveId = await findFirstEmptySubArchive(newContext.archiveName);
+            if (subArchiveId === null)
+              return;
+            const subArchiveHeader = `__TOC__
+{{SPI archive notice|1=${newContext.caseName}}}
+{{SPIpriorcases}}
+`;
+            await spiHelperEditPage({
+              title: `${newContext.archiveName}/${subArchiveId}`,
+              newText: rebuildArchiveText(subArchiveHeader, parsedSections.slice(0, splitPoint)),
+              summary: `Splitting archive due to post-expand size limit`,
+              createonly: false,
+              watch: spiHelperSettings.watch.archive,
+              watchExpiry: spiHelperSettings.expiry.archive
+            });
+            targetArchiveText = rebuildArchiveText(targetArchiveText, parsedSections.slice(splitPoint));
+          }
           await spiHelperEditPage({
             title: newContext.archiveName,
             newText: targetArchiveText,
