@@ -20,7 +20,6 @@ import type {
   ApiUndeleteParams,
   CentralAuthApiQueryGlobalAllUsersParams,
 } from 'types-mediawiki-api';
-import { type GlobalUser } from './types/spi.ts';
 import type {
   AllPage,
   AllPagesResponse,
@@ -35,6 +34,7 @@ import type {
   EditResponse,
   FlaggedResponse,
   GlobalAllUsersResponse,
+  GlobalUser,
   InfoResponse,
   NewPendingChanges,
   ParseResponse,
@@ -44,10 +44,10 @@ import type {
   RevisionsResponse,
   SiteInfoResponse,
   WatchOption,
-} from './types/api.ts';
+} from './types';
 import { buildTitleLinkHtml, buildURLLinkHtml, spiHelperStripXWikiPrefix } from './utils.ts';
 import { OpState, finishOp, startOp } from './operations.ts';
-import { VERSION, spiHelperAdvert } from './constants/settings.ts';
+import { VERSION, spiHelperAdvert } from './constants';
 import { SectionEntry } from './state.ts';
 import { VueMessage } from './ui/messages.ts';
 
@@ -102,38 +102,39 @@ export async function spiHelperGetBulkPageText(
   }
   const api = spiHelperGetAPI();
   const resultMap = new Map<string, string>();
+  const chunkSize = await getApiChunkSize();
 
-  const request: ApiQueryRevisionsParams = {
-    action: 'query',
-    prop: 'revisions',
-    rvprop: 'content',
-    rvslots: 'main',
-    titles: titles,
-    formatversion: '2',
-  };
-
-  try {
-    const response = await api.get(request) as RevisionsResponse<'content'>;
-
-    for (const page of response.query.pages) {
-      if (page.missing) {
-        continue;
+  await Promise.all(chunkArray(titles, chunkSize).map(async (chunk) => {
+    const request: ApiQueryRevisionsParams = {
+      action: 'query',
+      prop: 'revisions',
+      rvprop: 'content',
+      rvslots: 'main',
+      titles: chunk,
+      formatversion: '2',
+    };
+    try {
+      const response = await api.post(request) as RevisionsResponse<'content'>;
+      for (const page of response.query.pages) {
+        if (page.missing) {
+          continue;
+        }
+        const latestRevision = page.revisions?.[0];
+        if (!latestRevision) {
+          continue;
+        }
+        const pageTitle = page.title.split(':', 2)[1];
+        if (!pageTitle) {
+          console.error('spiHelperGetBulkPageText: could not find name for', page.title);
+          continue;
+        }
+        resultMap.set(pageTitle, latestRevision.slots.main.content);
       }
-      const latestRevision = page.revisions?.[0];
-      if (!latestRevision) {
-        continue;
-      }
-      const pageTitle = page.title.split(':', 2)[1];
-      if (!pageTitle) {
-        console.error('spiHelperGetBulkPageText: could not find name for', page.title);
-        continue;
-      }
-      resultMap.set(pageTitle, latestRevision.slots.main.content);
     }
-  }
-  catch (error) {
-    console.error('spiHelperGetBulkPageText fetch error:', error);
-  }
+    catch (error) {
+      console.error('spiHelperGetBulkPageText fetch error:', error);
+    }
+  }));
 
   return resultMap;
 }
@@ -146,34 +147,35 @@ export async function spiHelperGetBulkUserBlockSettings(
   }
   const api = spiHelperGetAPI();
   const resultMap = new Map<string, BlockEntry>();
+  const chunkSize = await getApiChunkSize();
 
-  const request: ApiQueryBlocksParams = {
-    action: 'query',
-    list: 'blocks',
-    bklimit: 'max',
-    bkusers: [...usernames],
-    bkprop: ['user', 'reason', 'flags', 'expiry'],
-    formatversion: '2',
-  };
-
-  try {
-    const response = await api.get(request) as BlocksResponse;
-
-    for (const block of response.query.blocks) {
-      resultMap.set(block.user, {
-        username: block.user,
-        duration: block.expiry,
-        acb: block.nocreate,
-        abao: block.autoblock || block.anononly,
-        ntp: !(block.allowusertalk),
-        nem: block.noemail,
-        reason: block.reason,
-      });
+  await Promise.all(chunkArray([...usernames], chunkSize).map(async (chunk) => {
+    const request: ApiQueryBlocksParams = {
+      action: 'query',
+      list: 'blocks',
+      bklimit: 'max',
+      bkusers: chunk,
+      bkprop: ['user', 'reason', 'flags', 'expiry'],
+      formatversion: '2',
+    };
+    try {
+      const response = await api.post(request) as BlocksResponse;
+      for (const block of response.query.blocks) {
+        resultMap.set(block.user, {
+          username: block.user,
+          duration: block.expiry,
+          acb: block.nocreate,
+          abao: block.autoblock || block.anononly,
+          ntp: !(block.allowusertalk),
+          nem: block.noemail,
+          reason: block.reason,
+        });
+      }
     }
-  }
-  catch (error) {
-    console.error('spiHelperGetBulkUserBlockSettings fetch error:', error);
-  }
+    catch (error) {
+      console.error('spiHelperGetBulkUserBlockSettings fetch error:', error);
+    }
+  }));
 
   return resultMap;
 }
@@ -184,33 +186,37 @@ export async function spiHelperGetBulkPageCategories(
 ): Promise<Map<string, string[]>> {
   const api = spiHelperGetAPI();
   const resultMap = new Map<string, string[]>();
+  if (pages.length === 0) {
+    return resultMap;
+  }
+  const chunkSize = await getApiChunkSize();
 
-  const request: ApiQueryCategoriesParams = {
-    action: 'query',
-    prop: 'categories',
-    titles: pages,
-    cllimit: 'max',
-    formatversion: '2',
-  };
-
-  try {
-    const response = await api.get(request) as CategoriesResponse;
-
-    for (const page of response.query.pages) {
-      if (!page.categories) {
-        continue;
+  await Promise.all(chunkArray(pages, chunkSize).map(async (chunk) => {
+    const request: ApiQueryCategoriesParams = {
+      action: 'query',
+      prop: 'categories',
+      titles: chunk,
+      cllimit: 'max',
+      formatversion: '2',
+    };
+    try {
+      const response = await api.post(request) as CategoriesResponse;
+      for (const page of response.query.pages) {
+        if (!page.categories) {
+          continue;
+        }
+        const pageTitle = page.title.split(':', 2)[1];
+        if (!pageTitle) {
+          console.error('spiHelperGetBulkPageCategories: could not find name for', page.title);
+          continue;
+        }
+        resultMap.set(pageTitle, page.categories.map(item => item.title));
       }
-      const pageTitle = page.title.split(':', 2)[1];
-      if (!pageTitle) {
-        console.error('spiHelperGetBulkUserBlockSettings: could not find name for', page.title);
-        continue;
-      }
-      resultMap.set(pageTitle, page.categories.map(item => item.title));
     }
-  }
-  catch (error) {
-    console.error('spiHelperGetBulkPageCategories fetch error:', error);
-  }
+    catch (error) {
+      console.error('spiHelperGetBulkPageCategories fetch error:', error);
+    }
+  }));
 
   return resultMap;
 }
@@ -1063,6 +1069,19 @@ export async function spiHelperGetCategoryMembers(category: string): Promise<str
   catch {
     return [];
   }
+}
+
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+}
+
+async function getApiChunkSize(): Promise<number> {
+  const rights = await mw.user.getRights();
+  return rights.includes('apihighlimits') ? 500 : 50;
 }
 
 const userAgent = `MediaWiki-JS/${mw.config.get('wgVersion')} spihelper/${VERSION}`;
