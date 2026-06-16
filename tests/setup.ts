@@ -14,7 +14,12 @@
     toString() { return this.title; }
   },
   config: {
-    get: (_key: string) => null,
+    get: (key: string) => {
+      if (key === 'wgPageParseReport') {
+        return { limitreport: { postexpandincludesize: { limit: 2097152 } } };
+      }
+      return null;
+    },
   },
   util: {
     isIPAddress: () => false,

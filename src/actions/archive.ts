@@ -11,16 +11,18 @@ import {
   spiHelperCaseClosedRegex,
   spiHelperCaseStatusRegex,
   spiHelperSectionRegex,
-} from '../constants/regex.ts';
+} from '../constants';
 import {
   spiHelperEditPage,
   spiHelperGetInvestigationSections,
   spiHelperGetPageText,
   spiHelperGetPostExpandSize,
+  spiHelperGetPostExpandSizeFromText,
   spiHelperMovePage,
 } from '../api.ts';
 import { spiHelperSettings } from '../options';
 import { VueMessage } from '../ui/messages.ts';
+import type { ArchiveSection } from '../types';
 
 /**
  * Archive all closed sections of a case
@@ -47,36 +49,11 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
   }
 
   let newArchiveText = await spiHelperGetPageText(context.archiveName, true);
-  // A running concern with the SPI archives is whether they exceed the post-expand
-  // include size. Calculate what percent of that size the archive will be if we
-  // add the current page to it - if >1, we need to archive the archive
-  const postExpandPercent = (
-    await spiHelperGetPostExpandSize(context.pageName)
-    + await spiHelperGetPostExpandSize(context.archiveName)
-  ) / spiHelperGetMaxPostExpandSize();
-  if (postExpandPercent >= 1) {
-    // We'd overflow the archive, so move it and then archive the current page
-    // Find the first empty archive page
-    let archiveId = 0;
-    while (newArchiveText !== '') {
-      if (archiveId > 30) {
-        new VueMessage({
-          type: 'error',
-          content: 'Reached upper bound on possible archives, something probably went catastrophically wrong. Exiting',
-        }).show();
-        return;
-      }
-      newArchiveText = await spiHelperGetPageText(`${context.archiveName}/${++archiveId}`, true);
-    }
-    const newArchiveName = `${context.archiveName}/${archiveId}`;
-    await spiHelperMovePage({
-      sourcePage: context.archiveName,
-      destPage: newArchiveName,
-      summary: 'Moving archive to avoid exceeding post expand size limit',
-      ignoreWarnings: false,
-      moveSubpages: false,
-    });
-  }
+  const overflowResult = await spiHelperMoveArchiveIfOverflowing(
+    context.pageName, context.archiveName,
+  );
+  if (overflowResult === 'abort') return;
+  if (overflowResult === 'moved') newArchiveText = '';
   const archiveExists = newArchiveText !== '';
   // Update the archive
   if (archiveExists) {
@@ -225,4 +202,80 @@ export async function spiHelperArchiveCaseSection(section: SectionEntry): Promis
     baseRevId: context.startingRevId,
     sectionId: section.id,
   });
+}
+
+/**
+ * If the combined post-expand size of sourcePage and archiveName would exceed the limit,
+ * moves archiveName to the first available numbered sub-archive to make room.
+ *
+ * @returns 'ok' if no overflow, 'moved' if the archive was relocated, 'abort' if the
+ *          sub-archive limit was reached and the caller should stop
+ */
+export async function spiHelperMoveArchiveIfOverflowing(
+  sourcePage: string, archiveName: string,
+): Promise<'ok' | 'moved' | 'abort'> {
+  const postExpandPercent = (
+    await spiHelperGetPostExpandSize(sourcePage)
+    + await spiHelperGetPostExpandSize(archiveName)
+  ) / spiHelperGetMaxPostExpandSize();
+  if (postExpandPercent < 1) {
+    return 'ok';
+  }
+  const subArchiveId = await findFirstEmptySubArchive(archiveName);
+  if (subArchiveId === null) {
+    return 'abort';
+  }
+  await spiHelperMovePage({
+    sourcePage: archiveName,
+    destPage: `${archiveName}/${subArchiveId}`,
+    summary: 'Moving archive to avoid exceeding post expand size limit',
+    ignoreWarnings: false,
+    moveSubpages: false,
+  });
+  return 'moved';
+}
+
+/**
+ * Finds the first empty numbered sub-archive page (caseName/1, /2, ...).
+ * Returns the slot number, or null if the 30-slot limit is reached.
+ */
+export async function findFirstEmptySubArchive(archiveName: string): Promise<number | null> {
+  let archiveId = 0;
+  let slotText = 'sentinel';
+  while (slotText !== '') {
+    if (archiveId > 30) {
+      new VueMessage({
+        type: 'error',
+        content: 'Reached upper bound on possible archives, something probably went catastrophically wrong.',
+      }).show();
+      return null;
+    }
+    slotText = await spiHelperGetPageText(`${archiveName}/${++archiveId}`, false);
+  }
+  return archiveId;
+}
+
+/**
+ * Binary-searches for the smallest index into `sections` such that
+ * sections[index..] fits within the post-expand size limit.
+ * Returns 0 if all sections fit, sections.length if none do.
+ */
+export async function findArchiveSplitPoint(
+  sections: ArchiveSection[],
+  archiveText: string,
+): Promise<number> {
+  const maxSize = spiHelperGetMaxPostExpandSize();
+  let lo = 0;
+  let hi = sections.length;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const candidateText = rebuildArchiveText(archiveText, sections.slice(mid));
+    if (await spiHelperGetPostExpandSizeFromText(candidateText) < maxSize) {
+      hi = mid;
+    }
+    else {
+      lo = mid + 1;
+    }
+  }
+  return lo;
 }

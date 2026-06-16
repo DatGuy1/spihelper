@@ -5,6 +5,7 @@ import {
   spiHelperEditPage,
   spiHelperGetInvestigationSections,
   spiHelperGetPageText,
+  spiHelperGetPostExpandSizeFromText,
   spiHelperGetProtectionInformation,
   spiHelperGetSPIBacklinks,
   spiHelperGetSiteRestrictionInformation,
@@ -24,8 +25,14 @@ import { type NewPendingChanges, ParsedArchiveNotice, type Protection, type Rest
 import { spiHelperParseArchiveNotice } from '../archivenotice.ts';
 import { type SectionEntry, loadSectionText } from '../state.ts';
 import { VueMessage } from '../ui/messages.ts';
-import { isAbsoluteExpiry, parseArchiveSections, rebuildArchiveText } from '../utils.ts';
+import {
+  isAbsoluteExpiry,
+  parseArchiveSections,
+  rebuildArchiveText,
+  spiHelperGetMaxPostExpandSize,
+} from '../utils.ts';
 import { parseTemplate } from '../template.ts';
+import { findArchiveSplitPoint, findFirstEmptySubArchive } from './archive.ts';
 
 async function getNewProtection(
   oldTitle: string, newTitle: string, siteRestrictions: Restrictions,
@@ -190,6 +197,40 @@ export async function spiHelperMoveCase(opts: {
       const parsedSections = parseArchiveSections(targetArchiveText, archiveSections);
       if (parsedSections) {
         targetArchiveText = rebuildArchiveText(targetArchiveText, parsedSections);
+
+        const maxSize = spiHelperGetMaxPostExpandSize();
+        if (await spiHelperGetPostExpandSizeFromText(targetArchiveText) >= maxSize) {
+          new VueMessage({
+            type: 'notice',
+            content: 'Running binary search to find cutoff point for post-expand include size',
+          }).show();
+          const splitPoint = await findArchiveSplitPoint(parsedSections, targetArchiveText);
+
+          if (splitPoint >= parsedSections.length) {
+            new VueMessage({
+              type: 'error',
+              content: 'Archives are too large to merge without hitting post-expand size limit. Please merge manually',
+            }).show();
+            return;
+          }
+
+          const subArchiveId = await findFirstEmptySubArchive(newContext.archiveName);
+          if (subArchiveId === null) return;
+
+          const subArchiveHeader = `__TOC__\n{{SPI archive notice|1=${newContext.caseName}}}\n{{SPIpriorcases}}\n`;
+          await spiHelperEditPage({
+            title: `${newContext.archiveName}/${subArchiveId}`,
+            newText: rebuildArchiveText(subArchiveHeader, parsedSections.slice(0, splitPoint)),
+            summary: `Splitting archive due to post-expand size limit`,
+            createonly: false,
+            watch: spiHelperSettings.watch.archive,
+            watchExpiry: spiHelperSettings.expiry.archive,
+          });
+          targetArchiveText = rebuildArchiveText(
+            targetArchiveText, parsedSections.slice(splitPoint),
+          );
+        }
+
         await spiHelperEditPage({
           title: newContext.archiveName,
           newText: targetArchiveText,

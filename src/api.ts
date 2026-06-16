@@ -1027,6 +1027,26 @@ export async function spiHelperGetPostExpandSize(
   return 0;
 }
 
+export async function spiHelperGetPostExpandSizeFromText(text: string): Promise<number> {
+  const api = spiHelperGetAPI();
+  const request: ApiParseParams = {
+    action: 'parse',
+    prop: 'limitreportdata',
+    text: text,
+    contentmodel: 'wikitext',
+  };
+  try {
+    const response = await api.post(request) as ParseResponse<'limit'>;
+    return Number(response.parse?.limitreportdata.find(
+      item => item.name === 'limitreport-postexpandincludesize',
+    )?.['0'] ?? 0);
+  }
+  catch {
+    /* empty */
+  }
+  return 0;
+}
+
 /**
  * Parse given text as wikitext without it needing to be currently saved onwiki.
  *
@@ -1071,7 +1091,7 @@ export async function spiHelperGetCategoryMembers(category: string): Promise<str
   }
 }
 
-function chunkArray<T>(arr: T[], size: number): T[][] {
+export function chunkArray<T>(arr: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let i = 0; i < arr.length; i += size) {
     chunks.push(arr.slice(i, i + size));
