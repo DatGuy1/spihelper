@@ -18,7 +18,6 @@ import { isSockpuppetTag } from '../../utils.ts';
 
 export const TagPopoverComponent = defineComponent({
   props: {
-    tag: { type: Object as PropType<Tag | null>, required: true },
     open: { type: Boolean, required: true },
     anchor: { type: Object as PropType<HTMLElement>, required: true },
     clipboardTag: { type: Object as PropType<Tag | null>, required: true },
@@ -26,7 +25,7 @@ export const TagPopoverComponent = defineComponent({
   },
   emits: {
     'update:open': (_: boolean) => true,
-    'update:tag': (_: Tag) => true,
+    'saveTag': (_: Tag) => true,
     'addTag': () => true,
     'copyTag': (_: Tag) => true,
     'deleteTag': () => true,
@@ -108,20 +107,16 @@ export const TagPopoverComponent = defineComponent({
       },
     },
   },
-  watch: {
-    tag(newTag: Tag | null) {
-      if (newTag) {
-        this.temporaryTag = newTag.clone();
-      }
-    },
-  },
   methods: {
+    setTag(newTag: Tag | null) {
+      this.temporaryTag = newTag ? newTag.clone() : null;
+    },
     handleSave() {
       if (this.temporaryTag === null) {
         console.error('No tag to save');
         return;
       }
-      this.$emit('update:tag', this.temporaryTag);
+      this.$emit('saveTag', this.temporaryTag);
       this.openValue = false;
     },
     handleCancel() {

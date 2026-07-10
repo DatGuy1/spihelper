@@ -14,10 +14,12 @@ import {
   type InputColumn,
   SockpuppetTag,
   type Tag,
+  type TagRowPopoverState,
   type UserRow,
 } from '../../../../types';
 import { isNonRegisteredAccount, isSockmasterTag, isSockpuppetTag } from '../../../../utils.ts';
 import { isInputDisabled } from '../../../utils.ts';
+import { TagPopoverComponent } from '../../tagPopover.ts';
 
 export const BlockActionComponent = defineComponent({
   props: {
@@ -57,15 +59,13 @@ export const BlockActionComponent = defineComponent({
     const popovers = {
       all: {
         open: false,
-        tag: null as Tag | null,
       },
       row: {
-        anchor: null as HTMLElement | null,
+        anchor: null,
         open: false,
-        tag: null as Tag | null,
         tagIndex: 0,
-        rowId: null as string | null,
-      },
+        rowId: null,
+      } as TagRowPopoverState,
       clipboardTag: null as Tag | null,
     };
 
@@ -172,7 +172,7 @@ export const BlockActionComponent = defineComponent({
     handleUserSelected(data: AllUser, row: UserRow) {
       this.$emit('userSelected', data, row.id);
     },
-    setAllBlockFields<K extends 'block' | 'duration' | 'acb' | 'abao' | 'ntp' | 'nem' | 'lock'>(key: K, value: BlockRowData[K]) {
+    setAllBlockFields<K extends InputColumn>(key: K, value: BlockRowData[K]) {
       for (const row of this.getTargetRows()) {
         if (this.isInputDisabled(row, key)) continue;
         row.block[key] = value;
@@ -201,11 +201,21 @@ export const BlockActionComponent = defineComponent({
       rowId: string,
       $event: MouseEvent,
     ) {
-      this.popovers.row.tag = tag;
+      // Only reseed the popover's draft when the target slot itself changes. Reopening the
+      // same slot (e.g. after Cancel) should keep whatever's still being edited.
+      const isNewTarget = rowId !== this.popovers.row.rowId
+        || tagIndex !== this.popovers.row.tagIndex;
       this.popovers.row.tagIndex = tagIndex;
       this.popovers.row.rowId = rowId;
       this.popovers.row.anchor = $event.currentTarget as HTMLElement;
-      this.popovers.row.open = true;
+      if (isNewTarget) {
+        this.popovers.row.open = true;
+        const rowTagPopover = this.$refs.rowTagPopover as InstanceType<typeof TagPopoverComponent>;
+        rowTagPopover.setTag(tag);
+      }
+      else {
+        this.popovers.row.open = !this.popovers.row.open;
+      }
     },
     handleTagUpdate(updatedTag: Tag) {
       const targetRow = this.accounts.find(row => row.id === this.popovers.row.rowId);
@@ -420,10 +430,9 @@ export const BlockActionComponent = defineComponent({
                 Set all tags
               </cdx-button>
               <tag-popover :anchor="$refs.selectAllTagButton" :default-master="defaultMaster"
-                           v-model:open="popovers.all.open" :tag="popovers.all.tag"
-                           :clipboard-tag="popovers.clipboardTag" @update:tag="setAllTags"
-                           @deleteTag="handleTagDeleteAll" @addTag="handleTagAddAll"
-                           @copyTag="popovers.clipboardTag = $event" />
+                           v-model:open="popovers.all.open" :clipboard-tag="popovers.clipboardTag"
+                           @saveTag="setAllTags" @deleteTag="handleTagDeleteAll"
+                           @addTag="handleTagAddAll" @copyTag="popovers.clipboardTag = $event" />
             </th>
 
             <th scope="col">
@@ -502,10 +511,10 @@ export const BlockActionComponent = defineComponent({
           <cdx-button @click="addDefaultRow">Add Row</cdx-button>
         </template>
       </cdx-table>
-      <tag-popover :anchor="popovers.row.anchor" v-model:open="popovers.row.open" :default-master="defaultMaster"
-                   :tag="popovers.row.tag" :clipboard-tag="popovers.clipboardTag" @update:tag="handleTagUpdate"
-                   @deleteTag="handleTagDelete" @addTag="handleTagAdd(popovers.row.rowId)"
-                   @copyTag="popovers.clipboardTag = $event" />
+      <tag-popover ref="rowTagPopover" :anchor="popovers.row.anchor" v-model:open="popovers.row.open"
+                   :default-master="defaultMaster" :clipboard-tag="popovers.clipboardTag"
+                   @saveTag="handleTagUpdate" @addTag="handleTagAdd(popovers.row.rowId)"
+                   @deleteTag="handleTagDelete" @copyTag="popovers.clipboardTag = $event" />
     </action-container>
   `,
 });

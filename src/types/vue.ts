@@ -29,3 +29,10 @@ export interface FeedbackDialog {
 }
 
 export type InputColumn = 'block' | 'duration' | 'acb' | 'abao' | 'ntp' | 'nem' | 'lock';
+
+export interface TagRowPopoverState {
+  anchor: HTMLElement | null;
+  open: boolean;
+  tagIndex: number;
+  rowId: string | null;
+}
