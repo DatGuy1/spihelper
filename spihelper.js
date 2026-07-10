@@ -239,12 +239,16 @@
       return this;
     }
     update(opts) {
-      Object.assign(this, opts);
       if (this._index === undefined) {
+        Object.assign(this, opts);
         this.show();
-      } else {
-        messages[this._index] = this;
+        return this;
       }
+      const current = messages[this._index];
+      if (current) {
+        Object.assign(current, opts);
+      }
+      Object.assign(this, opts);
       return this;
     }
   }
@@ -2715,7 +2719,8 @@
         enabled: false,
         data: {
           target: "",
-          suppress: false
+          suppress: false,
+          addNote: false
         }
       },
       archive: {
@@ -2940,6 +2945,7 @@
                        v-model:flags="caseActions.management.data.flags" />
     <move-action v-else-if="name === 'move'" v-model:enabled="caseActions.move.enabled"
                  v-model:target="caseActions.move.data.target" v-model:suppress="caseActions.move.data.suppress"
+                 v-model:addNote="caseActions.move.data.addNote"
                  :selection="state.selectedSection" :archive-enabled="caseActions.archive.enabled"
                  @move-entire-case="handleMoveEntireCase" />
     <archive-action v-else-if="name === 'archive'" v-model:enabled="caseActions.archive.enabled"
@@ -3324,7 +3330,7 @@
 `;
     }
     const archiveSectionEntries = archiveExists ? await spiHelperGetInvestigationSections({ pageName: context.archiveName }) : [];
-    const parsedArchiveSections = parseArchiveSections(newArchiveText, archiveSectionEntries);
+    const parsedArchiveSections = archiveExists && archiveSectionEntries.length === 0 ? null : parseArchiveSections(newArchiveText, archiveSectionEntries);
     if (!parsedArchiveSections) {
       new VueMessage({ type: "notice", content: "Failed to parse existing archive sections, aborting archival" }).show();
       return;
@@ -3387,7 +3393,8 @@
       message.show();
       return;
     }
-    if (archiveText === "") {
+    const archiveExists = archiveText !== "";
+    if (!archiveExists) {
       archiveText = `__TOC__
 {{SPI archive notice|1=` + context.caseName + `}}
 {{SPIpriorcases}}
@@ -3396,11 +3403,11 @@
       archiveText = archiveText.replace(/<br\s*\/>\s*{{SPIpriorcases}}/gi, `
 {{SPIpriorcases}}`);
     }
-    const investigationMessage = new VueMessage({ type: "notice", content: "Loading archive sections" }).show();
-    const archiveSectionEntries = await spiHelperGetInvestigationSections({ pageName: context.archiveName });
-    const parsedArchiveSections = parseArchiveSections(archiveText, archiveSectionEntries);
+    const investigationMessage = archiveExists ? new VueMessage({ type: "notice", content: "Loading archive sections" }).show() : null;
+    const archiveSectionEntries = archiveExists ? await spiHelperGetInvestigationSections({ pageName: context.archiveName }) : [];
+    const parsedArchiveSections = archiveExists && archiveSectionEntries.length === 0 ? null : parseArchiveSections(archiveText, archiveSectionEntries);
     if (parsedArchiveSections) {
-      investigationMessage.update({ type: "success", content: "Archive sections loaded" });
+      investigationMessage?.update({ type: "success", content: "Archive sections loaded" });
       const sectionDate = parseSectionDate(section.name);
       if (!sectionDate) {
         new VueMessage({ type: "error", content: `Failed to parse date from section header '${section.name}'` }).show();
@@ -3408,7 +3415,7 @@
       }
       parsedArchiveSections.push({ header: sectionDate, fullText: sectionText });
     } else {
-      investigationMessage.update({
+      investigationMessage?.update({
         type: "error",
         content: "Failed to parse existing archive sections, aborting archival"
       });
@@ -3772,8 +3779,79 @@ $1`);
     }
     return newStabilisationSettings;
   }
+  async function mergeArchives(oldContext, newContext, addNote) {
+    const sourceArchiveText = await spiHelperGetPageText(oldContext.archiveName, false);
+    let targetArchiveText = await spiHelperGetPageText(newContext.archiveName, false);
+    if (!sourceArchiveText || !targetArchiveText) {
+      return "skipped";
+    }
+    new VueMessage({
+      type: "notice",
+      content: "Archives detected on both source and target cases, copying it manually."
+    }).show();
+    const sourceArchiveEntries = await spiHelperGetInvestigationSections({ pageName: oldContext.archiveName });
+    const targetArchiveEntries = await spiHelperGetInvestigationSections({ pageName: newContext.archiveName });
+    const sourceArchiveSections = sourceArchiveEntries.length ? parseArchiveSections(sourceArchiveText, sourceArchiveEntries) : null;
+    const targetArchiveSections = targetArchiveEntries.length ? parseArchiveSections(targetArchiveText, targetArchiveEntries) : null;
+    if (!sourceArchiveSections || !targetArchiveSections) {
+      new VueMessage({
+        type: "error",
+        content: "Could not parse the archive. Please merge the archives manually"
+      }).show();
+      return "skipped";
+    }
+    if (addNote) {
+      for (const section of sourceArchiveSections) {
+        section.fullText = section.fullText.replace(/\n*----(?!([\n.])*----)/, `
+* {{clerknote}} originally filed under [[${oldContext.pageName}]]. ~~~~
+----`);
+      }
+    }
+    const parsedSections = [...targetArchiveSections, ...sourceArchiveSections];
+    targetArchiveText = rebuildArchiveText(targetArchiveText, parsedSections);
+    const maxSize = spiHelperGetMaxPostExpandSize();
+    if (await spiHelperGetPostExpandSizeFromText(targetArchiveText) >= maxSize) {
+      new VueMessage({
+        type: "notice",
+        content: "Running binary search to find cutoff point for post-expand include size"
+      }).show();
+      const splitPoint = await findArchiveSplitPoint(parsedSections, targetArchiveText);
+      if (splitPoint >= parsedSections.length) {
+        new VueMessage({
+          type: "error",
+          content: "Archives are too large to merge without hitting post-expand size limit. Please merge manually"
+        }).show();
+        return "abort";
+      }
+      const subArchiveId = await findFirstEmptySubArchive(newContext.archiveName);
+      if (subArchiveId === null)
+        return "abort";
+      const subArchiveHeader = `__TOC__
+{{SPI archive notice|1=${newContext.caseName}}}
+{{SPIpriorcases}}
+`;
+      await spiHelperEditPage({
+        title: `${newContext.archiveName}/${subArchiveId}`,
+        newText: rebuildArchiveText(subArchiveHeader, parsedSections.slice(0, splitPoint)),
+        summary: `Splitting archive due to post-expand size limit`,
+        createonly: false,
+        watch: spiHelperSettings.watch.archive,
+        watchExpiry: spiHelperSettings.expiry.archive
+      });
+      targetArchiveText = rebuildArchiveText(targetArchiveText, parsedSections.slice(splitPoint));
+    }
+    await spiHelperEditPage({
+      title: newContext.archiveName,
+      newText: targetArchiveText,
+      summary: `Merging archives from [[${oldContext.prefixedName}]], see page history for attribution`,
+      createonly: false,
+      watch: spiHelperSettings.watch.archive,
+      watchExpiry: spiHelperSettings.expiry.archive
+    });
+    return "copied";
+  }
   async function spiHelperMoveCase(opts) {
-    const { target, suppress, archiveNotice } = opts;
+    const { target, suppress, addNote, archiveNotice } = opts;
     const oldContext = context;
     const newContext = new SpiPageContext(context.pageName.replace(context.caseName, target));
     const targetPageText = await spiHelperGetPageText(newContext.pageName, false);
@@ -3796,72 +3874,10 @@ $1`);
       new VueMessage({ type: "error", content: "Target page is the current page, aborting merge" }).show();
       return;
     }
-    let archivesCopied = false;
     if (targetPageText) {
-      let sourceArchiveText = await spiHelperGetPageText(oldContext.archiveName, false);
-      let targetArchiveText = await spiHelperGetPageText(newContext.archiveName, false);
-      if (sourceArchiveText && targetArchiveText) {
-        new VueMessage({
-          type: "notice",
-          content: "Archives detected on both source and target cases, copying it manually."
-        }).show();
-        sourceArchiveText = sourceArchiveText.replace(/^\s*__TOC__\s*$\n/gm, "");
-        sourceArchiveText = sourceArchiveText.replace(spiHelperArchiveNoticeRegex, "");
-        sourceArchiveText = sourceArchiveText.replace(spiHelperPriorCasesRegex, "");
-        sourceArchiveText = sourceArchiveText.replace(/^\n*/, "");
-        targetArchiveText += `
-` + sourceArchiveText;
-        const archiveSections = await spiHelperGetInvestigationSections({ content: targetArchiveText });
-        const parsedSections = parseArchiveSections(targetArchiveText, archiveSections);
-        if (parsedSections) {
-          targetArchiveText = rebuildArchiveText(targetArchiveText, parsedSections);
-          const maxSize = spiHelperGetMaxPostExpandSize();
-          if (await spiHelperGetPostExpandSizeFromText(targetArchiveText) >= maxSize) {
-            new VueMessage({
-              type: "notice",
-              content: "Running binary search to find cutoff point for post-expand include size"
-            }).show();
-            const splitPoint = await findArchiveSplitPoint(parsedSections, targetArchiveText);
-            if (splitPoint >= parsedSections.length) {
-              new VueMessage({
-                type: "error",
-                content: "Archives are too large to merge without hitting post-expand size limit. Please merge manually"
-              }).show();
-              return;
-            }
-            const subArchiveId = await findFirstEmptySubArchive(newContext.archiveName);
-            if (subArchiveId === null)
-              return;
-            const subArchiveHeader = `__TOC__
-{{SPI archive notice|1=${newContext.caseName}}}
-{{SPIpriorcases}}
-`;
-            await spiHelperEditPage({
-              title: `${newContext.archiveName}/${subArchiveId}`,
-              newText: rebuildArchiveText(subArchiveHeader, parsedSections.slice(0, splitPoint)),
-              summary: `Splitting archive due to post-expand size limit`,
-              createonly: false,
-              watch: spiHelperSettings.watch.archive,
-              watchExpiry: spiHelperSettings.expiry.archive
-            });
-            targetArchiveText = rebuildArchiveText(targetArchiveText, parsedSections.slice(splitPoint));
-          }
-          await spiHelperEditPage({
-            title: newContext.archiveName,
-            newText: targetArchiveText,
-            summary: `Merging archives from [[${oldContext.prefixedName}]], see page history for attribution`,
-            createonly: false,
-            watch: spiHelperSettings.watch.archive,
-            watchExpiry: spiHelperSettings.expiry.archive
-          });
-          archivesCopied = true;
-        } else {
-          new VueMessage({
-            type: "error",
-            content: "Could not parse the archive. Please merge the archives manually"
-          }).show();
-        }
-      }
+      const mergeResult = await mergeArchives(oldContext, newContext, addNote);
+      if (mergeResult === "abort")
+        return;
       const siteRestrictions = await spiHelperGetSiteRestrictionInformation();
       const newProtection = await getNewProtection(oldContext.pageName, newContext.pageName, siteRestrictions);
       const newPendingChanges = await getNewPendingChanges(oldContext.pageName, newContext.pageName, siteRestrictions);
@@ -3874,7 +3890,7 @@ $1`);
         suppressRedirect: suppress
       });
       await spiHelperUndeletePage(newContext.pageName, "Restoring page history after merge");
-      if (archivesCopied) {
+      if (mergeResult === "copied") {
         if (suppress) {
           await spiHelperDeletePage(oldContext.archiveName, `Archives moved to [[${newContext.archiveName}]]`);
         } else {
@@ -4072,6 +4088,7 @@ $1`);
       });
     }
     let newPageText = await spiHelperGetPageText(newContext.pageName, true);
+    newPageText = addOldMasterToSockList(newPageText, oldContext.caseName);
     if (preMergeText) {
       let appendText = preMergeText.replace(/\n*<noinclude>__TOC__.*\n/ig, "");
       appendText = appendText.replace(spiHelperArchiveNoticeRegex, "");
@@ -4080,7 +4097,6 @@ $1`);
 ` + appendText;
     }
     newPageText = newPageText.replace(spiHelperArchiveNoticeRegex, newNotice.generateWikitext());
-    newPageText = addOldMasterToSockList(newPageText, oldContext.caseName);
     const newMasterReString = "(sockpuppets\\s*====.*?)\\n^\\s*\\*\\s*{{checkuser\\|(?:1=)?" + newContext.caseName + "(?:\\|master name\\s*=.*?)?}}\\s*$(.*====\\s*<big>)";
     const newMasterRe = new RegExp(newMasterReString, "sm");
     newPageText = newPageText.replace(newMasterRe, `$1
@@ -4430,6 +4446,7 @@ $2`);
             await spiHelperMoveCase({
               target: renameTarget,
               suppress: actions.move.data.suppress,
+              addNote: actions.move.data.addNote,
               archiveNotice: state.archiveNotice
             });
             break;
@@ -4601,21 +4618,21 @@ ${comment}
           talkNotices.push("sock");
         }
         const maxJitter = Math.max(500, userRows.length * 100);
-        blockPromises.push((async () => {
+        const blockOutcome = (async () => {
           const userBlock = userBlocks.get(userRow.username);
           if (userBlock !== undefined && !blockOptions.override) {
             const alreadyBlockedWarning = new VueMessage({
               type: "warning",
               content: `Block target ${userRow.username} is already blocked. `
             });
-            if (userRow.block.tags.length > 0) {
+            const shouldTag = userRow.block.tags.length > 0;
+            if (shouldTag) {
               alreadyBlockedWarning.content += "Proceeding with tagging";
-              tagPromises.push(tagSock(userRow, true));
             } else {
               alreadyBlockedWarning.content += `Check the "override existing blocks" box to re-block them`;
             }
             alreadyBlockedWarning.show();
-            return null;
+            return { blockedUsername: null, shouldTag };
           }
           const blockReason = userBlock?.reason;
           if (!spiHelperIsCheckuser() && !skipCUVerifyUsers.has(userRow.username) && blockOptions.override && blockReason && spiHelperCUBlockRegex.exec(blockReason)) {
@@ -4623,7 +4640,7 @@ ${comment}
 ` + `Current block message:
 ` + blockReason;
             if (!confirm(prompt)) {
-              return null;
+              return { blockedUsername: null, shouldTag: false };
             }
           }
           if (!userRow.block.duration) {
@@ -4631,30 +4648,40 @@ ${comment}
               type: "error",
               content: `Block target ${userRow.username} does not have an intended duration`
             }).show();
-            return null;
+            return { blockedUsername: null, shouldTag: false };
           }
           await new Promise((r) => setTimeout(r, Math.random() * maxJitter));
           const blockSuccess = await spiHelperProcessBlockRow({
             sock: userRow,
             blockOptions
           });
-          if (!blockSuccess) {
-            return null;
-          }
-          if (talkNotices.length > 0) {
-            talkNoticePromises.push(spiHelperAddTalkBlockNotice({
+          return { blockedUsername: blockSuccess ? userRow.username : null, shouldTag: blockSuccess };
+        })();
+        blockPromises.push(blockOutcome.then(({ blockedUsername }) => blockedUsername));
+        if (talkNotices.length > 0) {
+          talkNoticePromises.push((async () => {
+            const { blockedUsername } = await blockOutcome;
+            if (blockedUsername === null) {
+              return;
+            }
+            await spiHelperAddTalkBlockNotice({
               sock: userRow,
               userTalkContent: userTalkPages.get(userRow.username),
               blockOptions,
               talkNotices,
               defaultMaster: master
-            }));
-          }
-          if (userRow.block.tags.length > 0) {
-            tagPromises.push(tagSock(userRow, true));
-          }
-          return userRow.username;
-        })());
+            });
+          })());
+        }
+        if (userRow.block.tags.length > 0) {
+          tagPromises.push((async () => {
+            const { shouldTag } = await blockOutcome;
+            if (!shouldTag) {
+              return null;
+            }
+            return tagSock(userRow, true);
+          })());
+        }
       } else if (userRow.block.tags.length > 0) {
         tagPromises.push(tagSock(userRow, userBlocks.has(userRow.username)));
       }
@@ -5345,13 +5372,11 @@ ${comment}
       const topButtonActions = { copied: false, fetched: false };
       const popovers = {
         all: {
-          open: false,
-          tag: null
+          open: false
         },
         row: {
           anchor: null,
           open: false,
-          tag: null,
           tagIndex: 0,
           rowId: null
         },
@@ -5469,11 +5494,17 @@ ${comment}
         this.$emit("fetchRows");
       },
       showTagPopover(tag2, tagIndex, rowId, $event) {
-        this.popovers.row.tag = tag2;
+        const isNewTarget = rowId !== this.popovers.row.rowId || tagIndex !== this.popovers.row.tagIndex;
         this.popovers.row.tagIndex = tagIndex;
         this.popovers.row.rowId = rowId;
         this.popovers.row.anchor = $event.currentTarget;
-        this.popovers.row.open = true;
+        if (isNewTarget) {
+          this.popovers.row.open = true;
+          const rowTagPopover = this.$refs.rowTagPopover;
+          rowTagPopover.setTag(tag2);
+        } else {
+          this.popovers.row.open = !this.popovers.row.open;
+        }
       },
       handleTagUpdate(updatedTag) {
         const targetRow = this.accounts.find((row) => row.id === this.popovers.row.rowId);
@@ -5686,10 +5717,9 @@ ${comment}
                 Set all tags
               </cdx-button>
               <tag-popover :anchor="$refs.selectAllTagButton" :default-master="defaultMaster"
-                           v-model:open="popovers.all.open" :tag="popovers.all.tag"
-                           :clipboard-tag="popovers.clipboardTag" @update:tag="setAllTags"
-                           @deleteTag="handleTagDeleteAll" @addTag="handleTagAddAll"
-                           @copyTag="popovers.clipboardTag = $event" />
+                           v-model:open="popovers.all.open" :clipboard-tag="popovers.clipboardTag"
+                           @saveTag="setAllTags" @deleteTag="handleTagDeleteAll"
+                           @addTag="handleTagAddAll" @copyTag="popovers.clipboardTag = $event" />
             </th>
 
             <th scope="col">
@@ -5768,10 +5798,10 @@ ${comment}
           <cdx-button @click="addDefaultRow">Add Row</cdx-button>
         </template>
       </cdx-table>
-      <tag-popover :anchor="popovers.row.anchor" v-model:open="popovers.row.open" :default-master="defaultMaster"
-                   :tag="popovers.row.tag" :clipboard-tag="popovers.clipboardTag" @update:tag="handleTagUpdate"
-                   @deleteTag="handleTagDelete" @addTag="handleTagAdd(popovers.row.rowId)"
-                   @copyTag="popovers.clipboardTag = $event" />
+      <tag-popover ref="rowTagPopover" :anchor="popovers.row.anchor" v-model:open="popovers.row.open"
+                   :default-master="defaultMaster" :clipboard-tag="popovers.clipboardTag"
+                   @saveTag="handleTagUpdate" @addTag="handleTagAdd(popovers.row.rowId)"
+                   @deleteTag="handleTagDelete" @copyTag="popovers.clipboardTag = $event" />
     </action-container>
   `
   });
@@ -6314,10 +6344,11 @@ ${comment}
       enabled: { type: Boolean, required: true },
       target: { type: String, required: true },
       suppress: { type: Boolean, required: true },
+      addNote: { type: Boolean, required: true },
       selection: { type: Object, required: true },
       archiveEnabled: { type: Boolean, required: true }
     },
-    emits: ["update:enabled", "update:target", "update:suppress", "moveEntireCase"],
+    emits: ["update:enabled", "update:target", "update:suppress", "update:addNote", "moveEntireCase"],
     data() {
       return {
         canSuppressRedirect: spiHelperCanSuppressRedirect()
@@ -6379,6 +6410,12 @@ ${comment}
             of the old case page
           </template>
           (one you're on right now)
+        </template>
+      </cdx-checkbox>
+      <cdx-checkbox v-if="!isSectionMove" :model-value="addNote" @update:model-value="$emit('update:addNote', $event)">
+        Add old case note in archives
+        <template #description>
+          Adds a note for the original case name in merged archives to help distinguish them
         </template>
       </cdx-checkbox>
     </action-container>
@@ -6877,7 +6914,6 @@ ${comment}
   // src/ui/views/tagPopover.ts
   var TagPopoverComponent = defineComponent({
     props: {
-      tag: { type: Object, required: true },
       open: { type: Boolean, required: true },
       anchor: { type: Object, required: true },
       clipboardTag: { type: Object, required: true },
@@ -6885,7 +6921,7 @@ ${comment}
     },
     emits: {
       "update:open": (_) => true,
-      "update:tag": (_) => true,
+      saveTag: (_) => true,
       addTag: () => true,
       copyTag: (_) => true,
       deleteTag: () => true
@@ -6962,20 +6998,16 @@ ${comment}
         }
       }
     },
-    watch: {
-      tag(newTag) {
-        if (newTag) {
-          this.temporaryTag = newTag.clone();
-        }
-      }
-    },
     methods: {
+      setTag(newTag) {
+        this.temporaryTag = newTag ? newTag.clone() : null;
+      },
       handleSave() {
         if (this.temporaryTag === null) {
           console.error("No tag to save");
           return;
         }
-        this.$emit("update:tag", this.temporaryTag);
+        this.$emit("saveTag", this.temporaryTag);
         this.openValue = false;
       },
       handleCancel() {
@@ -7341,8 +7373,14 @@ ${comment}
         this.actionsRunning = true;
         let blockPromises = [];
         let tagPromises = [];
+        let talkNoticePromises = [];
         let lockPromise = Promise.resolve([]);
-        ({ blockPromises, tagPromises, lockPromise } = await spiHelperHandleBlocks({
+        ({
+          blockPromises,
+          tagPromises,
+          talkNoticePromises,
+          lockPromise
+        } = await spiHelperHandleBlocks({
           accounts: this.accounts,
           blockData: this.blockData
         }));
@@ -7351,7 +7389,9 @@ ${comment}
           Promise.all(tagPromises),
           lockPromise
         ]);
+        const talkNoticePromise = Promise.all(talkNoticePromises);
         const [blockedUsers, taggedUsers, lockedUsers] = await userActionsPromise;
+        await talkNoticePromise;
         if (spiHelperSettings.log.enabled) {
           const logMessage = `* [[:User:${context.userName}]]` + buildUserActionLogMessage({ blockedUsers, taggedUsers, lockedUsers });
           await spiHelperLog(logMessage);
