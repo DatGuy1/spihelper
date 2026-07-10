@@ -137,15 +137,16 @@
     pointer-events: none;
     z-index: -1;
 
-    &--selected {
-        border: 3px solid var(--border-color-progressive, #36c);
-        background-color: var(--background-color-progressive-subtle, #e8f1ff);
-    }
+}
 
-    &--preview {
-        border: 1px dashed var(--border-color-progressive, #36c);
-        background-color: var(--background-color-progressive-subtle, #f3f7ff);
-    }
+.spiHelper-section-overlay--selected {
+    border: 3px solid var(--border-color-progressive, #36c);
+    background-color: var(--background-color-progressive-subtle, #e8f1ff);
+}
+
+.spiHelper-section-overlay--preview {
+    border: 1px dashed var(--border-color-progressive, #36c);
+    background-color: var(--background-color-progressive-subtle, #f3f7ff);
 }
 
 .spiHelper-blockoptions-group {
