@@ -17,6 +17,7 @@ import { reactive } from 'vue';
   },
   config: {
     get: (key: string) => {
+      if (key === 'wgServer') return '//en.wikipedia.org';
       if (key === 'wgPageParseReport') {
         return { limitreport: { postexpandincludesize: { limit: 2097152 } } };
       }

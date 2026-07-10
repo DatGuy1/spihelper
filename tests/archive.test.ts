@@ -1,15 +1,21 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { ArchiveSection } from '../src/types';
+import { SectionEntry } from '../src/state.ts';
+import { type EditPageOpts, buildArchiveText } from './archiveFixtures.ts';
 
 // Mock api.ts before importing archive.ts so the module under test picks up the stubs.
 const mockGetPostExpandSize = mock((_title: string) => Promise.resolve(0));
-const mockGetPageText = mock((_title: string, _show: boolean) => Promise.resolve(''));
+const mockGetPageText = mock((_title: string, _show: boolean, _sectionId?: number | null) => Promise.resolve(''));
 const mockMovePage = mock(() => Promise.resolve());
 const mockGetPostExpandSizeFromText = mock((_text: string) => Promise.resolve(0));
+const mockEditPage = mock((_opts: EditPageOpts) => Promise.resolve<number | null>(null));
+const mockGetInvestigationSections = mock(
+  (_opts: { pageName?: string; content?: string }): Promise<SectionEntry[]> => Promise.resolve([]),
+);
 
 void mock.module('../src/api.ts', () => ({
-  spiHelperEditPage: mock(() => Promise.resolve(null)),
-  spiHelperGetInvestigationSections: mock(() => Promise.resolve([])),
+  spiHelperEditPage: mockEditPage,
+  spiHelperGetInvestigationSections: mockGetInvestigationSections,
   spiHelperGetPageText: mockGetPageText,
   spiHelperGetPostExpandSize: mockGetPostExpandSize,
   spiHelperGetPostExpandSizeFromText: mockGetPostExpandSizeFromText,
@@ -18,14 +24,27 @@ void mock.module('../src/api.ts', () => ({
 
 const {
   findArchiveSplitPoint,
+  spiHelperArchiveCase,
+  spiHelperArchiveCaseSection,
   spiHelperMoveArchiveIfOverflowing,
 } = await import('../src/actions/archive.ts');
+const { messages } = await import('../src/ui/messages.ts');
+const { CaseState } = await import('../src/state.ts');
+
+// context is a `let` export reassigned by setContext(), so grab it only after calling
+// setContext() — destructuring it earlier would capture the pre-init `undefined` snapshot.
+const contextModule = await import('../src/context.ts');
+contextModule.setContext('Wikipedia:Sockpuppet investigations/Foo');
+const { context } = contextModule;
 
 beforeEach(() => {
-  mockGetPostExpandSize.mockReset();
-  mockGetPageText.mockReset();
+  mockGetPostExpandSize.mockReset().mockResolvedValue(0);
+  mockGetPageText.mockReset().mockResolvedValue('');
   mockMovePage.mockReset();
-  mockGetPostExpandSizeFromText.mockReset();
+  mockGetPostExpandSizeFromText.mockReset().mockResolvedValue(0);
+  mockEditPage.mockReset().mockResolvedValue(null);
+  mockGetInvestigationSections.mockReset().mockResolvedValue([]);
+  messages.length = 0;
 });
 
 describe('spiHelperMoveArchiveIfOverflowing', () => {
@@ -130,5 +149,92 @@ describe('findArchiveSplitPoint', () => {
     await findArchiveSplitPoint(sections, '');
     // log2(8) = 3 probes for a balanced binary search
     expect(mockGetPostExpandSizeFromText.mock.calls.length).toBeLessThanOrEqual(3);
+  });
+});
+
+describe('spiHelperArchiveCaseSection', () => {
+  const section = new SectionEntry(1, '09 July 2020');
+  const sectionText = '===09 July 2020===\n{{SPI case status|}}\nEvidence about SockA.\n----';
+  const existingArchiveText = buildArchiveText({
+    caseName: 'Foo', date: '01 January 2019', evidence: 'Existing evidence that must not be lost.',
+  });
+
+  function stubPageText(archiveText: string) {
+    mockGetPageText.mockImplementation(
+      (title: string, _show: boolean, sectionId?: number | null) => {
+        if (title === context.archiveName) return Promise.resolve(archiveText);
+        if (title === context.pageName && sectionId === section.id) {
+          return Promise.resolve(sectionText);
+        }
+        return Promise.resolve('');
+      },
+    );
+  }
+
+  test('does not overwrite the archive when the section listing fetch fails', async () => {
+    stubPageText(existingArchiveText);
+    mockGetInvestigationSections.mockResolvedValue([]); // simulated fetch failure
+    await spiHelperArchiveCaseSection(section);
+    // Must not silently rebuild the archive from a bogus "zero existing sections" read
+    expect(mockEditPage).not.toHaveBeenCalled();
+  });
+
+  test('does not show a loading message when creating a brand-new archive', async () => {
+    stubPageText('');
+    await spiHelperArchiveCaseSection(section);
+    expect(messages.some(m => m.content === 'Loading archive sections')).toBe(false);
+  });
+
+  test('shows a loading message when merging into an existing archive', async () => {
+    stubPageText(existingArchiveText);
+    mockGetInvestigationSections.mockResolvedValue([new SectionEntry(0, '01 January 2019')]);
+    await spiHelperArchiveCaseSection(section);
+    // update() mutates the message in place, so only the final content survives —
+    // seeing the "loaded" state at all proves a (non-null) message was shown and updated
+    expect(messages.some(m => m.content === 'Archive sections loaded')).toBe(true);
+  });
+
+  test('archives successfully into a brand-new archive', async () => {
+    stubPageText('');
+    await spiHelperArchiveCaseSection(section);
+    expect(mockEditPage).toHaveBeenCalledTimes(1);
+    const call = mockEditPage.mock.calls[0]?.[0];
+    expect(call?.title).toBe(context.archiveName);
+    expect(call?.newText).toContain('Evidence about SockA.');
+  });
+});
+
+describe('spiHelperArchiveCase', () => {
+  const section = new SectionEntry(1, '09 July 2020');
+  const sectionText = '===09 July 2020===\n{{SPI case status|closed}}\nEvidence about SockA.\n----';
+  const existingArchiveText = buildArchiveText({
+    caseName: 'Foo', date: '01 January 2019', evidence: 'Existing evidence that must not be lost.',
+  });
+
+  function stubPageText() {
+    mockGetPageText.mockImplementation((title: string) => {
+      if (title === context.archiveName) return Promise.resolve(existingArchiveText);
+      if (title === context.pageName) return Promise.resolve(sectionText);
+      return Promise.resolve('');
+    });
+  }
+
+  test('does not overwrite the archive when the section listing fetch fails', async () => {
+    stubPageText();
+    mockGetInvestigationSections.mockResolvedValue([]); // simulated fetch failure
+    const state = new CaseState([section]);
+    await spiHelperArchiveCase(state);
+    // Must not silently rebuild the archive from a bogus "zero existing sections" read
+    expect(mockEditPage).not.toHaveBeenCalled();
+  });
+
+  test('archives the closed section into the existing archive', async () => {
+    stubPageText();
+    mockGetInvestigationSections.mockResolvedValue([new SectionEntry(0, '01 January 2019')]);
+    const state = new CaseState([section]);
+    await spiHelperArchiveCase(state);
+    const archiveCall = mockEditPage.mock.calls.find(c => c[0].title === context.archiveName)?.[0];
+    expect(archiveCall?.newText).toContain('Existing evidence that must not be lost.');
+    expect(archiveCall?.newText).toContain('Evidence about SockA.');
   });
 });

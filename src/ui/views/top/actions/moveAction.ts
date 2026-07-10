@@ -7,10 +7,11 @@ export const MoveActionComponent = defineComponent({
     enabled: { type: Boolean, required: true },
     target: { type: String, required: true },
     suppress: { type: Boolean, required: true },
+    addNote: { type: Boolean, required: true },
     selection: { type: Object as PropType<SectionSelection | null>, required: true },
     archiveEnabled: { type: Boolean, required: true },
   },
-  emits: ['update:enabled', 'update:target', 'update:suppress', 'moveEntireCase'],
+  emits: ['update:enabled', 'update:target', 'update:suppress', 'update:addNote', 'moveEntireCase'],
   data() {
     return {
       canSuppressRedirect: spiHelperCanSuppressRedirect(),
@@ -72,6 +73,12 @@ export const MoveActionComponent = defineComponent({
             of the old case page
           </template>
           (one you're on right now)
+        </template>
+      </cdx-checkbox>
+      <cdx-checkbox v-if="!isSectionMove" :model-value="addNote" @update:model-value="$emit('update:addNote', $event)">
+        Add old case note in archives
+        <template #description>
+          Adds a note for the original case name in merged archives to help distinguish them
         </template>
       </cdx-checkbox>
     </action-container>

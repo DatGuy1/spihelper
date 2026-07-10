@@ -91,6 +91,7 @@ export function getInitialCaseActions(): CaseActions {
       data: {
         target: '',
         suppress: false,
+        addNote: false,
       },
     },
     archive: {

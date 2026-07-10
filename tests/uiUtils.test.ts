@@ -284,12 +284,7 @@ describe('getSockEntries', () => {
 
   describe('fullSearch: true', () => {
     beforeAll(() => {
-      // setContext needs wgServer to build the interwiki prefix; restore immediately after.
-      const spy = spyOn(mw.config, 'get').mockImplementation(
-        ((key: string) => key === 'wgServer' ? '//en.wikipedia.org' : null) as never,
-      );
       setContext('Wikipedia:Sockpuppet investigations/Master');
-      spy.mockRestore();
     });
 
     test('anchor with a plain text node is included as a sock entry', () => {

@@ -233,7 +233,7 @@ export interface CaseActions {
   block: CaseAction<BlockActionData>;
   link: { enabled: boolean };
   management: CaseAction<{ flags: Set<ManagementFlag> }>;
-  move: CaseAction<{ target: string; suppress: boolean }>;
+  move: CaseAction<{ target: string; suppress: boolean; addNote: boolean }>;
   archive: { enabled: boolean };
 }
 

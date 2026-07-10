@@ -258,6 +258,7 @@ export async function spiHelperPerformActions(opts: {
           await spiHelperMoveCase({
             target: renameTarget,
             suppress: actions.move.data.suppress,
+            addNote: actions.move.data.addNote,
             archiveNotice: state.archiveNotice,
           });
           break;

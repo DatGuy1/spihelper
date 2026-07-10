@@ -132,19 +132,120 @@ async function getNewPendingChanges(
 }
 
 /**
+ * Merge an archive from the old case into the new case's archive, splitting into a
+ * numbered sub-archive if the merged result would exceed the post-expand size limit.
+ *
+ * @param oldContext The previous case page's context
+ * @param newContext The new case page's context
+ * @param addNote Whether to prepend a note to each merged-in section noting its origin
+ * @returns 'copied' if the archives were merged, 'skipped' if there was nothing to merge
+ * or the source/target archive couldn't be parsed, 'abort' if the caller should stop
+ * the whole move (the merged archive is too large to split further)
+ */
+export async function mergeArchives(
+  oldContext: SpiPageContext, newContext: SpiPageContext, addNote: boolean,
+): Promise<'copied' | 'skipped' | 'abort'> {
+  const sourceArchiveText = await spiHelperGetPageText(oldContext.archiveName, false);
+  let targetArchiveText = await spiHelperGetPageText(newContext.archiveName, false);
+  if (!sourceArchiveText || !targetArchiveText) {
+    return 'skipped';
+  }
+  new VueMessage({
+    type: 'notice',
+    content: 'Archives detected on both source and target cases, copying it manually.',
+  }).show();
+
+  const sourceArchiveEntries = await spiHelperGetInvestigationSections(
+    { pageName: oldContext.archiveName },
+  );
+  const targetArchiveEntries = await spiHelperGetInvestigationSections(
+    { pageName: newContext.archiveName },
+  );
+  const sourceArchiveSections = sourceArchiveEntries.length
+    ? parseArchiveSections(sourceArchiveText, sourceArchiveEntries)
+    : null;
+  const targetArchiveSections = targetArchiveEntries.length
+    ? parseArchiveSections(targetArchiveText, targetArchiveEntries)
+    : null;
+  if (!sourceArchiveSections || !targetArchiveSections) {
+    new VueMessage({
+      type: 'error',
+      content: 'Could not parse the archive. Please merge the archives manually',
+    }).show();
+    return 'skipped';
+  }
+
+  if (addNote) {
+    for (const section of sourceArchiveSections) {
+      section.fullText = section.fullText.replace(
+        /\n*----(?!([\n.])*----)/,
+        `\n* {{clerknote}} originally filed under [[${oldContext.pageName}]]. ~~~~\n----`,
+      );
+    }
+  }
+  const parsedSections = [...targetArchiveSections, ...sourceArchiveSections];
+  targetArchiveText = rebuildArchiveText(targetArchiveText, parsedSections);
+
+  const maxSize = spiHelperGetMaxPostExpandSize();
+  if (await spiHelperGetPostExpandSizeFromText(targetArchiveText) >= maxSize) {
+    new VueMessage({
+      type: 'notice',
+      content: 'Running binary search to find cutoff point for post-expand include size',
+    }).show();
+    const splitPoint = await findArchiveSplitPoint(parsedSections, targetArchiveText);
+
+    if (splitPoint >= parsedSections.length) {
+      new VueMessage({
+        type: 'error',
+        content: 'Archives are too large to merge without hitting post-expand size limit. Please merge manually',
+      }).show();
+      return 'abort';
+    }
+
+    const subArchiveId = await findFirstEmptySubArchive(newContext.archiveName);
+    if (subArchiveId === null) return 'abort';
+
+    const subArchiveHeader = `__TOC__\n{{SPI archive notice|1=${newContext.caseName}}}\n{{SPIpriorcases}}\n`;
+    await spiHelperEditPage({
+      title: `${newContext.archiveName}/${subArchiveId}`,
+      newText: rebuildArchiveText(subArchiveHeader, parsedSections.slice(0, splitPoint)),
+      summary: `Splitting archive due to post-expand size limit`,
+      createonly: false,
+      watch: spiHelperSettings.watch.archive,
+      watchExpiry: spiHelperSettings.expiry.archive,
+    });
+    targetArchiveText = rebuildArchiveText(
+      targetArchiveText, parsedSections.slice(splitPoint),
+    );
+  }
+
+  await spiHelperEditPage({
+    title: newContext.archiveName,
+    newText: targetArchiveText,
+    summary: `Merging archives from [[${oldContext.prefixedName}]], see page history for attribution`,
+    createonly: false,
+    watch: spiHelperSettings.watch.archive,
+    watchExpiry: spiHelperSettings.expiry.archive,
+  });
+  return 'copied';
+}
+
+/**
  * Move or merge the selected case into a different case
  *
  * @param opts.target The username portion of the case this section should be merged into
  * (should have been normalized before getting passed in)
  * @param opts.suppress Whether to suppress the old case, or request deletion of it
+ * @param opts.addNote Whether to add a note about the original case name
  * @param opts.archiveNotice Archivenotice used in the cleanup of the old page
  */
 export async function spiHelperMoveCase(opts: {
   target: string;
   suppress: boolean;
+  addNote: boolean;
   archiveNotice: ParsedArchiveNotice;
 }) {
-  const { target, suppress, archiveNotice } = opts;
+  const { target, suppress, addNote, archiveNotice } = opts;
   const oldContext = context;
   const newContext = new SpiPageContext(context.pageName.replace(context.caseName, target));
 
@@ -171,83 +272,13 @@ export async function spiHelperMoveCase(opts: {
     return;
   }
 
-  let archivesCopied = false;
   if (targetPageText) {
-    // This branch requires the user to be an administrator
+    // This case merge branch requires the user to be an administrator
     // There's already a page there, we're going to merge
     // First, check if there's an archive; if so, copy its text over
-    let sourceArchiveText = await spiHelperGetPageText(oldContext.archiveName, false);
-    let targetArchiveText = await spiHelperGetPageText(newContext.archiveName, false);
-    if (sourceArchiveText && targetArchiveText) {
-      new VueMessage({
-        type: 'notice',
-        content: 'Archives detected on both source and target cases, copying it manually.',
-      }).show();
+    const mergeResult = await mergeArchives(oldContext, newContext, addNote);
+    if (mergeResult === 'abort') return;
 
-      // Normalize the source archive text
-      sourceArchiveText = sourceArchiveText.replace(/^\s*__TOC__\s*$\n/gm, '');
-      sourceArchiveText = sourceArchiveText.replace(spiHelperArchiveNoticeRegex, '');
-      sourceArchiveText = sourceArchiveText.replace(spiHelperPriorCasesRegex, '');
-      // Strip leading newlines
-      sourceArchiveText = sourceArchiveText.replace(/^\n*/, '');
-      targetArchiveText += '\n' + sourceArchiveText;
-      const archiveSections = await spiHelperGetInvestigationSections(
-        { content: targetArchiveText },
-      );
-      const parsedSections = parseArchiveSections(targetArchiveText, archiveSections);
-      if (parsedSections) {
-        targetArchiveText = rebuildArchiveText(targetArchiveText, parsedSections);
-
-        const maxSize = spiHelperGetMaxPostExpandSize();
-        if (await spiHelperGetPostExpandSizeFromText(targetArchiveText) >= maxSize) {
-          new VueMessage({
-            type: 'notice',
-            content: 'Running binary search to find cutoff point for post-expand include size',
-          }).show();
-          const splitPoint = await findArchiveSplitPoint(parsedSections, targetArchiveText);
-
-          if (splitPoint >= parsedSections.length) {
-            new VueMessage({
-              type: 'error',
-              content: 'Archives are too large to merge without hitting post-expand size limit. Please merge manually',
-            }).show();
-            return;
-          }
-
-          const subArchiveId = await findFirstEmptySubArchive(newContext.archiveName);
-          if (subArchiveId === null) return;
-
-          const subArchiveHeader = `__TOC__\n{{SPI archive notice|1=${newContext.caseName}}}\n{{SPIpriorcases}}\n`;
-          await spiHelperEditPage({
-            title: `${newContext.archiveName}/${subArchiveId}`,
-            newText: rebuildArchiveText(subArchiveHeader, parsedSections.slice(0, splitPoint)),
-            summary: `Splitting archive due to post-expand size limit`,
-            createonly: false,
-            watch: spiHelperSettings.watch.archive,
-            watchExpiry: spiHelperSettings.expiry.archive,
-          });
-          targetArchiveText = rebuildArchiveText(
-            targetArchiveText, parsedSections.slice(splitPoint),
-          );
-        }
-
-        await spiHelperEditPage({
-          title: newContext.archiveName,
-          newText: targetArchiveText,
-          summary: `Merging archives from [[${oldContext.prefixedName}]], see page history for attribution`,
-          createonly: false,
-          watch: spiHelperSettings.watch.archive,
-          watchExpiry: spiHelperSettings.expiry.archive,
-        });
-        archivesCopied = true;
-      }
-      else {
-        new VueMessage({
-          type: 'error',
-          content: 'Could not parse the archive. Please merge the archives manually',
-        }).show();
-      }
-    }
     const siteRestrictions = await spiHelperGetSiteRestrictionInformation();
     // Now get existing protection levels on the target and existing page.
     const newProtection = await getNewProtection(
@@ -267,7 +298,7 @@ export async function spiHelperMoveCase(opts: {
       suppressRedirect: suppress,
     });
     await spiHelperUndeletePage(newContext.pageName, 'Restoring page history after merge');
-    if (archivesCopied) {
+    if (mergeResult === 'copied') {
       if (suppress) {
         await spiHelperDeletePage(oldContext.archiveName, `Archives moved to [[${newContext.archiveName}]]`);
       }
@@ -372,6 +403,7 @@ export function addOldMasterToSockList(pageText: string, oldMasterName: string):
       '====Suspected sockpuppets====\n* {{checkuser|1=' + oldMasterName + '}} ({{clerknote}} original case name)\n',
     );
   }
+
   const sockListTemplate = parseTemplate(sockListMatch.slice(2, -2));
   const isMultiLine = sockListMatch.includes('\n');
   const sep = isMultiLine ? '\n' : '';
@@ -535,6 +567,7 @@ async function spiHelperPostRenameCleanup(opts: {
 
   // The new case's archivenotice should be updated with the new name
   let newPageText = await spiHelperGetPageText(newContext.pageName, true);
+  newPageText = addOldMasterToSockList(newPageText, oldContext.caseName);
   // Merge in our old cases
   if (preMergeText) {
     let appendText = preMergeText.replace(/\n*<noinclude>__TOC__.*\n/ig, '');
@@ -543,7 +576,6 @@ async function spiHelperPostRenameCleanup(opts: {
     newPageText = newPageText + '\n' + appendText;
   }
   newPageText = newPageText.replace(spiHelperArchiveNoticeRegex, newNotice.generateWikitext());
-  newPageText = addOldMasterToSockList(newPageText, oldContext.caseName);
   // Also remove the new master if they're in the sock list
   // This RE is kind of ugly. The idea is that we find everything from the level 4 heading
   // ending with "sockpuppets" to the level 4 heading beginning with <big> and pull the checkuser
