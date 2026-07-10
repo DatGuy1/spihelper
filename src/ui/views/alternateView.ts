@@ -1,16 +1,16 @@
 import { type PropType, defineComponent } from 'vue';
 import { type CaseState } from '../../state.ts';
-import { type FeedbackDialog } from '../../types/vue.ts';
+import { type FeedbackDialog } from '../../types';
 import { spiHelperSettings } from '../../options';
 import { VueMessage, messages } from '../messages.ts';
 import { cdxIconFeedback, cdxIconPushPin } from '@wikimedia/codex-icons';
 import {
+  type AllUser,
   type BlockActionData,
   ParsedArchiveNotice,
   type UserRow,
-} from '../../types/spi.ts';
+} from '../../types';
 import { OpState, finishOp, getOpState, isOpRunning, startOp } from '../../operations.ts';
-import type { AllUser } from '../../types/api.ts';
 import { UpdateUserAllUserData } from './userLookup.ts';
 import {
   generateUserRow,
@@ -20,13 +20,13 @@ import {
   updateUserBlockDataSettings,
 } from '../utils.ts';
 import { spiHelperHandleBlocks } from '../../caseActions.ts';
-import { spiHelperLog } from '../../actions/log.ts';
+import { spiHelperLog } from '../../actions';
 import { context, setContext } from '../../context.ts';
 import { buildUserActionLogMessage, setupBlockActionData, spiHelperNormalizeUsername } from '../../utils.ts';
 import { spiHelperParseArchiveNotice } from '../../archivenotice.ts';
 import { spiHelperGetCategoryMembers, spiHelperGetPageText, spiHelperGetUserBlockSettings } from '../../api.ts';
 import { prefetchSockRows } from './top/utils';
-import { MODE, VERSION } from '../../constants/settings.ts';
+import { MODE, VERSION } from '../../constants';
 
 interface Data {
   open: boolean;
@@ -289,8 +289,11 @@ export const AlternateViewComponent = defineComponent({
       this.actionsRunning = true;
       let blockPromises: Promise<string | null>[] = [];
       let tagPromises: Promise<string | null>[] = [];
+      let talkNoticePromises: Promise<void>[] = [];
       let lockPromise: Promise<string[]> = Promise.resolve([]);
-      ({ blockPromises, tagPromises, lockPromise } = await spiHelperHandleBlocks({
+      ({
+        blockPromises, tagPromises, talkNoticePromises, lockPromise,
+      } = await spiHelperHandleBlocks({
         accounts: this.accounts,
         blockData: this.blockData,
       }));
@@ -299,8 +302,10 @@ export const AlternateViewComponent = defineComponent({
         Promise.all(tagPromises),
         lockPromise,
       ]);
+      const talkNoticePromise = Promise.all(talkNoticePromises);
 
       const [blockedUsers, taggedUsers, lockedUsers] = await userActionsPromise;
+      await talkNoticePromise;
       if (spiHelperSettings.log.enabled) {
         const logMessage = `* [[:User:${context.userName}]]` + buildUserActionLogMessage({ blockedUsers, taggedUsers, lockedUsers });
         await spiHelperLog(logMessage);

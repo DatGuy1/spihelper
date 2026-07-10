@@ -476,16 +476,19 @@ export async function spiHelperHandleBlocks(opts: {
       }
 
       const maxJitter = Math.max(500, userRows.length * 100);
-      blockPromises.push((async () => {
+      // Resolves once the block attempt is fully settled, with enough information for the
+      // talk notice and tag follow-ups below to decide whether they should run.
+      interface BlockOutcome { blockedUsername: string | null; shouldTag: boolean }
+      const blockOutcome: Promise<BlockOutcome> = (async () => {
         const userBlock = userBlocks.get(userRow.username);
         if (userBlock !== undefined && !blockOptions.override) {
           const alreadyBlockedWarning = new VueMessage({
             type: 'warning',
             content: `Block target ${userRow.username} is already blocked. `,
           });
-          if (userRow.block.tags.length > 0) {
+          const shouldTag = userRow.block.tags.length > 0;
+          if (shouldTag) {
             alreadyBlockedWarning.content += 'Proceeding with tagging';
-            tagPromises.push(tagSock(userRow, true));
           }
           else {
             // If the user is already blocked, and we haven't asked
@@ -493,7 +496,7 @@ export async function spiHelperHandleBlocks(opts: {
             alreadyBlockedWarning.content += `Check the "override existing blocks" box to re-block them`;
           }
           alreadyBlockedWarning.show();
-          return null;
+          return { blockedUsername: null, shouldTag };
         }
         const blockReason = userBlock?.reason;
         if (
@@ -505,7 +508,7 @@ export async function spiHelperHandleBlocks(opts: {
           const prompt = 'User ' + userRow.username + ' is CheckUser-blocked, are you SURE you want to re-block them?\n'
             + 'Current block message:\n' + blockReason;
           if (!confirm(prompt)) {
-            return null;
+            return { blockedUsername: null, shouldTag: false };
           }
         }
         if (!userRow.block.duration) {
@@ -514,7 +517,7 @@ export async function spiHelperHandleBlocks(opts: {
             type: 'error',
             content: `Block target ${userRow.username} does not have an intended duration`,
           }).show();
-          return null;
+          return { blockedUsername: null, shouldTag: false };
         }
         // jitter. remove me when T260838 is fixed
         await new Promise(r => setTimeout(r, Math.random() * maxJitter));
@@ -523,24 +526,37 @@ export async function spiHelperHandleBlocks(opts: {
           sock: userRow,
           blockOptions,
         });
-        if (!blockSuccess) {
-          return null;
-        }
+        return { blockedUsername: blockSuccess ? userRow.username : null, shouldTag: blockSuccess };
+      })();
 
-        if (talkNotices.length > 0) {
-          talkNoticePromises.push(spiHelperAddTalkBlockNotice({
+      // These need to be registered synchronously in the same loop as blockPromises,
+      // rather than pushed from inside blockOutcome's body once it resolves
+      blockPromises.push(blockOutcome.then(({ blockedUsername }) => blockedUsername));
+
+      if (talkNotices.length > 0) {
+        talkNoticePromises.push((async () => {
+          const { blockedUsername } = await blockOutcome;
+          if (blockedUsername === null) {
+            return;
+          }
+          await spiHelperAddTalkBlockNotice({
             sock: userRow,
             userTalkContent: userTalkPages.get(userRow.username),
             blockOptions,
             talkNotices,
             defaultMaster: master,
-          }));
-        }
-        if (userRow.block.tags.length > 0) {
-          tagPromises.push(tagSock(userRow, true));
-        }
-        return userRow.username;
-      })());
+          });
+        })());
+      }
+      if (userRow.block.tags.length > 0) {
+        tagPromises.push((async () => {
+          const { shouldTag } = await blockOutcome;
+          if (!shouldTag) {
+            return null;
+          }
+          return tagSock(userRow, true);
+        })());
+      }
     }
     else if (userRow.block.tags.length > 0) {
       tagPromises.push(tagSock(userRow, userBlocks.has(userRow.username)));

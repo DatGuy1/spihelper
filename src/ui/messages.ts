@@ -23,15 +23,18 @@ export class VueMessage {
   }
 
   update(opts: { type?: StatusType; content?: string; isHtml?: boolean }) {
-    Object.assign(this, opts);
     // If we didn't already show, show it
     if (this._index === undefined) {
+      Object.assign(this, opts);
       this.show();
+      return this;
     }
     // Otherwise, replace it
-    else {
-      messages[this._index] = this;
+    const current = messages[this._index];
+    if (current) {
+      Object.assign(current, opts);
     }
+    Object.assign(this, opts);
     return this;
   }
 }

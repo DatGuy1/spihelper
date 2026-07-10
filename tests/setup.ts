@@ -2,6 +2,8 @@
 // mw.* calls inside function bodies don't need to be exhaustive here —
 // only the ones that run during import (e.g. in const initialisers) matter.
 
+import { reactive } from 'vue';
+
 (globalThis as Record<string, unknown>).window = globalThis;
 (globalThis as Record<string, unknown>).__VERSION__ = '0.0.0-test';
 (globalThis as Record<string, unknown>).__MODE__ = 'dev';
@@ -38,8 +40,11 @@
   },
   user: { options: { get: () => null } },
   loader: {
+    // Real Vue.reactive() (not an identity stub) so modules like ui/messages.ts that rely
+    // on mw.loader.using(['vue'], ...) to make module-level state reactive actually get
+    // working reactivity under tests, instead of a silent no-op.
     using: (_modules: unknown, callback: (require: (mod: string) => unknown) => void) => {
-      callback((_mod: string) => ({ reactive: (x: unknown) => x, defineComponent: () => ({}) }));
+      callback((_mod: string) => ({ reactive, defineComponent: () => ({}) }));
     },
   },
 };
