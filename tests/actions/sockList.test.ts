@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { addOldMasterToSockList } from '../src/actions';
+import { addOldMasterToSockList } from '../../src/actions';
 
 const NOTE = '({{clerknote}} original case name)';
 const section = '====Suspected sockpuppets====\n';

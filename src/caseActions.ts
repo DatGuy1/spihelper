@@ -545,7 +545,6 @@ export async function spiHelperHandleBlocks(opts: {
             userTalkContent: userTalkPages.get(userRow.username),
             blockOptions,
             talkNotices,
-            defaultMaster: master,
           });
         })());
       }

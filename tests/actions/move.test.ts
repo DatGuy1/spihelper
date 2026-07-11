@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
-import { SectionEntry } from '../src/state.ts';
+import { SectionEntry } from '../../src/state.ts';
 import { type EditPageOpts, buildArchiveText } from './archiveFixtures.ts';
 
 // Mock api.ts before importing move.ts so both move.ts and the archive.ts it imports from
@@ -11,7 +11,7 @@ const mockGetInvestigationSections = mock(
 const mockEditPage = mock((_opts: EditPageOpts) => Promise.resolve(null));
 const mockGetPostExpandSizeFromText = mock((_text: string) => Promise.resolve(0));
 
-void mock.module('../src/api.ts', () => ({
+void mock.module('../../src/api.ts', () => ({
   spiHelperConfigurePendingChanges: mock(() => Promise.resolve()),
   spiHelperDeletePage: mock(() => Promise.resolve()),
   spiHelperEditPage: mockEditPage,
@@ -28,8 +28,8 @@ void mock.module('../src/api.ts', () => ({
   spiHelperUndeletePage: mock(() => Promise.resolve()),
 }));
 
-const { mergeArchives } = await import('../src/actions/move.ts');
-const { SpiPageContext } = await import('../src/context.ts');
+const { mergeArchives } = await import('../../src/actions/move.ts');
+const { SpiPageContext } = await import('../../src/context.ts');
 
 beforeEach(() => {
   mockGetPageText.mockReset().mockResolvedValue('');

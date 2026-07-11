@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import { watchEffect } from 'vue';
-import { VueMessage, messages } from '../src/ui/messages.ts';
+import { VueMessage, messages } from '../../src/ui/messages.ts';
 
 beforeEach(() => {
   messages.length = 0;

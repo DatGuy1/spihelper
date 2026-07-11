@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import type { LinkRowData, UserRow } from '../src/types';
-import { LinkActionComponent } from '../src/ui/views/top';
-import type { ColumnId, LinkRecord } from '../src/ui/views/top/actions/linkAction.ts';
-import type { LinkFormat } from '../src/constants';
+import type { LinkRowData, UserRow } from '../../../../../src/types';
+import { LinkActionComponent } from '../../../../../src/ui/views/top';
+import type { ColumnId, LinkRecord } from '../../../../../src/ui/views/top/actions/linkAction.ts';
+import type { LinkFormat } from '../../../../../src/constants';
 
 interface LinkTestCtx {
   accounts: UserRow[];

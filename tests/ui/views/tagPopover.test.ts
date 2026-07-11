@@ -1,6 +1,6 @@
 import { describe, expect, spyOn, test } from 'bun:test';
-import { SockmasterTag, SockpuppetTag, type Tag } from '../src/types';
-import { TagPopoverComponent } from '../src/ui/views';
+import { SockmasterTag, SockpuppetTag, type Tag } from '../../../src/types';
+import { TagPopoverComponent } from '../../../src/ui/views';
 
 interface TestCtx {
   temporaryTag: Tag | null;

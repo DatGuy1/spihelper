@@ -1,8 +1,8 @@
 import { describe, expect, spyOn, test } from 'bun:test';
-import type { BlockEntry, BlockOptions, BlockRowData, InputColumn, Tag, TagRowPopoverState, UserRow } from '../src/types';
-import { SockpuppetTag } from '../src/types';
-import { BlockActionComponent } from '../src/ui/views/top';
-import { isInputDisabled } from '../src/ui/utils.ts';
+import type { BlockEntry, BlockOptions, BlockRowData, InputColumn, Tag, TagRowPopoverState, UserRow } from '../../../../../src/types';
+import { SockpuppetTag } from '../../../../../src/types';
+import { BlockActionComponent } from '../../../../../src/ui/views/top';
+import { isInputDisabled } from '../../../../../src/ui/utils.ts';
 
 type SetAllColumn = Exclude<InputColumn, 'duration'>;
 

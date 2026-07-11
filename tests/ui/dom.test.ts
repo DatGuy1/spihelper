@@ -5,7 +5,7 @@ import {
   hideSectionOverlay,
   scrollToSection,
   showSectionOverlay,
-} from '../src/ui/dom.ts';
+} from '../../src/ui/dom.ts';
 
 // Minimal jQuery-like wrapper for the selectors dom.ts uses:
 // $(...).first(), .closest(), .length, .get(0), .parentsUntil(), .last(), .nextUntil()

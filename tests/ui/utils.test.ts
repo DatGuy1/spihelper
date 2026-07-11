@@ -1,9 +1,9 @@
 import { afterEach, beforeAll, describe, expect, mock, spyOn, test } from 'bun:test';
 import type { MenuGroupData, MenuItemData } from '@wikimedia/codex';
-import { setContext } from '../src/context.ts';
-import { spiHelperSettings } from '../src/options';
-import { CaseState } from '../src/state.ts';
-import { ParsedArchiveNotice, SockpuppetTag } from '../src/types';
+import { setContext } from '../../src/context.ts';
+import { spiHelperSettings } from '../../src/options';
+import { CaseState } from '../../src/state.ts';
+import { ParsedArchiveNotice, SockpuppetTag } from '../../src/types';
 import {
   generateUserRow,
   getDefaultUserRow,
@@ -11,7 +11,7 @@ import {
   isMenuGroupData,
   pruneMenuData,
   updateUserBlockDataSettings,
-} from '../src/ui/utils.ts';
+} from '../../src/ui/utils.ts';
 
 // jQuery is not a DOM API; stub it so spyOn can manage per-test replacement.
 (globalThis as Record<string, unknown>).$ = () => ({});

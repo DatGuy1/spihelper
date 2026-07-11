@@ -1,14 +1,14 @@
 import { spiHelperBlockUser, spiHelperEditPage } from '../api.ts';
 import { spiHelperSettings } from '../options';
-import { type BlockOptions, type UserRow } from '../types/spi.ts';
+import type { BlockOptions, UserRow } from '../types';
 import { spiHelperIsCheckuser } from '../role.ts';
 import { isNoExpiry, isSockpuppetTag, spiHelperNormalizeUsername } from '../utils.ts';
 import { buildContextSummary, context } from '../context.ts';
 
-function buildTalkNotice(opts: {
+export function buildTalkNotice(opts: {
   sock: UserRow;
   noticeType: 'master' | 'sock';
-  sockmaster: string;
+  sockmaster?: string;
   cuBlock: boolean;
 }) {
   const { sock, noticeType, sockmaster, cuBlock } = opts;
@@ -52,7 +52,7 @@ function buildTalkNotice(opts: {
   return newText;
 }
 
-function buildBlockSummary(
+export function buildBlockSummary(
   blockOptions: BlockOptions, isIP: boolean, isIPRange: boolean, acb: boolean,
 ) {
   let blockSummary = 'Abusing [[WP:SOCK|multiple accounts]]';
@@ -109,13 +109,12 @@ export async function spiHelperAddTalkBlockNotice(opts: {
   blockOptions: BlockOptions;
   userTalkContent: string | undefined;
   talkNotices: ('master' | 'sock')[];
-  defaultMaster: string;
 }): Promise<void> {
-  const { sock, blockOptions, userTalkContent, talkNotices, defaultMaster } = opts;
+  const { sock, blockOptions, userTalkContent, talkNotices } = opts;
   if (talkNotices.length === 0) {
     return;
   }
-  const sockmaster = sock.block.tags.find(tag => isSockpuppetTag(tag))?.master ?? defaultMaster;
+  const sockmaster = sock.block.tags.find(tag => isSockpuppetTag(tag))?.master;
   // Talk page notice
   const cuBlock = blockOptions.cuBlock
     && spiHelperIsCheckuser()

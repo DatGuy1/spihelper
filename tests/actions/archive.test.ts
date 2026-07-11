@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
-import type { ArchiveSection } from '../src/types';
-import { SectionEntry } from '../src/state.ts';
+import type { ArchiveSection } from '../../src/types';
+import { SectionEntry } from '../../src/state.ts';
 import { type EditPageOpts, buildArchiveText } from './archiveFixtures.ts';
 
 // Mock api.ts before importing archive.ts so the module under test picks up the stubs.
@@ -13,7 +13,7 @@ const mockGetInvestigationSections = mock(
   (_opts: { pageName?: string; content?: string }): Promise<SectionEntry[]> => Promise.resolve([]),
 );
 
-void mock.module('../src/api.ts', () => ({
+void mock.module('../../src/api.ts', () => ({
   spiHelperEditPage: mockEditPage,
   spiHelperGetInvestigationSections: mockGetInvestigationSections,
   spiHelperGetPageText: mockGetPageText,
@@ -27,13 +27,13 @@ const {
   spiHelperArchiveCase,
   spiHelperArchiveCaseSection,
   spiHelperMoveArchiveIfOverflowing,
-} = await import('../src/actions/archive.ts');
-const { messages } = await import('../src/ui/messages.ts');
-const { CaseState } = await import('../src/state.ts');
+} = await import('../../src/actions/archive.ts');
+const { messages } = await import('../../src/ui/messages.ts');
+const { CaseState } = await import('../../src/state.ts');
 
 // context is a `let` export reassigned by setContext(), so grab it only after calling
 // setContext() — destructuring it earlier would capture the pre-init `undefined` snapshot.
-const contextModule = await import('../src/context.ts');
+const contextModule = await import('../../src/context.ts');
 contextModule.setContext('Wikipedia:Sockpuppet investigations/Foo');
 const { context } = contextModule;
 
