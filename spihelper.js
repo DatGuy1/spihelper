@@ -3295,6 +3295,46 @@
       return "admin";
     return "new";
   }
+  function templateName(template) {
+    return parseTemplates(template)[0]?.name ?? null;
+  }
+  var closingTemplateNames = new Set(["{{btc}}", "{{Action and close}}", "{{Closing without action}}"].map(templateName).filter((name) => name !== null));
+  var statusesWithTemplates = [
+    "CUrequest",
+    "admin",
+    "clerk",
+    "selfendorse",
+    "inprogress",
+    "decline",
+    "cudecline",
+    "endorse",
+    "cuendorse",
+    "moreinfo",
+    "relist",
+    "hold",
+    "reopen"
+  ];
+  var knownStatusTemplateNames = new Set(statusesWithTemplates.map((status) => getStatusTemplate(status)).filter((template) => template !== null).map(templateName));
+  function findStatusTemplateMismatch(commentText, newStatus) {
+    const commentTemplateNames = new Set(parseTemplates(commentText).map((t) => t.name));
+    if (newStatus !== "closed") {
+      const closingTemplate = [...closingTemplateNames].find((name) => commentTemplateNames.has(name));
+      if (closingTemplate) {
+        return { kind: "template", match: closingTemplate };
+      }
+    }
+    const expectedTemplate = getStatusTemplate(newStatus);
+    const expectedName = expectedTemplate ? templateName(expectedTemplate) : null;
+    for (const name of commentTemplateNames) {
+      if (knownStatusTemplateNames.has(name) && name !== expectedName) {
+        return { kind: "template", match: name };
+      }
+    }
+    if (newStatus !== "closed" && /\bclosing\b/i.test(commentText)) {
+      return { kind: "text", match: "closing" };
+    }
+    return null;
+  }
   // src/actions/archive.ts
   async function spiHelperArchiveCase(state) {
     const sectionFetchMessage = new VueMessage({ type: "notice", content: "Loading all sections" }).show();
@@ -3573,11 +3613,11 @@
     });
   }
   async function spiHelperAddTalkBlockNotice(opts) {
-    const { sock, blockOptions, userTalkContent, talkNotices, defaultMaster } = opts;
+    const { sock, blockOptions, userTalkContent, talkNotices } = opts;
     if (talkNotices.length === 0) {
       return;
     }
-    const sockmaster = sock.block.tags.find((tag) => isSockpuppetTag(tag))?.master ?? defaultMaster;
+    const sockmaster = sock.block.tags.find((tag) => isSockpuppetTag(tag))?.master;
     const cuBlock = blockOptions.cuBlock && spiHelperIsCheckuser() && spiHelperSettings.useCheckuserblockAccount;
     const userTalkPage = `User talk:${sock.username}`;
     let newText = blockOptions.blankTalk ? "" : userTalkContent ?? "";
@@ -4668,8 +4708,7 @@ ${comment}
               sock: userRow,
               userTalkContent: userTalkPages.get(userRow.username),
               blockOptions,
-              talkNotices,
-              defaultMaster: master
+              talkNotices
             });
           })());
         }
@@ -6786,6 +6825,10 @@ ${comment}
       };
     },
     computed: {
+      effectiveStatus() {
+        const statusData = this.caseActions.status.data;
+        return this.caseActions.status.enabled && statusData.new !== "nochange" ? statusData.new : statusData.old;
+      },
       needsLockComment() {
         const blockAction = this.caseActions.block;
         if (!blockAction.enabled) {
@@ -6810,6 +6853,31 @@ ${comment}
           return false;
         const { options, userBlocks, userLocks } = blockAction.data;
         return this.accounts.some((user) => !isInputDisabled(user, "duration", options, userBlocks, userLocks, this.accounts) && parseExpiry(user.block.duration) === null);
+      },
+      statusTemplateMismatch() {
+        const comment = this.caseActions.comment;
+        if (!comment.enabled) {
+          return null;
+        }
+        const mismatch = findStatusTemplateMismatch(comment.data.text, this.effectiveStatus);
+        if (!mismatch) {
+          return null;
+        }
+        return mismatch.kind === "template" ? `{{${mismatch.match}}}` : `the word "${mismatch.match}"`;
+      },
+      blockClaimTemplateWithoutBlock() {
+        if (!this.caseActions.comment.enabled) {
+          return null;
+        }
+        const commentTemplateNames = new Set(parseTemplates(this.caseActions.comment.data.text).map((t) => t.name));
+        const blockClaimTemplates = ["bnt", "btc", "bwt", "sblock", "ipblock"];
+        const claimedTemplate = blockClaimTemplates.find((name) => commentTemplateNames.has(name));
+        if (!claimedTemplate) {
+          return null;
+        }
+        const blockAction = this.caseActions.block;
+        const hasBlock = blockAction.enabled && this.accounts.some((user) => user.block.block);
+        return hasBlock ? null : `{{${claimedTemplate}}}`;
       },
       cuBlockConfirmationsNeeded() {
         const blockData = this.caseActions.block.data;
@@ -6896,6 +6964,12 @@ ${comment}
         <cdx-message v-if="hasInvalidTag" type="error" :inline="true">A user has an invalid tag</cdx-message>
         <cdx-message v-if="hasInvalidMove" type="error" :inline="true"><b>Move</b> is enabled but has no target</cdx-message>
         <cdx-message v-if="hasInvalidDuration" type="error" :inline="true">A user has an invalid block duration</cdx-message>
+        <cdx-message v-if="statusTemplateMismatch" type="warning" :inline="true">
+          The comment includes {{ statusTemplateMismatch }}, but the case status is set to {{ effectiveStatus }}.
+        </cdx-message>
+        <cdx-message v-if="blockClaimTemplateWithoutBlock" type="warning" :inline="true">
+          The comment includes {{ blockClaimTemplateWithoutBlock }}, but no block is set to be applied.
+        </cdx-message>
         <cdx-button ref="submitElement" action="progressive" weight="primary" @click="onSubmit"
                     :disabled="disableButton">
           Submit
