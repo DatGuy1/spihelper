@@ -10,6 +10,8 @@ import { type ModalAction, type PrimaryModalAction } from '@wikimedia/codex';
 import { CaseState, loadCaseText, loadSectionText } from '../../state.ts';
 import { spiHelperIsCheckuser } from '../../role.ts';
 import { spiHelperCUBlockRegex } from '../../constants';
+import { parseTemplates } from '../../template.ts';
+import { findStatusTemplateMismatch } from './top/utils';
 
 interface Data {
   popover: {
@@ -51,6 +53,12 @@ export const SubmitFormComponent = defineComponent({
     };
   },
   computed: {
+    effectiveStatus() {
+      const statusData = this.caseActions.status.data;
+      return this.caseActions.status.enabled && statusData.new !== 'nochange'
+        ? statusData.new
+        : statusData.old;
+    },
     needsLockComment() {
       const blockAction = this.caseActions.block;
       if (!blockAction.enabled) {
@@ -86,6 +94,37 @@ export const SubmitFormComponent = defineComponent({
         !isInputDisabled(user, 'duration', options, userBlocks, userLocks, this.accounts)
         && parseExpiry(user.block.duration) === null,
       );
+    },
+    // The comment mentions a clerk template whose implied
+    // status doesn't match what's actually being submitted
+    statusTemplateMismatch(): string | null {
+      const comment = this.caseActions.comment;
+      if (!comment.enabled) {
+        return null;
+      }
+      const mismatch = findStatusTemplateMismatch(comment.data.text, this.effectiveStatus);
+      if (!mismatch) {
+        return null;
+      }
+      return mismatch.kind === 'template' ? `{{${mismatch.match}}}` : `the word "${mismatch.match}"`;
+    },
+    // The comment claims a block happened ({{bnt}}/{{btc}}/{{bwt}}/{{sblock}}/{{IPblock}})
+    // but no account is actually set to be blocked
+    blockClaimTemplateWithoutBlock(): string | null {
+      if (!this.caseActions.comment.enabled) {
+        return null;
+      }
+      const commentTemplateNames = new Set(
+        parseTemplates(this.caseActions.comment.data.text).map(t => t.name),
+      );
+      const blockClaimTemplates = ['bnt', 'btc', 'bwt', 'sblock', 'ipblock'];
+      const claimedTemplate = blockClaimTemplates.find(name => commentTemplateNames.has(name));
+      if (!claimedTemplate) {
+        return null;
+      }
+      const blockAction = this.caseActions.block;
+      const hasBlock = blockAction.enabled && this.accounts.some(user => user.block.block);
+      return hasBlock ? null : `{{${claimedTemplate}}}`;
     },
     cuBlockConfirmationsNeeded(): Set<string> {
       // If you're not a checkuser, we've asked to overwrite existing blocks, and the block
@@ -187,6 +226,12 @@ export const SubmitFormComponent = defineComponent({
         <cdx-message v-if="hasInvalidTag" type="error" :inline="true">A user has an invalid tag</cdx-message>
         <cdx-message v-if="hasInvalidMove" type="error" :inline="true"><b>Move</b> is enabled but has no target</cdx-message>
         <cdx-message v-if="hasInvalidDuration" type="error" :inline="true">A user has an invalid block duration</cdx-message>
+        <cdx-message v-if="statusTemplateMismatch" type="warning" :inline="true">
+          The comment includes {{ statusTemplateMismatch }}, but the case status is set to {{ effectiveStatus }}.
+        </cdx-message>
+        <cdx-message v-if="blockClaimTemplateWithoutBlock" type="warning" :inline="true">
+          The comment includes {{ blockClaimTemplateWithoutBlock }}, but no block is set to be applied.
+        </cdx-message>
         <cdx-button ref="submitElement" action="progressive" weight="primary" @click="onSubmit"
                     :disabled="disableButton">
           Submit
