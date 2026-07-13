@@ -2246,11 +2246,7 @@
     }
     if (!row.block.block)
       return true;
-    const userBlock = userBlocks.get(row.username);
-    if (column === "duration") {
-      return !blockOptions.override && userBlock !== undefined;
-    }
-    return !blockOptions.override && (userBlock?.[column] ?? false);
+    return !blockOptions.override && userBlocks.get(row.username) !== undefined;
   }
   var toRaw = null;
   function setToRaw(toRawArg) {
