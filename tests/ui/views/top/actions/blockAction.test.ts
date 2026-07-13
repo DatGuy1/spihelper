@@ -240,9 +240,9 @@ describe('isInputDisabled', () => {
       expect(isInputDisabled(row, 'acb', defaultOptions, new Map([['Vandal', makeBlockEntry({ acb: true })]]), noLocks, [])).toBe(true);
     });
 
-    test('enabled when existing block does not have the setting', () => {
+    test('disabled when existing block does not have the setting and override is off', () => {
       const row = makeRow('Vandal', { block: true });
-      expect(isInputDisabled(row, 'acb', defaultOptions, new Map([['Vandal', makeBlockEntry({ acb: false })]]), noLocks, [])).toBe(false);
+      expect(isInputDisabled(row, 'acb', defaultOptions, new Map([['Vandal', makeBlockEntry({ acb: false })]]), noLocks, [])).toBe(true);
     });
 
     test('enabled when existing block has the setting but override is on', () => {
