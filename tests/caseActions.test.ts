@@ -48,6 +48,13 @@ describe('spiHelperHandleBlocks', () => {
     spyOn(blockModule, 'spiHelperAddTalkBlockNotice').mockResolvedValue(undefined);
     spyOn(tagModule, 'spiHelperTagUser').mockResolvedValue(true);
 
+    // Block requests are jittered with a real setTimeout to avoid hitting API rate limits
+    // (see caseActions.ts); run the callback immediately so the test doesn't sleep for it.
+    spyOn(globalThis, 'setTimeout').mockImplementation(((fn: () => void) => {
+      fn();
+      return 0;
+    }) as unknown as typeof setTimeout);
+
     const blockGate = deferred<boolean>();
     spyOn(blockModule, 'spiHelperProcessBlockRow').mockReturnValue(blockGate.promise);
 
@@ -85,6 +92,10 @@ describe('spiHelperHandleBlocks', () => {
     const talkNoticeSpy = spyOn(blockModule, 'spiHelperAddTalkBlockNotice').mockResolvedValue(undefined);
     const tagSpy = spyOn(tagModule, 'spiHelperTagUser').mockResolvedValue(true);
     spyOn(blockModule, 'spiHelperProcessBlockRow').mockResolvedValue(false);
+    spyOn(globalThis, 'setTimeout').mockImplementation(((fn: () => void) => {
+      fn();
+      return 0;
+    }) as unknown as typeof setTimeout);
 
     const row = makeRow('Vandal', {
       tags: [new SockpuppetTag({ master: 'Master', status: 'blocked' })],
