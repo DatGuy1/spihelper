@@ -1,7 +1,7 @@
 import { type PropType, defineComponent } from 'vue';
-import type { CaseActionName, CaseActions, UserRow } from '../../../types/spi.ts';
-import type { CaseState } from '../../../state.ts';
-import type { AllUser } from '../../../types/api.ts';
+import type { CaseActionName, CaseActions, UserRow } from '../../../types';
+import type { CaseState, SectionEntry } from '../../../state.ts';
+import type { AllUser } from '../../../types';
 import { context } from '../../../context.ts';
 
 export const ActionContentComponent = defineComponent({
@@ -13,10 +13,15 @@ export const ActionContentComponent = defineComponent({
     // https://vuejs.org/guide/components/props.html#one-way-data-flow
     accounts: { type: Array as PropType<UserRow[]>, required: true },
     state: { type: Object as PropType<CaseState>, required: true },
+    multiSelectMode: { type: Boolean, required: true },
+    selectedSections: { type: Array as PropType<SectionEntry[]>, required: true },
   },
   emits: [
+    'update:multiSelectMode',
+    'update-multi-select-sections',
     'update-section-selection',
     'update-status',
+    'update-section-status',
     'user-selected',
     'remove-rows',
     'add-row',
@@ -27,6 +32,9 @@ export const ActionContentComponent = defineComponent({
     caseName(): string {
       return context.caseName;
     },
+    isMultiSelect(): boolean {
+      return this.state.selectedSection?.type === 'multiple';
+    },
   },
   methods: {
     /* Forward to parent */
@@ -35,6 +43,9 @@ export const ActionContentComponent = defineComponent({
     },
     handleUpdateStatus(newStatus: string) {
       this.$emit('update-status', newStatus);
+    },
+    handleUpdateSectionStatus(sectionId: number, newStatus: string) {
+      this.$emit('update-section-status', sectionId, newStatus);
     },
     handleUserSelected(data: AllUser, rowId: string) {
       this.$emit('user-selected', data, rowId);
@@ -56,10 +67,18 @@ export const ActionContentComponent = defineComponent({
     <!-- Sections special case -->
     <section-action v-if="name === 'sections'"
                     :selected-section="caseActions.sections.data.section" :all-sections="state.sections"
-                    @update-section-selection="handleUpdateSectionSelection" />
+                    :multi-select-mode="multiSelectMode" :selected-sections="selectedSections"
+                    @update-section-selection="handleUpdateSectionSelection"
+                    @update:multi-select-mode="$emit('update:multiSelectMode', $event)"
+                    @update-multi-select-sections="$emit('update-multi-select-sections', $event)" />
     <!-- Other actions -->
+    <multi-section-comment-action v-else-if="name === 'comment' && isMultiSelect"
+                                  :sections="selectedSections" :by-section="caseActions.comment.data.bySection" />
     <comment-action v-else-if="name === 'comment'" v-model:enabled="caseActions.comment.enabled"
                     v-model:text="caseActions.comment.data.text" :selected-section="state.selectedSection" />
+    <multi-section-status-action v-else-if="name === 'status' && isMultiSelect"
+                                 :sections="selectedSections" :by-section="caseActions.status.data.bySection"
+                                 @update-section-status="handleUpdateSectionStatus" />
     <change-status-action v-else-if="name === 'status'" v-model:enabled="caseActions.status.enabled"
                           :old-status="caseActions.status.data.old" v-model:new-status="caseActions.status.data.new"
                           @update:new-status="handleUpdateStatus" />
@@ -74,15 +93,15 @@ export const ActionContentComponent = defineComponent({
                  :accounts="accounts" :case-name="caseName"
                  @user-selected="handleUserSelected"
                  @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
-    <management-action v-else-if="name === 'management'" v-model:enabled="caseActions.management.enabled"
-                       v-model:flags="caseActions.management.data.flags" />
     <move-action v-else-if="name === 'move'" v-model:enabled="caseActions.move.enabled"
                  v-model:target="caseActions.move.data.target" v-model:suppress="caseActions.move.data.suppress"
                  v-model:addNote="caseActions.move.data.addNote"
                  :selection="state.selectedSection" :archive-enabled="caseActions.archive.enabled"
                  @move-entire-case="handleMoveEntireCase" />
     <archive-action v-else-if="name === 'archive'" v-model:enabled="caseActions.archive.enabled"
-                    :selection="caseActions.sections.data.section"
+                    :selection="state.selectedSection"
                     :status-data="caseActions.status.data" />
+    <management-action v-else-if="name === 'management'" v-model:enabled="caseActions.management.enabled"
+                       v-model:flags="caseActions.management.data.flags" />
   `,
 });

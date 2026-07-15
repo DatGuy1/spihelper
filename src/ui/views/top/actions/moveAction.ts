@@ -19,7 +19,7 @@ export const MoveActionComponent = defineComponent({
   },
   computed: {
     isSectionMove(): boolean {
-      return this.selectionType === 'specific';
+      return this.selectionType === 'single';
     },
     moveTitle(): string {
       if (!this.selection) {
@@ -28,10 +28,13 @@ export const MoveActionComponent = defineComponent({
       if (this.selection.type === 'all') {
         return 'entire case';
       }
+      if (this.selection.type === 'multiple') {
+        return `${this.selection.sections.length} sections`;
+      }
       return 'section ' + this.selection.section.name;
     },
     disabled(): boolean {
-      return this.archiveEnabled;
+      return this.archiveEnabled || this.selectionType === 'multiple';
     },
     selectionType() {
       return this.selection?.type ?? null;
@@ -84,6 +87,9 @@ export const MoveActionComponent = defineComponent({
     </action-container>
     <cdx-message v-if="archiveEnabled" type="warning" :inline="true">
       Archival is enabled, which overrides moving.
+    </cdx-message>
+    <cdx-message v-if="selectionType === 'multiple'" type="warning" :inline="true">
+      Moving isn't currently supported while multiple sections are selected.
     </cdx-message>
   `,
 });

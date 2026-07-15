@@ -2,8 +2,10 @@ import { afterEach, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 import {
   SECTION_BUTTON_LABEL,
   addSectionButtons,
+  clearSelectedSectionOverlays,
   hideSectionOverlay,
   scrollToSection,
+  setSelectedSectionOverlays,
   showSectionOverlay,
 } from '../../src/ui/dom.ts';
 
@@ -232,47 +234,81 @@ describe('section overlay', () => {
     };
   });
 
+  afterEach(() => {
+    clearSelectedSectionOverlays();
+    hideSectionOverlay();
+  });
+
+  function selectedOverlays(): HTMLElement[] {
+    return Array.from(overlayRoot.querySelectorAll<HTMLElement>('.spiHelper-section-overlay--selected'));
+  }
+
+  function previewOverlay(): HTMLElement | null {
+    return overlayRoot.querySelector<HTMLElement>('.spiHelper-section-overlay--preview');
+  }
+
   test('showSectionOverlay creates the overlay under the parser output root, visible with the selected class', () => {
     showSectionOverlay(2, 'selected');
 
-    const overlay = overlayRoot.querySelector<HTMLElement>('.spiHelper-section-overlay');
-    expect(overlay).not.toBeNull();
-    expect(overlay?.style.display).toBe('block');
-    expect(overlay?.classList.contains('spiHelper-section-overlay--selected')).toBe(true);
-    expect(overlay?.classList.contains('spiHelper-section-overlay--preview')).toBe(false);
+    const overlays = selectedOverlays();
+    expect(overlays).toHaveLength(1);
+    expect(overlays[0]?.style.display).toBe('block');
+    expect(overlays[0]?.dataset.sectionId).toBe('2');
   });
 
-  test('showSectionOverlay with type preview sets the preview class instead of selected', () => {
-    showSectionOverlay(2, 'preview');
-
-    const overlay = overlayRoot.querySelector<HTMLElement>('.spiHelper-section-overlay');
-    expect(overlay?.classList.contains('spiHelper-section-overlay--preview')).toBe(true);
-    expect(overlay?.classList.contains('spiHelper-section-overlay--selected')).toBe(false);
-  });
-
-  test('reuses a single overlay element across repeated calls', () => {
+  test('showSectionOverlay with type preview creates a separate overlay from any selected ones', () => {
     showSectionOverlay(2, 'selected');
     showSectionOverlay(1, 'preview');
 
-    expect(overlayRoot.querySelectorAll('.spiHelper-section-overlay').length).toBe(1);
+    expect(selectedOverlays()).toHaveLength(1);
+    expect(previewOverlay()?.dataset.sectionId).toBe('1');
   });
 
-  test('hideSectionOverlay sets display:none without removing the element', () => {
+  test('reuses the same selected overlay element for repeated calls with the same section id', () => {
     showSectionOverlay(2, 'selected');
+    showSectionOverlay(2, 'selected');
+
+    expect(selectedOverlays()).toHaveLength(1);
+  });
+
+  test('setSelectedSectionOverlays shows one overlay per selected section', () => {
+    setSelectedSectionOverlays([1, 2]);
+
+    const ids = selectedOverlays().map(el => el.dataset.sectionId).sort();
+    expect(ids).toEqual(['1', '2']);
+  });
+
+  test('setSelectedSectionOverlays drops overlays for sections no longer selected', () => {
+    setSelectedSectionOverlays([1, 2]);
+    setSelectedSectionOverlays([1]);
+
+    const ids = selectedOverlays().map(el => el.dataset.sectionId);
+    expect(ids).toEqual(['1']);
+  });
+
+  test('clearSelectedSectionOverlays removes every selected overlay', () => {
+    setSelectedSectionOverlays([1, 2]);
+    clearSelectedSectionOverlays();
+
+    expect(selectedOverlays()).toHaveLength(0);
+  });
+
+  test('hideSectionOverlay hides the preview overlay without touching selected overlays', () => {
+    setSelectedSectionOverlays([2]);
+    showSectionOverlay(1, 'preview');
     hideSectionOverlay();
 
-    const overlay = overlayRoot.querySelector<HTMLElement>('.spiHelper-section-overlay');
-    expect(overlay).not.toBeNull();
-    expect(overlay?.style.display).toBe('none');
+    expect(previewOverlay()?.style.display).toBe('none');
+    expect(selectedOverlays()[0]?.style.display).toBe('block');
   });
 
-  test('showSectionOverlay for an unknown section id leaves the existing overlay untouched', () => {
-    showSectionOverlay(2, 'selected');
+  test('showSectionOverlay for an unknown section id does not affect existing selected overlays', () => {
+    setSelectedSectionOverlays([2]);
     showSectionOverlay(999, 'preview');
 
-    const overlay = overlayRoot.querySelector<HTMLElement>('.spiHelper-section-overlay');
-    expect(overlay?.classList.contains('spiHelper-section-overlay--selected')).toBe(true);
-    expect(overlay?.classList.contains('spiHelper-section-overlay--preview')).toBe(false);
+    const overlays = selectedOverlays();
+    expect(overlays).toHaveLength(1);
+    expect(overlays[0]?.dataset.sectionId).toBe('2');
   });
 
   test('positions the overlay from the heading top and the last content element bottom', () => {
@@ -284,7 +320,7 @@ describe('section overlay', () => {
 
     showSectionOverlay(1, 'selected');
 
-    const overlay = overlayRoot.querySelector<HTMLElement>('.spiHelper-section-overlay');
+    const overlay = selectedOverlays()[0];
     expect(overlay?.style.top).toBe('100px');
     expect(overlay?.style.height).toBe('108px');
   });

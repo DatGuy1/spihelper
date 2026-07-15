@@ -69,6 +69,7 @@ function renderSectionOverlay(overlay: HTMLElement | null, sectionId: number, ty
   overlay.style.top = `${Math.max(0, bounds.top)}px`;
   overlay.style.height = `${bounds.height + 8}px`;
   overlay.style.display = 'block';
+  overlay.dataset.sectionId = String(sectionId);
   overlay.classList.toggle('spiHelper-section-overlay--preview', type === 'preview');
   overlay.classList.toggle('spiHelper-section-overlay--selected', type === 'selected');
 }
@@ -94,22 +95,57 @@ export function getSectionIdByMenuItem(
   return typeof matchingMenuItem.value === 'number' ? matchingMenuItem.value : null;
 }
 
-let sectionOverlayEl: HTMLElement | null = null;
+let previewOverlayEl: HTMLElement | null = null;
+// One overlay element per currently-highlighted "selected" section, so several
+// sections can be highlighted at once in multi-select mode.
+const selectedOverlayEls = new Map<number, HTMLElement>();
 
-function getOrCreateSectionOverlay(): HTMLElement | null {
-  sectionOverlayEl ??= createSectionOverlay();
-  return sectionOverlayEl;
+function getOrCreatePreviewOverlay(): HTMLElement | null {
+  previewOverlayEl ??= createSectionOverlay();
+  return previewOverlayEl;
+}
+
+function getOrCreateSelectedOverlay(sectionId: number): HTMLElement | null {
+  let overlay = selectedOverlayEls.get(sectionId);
+  if (!overlay) {
+    const created = createSectionOverlay();
+    if (!created) {
+      return null;
+    }
+    overlay = created;
+    selectedOverlayEls.set(sectionId, overlay);
+  }
+  return overlay;
 }
 
 export function showSectionOverlay(sectionId: number, type: SectionOverlayType): void {
-  const overlay = getOrCreateSectionOverlay();
+  const overlay = type === 'preview' ? getOrCreatePreviewOverlay() : getOrCreateSelectedOverlay(sectionId);
   renderSectionOverlay(overlay, sectionId, type);
 }
 
+/* Hides the transient hover-preview overlay only; does not affect "selected" highlights. */
 export function hideSectionOverlay(): void {
-  if (sectionOverlayEl) {
-    sectionOverlayEl.style.display = 'none';
+  if (previewOverlayEl) {
+    previewOverlayEl.style.display = 'none';
   }
+}
+
+/* Shows exactly these sections as "selected", removing highlights for any section not listed. */
+export function setSelectedSectionOverlays(sectionIds: number[]): void {
+  const idSet = new Set(sectionIds);
+  for (const [id, overlay] of selectedOverlayEls) {
+    if (!idSet.has(id)) {
+      overlay.remove();
+      selectedOverlayEls.delete(id);
+    }
+  }
+  for (const id of sectionIds) {
+    showSectionOverlay(id, 'selected');
+  }
+}
+
+export function clearSelectedSectionOverlays(): void {
+  setSelectedSectionOverlays([]);
 }
 
 export const SECTION_BUTTON_LABEL = 'open in spiHelper';

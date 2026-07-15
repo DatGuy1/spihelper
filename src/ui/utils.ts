@@ -26,7 +26,7 @@ export function getSockEntries(opts: {
 
   if (fullSearch) {
     let $searchOrigin: JQuery<Element> | JQuery<Document> = $(document);
-    if (state.selectedSection?.type === 'specific') {
+    if (state.selectedSection?.type === 'single') {
       $searchOrigin = $(`a[href$="section=${state.selectedSection.section.id}"]`).parentsUntil(':has(hr)').last().nextUntil('hr');
     }
     const sockList = $searchOrigin.find('.cuEntry').find('a:first');

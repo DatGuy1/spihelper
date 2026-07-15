@@ -231,10 +231,56 @@ describe('spiHelperArchiveCase', () => {
   test('archives the closed section into the existing archive', async () => {
     stubPageText();
     mockGetInvestigationSections.mockResolvedValue([new SectionEntry(0, '01 January 2019')]);
+    mockEditPage.mockResolvedValue(123); // both the archive-page and case-page edits succeed
     const state = new CaseState([section]);
-    await spiHelperArchiveCase(state);
+    const archived = await spiHelperArchiveCase(state);
+    expect(archived).toEqual([section]);
     const archiveCall = mockEditPage.mock.calls.find(c => c[0].title === context.archiveName)?.[0];
     expect(archiveCall?.newText).toContain('Existing evidence that must not be lost.');
     expect(archiveCall?.newText).toContain('Evidence about SockA.');
+  });
+
+  describe('with an explicit section subset', () => {
+    const closedSection = new SectionEntry(1, '09 July 2020');
+    const openSection = new SectionEntry(2, '15 August 2020');
+    const closedSectionText = '===09 July 2020===\n{{SPI case status|closed}}\nEvidence about SockA.\n----';
+    const openSectionText = '===15 August 2020===\n{{SPI case status|open}}\nEvidence about SockB.\n----';
+
+    function stubMixedPageText() {
+      mockGetPageText.mockImplementation(
+        (title: string, _show: boolean, sectionId?: number | null) => {
+          if (title === context.archiveName) return Promise.resolve(existingArchiveText);
+          if (title === context.pageName) {
+            if (sectionId === closedSection.id) return Promise.resolve(closedSectionText);
+            if (sectionId === openSection.id) return Promise.resolve(openSectionText);
+            // Whole-page fetch (no sectionId): both sections concatenated
+            return Promise.resolve(`${closedSectionText}\n${openSectionText}`);
+          }
+          return Promise.resolve('');
+        },
+      );
+    }
+
+    test('archives only the closed sections within an explicit subset, skipping non-closed ones', async () => {
+      stubMixedPageText();
+      mockGetInvestigationSections.mockResolvedValue([new SectionEntry(0, '01 January 2019')]);
+      mockEditPage.mockResolvedValue(123); // both the archive-page and case-page edits succeed
+      const state = new CaseState([closedSection, openSection]);
+      const archived = await spiHelperArchiveCase(state, [closedSection, openSection]);
+
+      expect(archived).toEqual([closedSection]);
+      const archiveCall = mockEditPage.mock.calls
+        .find(c => c[0].title === context.archiveName)?.[0];
+      expect(archiveCall?.newText).toContain('Evidence about SockA.');
+      expect(archiveCall?.newText).not.toContain('Evidence about SockB.');
+    });
+
+    test('without an explicit subset, a non-closed section is skipped', async () => {
+      stubMixedPageText();
+      const state = new CaseState([openSection]);
+      const archived = await spiHelperArchiveCase(state);
+      expect(archived).toEqual([]);
+      expect(mockEditPage).not.toHaveBeenCalled();
+    });
   });
 });

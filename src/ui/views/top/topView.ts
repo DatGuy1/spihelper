@@ -1,10 +1,19 @@
 import { type PropType, defineComponent } from 'vue';
 import { cdxIconCollapse, cdxIconExpand, cdxIconFeedback, cdxIconPushPin } from '@wikimedia/codex-icons';
-import { type FeedbackDialog } from '../../../types';
+import {
+  type AllUser,
+  type CaseActionName,
+  type CaseActionSection,
+  type CaseActions,
+  type FeedbackDialog,
+  ParsedArchiveNotice,
+  type UserRow,
+} from '../../../types';
 import {
   type CaseState,
   type SectionEntry,
   type SectionSelection,
+  getSelectedSections,
   loadCaseText,
   loadSectionText,
 } from '../../../state.ts';
@@ -12,14 +21,6 @@ import { saveOptions, spiHelperSettings } from '../../../options';
 import { UpdateUserAllUserData } from '../userLookup.ts';
 import { spiHelperParseArchiveNotice } from '../../../archivenotice.ts';
 import { context } from '../../../context.ts';
-import {
-  type AllUser,
-  type CaseActionName,
-  type CaseActionSection,
-  type CaseActions,
-  ParsedArchiveNotice,
-  type UserRow,
-} from '../../../types';
 import { getDefaultUserRow, getSockEntries, updateUserBlockDataSettings } from '../../utils.ts';
 import {
   type ActionButtons,
@@ -35,7 +36,7 @@ import { OpState, finishOp, getOpState, isOpRunning, startOp } from '../../../op
 import { spiHelperPerformActions } from '../../../caseActions.ts';
 import { VueMessage, messages } from '../../messages.ts';
 import { AllSectionActions, AlwaysAvailableActions, SpecificSectionActions } from './utils/setup.ts';
-import { addSectionButtons, hideSectionOverlay, showSectionOverlay } from '../../dom.ts';
+import { addSectionButtons, clearSelectedSectionOverlays, setSelectedSectionOverlays } from '../../dom.ts';
 
 interface Data {
   open: boolean;
@@ -60,6 +61,7 @@ interface Data {
   accounts: UserRow[];
   messages: VueMessage[];
   sectionClickCleanup: (() => void) | null;
+  multiSelectMode: boolean;
 }
 
 export const TopViewComponent = defineComponent({
@@ -89,6 +91,7 @@ export const TopViewComponent = defineComponent({
       accounts: [],
       messages,
       sectionClickCleanup: null,
+      multiSelectMode: false,
       icons: {
         cdxIconPushPin,
         cdxIconCollapse,
@@ -108,10 +111,16 @@ export const TopViewComponent = defineComponent({
           return false;
         }
       }
-      return true;
+      return [
+        ...this.caseActions.comment.data.bySection.values(),
+        ...this.caseActions.status.data.bySection.values(),
+      ].every(entry => !entry.enabled);
     },
     selectedSection() {
       return this.state.selectedSection;
+    },
+    selectedSections(): SectionEntry[] {
+      return getSelectedSections(this.state.selectedSection);
     },
     archiveNotice() {
       return this.state.archiveNotice;
@@ -181,11 +190,14 @@ export const TopViewComponent = defineComponent({
         caseAction.enabled = actionDefaultEnabled;
         // If the action is enabled by default, it's always available,
         // or we're going to 'all' and it's supported by 'all sections',
-        // or we're going to specific section, and it's supported as such
+        // or we're going to a single section, and it's supported as such,
+        // or we're going to a multi-section selection, which combines both
         if (actionDefaultEnabled && (
           AlwaysAvailableActions.has(caseAN)
           || (newSection === 'all' && AllSectionActions.has(caseAN))
           || (typeof newSection === 'number' && SpecificSectionActions.has(caseAN))
+          || (Array.isArray(newSection)
+            && (SpecificSectionActions.has(caseAN) || AllSectionActions.has(caseAN)))
         )) {
           this.displayedForms.add(caseAN);
         }
@@ -247,7 +259,12 @@ export const TopViewComponent = defineComponent({
       }
       this.sectionClickCleanup = addSectionButtons(ids, (sectionId) => {
         // Might like to await this
-        void this.onUpdateSectionSelection(sectionId);
+        if (this.multiSelectMode) {
+          void this.toggleMultiSelectSection(sectionId);
+        }
+        else {
+          void this.onUpdateSectionSelection(sectionId);
+        }
         if (!this.open) {
           this.open = true;
         }
@@ -255,17 +272,11 @@ export const TopViewComponent = defineComponent({
     },
     syncSelectedSectionOverlay() {
       if (!spiHelperSettings.highlightSection || !this.open) {
-        hideSectionOverlay();
+        clearSelectedSectionOverlays();
         return;
       }
 
-      const selected = this.state.selectedSection;
-      if (selected?.type !== 'specific') {
-        hideSectionOverlay();
-        return;
-      }
-
-      showSectionOverlay(selected.section.id, 'selected');
+      setSelectedSectionOverlays(this.selectedSections.map(s => s.id));
     },
     toggleButtonLayout() {
       this.buttonLayout = !this.buttonLayout;
@@ -307,7 +318,7 @@ export const TopViewComponent = defineComponent({
       this.caseActions.sections.data.section = newSelection;
       // If we switch from a section to 'all' or vice versa, reset the displayed forms
       const prevType = this.state.selectedSection?.type ?? null;
-      const nextType = newSelection === 'all' ? 'all' : 'specific';
+      const nextType = newSelection === 'all' ? 'all' : 'single';
       if (prevType !== nextType) {
         this.displayedForms = new Set(Array.from(this.displayedForms).filter(formName =>
           AlwaysAvailableActions.has(formName),
@@ -328,7 +339,7 @@ export const TopViewComponent = defineComponent({
       await this.loadNewSection(targetSection);
     },
     async loadNewSection(targetSection: SectionEntry) {
-      this.state.selectedSection = { type: 'specific', section: targetSection };
+      this.state.selectedSection = { type: 'single', section: targetSection };
 
       const newText = await loadSectionText(targetSection);
       const result = spiHelperCaseStatusRegex.exec(newText);
@@ -341,12 +352,115 @@ export const TopViewComponent = defineComponent({
       this.syncSelectedSectionOverlay();
       void this.loadSectionAccounts(this.state.selectedSection);
     },
+    async toggleMultiSelectMode(newValue: boolean) {
+      this.multiSelectMode = newValue;
+      if (!newValue) {
+        // Grab the first section from the multiple selected sections array
+        const current = this.selectedSections;
+        if (current.length > 1) {
+          const [first] = current;
+          if (first) {
+            await this.applySectionSelection([first]);
+          }
+        }
+        return;
+      }
+      // 'all' doesn't map to any chip in the multiselect lookup, so it'd otherwise show
+      // an empty working set while secretly still targeting the whole case underneath
+      if (this.state.selectedSection?.type === 'all') {
+        await this.applySectionSelection([]);
+      }
+    },
+    // Add sectionId to the multi-select selection if it isn't already selected, otherwise remove it
+    async toggleMultiSelectSection(sectionId: number) {
+      const current = this.selectedSections;
+      const isRemoving = current.some(section => section.id === sectionId);
+      if (isRemoving) {
+        await this.applySectionSelection(current.filter(section => section.id !== sectionId));
+        return;
+      }
+      const section = this.state.sections.find(s => s.id === sectionId);
+      if (!section) {
+        console.error('toggleMultiSelectSection: Could not find target section with ID', sectionId);
+        return;
+      }
+      await this.applySectionSelection([...current, section]);
+    },
+    // The multi-select lookup always reports the full resulting set of ids, whether the change
+    // came from picking a new section or removing an existing chip
+    async handleUpdateMultiSelectSections(sectionIds: number[]) {
+      const idSet = new Set(sectionIds);
+      const sections = this.state.sections.filter(section => idSet.has(section.id));
+      await this.applySectionSelection(sections);
+    },
+    async applySectionSelection(sections: SectionEntry[]) {
+      this.pruneBySectionData(new Set(sections.map(s => s.id)));
+
+      if (sections.length === 0) {
+        this.caseActions.sections.data.section = null;
+        this.state.selectedSection = null;
+        this.syncSelectedSectionOverlay();
+        return;
+      }
+      if (sections.length === 1) {
+        const [only] = sections;
+        if (!only) {
+          return;
+        }
+        this.caseActions.sections.data.section = only.id;
+        await this.loadNewSection(only);
+        return;
+      }
+      this.caseActions.sections.data.section = sections.map(s => s.id);
+      this.state.selectedSection = { type: 'multiple', sections };
+      await Promise.all(sections.map(section => this.ensureBySectionEntry(section)));
+      this.syncSelectedSectionOverlay();
+      void this.loadSectionAccounts(this.state.selectedSection);
+    },
+    // Seed per-section comment/status data the first time a section joins the
+    // multi-select selection
+    async ensureBySectionEntry(section: SectionEntry) {
+      if (!this.caseActions.comment.data.bySection.has(section.id)) {
+        this.caseActions.comment.data.bySection.set(section.id, { text: '* ', enabled: false });
+      }
+      if (!this.caseActions.status.data.bySection.has(section.id)) {
+        const text = await loadSectionText(section);
+        const result = spiHelperCaseStatusRegex.exec(text);
+        const normalisedStatus = normalizeCaseStatus(result?.[1] ?? '');
+        this.caseActions.status.data.bySection.set(section.id, {
+          old: normalisedStatus, new: normalisedStatus, enabled: false,
+        });
+      }
+    },
+    pruneBySectionData(keepIds: Set<number>) {
+      // Should we delete or just disable the action?
+      for (const id of this.caseActions.comment.data.bySection.keys()) {
+        if (!keepIds.has(id)) {
+          this.caseActions.comment.data.bySection.delete(id);
+        }
+      }
+      for (const id of this.caseActions.status.data.bySection.keys()) {
+        if (!keepIds.has(id)) {
+          this.caseActions.status.data.bySection.delete(id);
+        }
+      }
+    },
     async loadSectionAccounts(selection: SectionSelection) {
       this.accounts = this.accounts.filter(row => !this.sectionAccountNames.has(row.username));
-      // Prefill block and link tables
-      const searchText = await (selection.type === 'all'
-        ? loadCaseText(this.state)
-        : loadSectionText(selection.section));
+      // Prefill block and link tables. For a multi-section selection, union the text of every
+      // selected section so accounts from any of them are picked up in one combined pass.
+      const searchText = await (async () => {
+        if (selection.type === 'all') {
+          return loadCaseText(this.state);
+        }
+        if (selection.type === 'multiple') {
+          const texts = await Promise.all(
+            selection.sections.map(section => loadSectionText(section)),
+          );
+          return texts.join('\n');
+        }
+        return loadSectionText(selection.section);
+      })();
 
       const [likelySocks, possibleSocks, allUsernames] = getSockEntries({
         text: searchText,
@@ -370,6 +484,16 @@ export const TopViewComponent = defineComponent({
         this.caseActions.comment.data.text,
         newStatus,
       );
+    },
+    // Same as onUpdateNewStatus, but for one section's
+    // own comment box in the multi-select selection
+    onUpdateSectionStatus(sectionId: number, newStatus: string) {
+      const entry = this.caseActions.comment.data.bySection.get(sectionId);
+      const currentComment = entry?.text ?? '* ';
+      this.caseActions.comment.data.bySection.set(sectionId, {
+        text: updateCommentWithStatus(currentComment, newStatus),
+        enabled: entry?.enabled ?? false,
+      });
     },
     async onSubmitActions() {
       if (isOpRunning('mainActions')) {
@@ -521,8 +645,13 @@ export const TopViewComponent = defineComponent({
                 :case-actions="caseActions"
                 :accounts="accounts"
                 :state="state"
+                :multi-select-mode="multiSelectMode"
+                :selected-sections="selectedSections"
                 @update-section-selection="onUpdateSectionSelection"
                 @update-status="onUpdateNewStatus"
+                @update-section-status="onUpdateSectionStatus"
+                @update:multi-select-mode="toggleMultiSelectMode"
+                @update-multi-select-sections="handleUpdateMultiSelectSections"
                 @user-selected="handleUserSelected"
                 @remove-rows="handleRemoveRows"
                 @add-row="handleAddRow"
@@ -549,8 +678,13 @@ export const TopViewComponent = defineComponent({
               :case-actions="caseActions"
               :accounts="accounts"
               :state="state"
+              :multi-select-mode="multiSelectMode"
+              :selected-sections="selectedSections"
               @update-section-selection="onUpdateSectionSelection"
               @update-status="onUpdateNewStatus"
+              @update-section-status="onUpdateSectionStatus"
+              @update:multi-select-mode="toggleMultiSelectMode"
+              @update-multi-select-sections="handleUpdateMultiSelectSections"
               @user-selected="handleUserSelected"
               @remove-rows="handleRemoveRows"
               @add-row="handleAddRow"

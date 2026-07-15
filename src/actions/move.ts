@@ -350,7 +350,7 @@ export async function spiHelperMoveCase(opts: {
 }
 
 /**
- * Move or merge a specific section of a case into a different case
+ * Move or merge a single section of a case into a different case
  *
  * @param mergeTarget The username portion of the case this section should be merged into
  * @param section The section of this case that should be moved/merged

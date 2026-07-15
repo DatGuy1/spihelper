@@ -1,9 +1,6 @@
 import { type PropType, defineComponent } from 'vue';
-import type { SelectionType } from '../../../types/vue.ts';
-import type { ActionLabel, CaseActionName, CaseActionSection } from '../../../types/spi.ts';
-import { context } from '../../../context.ts';
-import { ClerkOnlyActions, NonArchiveActions } from './utils/setup.ts';
-import { spiHelperIsClerk } from '../../../role.ts';
+import type { ActionLabel, CaseActionName, CaseActionSection, SelectionType } from '../../../types';
+import { actionLabelText, shouldShowAction } from './utils';
 
 export const ActionAccordionComponent = defineComponent({
   props: {
@@ -25,29 +22,14 @@ export const ActionAccordionComponent = defineComponent({
       return this.selection === 'all';
     },
     showAccordion(): boolean {
-      if (context.isArchive) {
-        return !NonArchiveActions.has(this.name);
-      }
-      if (!spiHelperIsClerk() && ClerkOnlyActions.has(this.name)) {
-        return false;
-      }
-      if (this.name === 'sections') return true;
-      if (this.selection === null) return false;
-      if (this.selectionType === 'both') return true;
-      return (this.selectionType === 'case') === this.allSelected;
+      return shouldShowAction({
+        name: this.name, selection: this.selection, selectionType: this.selectionType,
+      });
     },
     text(): string {
-      if (typeof this.label === 'string') {
-        return this.label;
-      }
-
-      if (this.selectionType === 'both') {
-        return this.allSelected
-          ? (this.label.case)
-          : (this.label.section);
-      }
-
-      return 'Unexpected configuration';
+      return actionLabelText({
+        label: this.label, selectionType: this.selectionType, allSelected: this.allSelected,
+      });
     },
     showEnabledClass(): boolean {
       return this.name !== 'sections' && this.actionEnabled;

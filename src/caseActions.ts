@@ -81,7 +81,13 @@ export async function spiHelperPerformActions(opts: {
 }) {
   const { actions, accounts, state } = opts;
 
-  if (Object.values(actions).every((action: CaseAction<never>) => !action.enabled)) {
+  const anyTopLevelEnabled = Object.values(actions)
+    .some((action: CaseAction<never>) => action.enabled);
+  const anyBySectionEnabled = [
+    ...actions.comment.data.bySection.values(),
+    ...actions.status.data.bySection.values(),
+  ].some(entry => entry.enabled);
+  if (!anyTopLevelEnabled && !anyBySectionEnabled) {
     new VueMessage({ type: 'warning', content: 'No actions are enabled' }).show();
     return;
   }
@@ -106,15 +112,18 @@ export async function spiHelperPerformActions(opts: {
 
   const editSummaryActions: string[] = [];
   let logMessage = `* [[${context.pageName}]]`;
-  if (state.selectedSection.type === 'specific') {
+  if (state.selectedSection.type === 'single') {
     logMessage += ` (section ${state.selectedSection.section.name})`;
+  }
+  else if (state.selectedSection.type === 'multiple') {
+    logMessage += ` (multiple sections)`;
   }
   else {
     logMessage += ' (full case)';
   }
   logMessage += ' ~~~~~';
 
-  let targetText = await (sectionType === 'specific'
+  let targetText = await (sectionType === 'single'
     ? loadSectionText(state.selectedSection.section)
     : loadCaseText(state));
   if (!targetText) {
@@ -142,7 +151,7 @@ export async function spiHelperPerformActions(opts: {
   const talkNoticePromise = Promise.all(talkNoticePromises);
 
   if (!context.isArchive) {
-    if (sectionType === 'specific') {
+    if (sectionType === 'single') {
       const caseStatusResult = spiHelperCaseStatusRegex.exec(targetText);
       if (caseStatusResult === null) {
         // The case status is malformed, reset it
@@ -170,6 +179,69 @@ export async function spiHelperPerformActions(opts: {
       }
     }
     else {
+      // Covers both 'multiple' and 'all' for the archivenotice update branch
+      if (sectionType === 'multiple') {
+        const commentedSections: string[] = [];
+        const closedSections: string[] = [];
+        const statusChangedSections: string[] = [];
+        for (const section of state.selectedSection.sections) {
+          const originalSectionText = await loadSectionText(section);
+          let sectionText = originalSectionText;
+          // Collected per-section, then written out under one header for that section
+          const sectionLogLines: string[] = [];
+
+          const caseStatusResult = spiHelperCaseStatusRegex.exec(sectionText);
+          if (caseStatusResult === null) {
+            // The case status is malformed, reset it
+            sectionText = sectionText.replace(/^(\s*===.*===[^\S\r\n]*)/, '$1\n{{SPI case status|}}');
+          }
+
+          const sectionStatus = actions.status.data.bySection.get(section.id);
+          if (sectionStatus?.enabled && sectionStatus.new !== 'nochange' && sectionStatus.new !== sectionStatus.old) {
+            const statusResult = spiHelperHandleStatus(sectionStatus.new, sectionText);
+            sectionText = statusResult.targetText;
+            if (statusResult.newStatus === 'closed') {
+              // Closing is common and distinctive enough to call out on its own,
+              // rather than folding it into the generic "changed status" bucket
+              closedSections.push(section.name);
+            }
+            else if (statusResult.newStatus !== 'nochange') {
+              statusChangedSections.push(section.name);
+            }
+            if (statusResult.newStatus !== 'nochange') {
+              sectionLogLines.push(`changed case status from ${sectionStatus.old} to ${statusResult.newStatus}`);
+            }
+          }
+
+          const sectionComment = actions.comment.data.bySection.get(section.id);
+          if (sectionComment?.enabled && sectionComment.text.trim() !== '*') {
+            sectionText = spiHelperHandleComment(sectionText, sectionComment.text);
+            commentedSections.push(section.name);
+            sectionLogLines.push('commented');
+          }
+
+          if (sectionLogLines.length > 0) {
+            logMessage += `\n** ${section.name}`;
+            for (const line of sectionLogLines) {
+              logMessage += `\n*** ${line}`;
+            }
+          }
+
+          if (sectionText !== originalSectionText) {
+            targetText = targetText.replace(originalSectionText, sectionText);
+          }
+        }
+        if (closedSections.length > 0) {
+          editSummaryActions.push(`closed ${closedSections.length} section${closedSections.length > 1 ? 's' : ''}`);
+        }
+        if (statusChangedSections.length > 0) {
+          editSummaryActions.push(`changed status on ${statusChangedSections.length} section${statusChangedSections.length > 1 ? 's' : ''}`);
+        }
+        if (commentedSections.length > 0) {
+          editSummaryActions.push(`commented on ${commentedSections.length} section${commentedSections.length > 1 ? 's' : ''}`);
+        }
+      }
+
       if (actions.management.enabled) {
         const noticeOpts = actions.management.data.flags;
         state.archiveNotice = new ParsedArchiveNotice({
@@ -196,12 +268,15 @@ export async function spiHelperPerformActions(opts: {
   // Make all the requested edits synchronously since we might make more changes to the page,
   // unless the page is an archive
   if (!context.isArchive && targetText !== startText) {
-    const sectionId = state.selectedSection.type === 'all'
-      ? null
-      : state.selectedSection.section.id;
-    const sectionName = state.selectedSection.type === 'all'
-      ? null
-      : state.selectedSection.section.name;
+    // 'all' and 'multiple' both edit the whole page (sectionId null); only 'single' targets
+    // a single MediaWiki section, which is also the only case where the "/* section */"
+    // autocomment makes sense, since MediaWiki only supports one summary target.
+    const sectionId = state.selectedSection.type === 'single'
+      ? state.selectedSection.section.id
+      : null;
+    const sectionName = state.selectedSection.type === 'single'
+      ? state.selectedSection.section.name
+      : null;
 
     const editSummary = formatEditSummary(editSummaryActions, sectionName);
     const newRevId = await context.edit({
@@ -223,7 +298,7 @@ export async function spiHelperPerformActions(opts: {
     else {
       // Update our text. This should be functionally (but not exactly) equivalent
       // to loadCaseText({ purge: true }); loadSectionText({ purge: true });
-      if (state.selectedSection.type === 'specific') {
+      if (state.selectedSection.type === 'single') {
         state.selectedSection.section._text = targetText;
         if (state._text) {
           state._text = state._text.replace(startText, targetText);
@@ -231,6 +306,12 @@ export async function spiHelperPerformActions(opts: {
       }
       else {
         state._text = targetText;
+        if (state.selectedSection.type === 'multiple') {
+          // Individual section caches no longer match the page; force a refetch next read
+          for (const section of state.selectedSection.sections) {
+            section._text = null;
+          }
+        }
       }
       context.startingRevId = newRevId;
     }
@@ -243,10 +324,19 @@ export async function spiHelperPerformActions(opts: {
         await spiHelperArchiveCase(state);
         break;
       }
-      case 'specific': {
+      case 'single': {
         // Just archive the selected section
         logMessage += '\n** Archived section';
         await spiHelperArchiveCaseSection(state.selectedSection.section);
+        break;
+      }
+      case 'multiple': {
+        // Only closed sections in the selection actually get archived; sections that
+        // aren't closed are silently left alone, same as the whole-case 'all' archive above
+        const archivedSections = await spiHelperArchiveCase(state, state.selectedSection.sections);
+        if (archivedSections.length > 0) {
+          logMessage += `\n** Archived ${archivedSections.length} section${archivedSections.length > 1 ? 's' : ''}`;
+        }
         break;
       }
     }
@@ -266,7 +356,7 @@ export async function spiHelperPerformActions(opts: {
           });
           break;
         }
-        case 'specific': {
+        case 'single': {
           // Option 2: this is a single-section case move or merge
           logMessage += '\n** moved section to ' + renameTarget;
           await spiHelperMoveCaseSection(renameTarget, state.selectedSection.section);
@@ -288,7 +378,7 @@ export async function spiHelperPerformActions(opts: {
     if (movedWholePage) {
       await refreshSections(state);
     }
-    if (state.selectedSection.type === 'specific') {
+    if (state.selectedSection.type === 'single' || state.selectedSection.type === 'multiple') {
       state.selectedSection = null;
     }
     await context.refreshRevId();

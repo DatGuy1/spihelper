@@ -1,5 +1,5 @@
 import { spiHelperIsAdmin } from '../../../../role.ts';
-import type { ActionLabel, CaseActionName, CaseActions } from '../../../../types/spi.ts';
+import type { ActionLabel, CaseActionName, CaseActions } from '../../../../types';
 import { context } from '../../../../context.ts';
 import { setupBlockActionData } from '../../../../utils.ts';
 
@@ -31,10 +31,6 @@ export function getActionButtons(): ActionButtons {
       label: 'Generate Links',
       selectionType: 'both',
     },
-    management: {
-      label: 'SPI Management',
-      selectionType: 'case',
-    },
     move: {
       label: {
         case: 'Move/Merge Full Case',
@@ -48,6 +44,10 @@ export function getActionButtons(): ActionButtons {
         section: 'Archive',
       },
       selectionType: 'both',
+    },
+    management: {
+      label: 'SPI Management',
+      selectionType: 'case',
     },
   };
 }
@@ -64,6 +64,7 @@ export function getInitialCaseActions(): CaseActions {
       enabled: false,
       data: {
         text: '* ',
+        bySection: new Map(),
       },
     },
     status: {
@@ -71,6 +72,7 @@ export function getInitialCaseActions(): CaseActions {
       data: {
         old: '',
         new: 'nochange',
+        bySection: new Map(),
       },
     },
     block: {
@@ -104,9 +106,9 @@ export function getInitialCaseActions(): CaseActions {
 export const NonArchiveActions = new Set<CaseActionName>(['status', 'management', 'comment', 'move', 'archive']);
 // Actions only available for clerks
 export const ClerkOnlyActions = new Set<CaseActionName>(['move', 'archive', 'management']);
-// Actions available both for specific and for all sections
+// Actions available both for single and for all sections
 export const AlwaysAvailableActions = new Set<CaseActionName>(['sections', 'move', 'archive', 'block', 'link']);
-// Actions available only when a specific section is selected
+// Actions available only when a single section is selected
 export const SpecificSectionActions = new Set<CaseActionName>(['status', 'comment']);
 // Actions available only when 'all sections' is selected
 export const AllSectionActions = new Set<CaseActionName>(['management']);

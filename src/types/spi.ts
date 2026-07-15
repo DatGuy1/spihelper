@@ -197,7 +197,8 @@ export interface GlobalUser {
 
 export type ManagementFlag = 'crosswiki' | 'deny' | 'notalk' | 'moot';
 
-export type CaseActionSection = number | 'all' | null;
+// number[] represents a multi-section selection of two or more section ids
+export type CaseActionSection = number | number[] | 'all' | null;
 
 export const CASE_ACTION_NAMES = [
   'sections',
@@ -228,8 +229,13 @@ export interface CaseAction<T> {
 
 export interface CaseActions {
   sections: CaseAction<{ section: CaseActionSection }>;
-  comment: CaseAction<{ text: string }>;
-  status: CaseAction<{ old: string; new: string }>;
+  comment: CaseAction<{
+    text: string; bySection: Map<number, { text: string; enabled: boolean }>;
+  }>;
+  status: CaseAction<{
+    old: string; new: string;
+    bySection: Map<number, { old: string; new: string; enabled: boolean }>;
+  }>;
   block: CaseAction<BlockActionData>;
   link: { enabled: boolean };
   management: CaseAction<{ flags: Set<ManagementFlag> }>;

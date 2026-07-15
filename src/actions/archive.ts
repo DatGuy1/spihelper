@@ -25,34 +25,46 @@ import { VueMessage } from '../ui/messages.ts';
 import type { ArchiveSection } from '../types';
 
 /**
- * Archive all closed sections of a case
+ * Archives all closed sections of a case. If an explicit subset is given, only sections
+ * within that subset are considered (instead of every section on the page), but they
+ * still have to be closed to be archived - non-closed sections in the subset are left
+ * untouched, same as any other non-closed section.
+ *
+ * @returns the sections that were actually archived
  */
-export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
-  const sectionFetchMessage = new VueMessage({ type: 'notice', content: 'Loading all sections' }).show();
+export async function spiHelperArchiveCase(
+  state: CaseState, explicitSections?: SectionEntry[],
+): Promise<SectionEntry[]> {
+  const sectionFetchMessage = new VueMessage({
+    type: 'notice', content: 'Loading all sections',
+  }).show();
   const pageTextPromise = loadCaseText(state);
-  const sectionsToArchive = (await Promise.all(state.sections.map(async (section) => {
-    const sectionText = await loadSectionText(section);
-    const caseStatus = spiHelperCaseStatusRegex.exec(sectionText);
-    if (!caseStatus?.[1]) {
-      // No case status template found
-      return null;
-    }
+  const candidateSections = explicitSections ?? state.sections;
+  const sectionsToArchive = (await Promise.all(
+    candidateSections.map(async (section) => {
+      const sectionText = await loadSectionText(section);
+      const caseStatus = spiHelperCaseStatusRegex.exec(sectionText);
+      if (!caseStatus?.[1]) {
+        // No case status template found
+        return null;
+      }
 
-    // Return the section text if it's closed, or null (which we will filter) if it isn't
-    return spiHelperCaseClosedRegex.test(caseStatus[1]) ? section : null;
-  }))).filter(section => section !== null);
+      // Return the section text if it's closed, or null (which we will filter) if it isn't
+      return spiHelperCaseClosedRegex.test(caseStatus[1]) ? section : null;
+    }),
+  )).filter(section => section !== null);
   let newText = await pageTextPromise;
   sectionFetchMessage.update({ type: 'success', content: 'All sections loaded' });
   if (sectionsToArchive.length === 0) {
     new VueMessage({ type: 'warning', content: 'Nothing to archive' }).show();
-    return;
+    return [];
   }
 
   let newArchiveText = await spiHelperGetPageText(context.archiveName, true);
   const overflowResult = await spiHelperMoveArchiveIfOverflowing(
     context.pageName, context.archiveName,
   );
-  if (overflowResult === 'abort') return;
+  if (overflowResult === 'abort') return [];
   if (overflowResult === 'moved') newArchiveText = '';
   const archiveExists = newArchiveText !== '';
   // Update the archive
@@ -72,10 +84,10 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
     : parseArchiveSections(newArchiveText, archiveSectionEntries);
   if (!parsedArchiveSections) {
     new VueMessage({ type: 'notice', content: 'Failed to parse existing archive sections, aborting archival' }).show();
-    return;
+    return [];
   }
 
-  let sectionsAdded = 0;
+  const archivedSections: SectionEntry[] = [];
   for (const section of sectionsToArchive) {
     // Should be instant
     const sectionText = await loadSectionText(section);
@@ -94,19 +106,19 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
         type: 'error',
         content: `Failed to parse date from section header "${section.name}", aborting archival`,
       }).show();
-      return;
+      return [];
     }
     parsedArchiveSections.push({ header: parsedDate, fullText: cleanSectionText });
-    sectionsAdded++;
+    archivedSections.push(section);
   }
-  if (sectionsAdded === 0) {
+  if (archivedSections.length === 0) {
     new VueMessage({ type: 'warning', content: 'Nothing to archive' }).show();
-    return;
+    return [];
   }
   newArchiveText = rebuildArchiveText(newArchiveText, parsedArchiveSections);
 
-  const usePlural = sectionsAdded > 1;
-  const summaryPrefix = `Archiving ${sectionsAdded} section${usePlural ? 's' : ''}`;
+  const usePlural = archivedSections.length > 1;
+  const summaryPrefix = `Archiving ${archivedSections.length} section${usePlural ? 's' : ''}`;
   const archiveSuccess = await spiHelperEditPage({
     title: context.archiveName,
     newText: newArchiveText,
@@ -117,7 +129,7 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
 
   if (!archiveSuccess) {
     new VueMessage({ type: 'error', content: 'Failed to update archive, not removing sections from case page' }).show();
-    return;
+    return [];
   }
 
   // Update case page to blank the sections we archived
@@ -128,10 +140,11 @@ export async function spiHelperArchiveCase(state: CaseState): Promise<void> {
     watchExpiry: spiHelperSettings.expiry.case,
     baseRevId: context.startingRevId,
   });
+  return archivedSections;
 }
 
 /**
- * Archive a specific section of a case
+ * Archive a single section of a case
  *
  * @param section The section to archive
  */

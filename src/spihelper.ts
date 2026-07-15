@@ -22,6 +22,8 @@ import {
   LinkActionComponent,
   ManagementActionComponent,
   MoveActionComponent,
+  MultiSectionCommentActionComponent,
+  MultiSectionStatusActionComponent,
   SectionActionComponent,
   TopViewComponent,
 } from './ui/views/top';
@@ -169,6 +171,7 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
             .component('cdx-lookup', Codex.CdxLookup)
             .component('cdx-field', Codex.CdxField)
             .component('cdx-message', Codex.CdxMessage)
+            .component('cdx-multiselect-lookup', Codex.CdxMultiselectLookup)
             .component('cdx-progress-bar', Codex.CdxProgressBar)
             .component('cdx-progress-indicator', Codex.CdxProgressIndicator)
             .component('cdx-accordion', Codex.CdxAccordion)
@@ -181,6 +184,8 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
             .component('submit-form', SubmitFormComponent)
             .component('comment-action', CommentActionComponent)
             .component('change-status-action', ChangeStatusActionComponent)
+            .component('multi-section-comment-action', MultiSectionCommentActionComponent)
+            .component('multi-section-status-action', MultiSectionStatusActionComponent)
             .component('block-action', BlockActionComponent)
             .component('link-action', LinkActionComponent)
             .component('management-action', ManagementActionComponent)

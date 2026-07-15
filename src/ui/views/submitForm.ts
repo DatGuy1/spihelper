@@ -202,7 +202,7 @@ export const SubmitFormComponent = defineComponent({
       context.startingRevId = this.popover.revId;
       // Refetch our content. We don't need to await it because spiHelperPerformActions
       // will get our _loadingPromise if it isn't completed
-      void (this.state.selectedSection?.type === 'specific'
+      void (this.state.selectedSection?.type === 'single'
         ? loadSectionText(this.state.selectedSection.section, { purge: true })
         : loadCaseText(this.state, { purge: true }));
       this.$emit('onSubmit');

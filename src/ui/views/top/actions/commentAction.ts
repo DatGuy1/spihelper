@@ -75,7 +75,7 @@ export const CommentActionComponent = defineComponent({
       this.loadingPreview = true;
       const userText = addSignature(this.text);
       try {
-        if (this.fullPreview && this.selectedSection?.type === 'specific') {
+        if (this.fullPreview && this.selectedSection?.type === 'single') {
           const sectionText = await loadSectionText(this.selectedSection.section);
           let startIndex: number | undefined;
           let endIndex: number | undefined;

@@ -119,8 +119,51 @@
 
 .spiHelper-section-selector {
     display: flex;
+    align-items: center;
     gap: 8px;
-    max-width: 560px;
+    flex-wrap: nowrap;
+
+    .spiHelper-section-input {
+        display: flex;
+        flex: 0 0 auto;
+        width: 256px;
+        transition: width 0.2s ease-in-out;
+
+        &.spiHelper-section-input--multi {
+            width: 440px;
+        }
+
+        > .cdx-select-vue {
+            width: 100%;
+        }
+
+        > .spiHelper-multi-select-lookup {
+            width: 100%;
+
+            .cdx-chip-input__chips {
+                height: 32px;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                overflow-y: hidden;
+            }
+        }
+    }
+}
+
+.spiHelper-multi-section-entry {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color-subtle, #c8ccd1);
+
+    &:last-child {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+    }
+
+    h4 {
+        margin: 0 0 4px;
+    }
 }
 
 /* Absolute overlay children are positioned against this box; without this, the
@@ -137,16 +180,15 @@
     pointer-events: none;
     z-index: -1;
 
-}
+    &.spiHelper-section-overlay--selected {
+        border: 3px solid var(--border-color-progressive, #36c);
+        background-color: var(--background-color-progressive-subtle, #e8f1ff);
+    }
 
-.spiHelper-section-overlay--selected {
-    border: 3px solid var(--border-color-progressive, #36c);
-    background-color: var(--background-color-progressive-subtle, #e8f1ff);
-}
-
-.spiHelper-section-overlay--preview {
-    border: 1px dashed var(--border-color-progressive, #36c);
-    background-color: var(--background-color-progressive-subtle, #f3f7ff);
+    &.spiHelper-section-overlay--preview {
+        border: 1px dashed var(--border-color-progressive, #36c);
+        background-color: var(--background-color-progressive-subtle, #f3f7ff);
+    }
 }
 
 .spiHelper-blockoptions-group {

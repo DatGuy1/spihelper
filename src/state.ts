@@ -2,7 +2,21 @@ import { context } from './context.ts';
 import { spiHelperGetInvestigationSections, spiHelperGetPageText } from './api.ts';
 import { type ParsedArchiveNotice } from './types';
 
-export type SectionSelection = | { type: 'all' } | { type: 'specific'; section: SectionEntry };
+export type SectionSelection = | { type: 'all' }
+  | { type: 'single'; section: SectionEntry }
+  | { type: 'multiple'; sections: SectionEntry[] };
+
+// The set of sections currently "in play" for a selection, regardless of whether that's
+// represented as 'single' (exactly one) or 'multiple' (two or more).
+export function getSelectedSections(selection: SectionSelection | null): SectionEntry[] {
+  if (selection?.type === 'single') {
+    return [selection.section];
+  }
+  if (selection?.type === 'multiple') {
+    return selection.sections;
+  }
+  return [];
+}
 
 export class CaseState {
   sections: SectionEntry[];
@@ -19,7 +33,7 @@ export class CaseState {
   ) {
     this.sections = sections;
     if (selectedSection) {
-      this.selectedSection = { type: 'specific', section: selectedSection };
+      this.selectedSection = { type: 'single', section: selectedSection };
     }
     else {
       this.selectedSection = null;

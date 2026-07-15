@@ -1,11 +1,19 @@
 import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import * as blockModule from '../src/actions/block.ts';
+import * as logModule from '../src/actions/log.ts';
 import * as tagModule from '../src/actions/tag.ts';
 import * as apiModule from '../src/api.ts';
 import * as roleModule from '../src/role.ts';
-import { formatEditSummary, spiHelperHandleBlocks } from '../src/caseActions.ts';
+import { formatEditSummary, spiHelperHandleBlocks, spiHelperPerformActions } from '../src/caseActions.ts';
+import { spiHelperSettings } from '../src/options';
+import { CaseState, SectionEntry } from '../src/state.ts';
+import { getInitialCaseActions } from '../src/ui/views/top/utils';
 import { setupBlockActionData } from '../src/utils.ts';
-import { type BlockRowData, SockpuppetTag, type UserRow } from '../src/types';
+import { type BlockRowData, ParsedArchiveNotice, SockpuppetTag, type UserRow } from '../src/types';
+
+const contextModule = await import('../src/context.ts');
+contextModule.setContext('Wikipedia:Sockpuppet investigations/Foo');
+const { context } = contextModule;
 
 function makeRow(username: string, block: Partial<BlockRowData> = {}): UserRow {
   return {
@@ -173,5 +181,170 @@ describe('spiHelperHandleBlocks', () => {
     expect(tagSpy).toHaveBeenCalledTimes(1);
     // Already blocked and override is off, so the real block API is never attempted.
     expect(processSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('spiHelperPerformActions - multi-section selection', () => {
+  afterEach(() => {
+    mock.restore();
+  });
+
+  function makeMultiSectionState() {
+    const section1 = new SectionEntry(1, '09 July 2020');
+    const section2 = new SectionEntry(2, '15 August 2020');
+    section1._text = '===09 July 2020===\n{{SPI case status|}}\nEvidence about SockA.\n----';
+    section2._text = '===15 August 2020===\n{{SPI case status|}}\nEvidence about SockB.\n----';
+
+    const state = new CaseState([section1, section2]);
+    state._text = section1._text + '\n' + section2._text;
+    state.selectedSection = { type: 'multiple', sections: [section1, section2] };
+    state.archiveNotice = new ParsedArchiveNotice({ username: 'Foo' });
+    return { state, section1, section2 };
+  }
+
+  test('splices each section\'s own comment/status change into a single combined edit', async () => {
+    const { state } = makeMultiSectionState();
+
+    const actions = getInitialCaseActions();
+    actions.block.data.master = 'Master';
+    actions.comment.enabled = true;
+    actions.comment.data.bySection.set(1, { text: '* Closing per consensus', enabled: true });
+    actions.comment.data.bySection.set(2, { text: '* Blocked as sock', enabled: true });
+    actions.status.enabled = true;
+    actions.status.data.bySection.set(1, { old: 'open', new: 'closed', enabled: true });
+    // The second section's status is left as 'nochange' - its status template must stay untouched
+    actions.status.data.bySection.set(2, { old: 'CUrequest', new: 'nochange', enabled: true });
+
+    const editSpy = spyOn(context, 'edit').mockResolvedValue(999);
+
+    await spiHelperPerformActions({ actions, accounts: [], state });
+
+    expect(editSpy).toHaveBeenCalledTimes(1);
+    const call = editSpy.mock.calls[0]?.[0];
+    // Whole-page edit: no single MediaWiki section can represent two changed sections
+    expect(call?.sectionId).toBeNull();
+    expect(call?.newText).toContain('===09 July 2020===\n{{SPI case status|closed}}');
+    expect(call?.newText).toContain('Closing per consensus');
+    expect(call?.newText).toContain('Blocked as sock');
+    expect(call?.newText).toContain('===15 August 2020===\n{{SPI case status|}}');
+    // Closing gets its own summary phrase rather than the generic "changed status"
+    // (capitalized since it's the first action in the summary)
+    expect(call?.summary).toContain('Closed 1 section');
+    expect(call?.summary).not.toContain('changed status');
+  });
+
+  test('summary distinguishes closed sections from other status changes when both occur', async () => {
+    const { state } = makeMultiSectionState();
+
+    const actions = getInitialCaseActions();
+    actions.block.data.master = 'Master';
+    actions.status.enabled = true;
+    actions.status.data.bySection.set(1, { old: 'open', new: 'closed', enabled: true });
+    actions.status.data.bySection.set(2, { old: 'CUrequest', new: 'cudecline', enabled: true });
+
+    const editSpy = spyOn(context, 'edit').mockResolvedValue(999);
+
+    await spiHelperPerformActions({ actions, accounts: [], state });
+
+    const call = editSpy.mock.calls[0]?.[0];
+    expect(call?.summary).toContain('Closed 1 section');
+    expect(call?.summary).toContain('changed status on 1 section');
+  });
+
+  test('does not touch a section with neither comment nor status enabled for it', async () => {
+    const { state } = makeMultiSectionState();
+
+    const actions = getInitialCaseActions();
+    actions.block.data.master = 'Master';
+    actions.comment.enabled = true;
+    actions.comment.data.bySection.set(1, { text: '* Closing per consensus', enabled: true });
+    // Section 2 has no comment/status entry at all
+
+    const editSpy = spyOn(context, 'edit').mockResolvedValue(999);
+
+    await spiHelperPerformActions({ actions, accounts: [], state });
+
+    const call = editSpy.mock.calls[0]?.[0];
+    expect(call?.newText).toContain('Closing per consensus');
+    expect(call?.newText).toContain('===15 August 2020===\n{{SPI case status|}}\nEvidence about SockB.\n----');
+  });
+
+  // Regression test: comment/status bySection entries used to share a single top-level
+  // enabled flag, so toggling one section's comment/status also enabled the other's.
+  test('a section with enabled: false is skipped even though its bySection value has content set', async () => {
+    const { state } = makeMultiSectionState();
+
+    const actions = getInitialCaseActions();
+    actions.block.data.master = 'Master';
+    actions.comment.enabled = true;
+    actions.status.enabled = true;
+    actions.comment.data.bySection.set(1, { text: '* Closing per consensus', enabled: true });
+    actions.comment.data.bySection.set(2, { text: '* Blocked as sock', enabled: false });
+    actions.status.data.bySection.set(1, { old: 'open', new: 'closed', enabled: true });
+    actions.status.data.bySection.set(2, { old: 'CUrequest', new: 'cudecline', enabled: false });
+
+    const editSpy = spyOn(context, 'edit').mockResolvedValue(999);
+
+    await spiHelperPerformActions({ actions, accounts: [], state });
+
+    const call = editSpy.mock.calls[0]?.[0];
+    expect(call?.newText).toContain('===09 July 2020===\n{{SPI case status|closed}}');
+    expect(call?.newText).toContain('Closing per consensus');
+    // Section 2 is disabled, so neither its comment nor its status change should land,
+    // even though both have real (non-default) values set.
+    expect(call?.newText).not.toContain('Blocked as sock');
+    expect(call?.newText).toContain('===15 August 2020===\n{{SPI case status|}}\nEvidence about SockB.\n----');
+  });
+
+  test('groups the log entry by section instead of repeating "for section X" per line', async () => {
+    const { state } = makeMultiSectionState();
+
+    const actions = getInitialCaseActions();
+    actions.block.data.master = 'Master';
+    actions.comment.enabled = true;
+    actions.status.enabled = true;
+    actions.comment.data.bySection.set(1, { text: '* Closing per consensus', enabled: true });
+    actions.comment.data.bySection.set(2, { text: '* Blocked as sock', enabled: true });
+    actions.status.data.bySection.set(1, { old: 'open', new: 'closed', enabled: true });
+    // The second section only gets a comment, no status change
+    actions.status.data.bySection.set(2, { old: 'CUrequest', new: 'nochange', enabled: true });
+
+    spyOn(context, 'edit').mockResolvedValue(999);
+    const logSpy = spyOn(logModule, 'spiHelperLog').mockResolvedValue(undefined);
+    const originalLogEnabled = spiHelperSettings.log.enabled;
+    spiHelperSettings.log.enabled = true;
+
+    try {
+      await spiHelperPerformActions({ actions, accounts: [], state });
+    }
+    finally {
+      spiHelperSettings.log.enabled = originalLogEnabled;
+    }
+
+    const logMessage = logSpy.mock.calls[0]?.[0];
+    // Each section gets one header, with its own actions nested underneath - not
+    // "changed case status ... for section 09 July 2020" / "commented on section 09 July 2020"
+    expect(logMessage).toContain('** 09 July 2020\n*** changed case status from open to closed\n*** commented');
+    expect(logMessage).toContain('** 15 August 2020\n*** commented');
+    expect(logMessage).not.toContain('for section');
+  });
+
+  test('does not bail out when only per-section bySection entries are enabled', async () => {
+    const { state } = makeMultiSectionState();
+
+    const actions = getInitialCaseActions();
+    actions.block.data.master = 'Master';
+    // actions.comment.enabled and actions.status.enabled are left at their default false
+    actions.comment.data.bySection.set(1, { text: '* Closing per consensus', enabled: true });
+    actions.status.data.bySection.set(1, { old: 'open', new: 'closed', enabled: true });
+
+    const editSpy = spyOn(context, 'edit').mockResolvedValue(999);
+
+    await spiHelperPerformActions({ actions, accounts: [], state });
+
+    expect(editSpy).toHaveBeenCalledTimes(1);
+    const call = editSpy.mock.calls[0]?.[0];
+    expect(call?.newText).toContain('===09 July 2020===\n{{SPI case status|closed}}');
+    expect(call?.newText).toContain('Closing per consensus');
   });
 });
