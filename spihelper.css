@@ -1,5 +1,5 @@
 /* {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.css}} */
-/* v3.3.0 */
+/* v3.3.1 */
 /* src/spihelper.css */
 .spiHelper-section-open {
   background-color: var(--background-color-progressive-subtle, #eaf3ff);
@@ -152,8 +152,51 @@
 
 .spiHelper-section-selector {
   display: flex;
+  flex-wrap: nowrap;
+  align-items:  center;
   gap: 8px;
-  max-width: 560px;
+}
+
+.spiHelper-section-selector .spiHelper-section-input {
+  display: flex;
+  flex: none;
+  width: 256px;
+  transition: width .2s ease-in-out;
+}
+
+.spiHelper-section-selector .spiHelper-section-input.spiHelper-section-input--multi {
+  width: 440px;
+}
+
+.spiHelper-section-selector .spiHelper-section-input > .cdx-select-vue {
+  width: 100%;
+}
+
+.spiHelper-section-selector .spiHelper-section-input > .spiHelper-multi-select-lookup {
+  width: 100%;
+}
+
+.spiHelper-section-selector .spiHelper-section-input > .spiHelper-multi-select-lookup .cdx-chip-input__chips {
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  height: 32px;
+}
+
+.spiHelper-multi-section-entry {
+  border-bottom: 1px solid var(--border-color-subtle, #c8ccd1);
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+}
+
+.spiHelper-multi-section-entry:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.spiHelper-multi-section-entry h4 {
+  margin: 0 0 4px;
 }
 
 #mw-content-text .mw-parser-output:has( > .spiHelper-section-overlay) {
@@ -169,12 +212,12 @@
   right: -12px;
 }
 
-.spiHelper-section-overlay--selected {
+.spiHelper-section-overlay.spiHelper-section-overlay--selected {
   border: 3px solid var(--border-color-progressive, #36c);
   background-color: var(--background-color-progressive-subtle, #e8f1ff);
 }
 
-.spiHelper-section-overlay--preview {
+.spiHelper-section-overlay.spiHelper-section-overlay--preview {
   border: 1px dashed var(--border-color-progressive, #36c);
   background-color: var(--background-color-progressive-subtle, #f3f7ff);
 }

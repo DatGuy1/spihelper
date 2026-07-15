@@ -1,5 +1,5 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
-// v3.3.0
+// v3.3.1
 // <nowiki>
 'use strict';
 (() => {
@@ -110,7 +110,7 @@
     showUseragentCheckbox: true,
     useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
   };
-  var VERSION = "3.3.0";
+  var VERSION = "3.3.1";
   var MODE = "dev";
   var spiHelperDefaultSettings = {
     watch: {
@@ -1719,6 +1719,16 @@
   }
 
   // src/state.ts
+  function getSelectedSections(selection) {
+    if (selection?.type === "single") {
+      return [selection.section];
+    }
+    if (selection?.type === "multiple") {
+      return selection.sections;
+    }
+    return [];
+  }
+
   class CaseState {
     sections;
     selectedSection;
@@ -1728,7 +1738,7 @@
     constructor(sections = [], selectedSection = null, archiveNotice = null) {
       this.sections = sections;
       if (selectedSection) {
-        this.selectedSection = { type: "specific", section: selectedSection };
+        this.selectedSection = { type: "single", section: selectedSection };
       } else {
         this.selectedSection = null;
       }
@@ -2095,7 +2105,7 @@
     const allUsernames = fullSearch ? new Set([context.caseName]) : new Set;
     if (fullSearch) {
       let $searchOrigin = $(document);
-      if (state.selectedSection?.type === "specific") {
+      if (state.selectedSection?.type === "single") {
         $searchOrigin = $(`a[href$="section=${state.selectedSection.section.id}"]`).parentsUntil(":has(hr)").last().nextUntil("hr");
       }
       const sockList = $searchOrigin.find(".cuEntry").find("a:first");
@@ -2657,10 +2667,6 @@
         label: "Generate Links",
         selectionType: "both"
       },
-      management: {
-        label: "SPI Management",
-        selectionType: "case"
-      },
       move: {
         label: {
           case: "Move/Merge Full Case",
@@ -2674,6 +2680,10 @@
           section: "Archive"
         },
         selectionType: "both"
+      },
+      management: {
+        label: "SPI Management",
+        selectionType: "case"
       }
     };
   }
@@ -2688,14 +2698,16 @@
       comment: {
         enabled: false,
         data: {
-          text: "* "
+          text: "* ",
+          bySection: new Map
         }
       },
       status: {
         enabled: false,
         data: {
           old: "",
-          new: "nochange"
+          new: "nochange",
+          bySection: new Map
         }
       },
       block: {
@@ -2730,6 +2742,214 @@
   var SpecificSectionActions = new Set(["status", "comment"]);
   var AllSectionActions = new Set(["management"]);
 
+  // src/ui/views/top/utils/actionVisibility.ts
+  function shouldShowAction(opts) {
+    const { name, selection, selectionType } = opts;
+    if (context.isArchive) {
+      return !NonArchiveActions.has(name);
+    }
+    if (!spiHelperIsClerk() && ClerkOnlyActions.has(name)) {
+      return false;
+    }
+    if (name === "sections")
+      return true;
+    if (selection === null)
+      return false;
+    if (selectionType === "both")
+      return true;
+    if (Array.isArray(selection))
+      return true;
+    return selectionType === "case" === (selection === "all");
+  }
+  function actionLabelText(opts) {
+    const { label, selectionType, allSelected } = opts;
+    if (typeof label === "string") {
+      return label;
+    }
+    if (selectionType === "both") {
+      return allSelected ? label.case : label.section;
+    }
+    return "Unexpected configuration";
+  }
+  // src/ui/views/top/utils/archive.ts
+  function getManagementFlagsFromArchiveNotice(archiveNotice) {
+    const flags = new Set;
+    if (archiveNotice === null) {
+      return flags;
+    }
+    if (archiveNotice.deny) {
+      flags.add("deny");
+    }
+    if (archiveNotice.moot) {
+      flags.add("moot");
+    }
+    if (archiveNotice.notalk) {
+      flags.add("notalk");
+    }
+    if (archiveNotice.crosswiki) {
+      flags.add("crosswiki");
+    }
+    return flags;
+  }
+  // src/ui/views/top/utils/section.ts
+  async function prefetchSockRows(opts) {
+    const { likelySocks, possibleSocks, allUsernames, userBlocks, userLocks, userTags, state } = opts;
+    const likelySet = new Set(likelySocks.map((sock) => sock.id));
+    const validUserPages = [...allUsernames].filter((name) => !isNonRegisteredAccount(name)).map((name) => `User:${name}`);
+    const [blockSettings, userPages] = await Promise.all([
+      spiHelperGetBulkUserBlockSettings(allUsernames),
+      spiHelperGetBulkPageText(validUserPages)
+    ]);
+    const checkLock = allUsernames.size < 7;
+    const userPromises = [...likelySocks, ...possibleSocks].map(async (userRow) => {
+      const blockSetting = blockSettings.get(userRow.username);
+      if (blockSetting !== undefined) {
+        userBlocks.set(userRow.username, blockSetting);
+      }
+      const userPage = userPages.get(userRow.username);
+      const defaultBlock = likelySet.has(userRow.id);
+      const { userRow: newRow, isLocked } = await setUserRowBlockData({
+        userRow,
+        block: blockSetting,
+        defaultBlock,
+        userPage,
+        checkLock,
+        state
+      });
+      if (isLocked !== null) {
+        userLocks.set(userRow.username, isLocked);
+      }
+      userTags.set(userRow.username, userRow.block.tags);
+      return newRow;
+    });
+    return await Promise.all(userPromises);
+  }
+  // src/ui/views/top/utils/status.ts
+  function getStatusTemplate(status) {
+    switch (status) {
+      case "CUrequest":
+        return "{{CURequest}}";
+      case "admin":
+        return "{{awaitingadmin}}";
+      case "clerk":
+        return "{{Clerk Request}}";
+      case "selfendorse":
+        return "{{Requestandendorse}}";
+      case "inprogress":
+        return "{{Inprogress}}";
+      case "decline":
+        return "{{Decline}}";
+      case "cudecline":
+        return "{{Cudecline}}";
+      case "endorse":
+        return "{{Endorse}}";
+      case "cuendorse":
+        return "{{cu-endorsed}}";
+      case "moreinfo":
+      case "cumoreinfo":
+        return "{{moreinfo}}";
+      case "relist":
+        return "{{relisted}}";
+      case "hold":
+      case "cuhold":
+        return "{{onhold}}";
+      case "reopen":
+        return "{{reopen}}";
+      case "checked":
+      case "closed":
+        return null;
+      default:
+        console.warn("New case status", status, "is unexpected");
+        return null;
+    }
+  }
+  function updateCommentWithStatus(commentText, newStatus) {
+    const newTemplate = getStatusTemplate(newStatus);
+    if (newTemplate === null) {
+      return commentText;
+    }
+    if (spiHelperClerkStatusRegex.test(commentText)) {
+      let updatedText = commentText.replace(spiHelperClerkStatusRegex, newTemplate);
+      if (!newTemplate) {
+        updatedText = updatedText.replace(/^(\s*\*\s*)? [-–] /, "$1");
+      }
+      return updatedText;
+    } else if (newTemplate) {
+      return "* " + newTemplate + " – " + commentText.replace(/^\s*\*\s*/, "");
+    }
+    return commentText;
+  }
+  function normalizeCaseStatus(caseStatus) {
+    if (spiHelperCaseClosedRegex.test(caseStatus))
+      return "closed";
+    if (/^open$/i.test(caseStatus))
+      return "open";
+    if (/^(?:inprogress|checking)$/i.test(caseStatus))
+      return "inprogress";
+    if (/^relist(ed)?$/i.test(caseStatus))
+      return "relist";
+    if (/^checked|completed$/i.test(caseStatus))
+      return "checked";
+    if (/^declined?$/i.test(caseStatus))
+      return "decline";
+    if (/^cudeclin(ed)?$/i.test(caseStatus))
+      return "cudecline";
+    if (/^endorsed?$/i.test(caseStatus))
+      return "endorse";
+    if (/^(?:CU|checkuser|CUrequest|request)$/i.test(caseStatus))
+      return "CUrequest";
+    if (/^cumoreinfo$/i.test(caseStatus))
+      return "cumoreinfo";
+    if (/^hold$/i.test(caseStatus))
+      return "hold";
+    if (/^cuhold$/i.test(caseStatus))
+      return "cuhold";
+    if (/^clerk$/i.test(caseStatus))
+      return "clerk";
+    if (/^admin$/i.test(caseStatus))
+      return "admin";
+    return "new";
+  }
+  function templateName(template) {
+    return parseTemplates(template)[0]?.name ?? null;
+  }
+  var closingTemplateNames = new Set(["{{btc}}", "{{Action and close}}", "{{Closing without action}}"].map(templateName).filter((name) => name !== null));
+  var statusesWithTemplates = [
+    "CUrequest",
+    "admin",
+    "clerk",
+    "selfendorse",
+    "inprogress",
+    "decline",
+    "cudecline",
+    "endorse",
+    "cuendorse",
+    "moreinfo",
+    "relist",
+    "hold",
+    "reopen"
+  ];
+  var knownStatusTemplateNames = new Set(statusesWithTemplates.map((status) => getStatusTemplate(status)).filter((template) => template !== null).map(templateName));
+  function findStatusTemplateMismatch(commentText, newStatus) {
+    const commentTemplateNames = new Set(parseTemplates(commentText).map((t) => t.name));
+    if (newStatus !== "closed") {
+      const closingTemplate = [...closingTemplateNames].find((name) => commentTemplateNames.has(name));
+      if (closingTemplate) {
+        return { kind: "template", match: closingTemplate };
+      }
+    }
+    const expectedTemplate = getStatusTemplate(newStatus);
+    const expectedName = expectedTemplate ? templateName(expectedTemplate) : null;
+    for (const name of commentTemplateNames) {
+      if (knownStatusTemplateNames.has(name) && name !== expectedName) {
+        return { kind: "template", match: name };
+      }
+    }
+    if (newStatus !== "closed" && /\bclosing\b/i.test(commentText)) {
+      return { kind: "text", match: "closing" };
+    }
+    return null;
+  }
   // src/ui/views/top/actionAccordion.ts
   var ActionAccordionComponent = defineComponent({
     props: {
@@ -2751,28 +2971,18 @@
         return this.selection === "all";
       },
       showAccordion() {
-        if (context.isArchive) {
-          return !NonArchiveActions.has(this.name);
-        }
-        if (!spiHelperIsClerk() && ClerkOnlyActions.has(this.name)) {
-          return false;
-        }
-        if (this.name === "sections")
-          return true;
-        if (this.selection === null)
-          return false;
-        if (this.selectionType === "both")
-          return true;
-        return this.selectionType === "case" === this.allSelected;
+        return shouldShowAction({
+          name: this.name,
+          selection: this.selection,
+          selectionType: this.selectionType
+        });
       },
       text() {
-        if (typeof this.label === "string") {
-          return this.label;
-        }
-        if (this.selectionType === "both") {
-          return this.allSelected ? this.label.case : this.label.section;
-        }
-        return "Unexpected configuration";
+        return actionLabelText({
+          label: this.label,
+          selectionType: this.selectionType,
+          allSelected: this.allSelected
+        });
       },
       showEnabledClass() {
         return this.name !== "sections" && this.actionEnabled;
@@ -2809,19 +3019,11 @@
         return this.selection === "all";
       },
       showButton() {
-        if (context.isArchive) {
-          return !NonArchiveActions.has(this.name);
-        }
-        if (!spiHelperIsClerk() && ClerkOnlyActions.has(this.name)) {
-          return false;
-        }
-        if (this.name === "sections")
-          return true;
-        if (this.selection === null)
-          return false;
-        if (this.selectionType === "both")
-          return true;
-        return this.selectionType === "case" === this.allSelected;
+        return shouldShowAction({
+          name: this.name,
+          selection: this.selection,
+          selectionType: this.selectionType
+        });
       },
       buttonAction() {
         return this.buttonEnabled ? "progressive" : "normal";
@@ -2833,13 +3035,11 @@
         };
       },
       text() {
-        if (typeof this.label === "string") {
-          return this.label;
-        }
-        if (this.selectionType === "both") {
-          return this.allSelected ? this.label.case : this.label.section;
-        }
-        return "Unexpected configuration";
+        return actionLabelText({
+          label: this.label,
+          selectionType: this.selectionType,
+          allSelected: this.allSelected
+        });
       }
     },
     template: `
@@ -2876,11 +3076,16 @@
       name: { type: String, required: true },
       caseActions: { type: Object, required: true },
       accounts: { type: Array, required: true },
-      state: { type: Object, required: true }
+      state: { type: Object, required: true },
+      multiSelectMode: { type: Boolean, required: true },
+      selectedSections: { type: Array, required: true }
     },
     emits: [
+      "update:multiSelectMode",
+      "update-multi-select-sections",
       "update-section-selection",
       "update-status",
+      "update-section-status",
       "user-selected",
       "remove-rows",
       "add-row",
@@ -2890,6 +3095,9 @@
     computed: {
       caseName() {
         return context.caseName;
+      },
+      isMultiSelect() {
+        return this.state.selectedSection?.type === "multiple";
       }
     },
     methods: {
@@ -2898,6 +3106,9 @@
       },
       handleUpdateStatus(newStatus) {
         this.$emit("update-status", newStatus);
+      },
+      handleUpdateSectionStatus(sectionId, newStatus) {
+        this.$emit("update-section-status", sectionId, newStatus);
       },
       handleUserSelected(data, rowId) {
         this.$emit("user-selected", data, rowId);
@@ -2919,10 +3130,18 @@
     <!-- Sections special case -->
     <section-action v-if="name === 'sections'"
                     :selected-section="caseActions.sections.data.section" :all-sections="state.sections"
-                    @update-section-selection="handleUpdateSectionSelection" />
+                    :multi-select-mode="multiSelectMode" :selected-sections="selectedSections"
+                    @update-section-selection="handleUpdateSectionSelection"
+                    @update:multi-select-mode="$emit('update:multiSelectMode', $event)"
+                    @update-multi-select-sections="$emit('update-multi-select-sections', $event)" />
     <!-- Other actions -->
+    <multi-section-comment-action v-else-if="name === 'comment' && isMultiSelect"
+                                  :sections="selectedSections" :by-section="caseActions.comment.data.bySection" />
     <comment-action v-else-if="name === 'comment'" v-model:enabled="caseActions.comment.enabled"
                     v-model:text="caseActions.comment.data.text" :selected-section="state.selectedSection" />
+    <multi-section-status-action v-else-if="name === 'status' && isMultiSelect"
+                                 :sections="selectedSections" :by-section="caseActions.status.data.bySection"
+                                 @update-section-status="handleUpdateSectionStatus" />
     <change-status-action v-else-if="name === 'status'" v-model:enabled="caseActions.status.enabled"
                           :old-status="caseActions.status.data.old" v-model:new-status="caseActions.status.data.new"
                           @update:new-status="handleUpdateStatus" />
@@ -2937,16 +3156,16 @@
                  :accounts="accounts" :case-name="caseName"
                  @user-selected="handleUserSelected"
                  @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
-    <management-action v-else-if="name === 'management'" v-model:enabled="caseActions.management.enabled"
-                       v-model:flags="caseActions.management.data.flags" />
     <move-action v-else-if="name === 'move'" v-model:enabled="caseActions.move.enabled"
                  v-model:target="caseActions.move.data.target" v-model:suppress="caseActions.move.data.suppress"
                  v-model:addNote="caseActions.move.data.addNote"
                  :selection="state.selectedSection" :archive-enabled="caseActions.archive.enabled"
                  @move-entire-case="handleMoveEntireCase" />
     <archive-action v-else-if="name === 'archive'" v-model:enabled="caseActions.archive.enabled"
-                    :selection="caseActions.sections.data.section"
+                    :selection="state.selectedSection"
                     :status-data="caseActions.status.data" />
+    <management-action v-else-if="name === 'management'" v-model:enabled="caseActions.management.enabled"
+                       v-model:flags="caseActions.management.data.flags" />
   `
   });
   // src/ui/views/userLookup.ts
@@ -3152,190 +3371,15 @@
     return new ParsedArchiveNotice({ username, ...flags });
   }
 
-  // src/ui/views/top/utils/archive.ts
-  function getManagementFlagsFromArchiveNotice(archiveNotice) {
-    const flags = new Set;
-    if (archiveNotice === null) {
-      return flags;
-    }
-    if (archiveNotice.deny) {
-      flags.add("deny");
-    }
-    if (archiveNotice.moot) {
-      flags.add("moot");
-    }
-    if (archiveNotice.notalk) {
-      flags.add("notalk");
-    }
-    if (archiveNotice.crosswiki) {
-      flags.add("crosswiki");
-    }
-    return flags;
-  }
-  // src/ui/views/top/utils/section.ts
-  async function prefetchSockRows(opts) {
-    const { likelySocks, possibleSocks, allUsernames, userBlocks, userLocks, userTags, state } = opts;
-    const likelySet = new Set(likelySocks.map((sock) => sock.id));
-    const validUserPages = [...allUsernames].filter((name) => !isNonRegisteredAccount(name)).map((name) => `User:${name}`);
-    const [blockSettings, userPages] = await Promise.all([
-      spiHelperGetBulkUserBlockSettings(allUsernames),
-      spiHelperGetBulkPageText(validUserPages)
-    ]);
-    const checkLock = allUsernames.size < 7;
-    const userPromises = [...likelySocks, ...possibleSocks].map(async (userRow) => {
-      const blockSetting = blockSettings.get(userRow.username);
-      if (blockSetting !== undefined) {
-        userBlocks.set(userRow.username, blockSetting);
-      }
-      const userPage = userPages.get(userRow.username);
-      const defaultBlock = likelySet.has(userRow.id);
-      const { userRow: newRow, isLocked } = await setUserRowBlockData({
-        userRow,
-        block: blockSetting,
-        defaultBlock,
-        userPage,
-        checkLock,
-        state
-      });
-      if (isLocked !== null) {
-        userLocks.set(userRow.username, isLocked);
-      }
-      userTags.set(userRow.username, userRow.block.tags);
-      return newRow;
-    });
-    return await Promise.all(userPromises);
-  }
-  // src/ui/views/top/utils/status.ts
-  function getStatusTemplate(status) {
-    switch (status) {
-      case "CUrequest":
-        return "{{CURequest}}";
-      case "admin":
-        return "{{awaitingadmin}}";
-      case "clerk":
-        return "{{Clerk Request}}";
-      case "selfendorse":
-        return "{{Requestandendorse}}";
-      case "inprogress":
-        return "{{Inprogress}}";
-      case "decline":
-        return "{{Decline}}";
-      case "cudecline":
-        return "{{Cudecline}}";
-      case "endorse":
-        return "{{Endorse}}";
-      case "cuendorse":
-        return "{{cu-endorsed}}";
-      case "moreinfo":
-      case "cumoreinfo":
-        return "{{moreinfo}}";
-      case "relist":
-        return "{{relisted}}";
-      case "hold":
-      case "cuhold":
-        return "{{onhold}}";
-      case "reopen":
-        return "{{reopen}}";
-      case "checked":
-      case "closed":
-        return null;
-      default:
-        console.warn("New case status", status, "is unexpected");
-        return null;
-    }
-  }
-  function updateCommentWithStatus(commentText, newStatus) {
-    const newTemplate = getStatusTemplate(newStatus);
-    if (newTemplate === null) {
-      return commentText;
-    }
-    if (spiHelperClerkStatusRegex.test(commentText)) {
-      let updatedText = commentText.replace(spiHelperClerkStatusRegex, newTemplate);
-      if (!newTemplate) {
-        updatedText = updatedText.replace(/^(\s*\*\s*)? [-–] /, "$1");
-      }
-      return updatedText;
-    } else if (newTemplate) {
-      return "* " + newTemplate + " – " + commentText.replace(/^\s*\*\s*/, "");
-    }
-    return commentText;
-  }
-  function normalizeCaseStatus(caseStatus) {
-    if (spiHelperCaseClosedRegex.test(caseStatus))
-      return "closed";
-    if (/^open$/i.test(caseStatus))
-      return "open";
-    if (/^(?:inprogress|checking)$/i.test(caseStatus))
-      return "inprogress";
-    if (/^relist(ed)?$/i.test(caseStatus))
-      return "relist";
-    if (/^checked|completed$/i.test(caseStatus))
-      return "checked";
-    if (/^declined?$/i.test(caseStatus))
-      return "decline";
-    if (/^cudeclin(ed)?$/i.test(caseStatus))
-      return "cudecline";
-    if (/^endorsed?$/i.test(caseStatus))
-      return "endorse";
-    if (/^(?:CU|checkuser|CUrequest|request)$/i.test(caseStatus))
-      return "CUrequest";
-    if (/^cumoreinfo$/i.test(caseStatus))
-      return "cumoreinfo";
-    if (/^hold$/i.test(caseStatus))
-      return "hold";
-    if (/^cuhold$/i.test(caseStatus))
-      return "cuhold";
-    if (/^clerk$/i.test(caseStatus))
-      return "clerk";
-    if (/^admin$/i.test(caseStatus))
-      return "admin";
-    return "new";
-  }
-  function templateName(template) {
-    return parseTemplates(template)[0]?.name ?? null;
-  }
-  var closingTemplateNames = new Set(["{{btc}}", "{{Action and close}}", "{{Closing without action}}"].map(templateName).filter((name) => name !== null));
-  var statusesWithTemplates = [
-    "CUrequest",
-    "admin",
-    "clerk",
-    "selfendorse",
-    "inprogress",
-    "decline",
-    "cudecline",
-    "endorse",
-    "cuendorse",
-    "moreinfo",
-    "relist",
-    "hold",
-    "reopen"
-  ];
-  var knownStatusTemplateNames = new Set(statusesWithTemplates.map((status) => getStatusTemplate(status)).filter((template) => template !== null).map(templateName));
-  function findStatusTemplateMismatch(commentText, newStatus) {
-    const commentTemplateNames = new Set(parseTemplates(commentText).map((t) => t.name));
-    if (newStatus !== "closed") {
-      const closingTemplate = [...closingTemplateNames].find((name) => commentTemplateNames.has(name));
-      if (closingTemplate) {
-        return { kind: "template", match: closingTemplate };
-      }
-    }
-    const expectedTemplate = getStatusTemplate(newStatus);
-    const expectedName = expectedTemplate ? templateName(expectedTemplate) : null;
-    for (const name of commentTemplateNames) {
-      if (knownStatusTemplateNames.has(name) && name !== expectedName) {
-        return { kind: "template", match: name };
-      }
-    }
-    if (newStatus !== "closed" && /\bclosing\b/i.test(commentText)) {
-      return { kind: "text", match: "closing" };
-    }
-    return null;
-  }
   // src/actions/archive.ts
-  async function spiHelperArchiveCase(state) {
-    const sectionFetchMessage = new VueMessage({ type: "notice", content: "Loading all sections" }).show();
+  async function spiHelperArchiveCase(state, explicitSections) {
+    const sectionFetchMessage = new VueMessage({
+      type: "notice",
+      content: "Loading all sections"
+    }).show();
     const pageTextPromise = loadCaseText(state);
-    const sectionsToArchive = (await Promise.all(state.sections.map(async (section) => {
+    const candidateSections = explicitSections ?? state.sections;
+    const sectionsToArchive = (await Promise.all(candidateSections.map(async (section) => {
       const sectionText = await loadSectionText(section);
       const caseStatus = spiHelperCaseStatusRegex.exec(sectionText);
       if (!caseStatus?.[1]) {
@@ -3347,12 +3391,12 @@
     sectionFetchMessage.update({ type: "success", content: "All sections loaded" });
     if (sectionsToArchive.length === 0) {
       new VueMessage({ type: "warning", content: "Nothing to archive" }).show();
-      return;
+      return [];
     }
     let newArchiveText = await spiHelperGetPageText(context.archiveName, true);
     const overflowResult = await spiHelperMoveArchiveIfOverflowing(context.pageName, context.archiveName);
     if (overflowResult === "abort")
-      return;
+      return [];
     if (overflowResult === "moved")
       newArchiveText = "";
     const archiveExists = newArchiveText !== "";
@@ -3369,9 +3413,9 @@
     const parsedArchiveSections = archiveExists && archiveSectionEntries.length === 0 ? null : parseArchiveSections(newArchiveText, archiveSectionEntries);
     if (!parsedArchiveSections) {
       new VueMessage({ type: "notice", content: "Failed to parse existing archive sections, aborting archival" }).show();
-      return;
+      return [];
     }
-    let sectionsAdded = 0;
+    const archivedSections = [];
     for (const section of sectionsToArchive) {
       const sectionText = await loadSectionText(section);
       newText = newText.replace(sectionText + `
@@ -3387,18 +3431,18 @@
           type: "error",
           content: `Failed to parse date from section header "${section.name}", aborting archival`
         }).show();
-        return;
+        return [];
       }
       parsedArchiveSections.push({ header: parsedDate, fullText: cleanSectionText });
-      sectionsAdded++;
+      archivedSections.push(section);
     }
-    if (sectionsAdded === 0) {
+    if (archivedSections.length === 0) {
       new VueMessage({ type: "warning", content: "Nothing to archive" }).show();
-      return;
+      return [];
     }
     newArchiveText = rebuildArchiveText(newArchiveText, parsedArchiveSections);
-    const usePlural = sectionsAdded > 1;
-    const summaryPrefix = `Archiving ${sectionsAdded} section${usePlural ? "s" : ""}`;
+    const usePlural = archivedSections.length > 1;
+    const summaryPrefix = `Archiving ${archivedSections.length} section${usePlural ? "s" : ""}`;
     const archiveSuccess = await spiHelperEditPage({
       title: context.archiveName,
       newText: newArchiveText,
@@ -3408,7 +3452,7 @@
     }) !== null;
     if (!archiveSuccess) {
       new VueMessage({ type: "error", content: "Failed to update archive, not removing sections from case page" }).show();
-      return;
+      return [];
     }
     await context.edit({
       newText,
@@ -3417,6 +3461,7 @@
       watchExpiry: spiHelperSettings.expiry.case,
       baseRevId: context.startingRevId
     });
+    return archivedSections;
   }
   async function spiHelperArchiveCaseSection(section) {
     let sectionText = await loadSectionText(section);
@@ -4330,7 +4375,12 @@ $2`);
   }
   async function spiHelperPerformActions(opts) {
     const { actions, accounts, state } = opts;
-    if (Object.values(actions).every((action) => !action.enabled)) {
+    const anyTopLevelEnabled = Object.values(actions).some((action) => action.enabled);
+    const anyBySectionEnabled = [
+      ...actions.comment.data.bySection.values(),
+      ...actions.status.data.bySection.values()
+    ].some((entry) => entry.enabled);
+    if (!anyTopLevelEnabled && !anyBySectionEnabled) {
       new VueMessage({ type: "warning", content: "No actions are enabled" }).show();
       return;
     }
@@ -4353,13 +4403,15 @@ $2`);
     new VueMessage({ type: "notice", content: "Running actions" }).show();
     const editSummaryActions = [];
     let logMessage = `* [[${context.pageName}]]`;
-    if (state.selectedSection.type === "specific") {
+    if (state.selectedSection.type === "single") {
       logMessage += ` (section ${state.selectedSection.section.name})`;
+    } else if (state.selectedSection.type === "multiple") {
+      logMessage += ` (multiple sections)`;
     } else {
       logMessage += " (full case)";
     }
     logMessage += " ~~~~~";
-    let targetText = await (sectionType === "specific" ? loadSectionText(state.selectedSection.section) : loadCaseText(state));
+    let targetText = await (sectionType === "single" ? loadSectionText(state.selectedSection.section) : loadCaseText(state));
     if (!targetText) {
       new VueMessage({ type: "error", content: "Could not fetch text for the page" }).show();
       return;
@@ -4382,7 +4434,7 @@ $2`);
     ]);
     const talkNoticePromise = Promise.all(talkNoticePromises);
     if (!context.isArchive) {
-      if (sectionType === "specific") {
+      if (sectionType === "single") {
         const caseStatusResult = spiHelperCaseStatusRegex.exec(targetText);
         if (caseStatusResult === null) {
           targetText = targetText.replace(/^(\s*===.*===[^\S\r\n]*)/, `$1
@@ -4408,6 +4460,60 @@ $2`);
 ** commented`;
         }
       } else {
+        if (sectionType === "multiple") {
+          const commentedSections = [];
+          const closedSections = [];
+          const statusChangedSections = [];
+          for (const section of state.selectedSection.sections) {
+            const originalSectionText = await loadSectionText(section);
+            let sectionText = originalSectionText;
+            const sectionLogLines = [];
+            const caseStatusResult = spiHelperCaseStatusRegex.exec(sectionText);
+            if (caseStatusResult === null) {
+              sectionText = sectionText.replace(/^(\s*===.*===[^\S\r\n]*)/, `$1
+{{SPI case status|}}`);
+            }
+            const sectionStatus = actions.status.data.bySection.get(section.id);
+            if (sectionStatus?.enabled && sectionStatus.new !== "nochange" && sectionStatus.new !== sectionStatus.old) {
+              const statusResult = spiHelperHandleStatus(sectionStatus.new, sectionText);
+              sectionText = statusResult.targetText;
+              if (statusResult.newStatus === "closed") {
+                closedSections.push(section.name);
+              } else if (statusResult.newStatus !== "nochange") {
+                statusChangedSections.push(section.name);
+              }
+              if (statusResult.newStatus !== "nochange") {
+                sectionLogLines.push(`changed case status from ${sectionStatus.old} to ${statusResult.newStatus}`);
+              }
+            }
+            const sectionComment = actions.comment.data.bySection.get(section.id);
+            if (sectionComment?.enabled && sectionComment.text.trim() !== "*") {
+              sectionText = spiHelperHandleComment(sectionText, sectionComment.text);
+              commentedSections.push(section.name);
+              sectionLogLines.push("commented");
+            }
+            if (sectionLogLines.length > 0) {
+              logMessage += `
+** ${section.name}`;
+              for (const line of sectionLogLines) {
+                logMessage += `
+*** ${line}`;
+              }
+            }
+            if (sectionText !== originalSectionText) {
+              targetText = targetText.replace(originalSectionText, sectionText);
+            }
+          }
+          if (closedSections.length > 0) {
+            editSummaryActions.push(`closed ${closedSections.length} section${closedSections.length > 1 ? "s" : ""}`);
+          }
+          if (statusChangedSections.length > 0) {
+            editSummaryActions.push(`changed status on ${statusChangedSections.length} section${statusChangedSections.length > 1 ? "s" : ""}`);
+          }
+          if (commentedSections.length > 0) {
+            editSummaryActions.push(`commented on ${commentedSections.length} section${commentedSections.length > 1 ? "s" : ""}`);
+          }
+        }
         if (actions.management.enabled) {
           const noticeOpts = actions.management.data.flags;
           state.archiveNotice = new ParsedArchiveNotice({
@@ -4430,8 +4536,9 @@ $2`);
     }
     const structureChanged = actions.move.enabled || actions.archive.enabled;
     if (!context.isArchive && targetText !== startText) {
-      const sectionId = state.selectedSection.type === "all" ? null : state.selectedSection.section.id;
-      const editSummary = formatEditSummary(editSummaryActions);
+      const sectionId = state.selectedSection.type === "single" ? state.selectedSection.section.id : null;
+      const sectionName = state.selectedSection.type === "single" ? state.selectedSection.section.name : null;
+      const editSummary = formatEditSummary(editSummaryActions, sectionName);
       const newRevId = await context.edit({
         newText: targetText,
         summary: editSummary,
@@ -4446,13 +4553,18 @@ $2`);
           await context.refreshRevId();
         }
       } else {
-        if (state.selectedSection.type === "specific") {
+        if (state.selectedSection.type === "single") {
           state.selectedSection.section._text = targetText;
           if (state._text) {
             state._text = state._text.replace(startText, targetText);
           }
         } else {
           state._text = targetText;
+          if (state.selectedSection.type === "multiple") {
+            for (const section of state.selectedSection.sections) {
+              section._text = null;
+            }
+          }
         }
         context.startingRevId = newRevId;
       }
@@ -4465,10 +4577,18 @@ $2`);
           await spiHelperArchiveCase(state);
           break;
         }
-        case "specific": {
+        case "single": {
           logMessage += `
 ** Archived section`;
           await spiHelperArchiveCaseSection(state.selectedSection.section);
+          break;
+        }
+        case "multiple": {
+          const archivedSections = await spiHelperArchiveCase(state, state.selectedSection.sections);
+          if (archivedSections.length > 0) {
+            logMessage += `
+** Archived ${archivedSections.length} section${archivedSections.length > 1 ? "s" : ""}`;
+          }
           break;
         }
       }
@@ -4487,7 +4607,7 @@ $2`);
             });
             break;
           }
-          case "specific": {
+          case "single": {
             logMessage += `
 ** moved section to ` + renameTarget;
             await spiHelperMoveCaseSection(renameTarget, state.selectedSection.section);
@@ -4507,7 +4627,7 @@ $2`);
       if (movedWholePage) {
         await refreshSections(state);
       }
-      if (state.selectedSection.type === "specific") {
+      if (state.selectedSection.type === "single" || state.selectedSection.type === "multiple") {
         state.selectedSection = null;
       }
       await context.refreshRevId();
@@ -4727,14 +4847,15 @@ ${comment}
     }
     return { blockPromises, tagPromises, talkNoticePromises, lockPromise };
   }
-  function formatEditSummary(editSummaryActions) {
+  function formatEditSummary(editSummaryActions, sectionName) {
     const [firstAction, ...rest] = editSummaryActions;
     if (!firstAction) {
       return "";
     }
     const formattedStart = firstAction.charAt(0).toUpperCase() + firstAction.slice(1);
     const remainder = rest.length ? `, ${rest.join(", ")}` : "";
-    return formattedStart + remainder;
+    const sectionPrefix = sectionName ? `/* ${sectionName} */ ` : "";
+    return sectionPrefix + formattedStart + remainder;
   }
 
   // src/ui/dom.ts
@@ -4797,6 +4918,7 @@ ${comment}
     overlay.style.top = `${Math.max(0, bounds.top)}px`;
     overlay.style.height = `${bounds.height + 8}px`;
     overlay.style.display = "block";
+    overlay.dataset.sectionId = String(sectionId);
     overlay.classList.toggle("spiHelper-section-overlay--preview", type === "preview");
     overlay.classList.toggle("spiHelper-section-overlay--selected", type === "selected");
   }
@@ -4811,19 +4933,47 @@ ${comment}
     }
     return typeof matchingMenuItem.value === "number" ? matchingMenuItem.value : null;
   }
-  var sectionOverlayEl = null;
-  function getOrCreateSectionOverlay() {
-    sectionOverlayEl ??= createSectionOverlay();
-    return sectionOverlayEl;
+  var previewOverlayEl = null;
+  var selectedOverlayEls = new Map;
+  function getOrCreatePreviewOverlay() {
+    previewOverlayEl ??= createSectionOverlay();
+    return previewOverlayEl;
+  }
+  function getOrCreateSelectedOverlay(sectionId) {
+    let overlay = selectedOverlayEls.get(sectionId);
+    if (!overlay) {
+      const created = createSectionOverlay();
+      if (!created) {
+        return null;
+      }
+      overlay = created;
+      selectedOverlayEls.set(sectionId, overlay);
+    }
+    return overlay;
   }
   function showSectionOverlay(sectionId, type) {
-    const overlay = getOrCreateSectionOverlay();
+    const overlay = type === "preview" ? getOrCreatePreviewOverlay() : getOrCreateSelectedOverlay(sectionId);
     renderSectionOverlay(overlay, sectionId, type);
   }
   function hideSectionOverlay() {
-    if (sectionOverlayEl) {
-      sectionOverlayEl.style.display = "none";
+    if (previewOverlayEl) {
+      previewOverlayEl.style.display = "none";
     }
+  }
+  function setSelectedSectionOverlays(sectionIds) {
+    const idSet = new Set(sectionIds);
+    for (const [id, overlay] of selectedOverlayEls) {
+      if (!idSet.has(id)) {
+        overlay.remove();
+        selectedOverlayEls.delete(id);
+      }
+    }
+    for (const id of sectionIds) {
+      showSectionOverlay(id, "selected");
+    }
+  }
+  function clearSelectedSectionOverlays() {
+    setSelectedSectionOverlays([]);
   }
   var SECTION_BUTTON_LABEL = "open in spiHelper";
   function addSectionButtons(sectionIds, onClick) {
@@ -4909,6 +5059,7 @@ ${comment}
         accounts: [],
         messages,
         sectionClickCleanup: null,
+        multiSelectMode: false,
         icons: {
           cdxIconPushPin: f7,
           cdxIconCollapse: i4,
@@ -4927,10 +5078,16 @@ ${comment}
             return false;
           }
         }
-        return true;
+        return [
+          ...this.caseActions.comment.data.bySection.values(),
+          ...this.caseActions.status.data.bySection.values()
+        ].every((entry) => !entry.enabled);
       },
       selectedSection() {
         return this.state.selectedSection;
+      },
+      selectedSections() {
+        return getSelectedSections(this.state.selectedSection);
       },
       archiveNotice() {
         return this.state.archiveNotice;
@@ -4991,7 +5148,7 @@ ${comment}
           }
           const actionDefaultEnabled = spiHelperSettings.defaultActions.includes(caseAN);
           caseAction.enabled = actionDefaultEnabled;
-          if (actionDefaultEnabled && (AlwaysAvailableActions.has(caseAN) || newSection === "all" && AllSectionActions.has(caseAN) || typeof newSection === "number" && SpecificSectionActions.has(caseAN))) {
+          if (actionDefaultEnabled && (AlwaysAvailableActions.has(caseAN) || newSection === "all" && AllSectionActions.has(caseAN) || typeof newSection === "number" && SpecificSectionActions.has(caseAN) || Array.isArray(newSection) && (SpecificSectionActions.has(caseAN) || AllSectionActions.has(caseAN)))) {
             this.displayedForms.add(caseAN);
           }
         }
@@ -5045,7 +5202,11 @@ ${comment}
           return;
         }
         this.sectionClickCleanup = addSectionButtons(ids, (sectionId) => {
-          this.onUpdateSectionSelection(sectionId);
+          if (this.multiSelectMode) {
+            this.toggleMultiSelectSection(sectionId);
+          } else {
+            this.onUpdateSectionSelection(sectionId);
+          }
           if (!this.open) {
             this.open = true;
           }
@@ -5053,15 +5214,10 @@ ${comment}
       },
       syncSelectedSectionOverlay() {
         if (!spiHelperSettings.highlightSection || !this.open) {
-          hideSectionOverlay();
+          clearSelectedSectionOverlays();
           return;
         }
-        const selected = this.state.selectedSection;
-        if (selected?.type !== "specific") {
-          hideSectionOverlay();
-          return;
-        }
-        showSectionOverlay(selected.section.id, "selected");
+        setSelectedSectionOverlays(this.selectedSections.map((s) => s.id));
       },
       toggleButtonLayout() {
         this.buttonLayout = !this.buttonLayout;
@@ -5096,7 +5252,7 @@ ${comment}
         }
         this.caseActions.sections.data.section = newSelection;
         const prevType = this.state.selectedSection?.type ?? null;
-        const nextType = newSelection === "all" ? "all" : "specific";
+        const nextType = newSelection === "all" ? "all" : "single";
         if (prevType !== nextType) {
           this.displayedForms = new Set(Array.from(this.displayedForms).filter((formName) => AlwaysAvailableActions.has(formName)));
         }
@@ -5114,7 +5270,7 @@ ${comment}
         await this.loadNewSection(targetSection);
       },
       async loadNewSection(targetSection) {
-        this.state.selectedSection = { type: "specific", section: targetSection };
+        this.state.selectedSection = { type: "single", section: targetSection };
         const newText = await loadSectionText(targetSection);
         const result = spiHelperCaseStatusRegex.exec(newText);
         const normalisedStatus = normalizeCaseStatus(result?.[1] ?? "");
@@ -5126,9 +5282,104 @@ ${comment}
         this.syncSelectedSectionOverlay();
         this.loadSectionAccounts(this.state.selectedSection);
       },
+      async toggleMultiSelectMode(newValue) {
+        this.multiSelectMode = newValue;
+        if (!newValue) {
+          const current = this.selectedSections;
+          if (current.length > 1) {
+            const [first] = current;
+            if (first) {
+              await this.applySectionSelection([first]);
+            }
+          }
+          return;
+        }
+        if (this.state.selectedSection?.type === "all") {
+          await this.applySectionSelection([]);
+        }
+      },
+      async toggleMultiSelectSection(sectionId) {
+        const current = this.selectedSections;
+        const isRemoving = current.some((section2) => section2.id === sectionId);
+        if (isRemoving) {
+          await this.applySectionSelection(current.filter((section2) => section2.id !== sectionId));
+          return;
+        }
+        const section = this.state.sections.find((s) => s.id === sectionId);
+        if (!section) {
+          console.error("toggleMultiSelectSection: Could not find target section with ID", sectionId);
+          return;
+        }
+        await this.applySectionSelection([...current, section]);
+      },
+      async handleUpdateMultiSelectSections(sectionIds) {
+        const idSet = new Set(sectionIds);
+        const sections = this.state.sections.filter((section) => idSet.has(section.id));
+        await this.applySectionSelection(sections);
+      },
+      async applySectionSelection(sections) {
+        this.pruneBySectionData(new Set(sections.map((s) => s.id)));
+        if (sections.length === 0) {
+          this.caseActions.sections.data.section = null;
+          this.state.selectedSection = null;
+          this.syncSelectedSectionOverlay();
+          return;
+        }
+        if (sections.length === 1) {
+          const [only] = sections;
+          if (!only) {
+            return;
+          }
+          this.caseActions.sections.data.section = only.id;
+          await this.loadNewSection(only);
+          return;
+        }
+        this.caseActions.sections.data.section = sections.map((s) => s.id);
+        this.state.selectedSection = { type: "multiple", sections };
+        await Promise.all(sections.map((section) => this.ensureBySectionEntry(section)));
+        this.syncSelectedSectionOverlay();
+        this.loadSectionAccounts(this.state.selectedSection);
+      },
+      async ensureBySectionEntry(section) {
+        if (!this.caseActions.comment.data.bySection.has(section.id)) {
+          this.caseActions.comment.data.bySection.set(section.id, { text: "* ", enabled: false });
+        }
+        if (!this.caseActions.status.data.bySection.has(section.id)) {
+          const text = await loadSectionText(section);
+          const result = spiHelperCaseStatusRegex.exec(text);
+          const normalisedStatus = normalizeCaseStatus(result?.[1] ?? "");
+          this.caseActions.status.data.bySection.set(section.id, {
+            old: normalisedStatus,
+            new: normalisedStatus,
+            enabled: false
+          });
+        }
+      },
+      pruneBySectionData(keepIds) {
+        for (const id of this.caseActions.comment.data.bySection.keys()) {
+          if (!keepIds.has(id)) {
+            this.caseActions.comment.data.bySection.delete(id);
+          }
+        }
+        for (const id of this.caseActions.status.data.bySection.keys()) {
+          if (!keepIds.has(id)) {
+            this.caseActions.status.data.bySection.delete(id);
+          }
+        }
+      },
       async loadSectionAccounts(selection) {
         this.accounts = this.accounts.filter((row) => !this.sectionAccountNames.has(row.username));
-        const searchText = await (selection.type === "all" ? loadCaseText(this.state) : loadSectionText(selection.section));
+        const searchText = await (async () => {
+          if (selection.type === "all") {
+            return loadCaseText(this.state);
+          }
+          if (selection.type === "multiple") {
+            const texts = await Promise.all(selection.sections.map((section) => loadSectionText(section)));
+            return texts.join(`
+`);
+          }
+          return loadSectionText(selection.section);
+        })();
         const [likelySocks, possibleSocks, allUsernames] = getSockEntries({
           text: searchText,
           fullSearch: true,
@@ -5147,6 +5398,14 @@ ${comment}
       },
       onUpdateNewStatus(newStatus) {
         this.caseActions.comment.data.text = updateCommentWithStatus(this.caseActions.comment.data.text, newStatus);
+      },
+      onUpdateSectionStatus(sectionId, newStatus) {
+        const entry = this.caseActions.comment.data.bySection.get(sectionId);
+        const currentComment = entry?.text ?? "* ";
+        this.caseActions.comment.data.bySection.set(sectionId, {
+          text: updateCommentWithStatus(currentComment, newStatus),
+          enabled: entry?.enabled ?? false
+        });
       },
       async onSubmitActions() {
         if (isOpRunning("mainActions")) {
@@ -5285,8 +5544,13 @@ ${comment}
                 :case-actions="caseActions"
                 :accounts="accounts"
                 :state="state"
+                :multi-select-mode="multiSelectMode"
+                :selected-sections="selectedSections"
                 @update-section-selection="onUpdateSectionSelection"
                 @update-status="onUpdateNewStatus"
+                @update-section-status="onUpdateSectionStatus"
+                @update:multi-select-mode="toggleMultiSelectMode"
+                @update-multi-select-sections="handleUpdateMultiSelectSections"
                 @user-selected="handleUserSelected"
                 @remove-rows="handleRemoveRows"
                 @add-row="handleAddRow"
@@ -5313,8 +5577,13 @@ ${comment}
               :case-actions="caseActions"
               :accounts="accounts"
               :state="state"
+              :multi-select-mode="multiSelectMode"
+              :selected-sections="selectedSections"
               @update-section-selection="onUpdateSectionSelection"
               @update-status="onUpdateNewStatus"
+              @update-section-status="onUpdateSectionStatus"
+              @update:multi-select-mode="toggleMultiSelectMode"
+              @update-multi-select-sections="handleUpdateMultiSelectSections"
               @user-selected="handleUserSelected"
               @remove-rows="handleRemoveRows"
               @add-row="handleAddRow"
@@ -5347,28 +5616,68 @@ ${comment}
     props: {
       enabled: { type: Boolean, required: true },
       selection: { type: Object, required: true },
-      statusData: { type: Object, required: true }
+      statusData: {
+        type: Object,
+        required: true
+      }
     },
     emits: ["update:enabled"],
     computed: {
+      isMultiSelectMode() {
+        return this.selection?.type === "multiple";
+      },
+      skippedSections() {
+        if (this.selection?.type !== "multiple") {
+          return [];
+        }
+        return this.selection.sections.map((section) => ({ name: section.name, status: this.effectiveSectionStatus(section.id) })).filter((entry) => entry.status !== "closed");
+      },
       badStatus() {
-        return this.selection !== "all" && this.status !== "closed";
+        if (!this.selection || this.selection.type === "all") {
+          return false;
+        }
+        if (this.selection.type === "multiple") {
+          return this.skippedSections.length === this.selection.sections.length;
+        }
+        return this.status !== "closed";
       },
       status() {
-        switch (this.statusData.new) {
+        return this.effectiveStatus(this.statusData.old, this.statusData.new);
+      }
+    },
+    methods: {
+      effectiveStatus(oldStatus, newStatus) {
+        switch (newStatus) {
           case "nochange":
-            return this.statusData.old;
+            return oldStatus;
           case "selfendorse":
             return "endorse";
           default:
-            return this.statusData.new;
+            return newStatus;
         }
+      },
+      effectiveSectionStatus(sectionId) {
+        const entry = this.statusData.bySection.get(sectionId);
+        console.log(entry);
+        if (!entry) {
+          return "";
+        }
+        return this.effectiveStatus(entry.old, entry.new);
       }
     },
     template: `
     <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event);" :empty="true" :disabled="badStatus" />
-    <cdx-message v-if="badStatus" type="warning" :inline="true">
-      The selected section status is '{{ status }}'. If you'd like to archive, please change it to 'closed'
+    <cdx-message v-if="badStatus && !isMultiSelectMode" type="warning" :inline="true">
+      The selected section's status is '{{ status }}'. If you'd like to archive, please change it to 'closed'
+    </cdx-message>
+    <cdx-message v-if="isMultiSelectMode && skippedSections.length > 0" type="warning">
+      <p>These sections aren't set to 'closed' and will be skipped:</p>
+      <ul>
+        <li v-for="section in skippedSections" :key="section.name">
+          {{ section.name }} is set to '{{ section.status }}'
+        </li>
+      </ul>
+      <p>If you'd like to archive them, change their status to 'closed'.</p>
     </cdx-message>
   `
   });
@@ -5902,7 +6211,7 @@ ${comment}
         this.loadingPreview = true;
         const userText = addSignature(this.text);
         try {
-          if (this.fullPreview && this.selectedSection?.type === "specific") {
+          if (this.fullPreview && this.selectedSection?.type === "single") {
             const sectionText = await loadSectionText(this.selectedSection.section);
             let startIndex;
             let endIndex;
@@ -6391,7 +6700,7 @@ ${comment}
     },
     computed: {
       isSectionMove() {
-        return this.selectionType === "specific";
+        return this.selectionType === "single";
       },
       moveTitle() {
         if (!this.selection) {
@@ -6400,10 +6709,13 @@ ${comment}
         if (this.selection.type === "all") {
           return "entire case";
         }
+        if (this.selection.type === "multiple") {
+          return `${this.selection.sections.length} sections`;
+        }
         return "section " + this.selection.section.name;
       },
       disabled() {
-        return this.archiveEnabled;
+        return this.archiveEnabled || this.selectionType === "multiple";
       },
       selectionType() {
         return this.selection?.type ?? null;
@@ -6457,16 +6769,88 @@ ${comment}
     <cdx-message v-if="archiveEnabled" type="warning" :inline="true">
       Archival is enabled, which overrides moving.
     </cdx-message>
+    <cdx-message v-if="selectionType === 'multiple'" type="warning" :inline="true">
+      Moving isn't currently supported while multiple sections are selected.
+    </cdx-message>
+  `
+  });
+  // src/ui/views/top/actions/multiSection/commentAction.ts
+  var defaultEntry = { text: "* ", enabled: false };
+  var MultiSectionCommentActionComponent = defineComponent({
+    props: {
+      sections: { type: Array, required: true },
+      bySection: { type: Object, required: true }
+    },
+    methods: {
+      entry(sectionId) {
+        return this.bySection.get(sectionId) ?? defaultEntry;
+      },
+      onUpdateEnabled(sectionId, enabled) {
+        this.bySection.set(sectionId, { ...this.entry(sectionId), enabled });
+      },
+      onUpdateText(sectionId, text) {
+        this.bySection.set(sectionId, { ...this.entry(sectionId), text });
+      }
+    },
+    template: `
+    <div v-for="section in sections" :key="section.id" class="spiHelper-multi-section-entry">
+      <h4>{{ section.name }}</h4>
+      <comment-action :enabled="entry(section.id).enabled"
+                      @update:enabled="onUpdateEnabled(section.id, $event)"
+                      :text="entry(section.id).text"
+                      @update:text="onUpdateText(section.id, $event)"
+                      :selected-section="{ type: 'single', section }" />
+    </div>
+  `
+  });
+  // src/ui/views/top/actions/multiSection/statusAction.ts
+  var defaultEntry2 = { old: "", new: "nochange", enabled: false };
+  var MultiSectionStatusActionComponent = defineComponent({
+    props: {
+      sections: { type: Array, required: true },
+      bySection: { type: Object, required: true }
+    },
+    emits: ["update-section-status"],
+    methods: {
+      entry(sectionId) {
+        return this.bySection.get(sectionId) ?? defaultEntry2;
+      },
+      onUpdateEnabled(sectionId, enabled) {
+        const existing = this.bySection.get(sectionId);
+        if (existing) {
+          existing.enabled = enabled;
+        }
+      },
+      onUpdateNewStatus(sectionId, newStatus) {
+        const existing = this.bySection.get(sectionId);
+        if (existing) {
+          existing.new = newStatus;
+        }
+        this.$emit("update-section-status", sectionId, newStatus);
+      }
+    },
+    template: `
+    <div v-for="section in sections" :key="section.id" class="spiHelper-multi-section-entry">
+      <h4>{{ section.name }}</h4>
+      <change-status-action :enabled="entry(section.id).enabled"
+                            @update:enabled="onUpdateEnabled(section.id, $event)"
+                            :old-status="entry(section.id).old" :new-status="entry(section.id).new"
+                            @update:new-status="onUpdateNewStatus(section.id, $event)" />
+    </div>
   `
   });
   // src/ui/views/top/actions/sectionAction.ts
   var SectionActionComponent = defineComponent({
     props: {
       allSections: { type: Array, required: true },
-      selectedSection: { type: Object, required: true }
+      selectedSection: { type: Object, required: true },
+      multiSelectMode: { type: Boolean, required: true },
+      selectedSections: { type: Array, required: true }
     },
     emits: [
-      "update-section-selection"
+      "update-section-selection",
+      "update:multiSelectMode",
+      "update-multi-select-sections"
     ],
     data() {
       return {
@@ -6474,16 +6858,22 @@ ${comment}
         menuPointerLeaveHandler: null,
         menuFocusInHandler: null,
         activeSectionId: null,
-        overlayType: null
+        overlayType: null,
+        hoverPreviewTarget: null,
+        hoverPreviewMenuItems: []
       };
     },
     computed: {
       canJumpToSelectedSection() {
-        return this.selectedSection !== null && this.selectedSection !== "all";
+        return !this.multiSelectMode && typeof this.selectedSection === "number";
       },
       sectionSelectElement() {
         const sectionSelect = this.$refs.sectionSelect;
-        return sectionSelect.$el;
+        return sectionSelect ? sectionSelect.$el : null;
+      },
+      multiselectLookupElement() {
+        const lookup = this.$refs.multiselectLookup;
+        return lookup ? lookup.$el : null;
       },
       menuItems() {
         const items = this.allSections.map((s) => ({
@@ -6492,55 +6882,59 @@ ${comment}
         }));
         items.push({ value: "all", label: "All Sections" });
         return items;
+      },
+      multiSelectMenuItems() {
+        return this.allSections.map((s) => ({ value: s.id, label: s.name }));
+      },
+      multiSelectChips: {
+        get() {
+          return this.selectedSections.map((section) => ({ value: section.id, label: section.name }));
+        },
+        set(chips) {
+          this.emitMultiSelectIds(chips.map((chip) => chip.value));
+        }
+      },
+      multiSelectSelected: {
+        get() {
+          return this.selectedSections.map((section) => section.id);
+        },
+        set(values) {
+          this.emitMultiSelectIds(values);
+        }
+      }
+    },
+    watch: {
+      async multiSelectMode() {
+        this.detachHoverPreviewListeners();
+        await this.$nextTick();
+        this.attachHoverPreviewListeners();
       }
     },
     mounted() {
-      if (!spiHelperSettings.highlightSection) {
-        return;
-      }
-      this.menuPointerOverHandler = (event) => {
-        this.handlePreviewEvent(event);
-      };
-      this.menuPointerLeaveHandler = () => {
-        if (this.overlayType === "preview") {
-          this.clearSectionHighlight();
-        }
-      };
-      this.menuFocusInHandler = (event) => {
-        this.handlePreviewEvent(event);
-      };
-      this.sectionSelectElement.addEventListener("pointerover", this.menuPointerOverHandler);
-      this.sectionSelectElement.addEventListener("pointerleave", this.menuPointerLeaveHandler);
-      this.sectionSelectElement.addEventListener("focusin", this.menuFocusInHandler);
+      this.attachHoverPreviewListeners();
     },
     beforeUnmount() {
-      if (this.menuPointerOverHandler) {
-        this.sectionSelectElement.removeEventListener("pointerover", this.menuPointerOverHandler);
-      }
-      if (this.menuPointerLeaveHandler) {
-        this.sectionSelectElement.removeEventListener("pointerleave", this.menuPointerLeaveHandler);
-      }
-      if (this.menuFocusInHandler) {
-        this.sectionSelectElement.removeEventListener("focusin", this.menuFocusInHandler);
-      }
-      this.clearSectionHighlight();
+      this.detachHoverPreviewListeners();
     },
     methods: {
       handleUpdateSectionSelection(selection) {
-        if (spiHelperSettings.highlightSection) {
-          if (selection === "all") {
-            this.clearSectionHighlight();
-          } else if (typeof selection === "number") {
-            this.renderSectionOverlay(selection, "selected");
-          }
-        }
         this.$emit("update-section-selection", selection);
+      },
+      emitMultiSelectIds(values) {
+        const newIds = values.filter((value) => typeof value === "number");
+        const currentIds = this.selectedSections.map((section) => section.id);
+        const idSet = new Set(currentIds);
+        const unchanged = newIds.length === currentIds.length && newIds.every((id) => idSet.has(id));
+        if (unchanged) {
+          return;
+        }
+        this.$emit("update-multi-select-sections", newIds);
       },
       jumpToSelectedSection() {
         if (!this.canJumpToSelectedSection) {
           return;
         }
-        if (this.selectedSection === null || this.selectedSection === "all") {
+        if (this.selectedSection === null || this.selectedSection === "all" || Array.isArray(this.selectedSection)) {
           return;
         }
         scrollToSection(this.selectedSection);
@@ -6552,6 +6946,48 @@ ${comment}
       clearSectionHighlight() {
         hideSectionOverlay();
       },
+      attachHoverPreviewListeners() {
+        if (!spiHelperSettings.highlightSection) {
+          return;
+        }
+        const element = this.multiSelectMode ? this.multiselectLookupElement : this.sectionSelectElement;
+        if (!element) {
+          return;
+        }
+        this.hoverPreviewTarget = element;
+        this.hoverPreviewMenuItems = this.multiSelectMode ? this.multiSelectMenuItems : this.menuItems;
+        this.menuPointerOverHandler = (event) => {
+          this.handlePreviewEvent(event);
+        };
+        this.menuPointerLeaveHandler = () => {
+          if (this.overlayType === "preview") {
+            this.clearSectionHighlight();
+          }
+        };
+        this.menuFocusInHandler = (event) => {
+          this.handlePreviewEvent(event);
+        };
+        element.addEventListener("pointerover", this.menuPointerOverHandler);
+        element.addEventListener("pointerleave", this.menuPointerLeaveHandler);
+        element.addEventListener("focusin", this.menuFocusInHandler);
+      },
+      detachHoverPreviewListeners() {
+        if (this.menuPointerOverHandler) {
+          this.hoverPreviewTarget?.removeEventListener("pointerover", this.menuPointerOverHandler);
+        }
+        if (this.menuPointerLeaveHandler) {
+          this.hoverPreviewTarget?.removeEventListener("pointerleave", this.menuPointerLeaveHandler);
+        }
+        if (this.menuFocusInHandler) {
+          this.hoverPreviewTarget?.removeEventListener("focusin", this.menuFocusInHandler);
+        }
+        this.menuPointerOverHandler = null;
+        this.menuPointerLeaveHandler = null;
+        this.menuFocusInHandler = null;
+        this.hoverPreviewTarget = null;
+        this.hoverPreviewMenuItems = [];
+        this.clearSectionHighlight();
+      },
       handlePreviewEvent(event) {
         const target = event.target;
         if (!(target instanceof HTMLElement)) {
@@ -6561,7 +6997,7 @@ ${comment}
         if (!menuItem) {
           return;
         }
-        const sectionId = getSectionIdByMenuItem(menuItem, this.menuItems);
+        const sectionId = getSectionIdByMenuItem(menuItem, this.hoverPreviewMenuItems);
         if (sectionId === null) {
           this.activeSectionId = null;
           this.clearSectionHighlight();
@@ -6575,11 +7011,19 @@ ${comment}
     template: `
     <!-- Sections special case -->
     <div class="spiHelper-section-selector">
-      <cdx-select :menu-items="menuItems" :selected="selectedSection"
-                  @update:selected="handleUpdateSectionSelection" ref="sectionSelect" />
-      <cdx-button weight="normal" :disabled="!canJumpToSelectedSection" @click="jumpToSelectedSection">
+      <div class="spiHelper-section-input" :class="{ 'spiHelper-section-input--multi': multiSelectMode }">
+        <cdx-select v-if="!multiSelectMode" :menu-items="menuItems" :selected="selectedSection"
+                    @update:selected="handleUpdateSectionSelection" ref="sectionSelect" />
+        <cdx-multiselect-lookup v-else class="spiHelper-multi-select-lookup" ref="multiselectLookup"
+            v-model:input-chips="multiSelectChips" v-model:selected="multiSelectSelected"
+            :menu-items="multiSelectMenuItems" :keep-input-on-selection="true" />
+      </div>
+      <cdx-button weight="normal" :disabled="multiSelectMode || !canJumpToSelectedSection" @click="jumpToSelectedSection">
         Jump to section
       </cdx-button>
+      <cdx-toggle-switch :model-value="multiSelectMode" @update:model-value="$emit('update:multiSelectMode', $event)">
+        Multi-action
+      </cdx-toggle-switch>
     </div>
   `
   });
@@ -6938,7 +7382,7 @@ ${comment}
       confirmSubmit() {
         this.popover.show = false;
         context.startingRevId = this.popover.revId;
-        this.state.selectedSection?.type === "specific" ? loadSectionText(this.state.selectedSection.section, { purge: true }) : loadCaseText(this.state, { purge: true });
+        this.state.selectedSection?.type === "single" ? loadSectionText(this.state.selectedSection.section, { purge: true }) : loadCaseText(this.state, { purge: true });
         this.$emit("onSubmit");
       }
     },
@@ -7781,7 +8225,7 @@ ${comment}
               state: caseState,
               feedbackDialog,
               openButton: initLink
-            }).component("cdx-tabs", Codex.CdxTabs).component("cdx-tab", Codex.CdxTab).component("cdx-select", Codex.CdxSelect).component("cdx-card", Codex.CdxCard).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-text-area", Codex.CdxTextArea).component("cdx-toggle-button", Codex.CdxToggleButton).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("cdx-button", Codex.CdxButton).component("cdx-button-group", Codex.CdxButtonGroup).component("cdx-icon", Codex.CdxIcon).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-lookup", Codex.CdxLookup).component("cdx-field", Codex.CdxField).component("cdx-message", Codex.CdxMessage).component("cdx-progress-bar", Codex.CdxProgressBar).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-accordion", Codex.CdxAccordion).component("cdx-label", Codex.CdxLabel).component("cdx-popover", Codex.CdxPopover).component("action-accordion", ActionAccordionComponent).component("action-button", ActionButtonComponent).component("action-container", ActionContainerComponent).component("action-content", ActionContentComponent).component("submit-form", SubmitFormComponent).component("comment-action", CommentActionComponent).component("change-status-action", ChangeStatusActionComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("management-action", ManagementActionComponent).component("archive-action", ArchiveActionComponent).component("move-action", MoveActionComponent).component("section-action", SectionActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).component("tag-popover", TagPopoverComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
+            }).component("cdx-tabs", Codex.CdxTabs).component("cdx-tab", Codex.CdxTab).component("cdx-select", Codex.CdxSelect).component("cdx-card", Codex.CdxCard).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-text-area", Codex.CdxTextArea).component("cdx-toggle-button", Codex.CdxToggleButton).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("cdx-button", Codex.CdxButton).component("cdx-button-group", Codex.CdxButtonGroup).component("cdx-icon", Codex.CdxIcon).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-lookup", Codex.CdxLookup).component("cdx-field", Codex.CdxField).component("cdx-message", Codex.CdxMessage).component("cdx-multiselect-lookup", Codex.CdxMultiselectLookup).component("cdx-progress-bar", Codex.CdxProgressBar).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-accordion", Codex.CdxAccordion).component("cdx-label", Codex.CdxLabel).component("cdx-popover", Codex.CdxPopover).component("action-accordion", ActionAccordionComponent).component("action-button", ActionButtonComponent).component("action-container", ActionContainerComponent).component("action-content", ActionContentComponent).component("submit-form", SubmitFormComponent).component("comment-action", CommentActionComponent).component("change-status-action", ChangeStatusActionComponent).component("multi-section-comment-action", MultiSectionCommentActionComponent).component("multi-section-status-action", MultiSectionStatusActionComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("management-action", ManagementActionComponent).component("archive-action", ArchiveActionComponent).component("move-action", MoveActionComponent).component("section-action", SectionActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).component("tag-popover", TagPopoverComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
             break;
           }
           case "checkuser":
