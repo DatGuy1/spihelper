@@ -199,8 +199,11 @@ export async function spiHelperPerformActions(opts: {
     const sectionId = state.selectedSection.type === 'all'
       ? null
       : state.selectedSection.section.id;
+    const sectionName = state.selectedSection.type === 'all'
+      ? null
+      : state.selectedSection.section.name;
 
-    const editSummary = formatEditSummary(editSummaryActions);
+    const editSummary = formatEditSummary(editSummaryActions, sectionName);
     const newRevId = await context.edit({
       newText: targetText,
       summary: editSummary,
@@ -571,12 +574,15 @@ export async function spiHelperHandleBlocks(opts: {
   return { blockPromises, tagPromises, talkNoticePromises, lockPromise };
 }
 
-function formatEditSummary(editSummaryActions: string[]): string {
+export function formatEditSummary(
+  editSummaryActions: string[], sectionName: string | null,
+): string {
   const [firstAction, ...rest] = editSummaryActions;
   if (!firstAction) {
     return '';
   }
   const formattedStart = firstAction.charAt(0).toUpperCase() + firstAction.slice(1);
   const remainder = rest.length ? `, ${rest.join(', ')}` : '';
-  return formattedStart + remainder;
+  const sectionPrefix = sectionName ? `/* ${sectionName} */ ` : '';
+  return sectionPrefix + formattedStart + remainder;
 }

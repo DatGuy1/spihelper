@@ -3,7 +3,7 @@ import * as blockModule from '../src/actions/block.ts';
 import * as tagModule from '../src/actions/tag.ts';
 import * as apiModule from '../src/api.ts';
 import * as roleModule from '../src/role.ts';
-import { spiHelperHandleBlocks } from '../src/caseActions.ts';
+import { formatEditSummary, spiHelperHandleBlocks } from '../src/caseActions.ts';
 import { setupBlockActionData } from '../src/utils.ts';
 import { type BlockRowData, SockpuppetTag, type UserRow } from '../src/types';
 
@@ -29,6 +29,27 @@ function deferred<T>() {
   });
   return { promise, resolve };
 }
+
+describe('formatEditSummary', () => {
+  test('returns an empty string when there are no actions', () => {
+    expect(formatEditSummary([], null)).toBe('');
+  });
+
+  test('capitalizes the first action and leaves the rest untouched', () => {
+    expect(formatEditSummary(['comment'], null)).toBe('Comment');
+    expect(formatEditSummary(['comment', 'tag', 'block'], null)).toBe('Comment, tag, block');
+  });
+
+  test('prefixes a section autocomment when a section name is given', () => {
+    expect(formatEditSummary(['comment'], '1 January 2026')).toBe(
+      '/* 1 January 2026 */ Comment',
+    );
+  });
+
+  test('does not add a section autocomment when the section name is null', () => {
+    expect(formatEditSummary(['comment'], null)).not.toContain('/*');
+  });
+});
 
 describe('spiHelperHandleBlocks', () => {
   afterEach(() => {
