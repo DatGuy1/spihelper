@@ -1,5 +1,5 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
-// v3.3.1
+// v3.3.2
 // <nowiki>
 'use strict';
 (() => {
@@ -110,7 +110,7 @@
     showUseragentCheckbox: true,
     useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
   };
-  var VERSION = "3.3.1";
+  var VERSION = "3.3.2";
   var MODE = "dev";
   var spiHelperDefaultSettings = {
     watch: {
@@ -303,7 +303,7 @@
       this.locked = opts.locked ?? false;
       this.evidence = opts.evidence ?? "";
       this.altmaster = opts.altmaster ?? "";
-      this.altmasterStatus = opts.altmasterStatus;
+      this.altmasterStatus = opts.altmasterStatus ?? "suspected";
     }
     generateWikitext(blocked) {
       let tag = "{{sockpuppet";
@@ -327,7 +327,7 @@
         tag += `
 | altmaster = ${this.altmaster}`;
         tag += `
-| altmaster-status = ${this.altmasterStatus ?? "suspected"}`;
+| altmaster-status = ${this.altmasterStatus}`;
       }
       tag += `
 }}`;
@@ -345,7 +345,7 @@
     equals(other) {
       if (!(other instanceof SockpuppetTag))
         return false;
-      return this.master === other.master && this.status === other.status && this.locked === other.locked && this.evidence === other.evidence && this.altmaster === other.altmaster && this.altmasterStatus === other.altmasterStatus;
+      return this.master === other.master && this.status === other.status && this.locked === other.locked && this.evidence === other.evidence && this.altmaster === other.altmaster && (!this.altmaster || this.altmasterStatus === other.altmasterStatus);
     }
   }
 
@@ -367,7 +367,7 @@
     generateWikitext() {
       let tag = "{{sockpuppeteer";
       const outputStatus = this.status === "banned" ? "banned" : "blocked";
-      const isChecked = this.checked || this.status !== "blocked";
+      const isChecked = this.status !== "blocked";
       tag += `
 | 1 = ${outputStatus}`;
       if (isChecked) {
@@ -419,6 +419,88 @@
     "move",
     "archive"
   ];
+  // node_modules/@wikimedia/codex-icons/dist/codex-icons.js
+  var p = '<path d="M11 9h7v2h-7v7H9v-7H2V9h7V2h2z"/>';
+  var u = '<path d="M11 1v13.876l4-4 1.414 1.414-5.707 5.707H9.293L3.586 12.29 5 10.876l4 4V1z"/>';
+  var P = '<path d="M10 1a9 9 0 110 18 9 9 0 010-18M5 9v2h10V9z"/>';
+  var v1 = '<path d="M10 1a9 9 0 110 18 9 9 0 010-18M4.394 5.806A6.97 6.97 0 003 10a7 7 0 0011.193 5.605l-9.8-9.8ZM10 3a6.97 6.97 0 00-4.191 1.392l9.797 9.798A7 7 0 0010 3"/>';
+  var V1 = '<path d="M18.154 3.837 8 16.8H6.65l-4.8-3.6 1.2-1.6 4.02 3.015 9.517-12.02z"/>';
+  var M1 = '<path d="M14 17h-4v-2h4zm2.404-13.163L6.22 16.8H4.9L.1 13.2l1.2-1.6 4.02 3.015 9.517-12.02zM17 13h-4v-2h4zm3-4h-4V7h4z"/>';
+  var i1 = '<path d="M10 1a9 9 0 110 18 9 9 0 010-18m0 2a7 7 0 100 14 7 7 0 000-14m1 7h3v2H9V5h2z"/>';
+  var m1 = '<path d="M16.707 4.707 11.414 10l5.293 5.293-1.414 1.414L10 11.414l-5.293 5.293-1.414-1.414L8.586 10 3.293 4.707l1.414-1.414L10 8.586l5.293-5.293z"/>';
+  var g1 = '<path d="M8.5 3H6a1 1 0 00-1 1v2.488c0 1.19-.525 2.273-1.371 3.012A4 4 0 015 12.512V16a1 1 0 001 1h2.5v2H6a3 3 0 01-3-3v-3.488a2 2 0 00-1.648-1.969L1 10.484V8.516l.352-.059A2 2 0 003 6.488V4a3 3 0 013-3h2.5zM14 1a3 3 0 013 3v2.488a2 2 0 001.648 1.969l.352.059v1.968l-.352.059A2 2 0 0017 12.512V16a3 3 0 01-3 3h-2.5v-2H14a1 1 0 001-1v-3.488c0-1.19.525-2.273 1.371-3.012A4 4 0 0115 6.488V4a1 1 0 00-1-1h-2.5V1z"/>';
+  var L1 = '<path d="m10 8.1-5.3 5.3L3.3 12l6-6h1.4l6 6-1.4 1.4z"/>';
+  var u1 = '<path d="M13 19H1V7h6V1h12v12h-6zm-6-6V9H3v8h8v-4zm2-2h8V3H9z"/>';
+  var S1 = '<path d="M19 19H1v-2h18zm-8-7.104 3.5-3.5 1.414 1.414-5.207 5.208H9.293L4.086 9.81 5.5 8.396l3.5 3.5V1h2z"/>';
+  var O1 = '<path d="m16.7 8-6 6H9.3l-6-6 1.4-1.4 5.3 5.3 5.3-5.3z"/>';
+  var Q1 = '<path d="M17 1v6.174c1.165.412 2 1.52 2 2.826a3 3 0 01-2 2.825V19h-2.563l-4.8-4H8v4H6v-4H3v-2H1V7h2V5h6.637l4.8-4zm-6.36 5.769L10.363 7H7v6h3.362l.279.231L15 16.864V3.136z"/>';
+  var n0 = '<path d="M11 18H9v-2h2zM10 2c1.497 0 2.76.433 3.66 1.268.905.84 1.34 1.994 1.34 3.232 0 1.182-.443 2.007-1.094 2.638a6.7 6.7 0 01-.95.742c-.363.241-.587.373-.923.602C11.351 10.948 11 11.86 11 13v1H9v-1c0-1.455.443-3.17 1.905-4.169.3-.204.71-.461.94-.615.281-.187.498-.349.67-.515.297-.287.485-.607.485-1.201 0-.762-.258-1.357-.7-1.768C11.853 4.317 11.117 4 10 4 7.98 4 7 5.636 7 6.5v1H5v-1C5 4.614 6.794 2 10 2"/>';
+  var P0 = '<path d="M12 10H9V8h3zm2-4H9V4h5z"/><path d="M18 20H2V0h16zM7 18h9V2H7z"/>';
+  var K0 = '<path d="M9 18H2V2h7zm-5-2h3V4H4zm14 2h-7v-7h7zm-5-2h3v-3h-3zm5-7h-7V2h7zm-5-2h3V4h-3z"/>';
+  var l4 = '<path d="M1.456 7.172a9 9 0 0117.259 5.079l-.968.75L11.75 13a.75.75 0 00-.75.75v4.21l-1.06 1c-.648-.04-1.938-.142-2.768-.416A9 9 0 011.456 7.172M12.2 3.354a7 7 0 00-4.4 13.291c.3.1.745.17 1.2.224v-3.12A2.75 2.75 0 0111.75 11h5.178A7 7 0 0012.2 3.355Z"/><circle cx="6.5" cy="10.5" r="1.5"/><circle cx="9.5" cy="6.5" r="1.5"/><circle cx="13.5" cy="8.5" r="1.5"/>';
+  var s4 = '<path d="M11 3H9v8h8V9h2v4h-6v6H1V7h6V1h4zM3 17h8v-4H7V9H3z"/><path d="M16.5 3.5H19v2h-2.5V8h-2V5.5H12v-2h2.5V1h2z"/>';
+  var H4 = '<path d="M16 2h-2v4.764l3 5.936V14h-6v6H9v-6H3v-1.3l3-5.936V2H4V0h12zM8 7.236 5.618 12h8.764L12 7.236V2H8z"/>';
+  var I4 = '<path d="M10 1a8.98 8.98 0 016.999 3.343L17 2h2v5l-1 1h-5l-.001-2h2.746a7 7 0 101.184 5h2.016A9 9 0 1110 1"/>';
+  var I3 = '<path d="M10 0a3 3 0 013 3v1h5v2h-2v14H4V6H2V4h5V3a3 3 0 013-3M6 18h8V6H6zm4-16a1 1 0 00-1 1v1h2V3a1 1 0 00-1-1"/>';
+  var T3 = '<path d="m12.009 13.695.002 1.388-4.694 4.88-1.441-1.385 3.065-3.188H0v-2h8.933l-3.057-3.164 1.438-1.39zm2.115-12.219L11.067 4.64H20v2h-8.941l3.065 3.188-1.441 1.386-4.694-4.881.002-1.388 4.694-4.86 1.439 1.39Z"/>';
+  var R3 = '<path d="M12 11a6 6 0 016 6v2H2v-2a6 6 0 016-6z"/><circle cx="10" cy="5" r="4"/>';
+  var P3 = '<path d="M12 11a6 6 0 016 6v2H2v-2a6 6 0 016-6zm-4 2a4 4 0 00-4 4h12a4 4 0 00-4-4zm2-12a4 4 0 110 8 4 4 0 010-8m0 2a2 2 0 100 4 2 2 0 000-4"/>';
+  var l5 = '<path d="M1 3h18v2H1zm0 6h7v2H1zm0 6h8v2H1zm15-4.75h3v1l-2.2 1.5L18 16.5h-1.2l-2.3-1.9-2.3 1.9H11l1.2-3.75-2.2-1.5v-1h3L14 7h1z"/>';
+  var z5 = p;
+  var i5 = u;
+  var U5 = P;
+  var Q5 = v1;
+  var _5 = V1;
+  var $5 = M1;
+  var h6 = i1;
+  var t6 = m1;
+  var a6 = g1;
+  var o6 = L1;
+  var s6 = {
+    ltr: u1,
+    shouldFlip: true
+  };
+  var V6 = S1;
+  var y6 = O1;
+  var k6 = {
+    ltr: Q1,
+    shouldFlip: true
+  };
+  var O6 = {
+    ltr: n0,
+    shouldFlip: true,
+    shouldFlipExceptions: ["he", "yi"]
+  };
+  var H7 = {
+    ltr: P0,
+    shouldFlip: true
+  };
+  var g7 = {
+    ltr: K0,
+    shouldFlip: true
+  };
+  var f8 = {
+    ltr: l4,
+    shouldFlip: true
+  };
+  var S8 = {
+    ltr: s4,
+    shouldFlip: true
+  };
+  var W8 = H4;
+  var K8 = I4;
+  var Q9 = I3;
+  var tc = {
+    ltr: T3,
+    shouldFlip: true
+  };
+  var vc = R3;
+  var dc = P3;
+  var Cc = {
+    ltr: l5,
+    shouldFlip: true
+  };
+
   // src/types/vue.ts
   var WatchOptionsSelect = [
     { label: "Follow preferences", value: "preferences" },
@@ -435,6 +517,20 @@
     summary: false,
     cuwiki: false,
     interleaved: false
+  };
+  var SockpuppetTagStatuses = {
+    blocked: { label: "Suspected", icon: O6 },
+    proven: { label: "Proven", icon: _5 },
+    confirmed: { label: "Confirmed", icon: $5 }
+  };
+  var SockmasterTagStatuses = {
+    blocked: { label: "Blocked", icon: U5 },
+    confirmed: { label: "Confirmed", icon: $5 },
+    banned: { label: "3X Banned", icon: Q5 }
+  };
+  var AltmasterTagStatuses = {
+    suspected: { label: "Suspected", icon: O6 },
+    proven: { label: "Proven", icon: _5 }
   };
   // src/template.ts
   function parseTemplates(wikitext) {
@@ -474,7 +570,7 @@
     return parts;
   }
   function parseTemplate(templateText) {
-    const parts = splitTemplateParts(templateText).map((p) => p.trim());
+    const parts = splitTemplateParts(templateText).map((p2) => p2.trim());
     const name = parts.shift()?.toLowerCase() ?? "unknown";
     const params = {};
     const positional = [];
@@ -535,7 +631,7 @@
     }
   }
   function spiHelperGetMaxPostExpandSize() {
-    return mw.config.get("wgPageParseReport").limitreport.postexpandincludesize.limit;
+    return mw.config.get("wgPageParseReport")?.limitreport.postexpandincludesize.limit ?? 2097152;
   }
   function spiHelperGetInterwikiPrefix() {
     const temp = mw.config.get("wgServer").replace(/^(https?)?:?\/\//, "").split(".");
@@ -2029,74 +2125,6 @@
     return spiHelperIsAdmin() || (mw.config.get("wgUserGroups")?.includes("extendedmover") ?? false);
   }
 
-  // node_modules/@wikimedia/codex-icons/dist/codex-icons.js
-  var M = '<path d="M11 9V4H9v5H4v2h5v5h2v-5h5V9z"/>';
-  var L = '<path d="m2 10 1.42-1.41L9 14.17V2h2v12.17l5.59-5.58L18 10l-8 8z"/>';
-  var r1 = '<path d="M10 0a10 10 0 1010 10A10 10 0 0010 0m2.5 14.5L9 11V4h2v6l3 3z"/>';
-  var z1 = '<path d="m4.34 2.93 12.73 12.73-1.41 1.41L2.93 4.35z"/><path d="M17.07 4.34 4.34 17.07l-1.41-1.41L15.66 2.93z"/>';
-  var i1 = '<path id="cdx-icon-code-a" d="M1 10.08V8.92h1.15c1.15 0 1.15 0 1.15-1.15V5a7.4 7.4 0 01.09-1.3 2 2 0 01.3-.7 1.84 1.84 0 01.93-.68A6.4 6.4 0 016.74 2h1.18v1.15h-.86A1.32 1.32 0 006 3.62a1.7 1.7 0 00-.36 1.23V7a3.2 3.2 0 01-.28 1.72 2 2 0 01-1.26.77 2.15 2.15 0 011.26.79A3.26 3.26 0 015.62 12v3.15A1.67 1.67 0 006 16.37a1.31 1.31 0 001.08.47h.87V18H6.74a6.3 6.3 0 01-2.12-.29 1.82 1.82 0 01-.93-.71 1.9 1.9 0 01-.3-.72A7.5 7.5 0 013.31 15v-3.77c0-1.15 0-1.15-1.15-1.15zm18 0V8.92h-1.15c-1.15 0-1.15 0-1.15-1.15V5a7.4 7.4 0 00-.08-1.32 2 2 0 00-.3-.73 1.84 1.84 0 00-.93-.68A6.4 6.4 0 0013.26 2h-1.18v1.15h.87a1.32 1.32 0 011.05.47 1.7 1.7 0 01.36 1.23V7a3.2 3.2 0 00.28 1.72 2 2 0 001.26.77 2.15 2.15 0 00-1.26.79 3.26 3.26 0 00-.26 1.72v3.15a1.67 1.67 0 01-.38 1.22 1.31 1.31 0 01-1.08.47h-.87V18h1.19a6.3 6.3 0 002.12-.29 1.82 1.82 0 00.93-.68 1.9 1.9 0 00.3-.72 7.5 7.5 0 00.1-1.31v-3.77c0-1.15 0-1.15 1.15-1.15z"/><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#cdx-icon-code-a" transform="matrix(-1 0 0 1 20 0)"/>';
-  var p1 = '<path d="m2.5 15.25 7.5-7.5 7.5 7.5 1.5-1.5-9-9-9 9z"/>';
-  var M1 = '<path d="M3 3h8v2h2V3c0-1.1-.895-2-2-2H3c-1.1 0-2 .895-2 2v8c0 1.1.895 2 2 2h2v-2H3z"/><path d="M9 9h8v8H9zm0-2c-1.1 0-2 .895-2 2v8c0 1.1.895 2 2 2h8c1.1 0 2-.895 2-2V9c0-1.1-.895-2-2-2z"/>';
-  var I1 = '<path d="M17 12v5H3v-5H1v5a2 2 0 002 2h14a2 2 0 002-2v-5z"/><path d="M15 9h-4V1H9v8H5l5 6z"/>';
-  var q1 = '<path d="m17.5 4.75-7.5 7.5-7.5-7.5L1 6.25l9 9 9-9z"/>';
-  var Z1 = '<path d="M19 16 2 12a3.83 3.83 0 01-1-2.5A3.83 3.83 0 012 7l17-4z"/><rect width="4" height="8" x="4" y="9" rx="2"/>';
-  var A0 = '<path d="M2 18.5A1.5 1.5 0 003.5 20H5V0H3.5A1.5 1.5 0 002 1.5zM6 0v20h10a2 2 0 002-2V2a2 2 0 00-2-2zm7 8H8V7h5zm3-2H8V5h8z"/>';
-  var S0 = '<path d="M8 12V1H1v18h18v-7z"/><path d="M11 1v8h8V1zm6 6h-4V3h4z"/>';
-  var B2 = '<path d="M13 15v2a3 3 0 01-3 3 10 10 0 1110-10 5 5 0 01-5 5ZM3 8.5a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0m3-4a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0m5 0a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0m3 4a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0"/>';
-  var Z2 = '<path d="M3 3h8v2h2V3c0-1.1-.895-2-2-2H3c-1.1 0-2 .895-2 2v8c0 1.1.895 2 2 2h2v-2H3zm4 12v2c0 1.1.895 2 2 2h8c1.1 0 2-.895 2-2V9c0-1.1-.895-2-2-2h-2v2h2v8H9v-2z"/><path d="M10 5H8v3H5v2h3v3h2v-3h3V8h-3z"/>';
-  var E2 = '<path d="M13 8V2a2 2 0 002-2H5a2 2 0 002 2v6H6a2 2 0 00-2 2v1h5v5l1 4 1-4v-5h5v-1a2 2 0 00-2-2z"/>';
-  var _2 = '<path d="M15.65 4.35A8 8 0 1017.4 13h-2.22a6 6 0 11-1-7.22L11 9h7V2z"/>';
-  var N5 = '<path d="M17 2h-3.5l-1-1h-5l-1 1H3v2h14zM4 17a2 2 0 002 2h8a2 2 0 002-2V5H4z"/>';
-  var $5 = '<path d="m6.4 17-1.26-1.25 2.32-2.25H1v-1.75h6.46L5.14 9.5 6.4 8.25l4.5 4.38zm7.2-5.25L9.1 7.37 13.6 3l1.26 1.25-2.32 2.25H19v1.75h-6.46l2.32 2.25z"/>';
-  var s3 = '<path d="M10 11c-5.92 0-8 3-8 5v3h16v-3c0-2-2.08-5-8-5"/><circle cx="10" cy="5.5" r="4.5"/>';
-  var l3 = '<path d="M10 8c1.7 0 3.06-1.35 3.06-3S11.7 2 10 2 6.94 3.35 6.94 5 8.3 8 10 8m0 2c-2.8 0-5.06-2.24-5.06-5S7.2 0 10 0s5.06 2.24 5.06 5-2.26 5-5.06 5m-7 8h14v-1.33c0-1.75-2.31-3.56-7-3.56s-7 1.81-7 3.56zm7-6.89c6.66 0 9 3.33 9 5.56V20H1v-3.33c0-2.23 2.34-5.56 9-5.56"/>';
-  var u3 = '<path d="M1 3h16v2H1Zm0 6h6v2H1Zm0 6h8v2H1Zm8-4.24h3.85L14.5 7l1.65 3.76H20l-3 3.17.9 4.05-3.4-2.14L11.1 18l.9-4.05Z"/>';
-  var C3 = M;
-  var q3 = L;
-  var e4 = r1;
-  var r4 = z1;
-  var z4 = i1;
-  var i4 = p1;
-  var m4 = {
-    ltr: M1,
-    shouldFlip: true
-  };
-  var L4 = I1;
-  var S4 = q1;
-  var w4 = {
-    ltr: Z1,
-    shouldFlip: true
-  };
-  var i6 = {
-    ltr: A0,
-    shouldFlip: true
-  };
-  var x6 = {
-    ltr: S0,
-    shouldFlip: true
-  };
-  var L7 = {
-    ltr: B2,
-    shouldFlip: true
-  };
-  var I7 = {
-    ltr: Z2,
-    shouldFlip: true
-  };
-  var f7 = E2;
-  var W7 = _2;
-  var y8 = N5;
-  var U8 = {
-    ltr: $5,
-    shouldFlip: true
-  };
-  var N8 = s3;
-  var O8 = l3;
-  var o9 = {
-    ltr: u3,
-    shouldFlip: true
-  };
-
   // src/ui/utils.ts
   function getSockEntries(opts) {
     const { text, fullSearch, state } = opts;
@@ -2292,18 +2320,18 @@
         caseActionMenuItems,
         selectedChipItems: spiHelperSettings.defaultActions,
         icons: {
-          cdxIconAdd: C3,
-          cdxIconArrowDown: q3,
-          cdxIconClock: e4,
-          cdxIconClose: r4,
-          cdxIconCode: z4,
-          cdxIconFeedback: w4,
-          cdxIconJournal: i6,
-          cdxIconLayout: x6,
-          cdxIconPalette: L7,
-          cdxIconReload: W7,
-          cdxIconTrash: y8,
-          cdxIconWatchlist: o9
+          cdxIconAdd: z5,
+          cdxIconArrowDown: i5,
+          cdxIconClock: h6,
+          cdxIconClose: t6,
+          cdxIconCode: a6,
+          cdxIconFeedback: k6,
+          cdxIconJournal: H7,
+          cdxIconLayout: g7,
+          cdxIconPalette: f8,
+          cdxIconReload: K8,
+          cdxIconTrash: Q9,
+          cdxIconWatchlist: Cc
         },
         instanceSettings: structuredClone(spiHelperSettings),
         oldSettings: structuredClone(spiHelperSettings),
@@ -2953,7 +2981,10 @@
   // src/ui/views/top/actionAccordion.ts
   var ActionAccordionComponent = defineComponent({
     props: {
-      selection: { type: Object, required: true },
+      selection: {
+        type: [Number, Array, String, null],
+        required: true
+      },
       name: { type: String, required: true },
       label: { type: [String, Object], required: true },
       selectionType: { type: String, required: true },
@@ -3004,7 +3035,10 @@
   // src/ui/views/top/actionButton.ts
   var ActionButtonComponent = defineComponent({
     props: {
-      selection: { type: Object, required: true },
+      selection: {
+        type: [Number, Array, String, null],
+        required: true
+      },
       name: { type: String, required: true },
       label: { type: [String, Object], required: true },
       selectionType: { type: String, required: true },
@@ -4059,7 +4093,7 @@ $1`);
 ` : "";
     const escapedName = oldMasterName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const normalizedMaster = oldMasterName.toLowerCase();
-    const positionalIndex = sockListTemplate.positional.findIndex((u) => u.toLowerCase() === normalizedMaster);
+    const positionalIndex = sockListTemplate.positional.findIndex((u2) => u2.toLowerCase() === normalizedMaster);
     let namedIndex = -1;
     for (const [key, val] of Object.entries(sockListTemplate.params)) {
       if (/^\d+$/.test(key) && val.toString().toLowerCase() === normalizedMaster) {
@@ -5061,10 +5095,10 @@ ${comment}
         sectionClickCleanup: null,
         multiSelectMode: false,
         icons: {
-          cdxIconPushPin: f7,
-          cdxIconCollapse: i4,
-          cdxIconExpand: S4,
-          cdxIconFeedback: w4
+          cdxIconPushPin: W8,
+          cdxIconCollapse: o6,
+          cdxIconExpand: y6,
+          cdxIconFeedback: k6
         }
       };
     },
@@ -5615,7 +5649,7 @@ ${comment}
   var ArchiveActionComponent = defineComponent({
     props: {
       enabled: { type: Boolean, required: true },
-      selection: { type: Object, required: true },
+      selection: { type: [Object, null], required: true },
       statusData: {
         type: Object,
         required: true
@@ -5722,7 +5756,8 @@ ${comment}
           anchor: null,
           open: false,
           tagIndex: 0,
-          rowId: null
+          rowId: null,
+          sourceTag: null
         },
         clipboardTag: null
       };
@@ -5734,11 +5769,11 @@ ${comment}
         isCheckuser,
         isClerk,
         popovers,
-        cdxIconCopy: m4,
-        cdxIconDownload: L4,
-        cdxIconTrash: y8,
-        cdxIconUserAvatar: N8,
-        cdxIconUserAvatarOutline: O8
+        cdxIconCopy: s6,
+        cdxIconDownload: V6,
+        cdxIconTrash: Q9,
+        cdxIconUserAvatar: vc,
+        cdxIconUserAvatarOutline: dc
       };
     },
     computed: {
@@ -5837,17 +5872,25 @@ ${comment}
         this.topButtonActions.fetched = true;
         this.$emit("fetchRows");
       },
+      isSameTagTarget(tag2, tagIndex, rowId) {
+        const { row } = this.popovers;
+        if (row.rowId !== rowId) {
+          return false;
+        }
+        return tag2 === null ? row.sourceTag === null && row.tagIndex === tagIndex : row.sourceTag === tag2;
+      },
       showTagPopover(tag2, tagIndex, rowId, $event) {
-        const isNewTarget = rowId !== this.popovers.row.rowId || tagIndex !== this.popovers.row.tagIndex;
+        const isSameTarget = this.isSameTagTarget(tag2, tagIndex, rowId);
         this.popovers.row.tagIndex = tagIndex;
         this.popovers.row.rowId = rowId;
         this.popovers.row.anchor = $event.currentTarget;
-        if (isNewTarget) {
+        if (isSameTarget) {
+          this.popovers.row.open = !this.popovers.row.open;
+        } else {
+          this.popovers.row.sourceTag = tag2;
           this.popovers.row.open = true;
           const rowTagPopover = this.$refs.rowTagPopover;
           rowTagPopover.setTag(tag2);
-        } else {
-          this.popovers.row.open = !this.popovers.row.open;
         }
       },
       handleTagUpdate(updatedTag) {
@@ -5856,7 +5899,7 @@ ${comment}
           console.error("Could not find target row for tag update", this.popovers.row.rowId);
           return;
         }
-        targetRow.block.tags.splice(this.popovers.row.tagIndex, 1, updatedTag);
+        targetRow.block.tags.splice(this.popovers.row.tagIndex, 1, updatedTag.clone());
       },
       handleTagDelete() {
         const targetRow = this.accounts.find((row) => row.id === this.popovers.row.rowId);
@@ -5866,15 +5909,18 @@ ${comment}
         }
         targetRow.block.tags.splice(this.popovers.row.tagIndex, 1);
       },
-      handleTagAdd(rowId) {
+      handleTagAdd(rowId, currentDraft) {
         const targetRow = this.accounts.find((row) => row.id === rowId);
         if (!targetRow) {
           console.error("Could not find target row for tag add", rowId);
-          return null;
+          return;
         }
-        const newTag = new SockpuppetTag({ master: this.defaultMaster, status: "blocked" });
+        const newTag = currentDraft ? currentDraft.clone() : new SockpuppetTag({ master: this.defaultMaster, status: "blocked" });
         targetRow.block.tags.push(newTag);
-        return newTag;
+        this.popovers.row.tagIndex = targetRow.block.tags.length - 1;
+        this.popovers.row.sourceTag = newTag;
+        const rowTagPopover = this.$refs.rowTagPopover;
+        rowTagPopover.setTag(newTag);
       },
       getRowTagsWithDefault(tags) {
         if (tags.length === 0) {
@@ -5898,6 +5944,15 @@ ${comment}
       },
       validateTag(tag2) {
         return !(isSockpuppetTag(tag2) && !tag2.master);
+      },
+      tagStatusDisplay(tag2) {
+        return isSockmasterTag(tag2) ? SockmasterTagStatuses[tag2.status] : SockpuppetTagStatuses[tag2.status];
+      },
+      tagLabel(tag2) {
+        if (tag2 === null) {
+          return "None";
+        }
+        return isSockmasterTag(tag2) ? SockmasterTagStatuses[tag2.status].label : tag2.master;
       }
     },
     template: `
@@ -6124,10 +6179,13 @@ ${comment}
                       @click="showTagPopover(tag, index, row.id, $event)"
                       :action="validateTag(tag) ? 'default' : 'destructive'"
                       :disabled="isNonRegisteredAccount(row.username)">
-            <cdx-icon v-if="tag !== null"
+            <cdx-icon v-if="tag !== null" class="userTag__kind"
                       :icon="isSockmasterTag(tag) ? cdxIconUserAvatar : cdxIconUserAvatarOutline"
                       :title="isSockmasterTag(tag) ? 'Master' : 'Sockpuppet'" />
-            {{ tag === null ? 'None' : isSockmasterTag(tag) ? tag.status.charAt(0).toUpperCase() + tag.status.slice(1) : tag.master }}
+            <span class="userTag__label">{{ tagLabel(tag) }}</span>
+            <cdx-icon v-if="tag !== null" class="userTag__status"
+                      :icon="tagStatusDisplay(tag).icon"
+                      :title="tagStatusDisplay(tag).label" />
           </cdx-button>
         </template>
 
@@ -6144,7 +6202,7 @@ ${comment}
       </cdx-table>
       <tag-popover ref="rowTagPopover" :anchor="popovers.row.anchor" v-model:open="popovers.row.open"
                    :default-master="defaultMaster" :clipboard-tag="popovers.clipboardTag"
-                   @saveTag="handleTagUpdate" @addTag="handleTagAdd(popovers.row.rowId)"
+                   @saveTag="handleTagUpdate" @addTag="handleTagAdd(popovers.row.rowId, $event)"
                    @deleteTag="handleTagDelete" @copyTag="popovers.clipboardTag = $event" />
     </action-container>
   `
@@ -6154,7 +6212,7 @@ ${comment}
     props: {
       enabled: { type: Boolean, required: true },
       text: { type: String, required: true },
-      selectedSection: { type: Object, required: true }
+      selectedSection: { type: [Object, null], required: true }
     },
     emits: ["update:enabled", "update:text"],
     data() {
@@ -6187,7 +6245,7 @@ ${comment}
         loadingPreview: false,
         htmlPreview: "",
         fullPreview: spiHelperSettings.interface.fullPreview,
-        cdxIconReload: W7
+        cdxIconReload: K8
       };
     },
     computed: {
@@ -6402,8 +6460,8 @@ ${comment}
         columns,
         optionColumns,
         selectedRows,
-        cdxIconAdd: C3,
-        cdxIconTrash: y8
+        cdxIconAdd: z5,
+        cdxIconTrash: Q9
       };
     },
     computed: {
@@ -6689,7 +6747,7 @@ ${comment}
       target: { type: String, required: true },
       suppress: { type: Boolean, required: true },
       addNote: { type: Boolean, required: true },
-      selection: { type: Object, required: true },
+      selection: { type: [Object, null], required: true },
       archiveEnabled: { type: Boolean, required: true }
     },
     emits: ["update:enabled", "update:target", "update:suppress", "update:addNote", "moveEntireCase"],
@@ -6843,7 +6901,10 @@ ${comment}
   var SectionActionComponent = defineComponent({
     props: {
       allSections: { type: Array, required: true },
-      selectedSection: { type: Object, required: true },
+      selectedSection: {
+        type: [Number, Array, String, null],
+        required: true
+      },
       multiSelectMode: { type: Boolean, required: true },
       selectedSections: { type: Array, required: true }
     },
@@ -7261,7 +7322,7 @@ ${comment}
           continueAction
         },
         submitElement: null,
-        cdxIconUpdate: U8
+        cdxIconUpdate: tc
       };
     },
     computed: {
@@ -7426,49 +7487,42 @@ ${comment}
   `
   });
   // src/ui/views/tagPopover.ts
+  function toStatusButtons(statuses) {
+    return Object.entries(statuses).map(([value, { label, icon }]) => ({ value, label, icon }));
+  }
   var TagPopoverComponent = defineComponent({
     props: {
       open: { type: Boolean, required: true },
       anchor: { type: Object, required: true },
-      clipboardTag: { type: Object, required: true },
+      clipboardTag: { type: [Object, null], required: true },
       defaultMaster: { type: String, required: true }
     },
     emits: {
       "update:open": (_) => true,
       saveTag: (_) => true,
-      addTag: () => true,
+      addTag: (_) => true,
       copyTag: (_) => true,
       deleteTag: () => true
     },
     data() {
-      const sockTags = [
-        { value: "blocked", label: "Suspected" },
-        { value: "proven", label: "Proven" },
-        { value: "confirmed", label: "Confirmed" }
-      ];
-      const masterTags = [
-        { value: "blocked", label: "Blocked" },
-        { value: "confirmed", label: "Confirmed" },
-        { value: "banned", label: "3X Banned" }
-      ];
-      const altmasterTags = [
-        { value: "suspected", label: "Suspected" },
-        { value: "proven", label: "Proven" }
-      ];
+      const sockTags = toStatusButtons(SockpuppetTagStatuses);
+      const masterTags = toStatusButtons(SockmasterTagStatuses);
+      const altmasterTags = toStatusButtons(AltmasterTagStatuses);
       const allTagSelections = {
         tag: "none",
         altmaster: "none"
       };
       const tagCategoryButtons = [
-        { value: "sock", label: "Sockpuppet", icon: O8 },
-        { value: "master", label: "Sockmaster", icon: N8 }
+        { value: "sock", label: "Sockpuppet", icon: dc },
+        { value: "master", label: "Sockmaster", icon: vc }
       ];
       const temporaryTag = null;
+      const originalTag = null;
       const icons = {
-        cdxIconAdd: C3,
-        cdxIconCopy: m4,
-        cdxIconPaste: I7,
-        cdxIconTrash: y8
+        cdxIconAdd: z5,
+        cdxIconCopy: s6,
+        cdxIconPaste: S8,
+        cdxIconTrash: Q9
       };
       return {
         sockTags,
@@ -7477,6 +7531,7 @@ ${comment}
         allTagSelections,
         tagCategoryButtons,
         temporaryTag,
+        originalTag,
         icons
       };
     },
@@ -7514,6 +7569,7 @@ ${comment}
     },
     methods: {
       setTag(newTag) {
+        this.originalTag = newTag ? newTag.clone() : null;
         this.temporaryTag = newTag ? newTag.clone() : null;
       },
       handleSave() {
@@ -7525,6 +7581,7 @@ ${comment}
         this.openValue = false;
       },
       handleCancel() {
+        this.temporaryTag = this.originalTag ? this.originalTag.clone() : null;
         this.openValue = false;
       },
       handleDeleteTag() {
@@ -7535,7 +7592,7 @@ ${comment}
         if (!this.temporaryTag) {
           return;
         }
-        this.$emit("copyTag", this.temporaryTag);
+        this.$emit("copyTag", this.temporaryTag.clone());
       },
       handlePasteTag() {
         if (!this.clipboardTag) {
@@ -7544,8 +7601,7 @@ ${comment}
         this.temporaryTag = this.clipboardTag.clone();
       },
       handleAddTag() {
-        this.$emit("addTag");
-        this.openValue = false;
+        this.$emit("addTag", this.temporaryTag);
       }
     },
     template: `
@@ -7686,8 +7742,8 @@ ${comment}
         actionsRunning: false,
         unpinned: !spiHelperSettings.interface.pinned,
         messages,
-        cdxIconFeedback: w4,
-        cdxIconPushPin: f7
+        cdxIconFeedback: k6,
+        cdxIconPushPin: W8
       };
     },
     computed: {

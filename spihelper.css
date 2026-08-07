@@ -1,5 +1,5 @@
 /* {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.css}} */
-/* v3.3.1 */
+/* v3.3.2 */
 /* src/spihelper.css */
 .spiHelper-section-open {
   background-color: var(--background-color-progressive-subtle, #eaf3ff);
@@ -291,6 +291,10 @@
   margin-top: 12px;
 }
 
+.spiHelper-sockTable {
+  --spihelper-tag-column-width: 190px;
+}
+
 .spiHelper-sockTable .setAllRow > th {
   vertical-align: middle;
   border-bottom-color: var(--color-emphasized, #101418) !important;
@@ -325,7 +329,7 @@
 }
 
 .spiHelper-sockTable th.tagHeader {
-  width: 200px;
+  width: var(--spihelper-tag-column-width);
 }
 
 .spiHelper-sockTable th.checkboxHeader {
@@ -395,12 +399,12 @@
 }
 
 .spiHelper-sockTable .user-lookup {
-  min-width: 150px;
+  min-width: 160px;
 }
 
 .spiHelper-sockTable th.selectTagOptions button {
+  width: var(--spihelper-tag-column-width);
   justify-content: flex-start;
-  width: 200px;
   padding: 0 5px;
 }
 
@@ -409,14 +413,31 @@
 }
 
 .spiHelper-sockTable button.userTag {
+  width: var(--spihelper-tag-column-width);
   justify-content: flex-start;
-  width: 200px;
   padding: 0 5px;
   font-weight: normal;
 }
 
 .spiHelper-sockTable button.userTag + button.userTag {
   margin-top: 4px;
+}
+
+.spiHelper-sockTable button.userTag .userTag__label {
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.spiHelper-sockTable button.userTag .cdx-icon.userTag__kind {
+  flex-shrink: 0;
+}
+
+.spiHelper-sockTable button.userTag .cdx-icon.userTag__status {
+  flex-shrink: 0;
 }
 
 .spiHelper-sockTable.linkTable thead {
@@ -474,7 +495,7 @@
 }
 
 div.edit-tag-popover {
-  min-width: 310px;
+  min-width: 380px;
 }
 
 div.edit-tag-popover .tag-category {
@@ -499,7 +520,10 @@ div.edit-tag-popover .edit-body > .cdx-toggle-button-group {
 }
 
 div.edit-tag-popover .edit-body > .cdx-toggle-button-group > button {
+  white-space: nowrap;
   flex: 1;
+  min-width: max-content;
+  padding: 0 4px;
 }
 
 div.edit-tag-popover footer {
