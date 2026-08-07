@@ -8,7 +8,7 @@ export const MoveActionComponent = defineComponent({
     target: { type: String, required: true },
     suppress: { type: Boolean, required: true },
     addNote: { type: Boolean, required: true },
-    selection: { type: Object as PropType<SectionSelection | null>, required: true },
+    selection: { type: [Object, null] as PropType<SectionSelection | null>, required: true },
     archiveEnabled: { type: Boolean, required: true },
   },
   emits: ['update:enabled', 'update:target', 'update:suppress', 'update:addNote', 'moveEntireCase'],

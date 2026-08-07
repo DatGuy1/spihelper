@@ -49,7 +49,7 @@ function stubRect(el: HTMLElement, partial: Partial<DOMRect>) {
     x: 0, y: 0, width: 0, height: 0, top: 0, right: 0, bottom: 0, left: 0,
     toJSON() { return this; },
     ...partial,
-  }) as DOMRect;
+  });
 }
 
 function makeHeading(sectionId: number, withEditSection = true): HTMLElement {

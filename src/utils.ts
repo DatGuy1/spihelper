@@ -40,7 +40,7 @@ export function spiHelperStripXWikiPrefix(title: string): string {
  * @return {number} The max post-expand size in bytes
  */
 export function spiHelperGetMaxPostExpandSize(): number {
-  return mw.config.get('wgPageParseReport').limitreport.postexpandincludesize.limit;
+  return mw.config.get('wgPageParseReport')?.limitreport.postexpandincludesize.limit ?? 2097152;
 }
 
 /**

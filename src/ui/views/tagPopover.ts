@@ -31,7 +31,7 @@ export const TagPopoverComponent = defineComponent({
   props: {
     open: { type: Boolean, required: true },
     anchor: { type: Object as PropType<HTMLElement>, required: true },
-    clipboardTag: { type: Object as PropType<Tag | null>, required: true },
+    clipboardTag: { type: [Object, null] as PropType<Tag | null>, required: true },
     defaultMaster: { type: String, required: true },
   },
   emits: {

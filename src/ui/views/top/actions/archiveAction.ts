@@ -4,7 +4,7 @@ import type { SectionSelection } from '../../../../state.ts';
 export const ArchiveActionComponent = defineComponent({
   props: {
     enabled: { type: Boolean, required: true },
-    selection: { type: Object as PropType<SectionSelection | null>, required: true },
+    selection: { type: [Object, null] as PropType<SectionSelection | null>, required: true },
     statusData: {
       type: Object as PropType<{
         old: string; new: string; bySection: Map<number, { old: string; new: string }>;

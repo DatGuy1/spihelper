@@ -49,7 +49,7 @@ function makeRow(username: string, link: Partial<LinkRowData> = {}): UserRow {
 function makeCtx({
   accounts = [] as UserRow[],
   caseName = 'Master',
-  columns = [{ id: 'interleaved' as ColumnId, label: 'Interleaved' }],
+  columns = [{ id: 'interleaved', label: 'Interleaved' }],
 }: {
   accounts?: UserRow[];
   caseName?: string;
@@ -136,7 +136,7 @@ describe('linkItems', () => {
     test('cuwiki includes ns0=1', () => {
       const ctx = makeCtx({
         accounts: [makeRow('User1', { cuwiki: true })],
-        columns: [{ id: 'cuwiki' as ColumnId, label: 'CU wiki' }],
+        columns: [{ id: 'cuwiki', label: 'CU wiki' }],
       });
       expect(rawComputed.linkItems.call(ctx).cuwiki?.url.searchParams.get('ns0')).toBe('1');
     });

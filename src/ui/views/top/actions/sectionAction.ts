@@ -20,7 +20,10 @@ import type { SectionEntry } from '../../../../state.ts';
 export const SectionActionComponent = defineComponent({
   props: {
     allSections: { type: Array as PropType<SectionEntry[]>, required: true },
-    selectedSection: { type: Object as PropType<CaseActionSection>, required: true },
+    selectedSection: {
+      type: [Number, Array, String, null] as PropType<CaseActionSection>,
+      required: true,
+    },
     multiSelectMode: { type: Boolean, required: true },
     selectedSections: { type: Array as PropType<SectionEntry[]>, required: true },
   },

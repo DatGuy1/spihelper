@@ -89,7 +89,7 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
     }
 
     let targetSock;
-    const caseState = Vue.reactive(new CaseState()) as CaseState;
+    const caseState = Vue.reactive(new CaseState());
     if (pageType === 'spi') {
       const rawPageName = mw.config.get('wgPageName');
       setContext(rawPageName);

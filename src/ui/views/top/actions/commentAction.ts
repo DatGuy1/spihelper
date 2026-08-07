@@ -14,7 +14,7 @@ export const CommentActionComponent = defineComponent({
   props: {
     enabled: { type: Boolean, required: true },
     text: { type: String, required: true },
-    selectedSection: { type: Object as PropType<SectionSelection | null>, required: true },
+    selectedSection: { type: [Object, null] as PropType<SectionSelection | null>, required: true },
   },
   emits: ['update:enabled', 'update:text'],
   data() {

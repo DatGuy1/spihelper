@@ -4,7 +4,10 @@ import { actionLabelText, shouldShowAction } from './utils';
 
 export const ActionAccordionComponent = defineComponent({
   props: {
-    selection: { type: Object as PropType<CaseActionSection>, required: true },
+    selection: {
+      type: [Number, Array, String, null] as PropType<CaseActionSection>,
+      required: true,
+    },
     name: { type: String as PropType<CaseActionName>, required: true },
     label: { type: [String, Object] as PropType<string | ActionLabel>, required: true },
     selectionType: { type: String as PropType<SelectionType>, required: true },
