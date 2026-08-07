@@ -244,7 +244,12 @@
         max-width: 80px;
     }
 
-    .cdx-button:not(:only-child) {
+    /* Space out the lock comment field, CU-block checkbox and the submit block */
+    > * + * {
+        margin-top: 12px;
+    }
+
+    .cdx-message + .cdx-button {
         margin-top: 12px;
     }
 }
