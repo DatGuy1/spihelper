@@ -1,4 +1,18 @@
-import type { LinkRowData } from './spi.ts';
+import {
+  type Icon,
+  cdxIconBlock,
+  cdxIconCancel,
+  cdxIconCheck,
+  cdxIconCheckAll,
+  cdxIconHelp,
+} from '@wikimedia/codex-icons';
+import type {
+  AltmasterTagStatus,
+  LinkRowData,
+  SockmasterTagStatus,
+  SockpuppetTagStatus,
+  Tag,
+} from './spi.ts';
 
 export const WatchOptionsSelect = [
   { label: 'Follow preferences', value: 'preferences' },
@@ -35,4 +49,27 @@ export interface TagRowPopoverState {
   open: boolean;
   tagIndex: number;
   rowId: string | null;
+  sourceTag: Tag | null;
 }
+
+export interface TagStatusDisplay {
+  label: string;
+  icon: Icon;
+}
+
+export const SockpuppetTagStatuses: Record<SockpuppetTagStatus, TagStatusDisplay> = {
+  blocked: { label: 'Suspected', icon: cdxIconHelp },
+  proven: { label: 'Proven', icon: cdxIconCheck },
+  confirmed: { label: 'Confirmed', icon: cdxIconCheckAll },
+};
+
+export const SockmasterTagStatuses: Record<SockmasterTagStatus, TagStatusDisplay> = {
+  blocked: { label: 'Blocked', icon: cdxIconBlock },
+  confirmed: { label: 'Confirmed', icon: cdxIconCheckAll },
+  banned: { label: '3X Banned', icon: cdxIconCancel },
+};
+
+export const AltmasterTagStatuses: Record<AltmasterTagStatus, TagStatusDisplay> = {
+  suspected: { label: 'Suspected', icon: cdxIconHelp },
+  proven: { label: 'Proven', icon: cdxIconCheck },
+};

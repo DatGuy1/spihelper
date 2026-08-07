@@ -1,6 +1,6 @@
 import { describe, expect, spyOn, test } from 'bun:test';
-import type { BlockEntry, BlockOptions, BlockRowData, InputColumn, Tag, TagRowPopoverState, UserRow } from '../../../../../src/types';
-import { SockpuppetTag } from '../../../../../src/types';
+import type { BlockEntry, BlockOptions, BlockRowData, InputColumn, Tag, TagRowPopoverState, TagStatusDisplay, UserRow } from '../../../../../src/types';
+import { SockmasterTag, SockpuppetTag } from '../../../../../src/types';
 import { BlockActionComponent } from '../../../../../src/ui/views/top';
 import { isInputDisabled } from '../../../../../src/ui/utils.ts';
 
@@ -18,6 +18,7 @@ interface TestCtx {
   setTagCalls: (Tag | null)[];
   getTargetRows(): UserRow[];
   isInputDisabled(row: UserRow | null, col: InputColumn): boolean;
+  isSameTagTarget(tag: Tag | null, tagIndex: number, rowId: string): boolean;
 }
 
 // defineComponent returns the options object at runtime; cast its methods
@@ -36,11 +37,14 @@ const raw = BlockActionComponent.methods as unknown as {
   showTagPopover(
     this: TestCtx, tag: Tag | null, tagIndex: number, rowId: string, $event: MouseEvent
   ): void;
+  isSameTagTarget(this: TestCtx, tag: Tag | null, tagIndex: number, rowId: string): boolean;
   handleTagUpdate(this: TestCtx, updatedTag: Tag): void;
   handleTagDelete(this: TestCtx): void;
-  handleTagAdd(this: TestCtx, rowId: string): Tag | null;
+  handleTagAdd(this: TestCtx, rowId: string | null, currentDraft: Tag | null): void;
   getRowTagsWithDefault(this: TestCtx, tags: Tag[]): (Tag | null)[];
   validateTag(this: TestCtx, tag: Tag): boolean;
+  tagStatusDisplay(this: TestCtx, tag: Tag): TagStatusDisplay;
+  tagLabel(this: TestCtx, tag: Tag | null): string;
 };
 
 const defaultOptions: BlockOptions = {
@@ -121,12 +125,15 @@ function makeCtx({
     selectedRows,
     defaultMaster,
     popovers: {
-      row: { anchor: null, open: false, tagIndex: 0, rowId: null, ...popoverRow },
+      row: { anchor: null, open: false, tagIndex: 0, rowId: null, sourceTag: null, ...popoverRow },
     },
     $refs: { rowTagPopover: { setTag(tag) { setTagCalls.push(tag); } } },
     setTagCalls,
     getTargetRows() { return raw.getTargetRows.call(ctx); },
     isInputDisabled(row, col) { return raw.isInputDisabled.call(ctx, row, col); },
+    isSameTagTarget(tag, tagIndex, rowId) {
+      return raw.isSameTagTarget.call(ctx, tag, tagIndex, rowId);
+    },
   };
   return ctx;
 }
@@ -333,11 +340,57 @@ describe('showTagPopover', () => {
     expect(ctx.popovers.row).toMatchObject({ rowId: 'row1', tagIndex: 0, open: true });
   });
 
-  test('reselecting the same row/tag slot does not reseed the popover', () => {
-    const ctx = makeCtx({ popoverRow: { rowId: 'row1', tagIndex: 0, open: false } });
-    raw.showTagPopover.call(ctx, makeSockTag(), 0, 'row1', fakeEvent);
+  test('reopening the same tag does not reseed, keeping edits in progress', () => {
+    const tag = makeSockTag();
+    const ctx = makeCtx({ popoverRow: { rowId: 'row1', tagIndex: 0, open: false, sourceTag: tag } });
+    raw.showTagPopover.call(ctx, tag, 0, 'row1', fakeEvent);
     expect(ctx.setTagCalls).toEqual([]);
     expect(ctx.popovers.row.open).toBe(true);
+  });
+
+  test('reopening the same tag a second time collapses it again', () => {
+    const tag = makeSockTag();
+    const ctx = makeCtx({ popoverRow: { rowId: 'row1', tagIndex: 0, open: true, sourceTag: tag } });
+    raw.showTagPopover.call(ctx, tag, 0, 'row1', fakeEvent);
+    expect(ctx.popovers.row.open).toBe(false);
+  });
+
+  test('a different tag at the same index reseeds, even though the index matches', () => {
+    // Deleting a tag shifts the survivors down, so the tag now at the
+    // previously-open index is a different one and must not inherit the stale draft
+    const deleted = makeSockTag({ master: 'Deleted' });
+    const survivor = makeSockTag({ master: 'Survivor' });
+    const ctx = makeCtx({
+      popoverRow: { rowId: 'row1', tagIndex: 0, open: false, sourceTag: deleted },
+    });
+    raw.showTagPopover.call(ctx, survivor, 0, 'row1', fakeEvent);
+    expect(ctx.setTagCalls).toEqual([survivor]);
+    expect(ctx.popovers.row.sourceTag).toBe(survivor);
+  });
+
+  test('an equal-but-distinct tag object still reseeds', () => {
+    // Matching is by identity, not value. Two tags can be structurally identical
+    // while being different entries in the row.
+    const ctx = makeCtx({
+      popoverRow: { rowId: 'row1', tagIndex: 0, open: false, sourceTag: makeSockTag() },
+    });
+    const twin = makeSockTag();
+    raw.showTagPopover.call(ctx, twin, 0, 'row1', fakeEvent);
+    expect(ctx.setTagCalls).toEqual([twin]);
+  });
+
+  test('reopening the same empty placeholder does not reseed', () => {
+    const ctx = makeCtx({ popoverRow: { rowId: 'row1', tagIndex: 0, open: false, sourceTag: null } });
+    raw.showTagPopover.call(ctx, null, 0, 'row1', fakeEvent);
+    expect(ctx.setTagCalls).toEqual([]);
+  });
+
+  test('an empty placeholder reseeds once the slot previously held a tag', () => {
+    const ctx = makeCtx({
+      popoverRow: { rowId: 'row1', tagIndex: 0, open: false, sourceTag: makeSockTag() },
+    });
+    raw.showTagPopover.call(ctx, null, 0, 'row1', fakeEvent);
+    expect(ctx.setTagCalls).toEqual([null]);
   });
 
   test('selecting a different, also-untagged row still reseeds the popover', () => {
@@ -375,6 +428,23 @@ describe('handleTagUpdate', () => {
     expect(spy).toHaveBeenCalledWith('Could not find target row for tag update', 'gone');
     spy.mockRestore();
   });
+
+  test('stores a copy, so the popover keeps no handle on the saved tag', () => {
+    const vandal = makeRow('Vandal', { tags: [makeSockTag({ master: 'Old' })] });
+    const ctx = makeCtx({ accounts: [vandal], popoverRow: { rowId: 'Vandal', tagIndex: 0 } });
+    const draft = makeSockTag({ master: 'New' });
+    raw.handleTagUpdate.call(ctx, draft);
+    expect(vandal.block.tags[0]).not.toBe(draft);
+  });
+
+  test('further edits to the popover draft do not reach the saved tag', () => {
+    const vandal = makeRow('Vandal', { tags: [makeSockTag({ master: 'Old' })] });
+    const ctx = makeCtx({ accounts: [vandal], popoverRow: { rowId: 'Vandal', tagIndex: 0 } });
+    const draft = makeSockTag({ master: 'Saved' });
+    raw.handleTagUpdate.call(ctx, draft);
+    draft.master = 'EditedAfterSaving';
+    expect((vandal.block.tags[0] as SockpuppetTag).master).toBe('Saved');
+  });
 });
 
 describe('handleTagDelete', () => {
@@ -397,23 +467,76 @@ describe('handleTagDelete', () => {
 });
 
 describe('handleTagAdd', () => {
-  test('pushes a new default sockpuppet tag onto the target row and returns it', () => {
+  test('pushes a new default sockpuppet tag onto the target row', () => {
     const vandal = makeRow('Vandal');
     const ctx = makeCtx({ accounts: [vandal], defaultMaster: 'DefaultMaster' });
-    const added = raw.handleTagAdd.call(ctx, 'Vandal');
-    if (added === null) throw new Error('expected handleTagAdd to return the new tag');
-    expect(added).toEqual(makeSockTag({ master: 'DefaultMaster' }));
-    expect(vandal.block.tags).toEqual([added]);
+    raw.handleTagAdd.call(ctx, 'Vandal', null);
+    expect(vandal.block.tags).toEqual([makeSockTag({ master: 'DefaultMaster' })]);
   });
 
-  test('returns null and adds nothing when the row id does not exist', () => {
+  test('adds nothing when the row id does not exist', () => {
     const vandal = makeRow('Vandal');
     const ctx = makeCtx({ accounts: [vandal] });
     const spy = spyOn(console, 'error').mockImplementation(() => { /* suppress expected error log */ });
-    expect(raw.handleTagAdd.call(ctx, 'gone')).toBeNull();
+    raw.handleTagAdd.call(ctx, 'gone', null);
     expect(vandal.block.tags).toEqual([]);
     expect(spy).toHaveBeenCalledWith('Could not find target row for tag add', 'gone');
     spy.mockRestore();
+  });
+
+  test('adds nothing when there is no row tracked at all', () => {
+    const vandal = makeRow('Vandal');
+    const ctx = makeCtx({ accounts: [vandal] });
+    const spy = spyOn(console, 'error').mockImplementation(() => { /* suppress expected error log */ });
+    raw.handleTagAdd.call(ctx, null, null);
+    expect(vandal.block.tags).toEqual([]);
+    spy.mockRestore();
+  });
+
+  test('moves the in-progress draft onto the new tag instead of discarding it', () => {
+    const vandal = makeRow('Vandal', { tags: [makeSockTag({ master: 'Saved' })] });
+    const ctx = makeCtx({
+      accounts: [vandal],
+      defaultMaster: 'DefaultMaster',
+      popoverRow: { rowId: 'Vandal', tagIndex: 0 },
+    });
+    raw.handleTagAdd.call(ctx, 'Vandal', makeSockTag({ master: 'EditedButNotSaved' }));
+    expect(vandal.block.tags).toEqual([
+      makeSockTag({ master: 'Saved' }),
+      makeSockTag({ master: 'EditedButNotSaved' }),
+    ]);
+  });
+
+  test('leaves the tag that was open at its last saved value', () => {
+    const vandal = makeRow('Vandal', { tags: [makeSockTag({ master: 'Saved' })] });
+    const ctx = makeCtx({
+      accounts: [vandal],
+      popoverRow: { rowId: 'Vandal', tagIndex: 0 },
+    });
+    raw.handleTagAdd.call(ctx, 'Vandal', makeSockTag({ master: 'EditedButNotSaved' }));
+    expect(vandal.block.tags[0]).toEqual(makeSockTag({ master: 'Saved' }));
+  });
+
+  test('stores a copy of the draft, not the popover draft object itself', () => {
+    const vandal = makeRow('Vandal');
+    const ctx = makeCtx({ accounts: [vandal], popoverRow: { rowId: 'Vandal', tagIndex: 0 } });
+    const draft = makeSockTag({ master: 'Draft' });
+    raw.handleTagAdd.call(ctx, 'Vandal', draft);
+    expect(vandal.block.tags[0]).not.toBe(draft);
+  });
+
+  test('retargets the open popover onto the newly added tag', () => {
+    const vandal = makeRow('Vandal', { tags: [makeSockTag({ master: 'First' })] });
+    const ctx = makeCtx({
+      accounts: [vandal],
+      defaultMaster: 'DefaultMaster',
+      popoverRow: { rowId: 'Vandal', tagIndex: 0 },
+    });
+    raw.handleTagAdd.call(ctx, 'Vandal', null);
+    const added = vandal.block.tags[1];
+    expect(ctx.popovers.row.tagIndex).toBe(1);
+    expect(ctx.popovers.row.sourceTag).toBe(added ?? null);
+    expect(ctx.setTagCalls).toEqual([added ?? null]);
   });
 });
 
@@ -471,5 +594,59 @@ describe('validateTag', () => {
   test('accepts a sockpuppet tag with a master', () => {
     const ctx = makeCtx();
     expect(raw.validateTag.call(ctx, makeSockTag({ master: 'Foo' }))).toBe(true);
+  });
+});
+
+describe('tagLabel', () => {
+  test('shows the master name for a sockpuppet tag', () => {
+    const ctx = makeCtx();
+    expect(raw.tagLabel.call(ctx, makeSockTag({ master: 'Foo' }))).toBe('Foo');
+  });
+
+  test('shows the status label for a sockmaster tag', () => {
+    const ctx = makeCtx();
+    expect(raw.tagLabel.call(ctx, new SockmasterTag({ status: 'blocked' }))).toBe('Blocked');
+  });
+
+  test('spells out the sockmaster banned status as 3X Banned', () => {
+    const ctx = makeCtx();
+    expect(raw.tagLabel.call(ctx, new SockmasterTag({ status: 'banned' }))).toBe('3X Banned');
+  });
+
+  test('returns None for the empty placeholder', () => {
+    const ctx = makeCtx();
+    expect(raw.tagLabel.call(ctx, null)).toBe('None');
+  });
+});
+
+describe('tagStatusDisplay', () => {
+  // {{sockpuppet|blocked}} = 'suspected' in text
+  test('labels the sockpuppet blocked status as Suspected', () => {
+    const ctx = makeCtx();
+    expect(raw.tagStatusDisplay.call(ctx, makeSockTag({ status: 'blocked' })).label)
+      .toBe('Suspected');
+  });
+
+  test('labels the sockmaster blocked status as Blocked', () => {
+    const ctx = makeCtx();
+    expect(raw.tagStatusDisplay.call(ctx, new SockmasterTag({ status: 'blocked' })).label)
+      .toBe('Blocked');
+  });
+
+  test('gives every status a distinct icon within its tag kind', () => {
+    const ctx = makeCtx();
+    const sockIcons = (['blocked', 'proven', 'confirmed'] as const)
+      .map(status => raw.tagStatusDisplay.call(ctx, makeSockTag({ status })).icon);
+    expect(new Set(sockIcons).size).toBe(3);
+
+    const masterIcons = (['blocked', 'confirmed', 'banned'] as const)
+      .map(status => raw.tagStatusDisplay.call(ctx, new SockmasterTag({ status })).icon);
+    expect(new Set(masterIcons).size).toBe(3);
+  });
+
+  test('uses the same icon for both confirmed statuses', () => {
+    const ctx = makeCtx();
+    expect(raw.tagStatusDisplay.call(ctx, makeSockTag({ status: 'confirmed' })).icon)
+      .toBe(raw.tagStatusDisplay.call(ctx, new SockmasterTag({ status: 'confirmed' })).icon);
   });
 });

@@ -4,6 +4,7 @@ import { TagPopoverComponent } from '../../../src/ui/views';
 
 interface TestCtx {
   temporaryTag: Tag | null;
+  originalTag: Tag | null;
   clipboardTag: Tag | null;
   defaultMaster: string;
   open: boolean;
@@ -34,6 +35,7 @@ function makeCtx(overrides: Partial<Pick<TestCtx, 'temporaryTag' | 'clipboardTag
   const emitted: { event: string; args: unknown[] }[] = [];
   return {
     temporaryTag: overrides.temporaryTag ?? null,
+    originalTag: null,
     clipboardTag: overrides.clipboardTag ?? null,
     defaultMaster: overrides.defaultMaster ?? '',
     open: overrides.open ?? false,
@@ -104,6 +106,30 @@ describe('handleCancel', () => {
     const ctx = makeCtx({ temporaryTag: makeSockTag(), open: true });
     methods.handleCancel.call(ctx);
     expect(ctx.emitted).toEqual([{ event: 'update:open', args: [false] }]);
+  });
+
+  test('discards the draft by restoring the snapshot taken when it opened', () => {
+    const ctx = makeCtx({ open: true });
+    methods.setTag.call(ctx, makeSockTag({ master: 'Original' }));
+    if (ctx.temporaryTag && 'master' in ctx.temporaryTag) {
+      ctx.temporaryTag.master = 'Abandoned';
+    }
+    methods.handleCancel.call(ctx);
+    expect(ctx.temporaryTag).toEqual(makeSockTag({ master: 'Original' }));
+  });
+
+  test('restores a copy, so the next round of edits is discardable too', () => {
+    const ctx = makeCtx({ open: true });
+    methods.setTag.call(ctx, makeSockTag({ master: 'Original' }));
+    methods.handleCancel.call(ctx);
+    expect(ctx.temporaryTag).not.toBe(ctx.originalTag);
+  });
+
+  test('leaves the draft null when the popover was seeded with no tag', () => {
+    const ctx = makeCtx({ open: true });
+    methods.setTag.call(ctx, null);
+    methods.handleCancel.call(ctx);
+    expect(ctx.temporaryTag).toBeNull();
   });
 });
 

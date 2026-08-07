@@ -48,7 +48,10 @@ export class SockpuppetTag {
   locked: boolean;
   evidence: string;
   altmaster: string;
-  altmasterStatus?: AltmasterTagStatus;
+  /**
+   * Defaults to suspected but only meaningful when altmaster is also truthy
+   */
+  altmasterStatus: AltmasterTagStatus;
 
   constructor(opts: {
     master: string;
@@ -63,7 +66,7 @@ export class SockpuppetTag {
     this.locked = opts.locked ?? false;
     this.evidence = opts.evidence ?? '';
     this.altmaster = opts.altmaster ?? '';
-    this.altmasterStatus = opts.altmasterStatus;
+    this.altmasterStatus = opts.altmasterStatus ?? 'suspected';
   }
 
   generateWikitext(blocked?: boolean): string {
@@ -82,7 +85,7 @@ export class SockpuppetTag {
     }
     if (this.altmaster) {
       tag += `\n| altmaster = ${this.altmaster}`;
-      tag += `\n| altmaster-status = ${this.altmasterStatus ?? 'suspected'}`;
+      tag += `\n| altmaster-status = ${this.altmasterStatus}`;
     }
     tag += '\n}}';
     return tag;
@@ -106,7 +109,9 @@ export class SockpuppetTag {
       && this.locked === other.locked
       && this.evidence === other.evidence
       && this.altmaster === other.altmaster
-      && this.altmasterStatus === other.altmasterStatus;
+      // Without an altmaster the status writes nothing,
+      // so a stale value shouldn't count as a being unequal
+      && (!this.altmaster || this.altmasterStatus === other.altmasterStatus);
   }
 }
 
@@ -140,7 +145,8 @@ export class SockmasterTag {
     // The template is very weird. 'Confirmed' is a sort of fake option
     const outputStatus = this.status === 'banned' ? 'banned' : 'blocked';
     // 'Confirmed' or 'banned' neccesitate use of the CU tool, so mark as checked
-    const isChecked = this.checked || this.status !== 'blocked';
+    // Deliberately ignores the old this.checked since we're presumably intentionally overriding it
+    const isChecked = this.status !== 'blocked';
 
     tag += `\n| 1 = ${outputStatus}`;
     if (isChecked) {

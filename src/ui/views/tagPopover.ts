@@ -1,12 +1,15 @@
 import { type PropType, defineComponent } from 'vue';
 import {
-  type AltmasterTagStatus, SockmasterTag,
-  type SockmasterTagStatus,
+  AltmasterTagStatuses,
+  SockmasterTag,
+  SockmasterTagStatuses,
   SockpuppetTag,
-  type SockpuppetTagStatus,
+  SockpuppetTagStatuses,
   type Tag,
+  type TagStatusDisplay,
 } from '../../types';
 import {
+  type Icon,
   cdxIconAdd,
   cdxIconCopy,
   cdxIconPaste,
@@ -15,6 +18,14 @@ import {
   cdxIconUserAvatarOutline,
 } from '@wikimedia/codex-icons';
 import { isSockpuppetTag } from '../../utils.ts';
+
+/** Turns a status map into the `buttons` prop of a cdx-toggle-button-group. */
+function toStatusButtons<T extends string>(
+  statuses: Record<T, TagStatusDisplay>,
+): { value: T; label: string; icon: Icon }[] {
+  return (Object.entries<TagStatusDisplay>(statuses) as [T, TagStatusDisplay][])
+    .map(([value, { label, icon }]) => ({ value, label, icon }));
+}
 
 export const TagPopoverComponent = defineComponent({
   props: {
@@ -26,25 +37,14 @@ export const TagPopoverComponent = defineComponent({
   emits: {
     'update:open': (_: boolean) => true,
     'saveTag': (_: Tag) => true,
-    'addTag': () => true,
+    'addTag': (_: Tag | null) => true,
     'copyTag': (_: Tag) => true,
     'deleteTag': () => true,
   },
   data() {
-    const sockTags: { value: SockpuppetTagStatus; label: string }[] = [
-      { value: 'blocked', label: 'Suspected' },
-      { value: 'proven', label: 'Proven' },
-      { value: 'confirmed', label: 'Confirmed' },
-    ];
-    const masterTags: { value: SockmasterTagStatus; label: string }[] = [
-      { value: 'blocked', label: 'Blocked' },
-      { value: 'confirmed', label: 'Confirmed' },
-      { value: 'banned', label: '3X Banned' },
-    ];
-    const altmasterTags: { value: AltmasterTagStatus; label: string }[] = [
-      { value: 'suspected', label: 'Suspected' },
-      { value: 'proven', label: 'Proven' },
-    ];
+    const sockTags = toStatusButtons(SockpuppetTagStatuses);
+    const masterTags = toStatusButtons(SockmasterTagStatuses);
+    const altmasterTags = toStatusButtons(AltmasterTagStatuses);
 
     const allTagSelections = {
       tag: 'none',
@@ -56,6 +56,8 @@ export const TagPopoverComponent = defineComponent({
     ];
 
     const temporaryTag = null as Tag | null;
+    // Snapshot of the tag as it was when the popover opened, so Cancel can restore it
+    const originalTag = null as Tag | null;
 
     const icons = {
       cdxIconAdd,
@@ -71,6 +73,7 @@ export const TagPopoverComponent = defineComponent({
       allTagSelections,
       tagCategoryButtons,
       temporaryTag,
+      originalTag,
       icons,
     };
   },
@@ -109,6 +112,7 @@ export const TagPopoverComponent = defineComponent({
   },
   methods: {
     setTag(newTag: Tag | null) {
+      this.originalTag = newTag ? newTag.clone() : null;
       this.temporaryTag = newTag ? newTag.clone() : null;
     },
     handleSave() {
@@ -120,6 +124,9 @@ export const TagPopoverComponent = defineComponent({
       this.openValue = false;
     },
     handleCancel() {
+      // Discard the draft by restoring the snapshot, so reopening this same tag
+      // shows the saved state rather than the abandoned edits
+      this.temporaryTag = this.originalTag ? this.originalTag.clone() : null;
       this.openValue = false;
     },
     handleDeleteTag() {
@@ -130,7 +137,7 @@ export const TagPopoverComponent = defineComponent({
       if (!this.temporaryTag) {
         return;
       }
-      this.$emit('copyTag', this.temporaryTag);
+      this.$emit('copyTag', this.temporaryTag.clone());
     },
     handlePasteTag() {
       if (!this.clipboardTag) {
@@ -139,8 +146,7 @@ export const TagPopoverComponent = defineComponent({
       this.temporaryTag = this.clipboardTag.clone();
     },
     handleAddTag() {
-      this.$emit('addTag');
-      this.openValue = false;
+      this.$emit('addTag', this.temporaryTag);
     },
   },
   template: `

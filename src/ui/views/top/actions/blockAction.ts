@@ -12,9 +12,12 @@ import {
   type BlockOptions,
   type BlockRowData,
   type InputColumn,
+  SockmasterTagStatuses,
   SockpuppetTag,
+  SockpuppetTagStatuses,
   type Tag,
   type TagRowPopoverState,
+  type TagStatusDisplay,
   type UserRow,
 } from '../../../../types';
 import { isNonRegisteredAccount, isSockmasterTag, isSockpuppetTag } from '../../../../utils.ts';
@@ -65,6 +68,7 @@ export const BlockActionComponent = defineComponent({
         open: false,
         tagIndex: 0,
         rowId: null,
+        sourceTag: null,
       } as TagRowPopoverState,
       clipboardTag: null as Tag | null,
     };
@@ -195,26 +199,35 @@ export const BlockActionComponent = defineComponent({
       this.topButtonActions.fetched = true;
       this.$emit('fetchRows');
     },
+    /** Whether a click targets the same tag the open draft was seeded from */
+    isSameTagTarget(tag: Tag | null, tagIndex: number, rowId: string): boolean {
+      const { row } = this.popovers;
+      if (row.rowId !== rowId) {
+        return false;
+      }
+      return tag === null
+        ? row.sourceTag === null && row.tagIndex === tagIndex
+        : row.sourceTag === tag;
+    },
     showTagPopover(
       tag: Tag | null,
       tagIndex: number,
       rowId: string,
       $event: MouseEvent,
     ) {
-      // Only reseed the popover's draft when the target slot itself changes. Reopening the
-      // same slot (e.g. after Cancel) should keep whatever's still being edited.
-      const isNewTarget = rowId !== this.popovers.row.rowId
-        || tagIndex !== this.popovers.row.tagIndex;
+      const isSameTarget = this.isSameTagTarget(tag, tagIndex, rowId);
       this.popovers.row.tagIndex = tagIndex;
       this.popovers.row.rowId = rowId;
       this.popovers.row.anchor = $event.currentTarget as HTMLElement;
-      if (isNewTarget) {
+      if (isSameTarget) {
+        // Collapsing and reopening the same tag keeps whatever's still being edited
+        this.popovers.row.open = !this.popovers.row.open;
+      }
+      else {
+        this.popovers.row.sourceTag = tag;
         this.popovers.row.open = true;
         const rowTagPopover = this.$refs.rowTagPopover as InstanceType<typeof TagPopoverComponent>;
         rowTagPopover.setTag(tag);
-      }
-      else {
-        this.popovers.row.open = !this.popovers.row.open;
       }
     },
     handleTagUpdate(updatedTag: Tag) {
@@ -223,7 +236,8 @@ export const BlockActionComponent = defineComponent({
         console.error('Could not find target row for tag update', this.popovers.row.rowId);
         return;
       }
-      targetRow.block.tags.splice(this.popovers.row.tagIndex, 1, updatedTag);
+      // Store a copy instead of a reference
+      targetRow.block.tags.splice(this.popovers.row.tagIndex, 1, updatedTag.clone());
     },
     handleTagDelete() {
       const targetRow = this.accounts.find(row => row.id === this.popovers.row.rowId);
@@ -233,15 +247,22 @@ export const BlockActionComponent = defineComponent({
       }
       targetRow.block.tags.splice(this.popovers.row.tagIndex, 1);
     },
-    handleTagAdd(rowId: string): Tag | null {
+    handleTagAdd(rowId: string | null, currentDraft: Tag | null) {
       const targetRow = this.accounts.find(row => row.id === rowId);
       if (!targetRow) {
         console.error('Could not find target row for tag add', rowId);
-        return null;
+        return;
       }
-      const newTag = new SockpuppetTag({ master: this.defaultMaster, status: 'blocked' });
+      // Move the draft onto the new tag
+      const newTag = currentDraft
+        ? currentDraft.clone()
+        : new SockpuppetTag({ master: this.defaultMaster, status: 'blocked' });
       targetRow.block.tags.push(newTag);
-      return newTag;
+      // Point the still-open popover at the new tag so it can be filled in straight away
+      this.popovers.row.tagIndex = targetRow.block.tags.length - 1;
+      this.popovers.row.sourceTag = newTag;
+      const rowTagPopover = this.$refs.rowTagPopover as InstanceType<typeof TagPopoverComponent>;
+      rowTagPopover.setTag(newTag);
     },
     getRowTagsWithDefault(tags: Tag[]): (Tag | null)[] {
       if (tags.length === 0) {
@@ -267,6 +288,17 @@ export const BlockActionComponent = defineComponent({
     validateTag(tag: Tag) {
       // Ensure it isn't a sockpuppet tag without a master
       return !(isSockpuppetTag(tag) && !tag.master);
+    },
+    tagStatusDisplay(tag: Tag): TagStatusDisplay {
+      return isSockmasterTag(tag)
+        ? SockmasterTagStatuses[tag.status]
+        : SockpuppetTagStatuses[tag.status];
+    },
+    tagLabel(tag: Tag | null): string {
+      if (tag === null) {
+        return 'None';
+      }
+      return isSockmasterTag(tag) ? SockmasterTagStatuses[tag.status].label : tag.master;
     },
   },
   template: `
@@ -493,10 +525,13 @@ export const BlockActionComponent = defineComponent({
                       @click="showTagPopover(tag, index, row.id, $event)"
                       :action="validateTag(tag) ? 'default' : 'destructive'"
                       :disabled="isNonRegisteredAccount(row.username)">
-            <cdx-icon v-if="tag !== null"
+            <cdx-icon v-if="tag !== null" class="userTag__kind"
                       :icon="isSockmasterTag(tag) ? cdxIconUserAvatar : cdxIconUserAvatarOutline"
                       :title="isSockmasterTag(tag) ? 'Master' : 'Sockpuppet'" />
-            {{ tag === null ? 'None' : isSockmasterTag(tag) ? tag.status.charAt(0).toUpperCase() + tag.status.slice(1) : tag.master }}
+            <span class="userTag__label">{{ tagLabel(tag) }}</span>
+            <cdx-icon v-if="tag !== null" class="userTag__status"
+                      :icon="tagStatusDisplay(tag).icon"
+                      :title="tagStatusDisplay(tag).label" />
           </cdx-button>
         </template>
 
@@ -513,7 +548,7 @@ export const BlockActionComponent = defineComponent({
       </cdx-table>
       <tag-popover ref="rowTagPopover" :anchor="popovers.row.anchor" v-model:open="popovers.row.open"
                    :default-master="defaultMaster" :clipboard-tag="popovers.clipboardTag"
-                   @saveTag="handleTagUpdate" @addTag="handleTagAdd(popovers.row.rowId)"
+                   @saveTag="handleTagUpdate" @addTag="handleTagAdd(popovers.row.rowId, $event)"
                    @deleteTag="handleTagDelete" @copyTag="popovers.clipboardTag = $event" />
     </action-container>
   `,

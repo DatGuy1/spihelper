@@ -348,6 +348,24 @@
         & + button.userTag {
             margin-top: 4px;
         }
+
+        .userTag__label {
+            flex: 1;
+            min-width: 0;
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .cdx-icon.userTag__kind,
+        .cdx-icon.userTag__status {
+            flex-shrink: 0;
+        }
+
+        .cdx-icon.userTag__status {
+            padding-inline-start: 4px;
+        }
     }
 
     &.linkTable {
@@ -385,7 +403,7 @@
 }
 
 div.edit-tag-popover {
-    min-width: 310px;
+    min-width: 380px;
 
     .tag-category {
         display: flex;
@@ -406,8 +424,12 @@ div.edit-tag-popover {
             display: flex;
             width: auto;
 
+            /* Equal thirds but never narrower than the label needs */
             > button {
                 flex: 1;
+                min-width: max-content;
+                padding: 0 4px;
+                white-space: nowrap;
             }
         }
     }
