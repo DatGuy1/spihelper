@@ -250,6 +250,8 @@
 }
 
 .spiHelper-sockTable {
+    --spihelper-tag-column-width: 190px;
+
     .setAllRow > th {
         vertical-align: middle;
         border-bottom-color: var(--color-emphasized, #101418) !important;
@@ -284,7 +286,7 @@
     }
 
     th.tagHeader {
-        width: 200px;
+        width: var(--spihelper-tag-column-width);
     }
 
     th.checkboxHeader {
@@ -326,11 +328,11 @@
     }
 
     .user-lookup {
-        min-width: 150px;
+        min-width: 160px;
     }
 
     th.selectTagOptions button {
-        width: 200px;
+        width: var(--spihelper-tag-column-width);
         justify-content: flex-start;
         padding: 0 5px;
     }
@@ -340,7 +342,7 @@
     }
 
     button.userTag {
-        width: 200px;
+        width: var(--spihelper-tag-column-width);
         justify-content: flex-start;
         padding: 0 5px;
         font-weight: normal;
@@ -361,10 +363,6 @@
         .cdx-icon.userTag__kind,
         .cdx-icon.userTag__status {
             flex-shrink: 0;
-        }
-
-        .cdx-icon.userTag__status {
-            padding-inline-start: 4px;
         }
     }
 
