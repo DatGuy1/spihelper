@@ -1,6 +1,6 @@
 {
   "name": "spihelper",
-  "version": "3.3.1",
+  "version": "3.3.2",
   "description": "Wikipedia sockpuppet investigation helper",
   "type": "module",
   "private": true,
