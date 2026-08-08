@@ -3,6 +3,7 @@ import { context } from '../context.ts';
 import {
   parseArchiveSections,
   parseSectionDate,
+  pluralise,
   rebuildArchiveText,
   spiHelperGetInterwikiPrefix,
   spiHelperGetMaxPostExpandSize,
@@ -117,8 +118,7 @@ export async function spiHelperArchiveCase(
   }
   newArchiveText = rebuildArchiveText(newArchiveText, parsedArchiveSections);
 
-  const usePlural = archivedSections.length > 1;
-  const summaryPrefix = `Archiving ${archivedSections.length} section${usePlural ? 's' : ''}`;
+  const summaryPrefix = `Archiving ${pluralise(archivedSections.length, 'section')}`;
   const archiveSuccess = await spiHelperEditPage({
     title: context.archiveName,
     newText: newArchiveText,

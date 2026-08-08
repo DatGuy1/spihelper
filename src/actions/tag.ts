@@ -1,4 +1,4 @@
-import { type MasterNeeds, type Tag, type UserRow } from '../types/spi.ts';
+import { type MasterNeeds, type Tag, type UserRow } from '../types';
 import { spiHelperSettings } from '../options';
 import {
   spiHelperEditPage,
@@ -12,6 +12,7 @@ import {
   isSockmasterTag,
   isSockpuppetTag,
   parseUserTags,
+  pluralise,
 } from '../utils.ts';
 import { VueMessage } from '../ui/messages.ts';
 
@@ -148,11 +149,11 @@ export async function spiHelperTagUser(opts: {
   const tagText = cleanedTags.map(tag => tag.generateWikitext(blocked)).join('\n');
   const newText = replaceSockTemplates(pageText, tagText);
 
-  const baseSummary = oldTags.length < cleanedTags.length ? 'Adding' : 'Updating';
+  const actionVerb = oldTags.length < cleanedTags.length ? 'Adding' : 'Updating';
   return spiHelperEditPage({
     title: `User:${sock.username}`,
     newText,
-    summary: buildContextSummary(`${baseSummary} sockpuppetry tag`),
+    summary: buildContextSummary(`${actionVerb} ${pluralise(cleanedTags.length, 'sockpuppetry tag')}`),
     createonly: false,
     watch: spiHelperSettings.watch.tagged,
     watchExpiry: spiHelperSettings.expiry.tagged,

@@ -210,6 +210,14 @@ export function buildURLLinkHtml(url: string, text: string, title?: string): str
   return $link.prop('outerHTML') as string;
 }
 
+/**
+ * Formats a count with its noun, e.g. pluralise(1, 'account') -> '1 account',
+ * pluralise(3, 'account') -> '3 accounts'
+ */
+export function pluralise(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 export function buildUserActionLogMessage(opts: {
   blockedUsers: (string | null)[];
   taggedUsers: (string | null)[];

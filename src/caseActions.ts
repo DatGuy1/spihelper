@@ -24,6 +24,11 @@ import {
   spiHelperRequestLocks,
   spiHelperTagUser,
 } from './actions';
+import {
+  buildEditSummaryActions,
+  formatEditSummary,
+  setupEditSummaryFacts,
+} from './editSummary.ts';
 import { type CaseState, loadCaseText, loadSectionText, refreshSections } from './state.ts';
 import {
   addSignature,
@@ -31,6 +36,7 @@ import {
   isNonRegisteredAccount,
   isSockmasterTag,
   isSockpuppetTag,
+  pluralise,
   spiHelperNormalizeUsername,
 } from './utils.ts';
 import {
@@ -111,7 +117,7 @@ export async function spiHelperPerformActions(opts: {
 
   new VueMessage({ type: 'notice', content: 'Running actions' }).show();
 
-  const editSummaryActions: string[] = [];
+  const summaryFacts = setupEditSummaryFacts(sectionType === 'multiple');
   let logMessage = `* [[${context.pageName}]]`;
   if (state.selectedSection.type === 'single') {
     logMessage += ` (section ${state.selectedSection.section.name})`;
@@ -167,24 +173,20 @@ export async function spiHelperPerformActions(opts: {
         const statusResult = spiHelperHandleStatus(actions.status.data.new, targetText);
         targetText = statusResult.targetText;
         if (statusResult.newStatus !== 'nochange') {
-          // This should always be at the start
-          editSummaryActions.push(statusResult.summaryItem);
+          summaryFacts.status = statusResult.summaryItem;
           logMessage += `\n** changed case status from ${actions.status.data.old} to ${statusResult.newStatus}`;
         }
       }
 
       if (actions.comment.enabled && actions.comment.data.text.trim() !== '*') {
         targetText = spiHelperHandleComment(targetText, actions.comment.data.text);
-        editSummaryActions.push('comment');
+        summaryFacts.commentedCount++;
         logMessage += '\n** commented';
       }
     }
     else {
       // Covers both 'multiple' and 'all' for the archivenotice update branch
       if (sectionType === 'multiple') {
-        const commentedSections: string[] = [];
-        const closedSections: string[] = [];
-        const statusChangedSections: string[] = [];
         for (const section of state.selectedSection.sections) {
           const originalSectionText = await loadSectionText(section);
           let sectionText = originalSectionText;
@@ -204,10 +206,10 @@ export async function spiHelperPerformActions(opts: {
             if (statusResult.newStatus === 'closed') {
               // Closing is common and distinctive enough to call out on its own,
               // rather than folding it into the generic "changed status" bucket
-              closedSections.push(section.name);
+              summaryFacts.closedCount++;
             }
             else if (statusResult.newStatus !== 'nochange') {
-              statusChangedSections.push(section.name);
+              summaryFacts.statusChangedCount++;
             }
             if (statusResult.newStatus !== 'nochange') {
               sectionLogLines.push(`changed case status from ${sectionStatus.old} to ${statusResult.newStatus}`);
@@ -217,7 +219,7 @@ export async function spiHelperPerformActions(opts: {
           const sectionComment = actions.comment.data.bySection.get(section.id);
           if (sectionComment?.enabled && sectionComment.text.trim() !== '*') {
             sectionText = spiHelperHandleComment(sectionText, sectionComment.text);
-            commentedSections.push(section.name);
+            summaryFacts.commentedCount++;
             sectionLogLines.push('commented');
           }
 
@@ -232,15 +234,6 @@ export async function spiHelperPerformActions(opts: {
             targetText = targetText.replace(originalSectionText, sectionText);
           }
         }
-        if (closedSections.length > 0) {
-          editSummaryActions.push(`closed ${closedSections.length} section${closedSections.length > 1 ? 's' : ''}`);
-        }
-        if (statusChangedSections.length > 0) {
-          editSummaryActions.push(`changed status on ${statusChangedSections.length} section${statusChangedSections.length > 1 ? 's' : ''}`);
-        }
-        if (commentedSections.length > 0) {
-          editSummaryActions.push(`commented on ${commentedSections.length} section${commentedSections.length > 1 ? 's' : ''}`);
-        }
       }
 
       if (actions.management.enabled) {
@@ -254,16 +247,18 @@ export async function spiHelperPerformActions(opts: {
         });
         const archiveNoticeWikitext = state.archiveNotice.generateWikitext();
         targetText = targetText.replace(spiHelperArchiveNoticeRegex, archiveNoticeWikitext);
-        editSummaryActions.push('update archivenotice');
+        summaryFacts.archiveNoticeUpdated = true;
         logMessage += '\n** Updated archivenotice';
       }
     }
   }
 
-  // Fallback: if we somehow managed to not make an edit summary, add a default one
-  if (editSummaryActions.length === 0) {
-    editSummaryActions.push('Saving page');
-  }
+  // Settle the user actions before writing the case page so the edit summary can report
+  // what actually landed rather than what was requested
+  const [blockedUsers, taggedUsers, lockedUsers] = await userActionsPromise;
+  summaryFacts.blockedUsers = blockedUsers.filter(user => user !== null);
+  summaryFacts.taggedUsers = taggedUsers.filter(user => user !== null);
+  summaryFacts.lockedUsers = lockedUsers;
 
   const structureChanged = actions.move.enabled || actions.archive.enabled;
   // Make all the requested edits synchronously since we might make more changes to the page,
@@ -279,7 +274,7 @@ export async function spiHelperPerformActions(opts: {
       ? state.selectedSection.section.name
       : null;
 
-    const editSummary = formatEditSummary(editSummaryActions, sectionName);
+    const editSummary = formatEditSummary(buildEditSummaryActions(summaryFacts), sectionName);
     const newRevId = await context.edit({
       newText: targetText,
       summary: editSummary,
@@ -336,7 +331,7 @@ export async function spiHelperPerformActions(opts: {
         // aren't closed are silently left alone, same as the whole-case 'all' archive above
         const archivedSections = await spiHelperArchiveCase(state, state.selectedSection.sections);
         if (archivedSections.length > 0) {
-          logMessage += `\n** Archived ${archivedSections.length} section${archivedSections.length > 1 ? 's' : ''}`;
+          logMessage += `\n** Archived ${pluralise(archivedSections.length, 'section')}`;
         }
         break;
       }
@@ -367,7 +362,6 @@ export async function spiHelperPerformActions(opts: {
     }
   }
 
-  const [blockedUsers, taggedUsers, lockedUsers] = await userActionsPromise;
   await talkNoticePromise;
   if (spiHelperSettings.log.enabled) {
     logMessage += buildUserActionLogMessage({ blockedUsers, taggedUsers, lockedUsers });
@@ -409,61 +403,62 @@ function spiHelperHandleComment(targetText: string, comment: string) {
 }
 
 function spiHelperHandleStatus(newStatus: string, targetText: string) {
+  // Should I really be calculating and returning summaryItem here?
   let summaryItem = '';
   switch (newStatus) {
     case 'reopen':
       newStatus = 'open';
-      summaryItem = 'Reopening';
+      summaryItem = 'reopening';
       break;
     case 'open':
-      summaryItem = 'Marking request as open';
+      summaryItem = 'marking request as open';
       break;
     case 'CUrequest':
-      summaryItem = 'Adding checkuser request';
+      summaryItem = 'adding checkuser request';
       break;
     case 'admin':
-      summaryItem = 'Requesting admin action';
+      summaryItem = 'requesting admin action';
       break;
     case 'clerk':
-      summaryItem = 'Requesting clerk action';
+      summaryItem = 'requesting clerk action';
       break;
     case 'selfendorse':
       newStatus = 'endorse';
-      summaryItem = 'Adding checkuser request (self-endorsed for checkuser attention)';
+      summaryItem = 'adding checkuser request (self-endorsed for checkuser attention)';
       break;
     case 'checked':
-      summaryItem = 'Marking request as checked';
+      summaryItem = 'marking request as checked';
       break;
     case 'inprogress':
-      summaryItem = 'Marking request in progress';
+      summaryItem = 'marking request in progress';
       break;
     case 'decline':
-      summaryItem = 'Declining checkuser';
+      summaryItem = 'declining checkuser';
       break;
     case 'cudecline':
       summaryItem = 'CU declining checkuser';
       break;
     case 'endorse':
-      summaryItem = 'Endorsing for checkuser attention';
+      summaryItem = 'endorsing for checkuser attention';
       break;
     case 'cuendorse':
       summaryItem = 'CU endorsing for checkuser attention';
       break;
     case 'moreinfo': // Intentional fallthrough
     case 'cumoreinfo':
-      summaryItem = 'Requesting additional information';
+      summaryItem = 'requesting additional information';
       break;
     case 'relist':
-      summaryItem = 'Relisting case for another check';
+      summaryItem = 'relisting case for another check';
       break;
     case 'hold':
-      summaryItem = 'Putting case on hold';
+      summaryItem = 'putting case on hold';
       break;
     case 'cuhold':
-      summaryItem = 'Placing checkuser request on hold';
+      summaryItem = 'placing checkuser request on hold';
       break;
     case 'closed':
-      summaryItem = 'Closing case';
+      summaryItem = 'closing case';
       break;
     case 'nochange':
       // Do nothing
@@ -537,16 +532,6 @@ export async function spiHelperHandleBlocks(opts: {
       blocked,
       tagNonLocalAccounts: blockOptions.tagUnattached,
     });
-    /* Disabling to see if necessary. TODO: Check in later
-    if (tagSuccess) {
-      // Purge the sock pages if we created a category to get rid of
-      // the issue where the page says "click here to create category"
-      // when the category was created after the page
-      if (needsPurge) {
-        await spiHelperPurgePage(`User:${userRow.username}`);
-      }
-    }
-    */
 
     return tagSuccess ? userRow.username : null;
   };
@@ -682,17 +667,4 @@ export async function spiHelperHandleBlocks(opts: {
     });
   }
   return { blockPromises, tagPromises, talkNoticePromises, lockPromise };
-}
-
-export function formatEditSummary(
-  editSummaryActions: string[], sectionName: string | null,
-): string {
-  const [firstAction, ...rest] = editSummaryActions;
-  if (!firstAction) {
-    return '';
-  }
-  const formattedStart = firstAction.charAt(0).toUpperCase() + firstAction.slice(1);
-  const remainder = rest.length ? `, ${rest.join(', ')}` : '';
-  const sectionPrefix = sectionName ? `/* ${sectionName} */ ` : '';
-  return sectionPrefix + formattedStart + remainder;
 }
