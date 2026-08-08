@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import * as blockModule from '../src/actions/block.ts';
+import * as lockModule from '../src/actions/lock.ts';
 import * as logModule from '../src/actions/log.ts';
 import * as tagModule from '../src/actions/tag.ts';
 import * as apiModule from '../src/api.ts';
@@ -9,7 +10,13 @@ import { spiHelperSettings } from '../src/options';
 import { CaseState, SectionEntry } from '../src/state.ts';
 import { getInitialCaseActions } from '../src/ui/views/top/utils';
 import { setupBlockActionData } from '../src/utils.ts';
-import { type BlockRowData, ParsedArchiveNotice, SockpuppetTag, type UserRow } from '../src/types';
+import {
+  type BlockRowData,
+  ParsedArchiveNotice,
+  SockmasterTag,
+  SockpuppetTag,
+  type UserRow,
+} from '../src/types';
 
 const contextModule = await import('../src/context.ts');
 contextModule.setContext('Wikipedia:Sockpuppet investigations/Foo');
@@ -181,6 +188,85 @@ describe('spiHelperHandleBlocks', () => {
     expect(tagSpy).toHaveBeenCalledTimes(1);
     // Already blocked and override is off, so the real block API is never attempted.
     expect(processSpy).not.toHaveBeenCalled();
+  });
+
+  describe('lock request master', () => {
+    /** Locks the given rows and returns the master that the lock request was filed under */
+    async function getRequestedLockMaster(rows: UserRow[], caseMaster: string) {
+      spyOn(roleModule, 'spiHelperIsAdmin').mockReturnValue(false);
+      spyOn(tagModule, 'createSockCategories').mockResolvedValue(new Map());
+      spyOn(tagModule, 'spiHelperTagUser').mockResolvedValue(true);
+      spyOn(apiModule, 'spiHelperGetBulkUserBlockSettings').mockResolvedValue(new Map());
+      spyOn(apiModule, 'spiHelperGetBulkPageText').mockResolvedValue(new Map());
+      const lockSpy = spyOn(lockModule, 'spiHelperRequestLocks').mockResolvedValue([]);
+
+      const { lockPromise } = await spiHelperHandleBlocks({
+        accounts: rows,
+        blockData: { ...setupBlockActionData(), master: caseMaster },
+      });
+      await lockPromise;
+
+      expect(lockSpy).toHaveBeenCalledTimes(1);
+      return lockSpy.mock.calls[0]?.[0].master;
+    }
+
+    test('files under the master the sock tags agree on, not the case name', async () => {
+      // The case is named after a sock, but the tags point at the real master
+      // rather than the case name
+      const rows = [
+        makeRow('SockA', {
+          lock: true,
+          tags: [new SockpuppetTag({ master: 'RealMaster', status: 'blocked' })],
+        }),
+        makeRow('SockB', {
+          lock: true,
+          tags: [new SockpuppetTag({ master: 'RealMaster', status: 'blocked' })],
+        }),
+      ];
+
+      expect(await getRequestedLockMaster(rows, 'CaseNamedAfterASock')).toBe('RealMaster');
+    });
+
+    test('falls back to the case master when the lock targets name different masters', async () => {
+      const rows = [
+        makeRow('SockA', {
+          lock: true,
+          tags: [new SockpuppetTag({ master: 'MasterOne', status: 'blocked' })],
+        }),
+        makeRow('SockB', {
+          lock: true,
+          tags: [new SockpuppetTag({ master: 'MasterTwo', status: 'blocked' })],
+        }),
+      ];
+
+      expect(await getRequestedLockMaster(rows, 'Foo')).toBe('Foo');
+    });
+
+    test('falls back to the case master when no lock target has a sock tag', async () => {
+      // Lock is independent of tagging: an untagged row, and the master's own row, carry
+      // no sockpuppet master to borrow.
+      const rows = [
+        makeRow('SockA', { lock: true }),
+        makeRow('Foo', { lock: true, tags: [new SockmasterTag({ status: 'blocked' })] }),
+      ];
+
+      expect(await getRequestedLockMaster(rows, 'Foo')).toBe('Foo');
+    });
+
+    test('ignores the tags of rows that are not lock targets', async () => {
+      const rows = [
+        makeRow('SockA', {
+          lock: true,
+          tags: [new SockpuppetTag({ master: 'RealMaster', status: 'blocked' })],
+        }),
+        makeRow('SockB', {
+          lock: false,
+          tags: [new SockpuppetTag({ master: 'SomeoneElse', status: 'blocked' })],
+        }),
+      ];
+
+      expect(await getRequestedLockMaster(rows, 'Foo')).toBe('RealMaster');
+    });
   });
 });
 

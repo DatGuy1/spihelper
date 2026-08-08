@@ -1,7 +1,7 @@
 import { context } from '../context.ts';
 import { spiHelperEditPage, spiHelperGetGlobalUser, spiHelperGetPageText } from '../api.ts';
 import { VueMessage } from '../ui/messages.ts';
-import { buildTitleLinkHtml } from '../utils.ts';
+import { buildTitleLinkHtml, spiHelperNormalizeUsername } from '../utils.ts';
 
 /**
  * Removes locked accounts from the list
@@ -18,6 +18,51 @@ async function filterLockedAccounts(users: string[]): Promise<string[]> {
 
 const MAX_LOCK_FILTER_REQUESTS = 6;
 
+/**
+ * Builds the SRG section heading, plus the section anchor text.
+ * Both are returned without the "Global lock for " prefix.
+ */
+export function buildLockHeading(opts: {
+  lockTargets: string[];
+  master: string;
+  hideNames: boolean;
+}): { heading: string; headingText: string } {
+  const { lockTargets, master, hideNames } = opts;
+  if (hideNames || !master) {
+    const heading = lockTargets.length > 1 ? `${lockTargets.length} sockpuppets` : 'a sockpuppet';
+    return { heading, headingText: heading };
+  }
+  const masterLink = `[[Special:CentralAuth/${master}|${master}]]`;
+  // The master may be a lock target themselves, in which case
+  // they shouldn't be counted among their own socks
+  const normalisedMaster = spiHelperNormalizeUsername(master);
+  const sockCount = lockTargets.filter(
+    target => spiHelperNormalizeUsername(target) !== normalisedMaster,
+  ).length;
+  if (sockCount === 0) {
+    return { heading: masterLink, headingText: master };
+  }
+  const usePlural = sockCount > 1;
+  if (sockCount < lockTargets.length) {
+    // Only count the socks when there's more than one
+    if (usePlural) {
+      return {
+        heading: `${masterLink} and ${sockCount} socks`,
+        headingText: `${master} and ${sockCount} socks`,
+      };
+    }
+    return { heading: `${masterLink} and their sock`, headingText: `${master} and their sock` };
+  }
+  if (usePlural) {
+    return {
+      heading: `${sockCount} ${masterLink} socks`,
+      headingText: `${sockCount} ${master} socks`,
+    };
+  }
+  return { heading: `${masterLink} sock`, headingText: `${master} sock` };
+}
+
+// Parts of this code were adapted from https://github.com/Xi-Plus/twinkle-global
 export async function spiHelperRequestLocks(opts: {
   lockTargets: string[];
   master: string;
@@ -50,23 +95,10 @@ export async function spiHelperRequestLocks(opts: {
     }
     lockTemplate += '}}';
   }
-  let heading: string;
-  let headingText = 'Global lock for ';
-  if (hideNames || !master) {
-    heading = usePlural ? `${lockTargets.length} sockpuppets` : 'a sockpuppet';
-    headingText += heading;
-  }
-  else {
-    // Only count the socks when there's more than one
-    if (usePlural) {
-      heading = `${lockTargets.length} [[Special:CentralAuth/${master}|${master}]] socks`;
-      headingText += `${lockTargets.length} ${master} socks`;
-    }
-    else {
-      heading = `[[Special:CentralAuth/${master}|${master}]] sock`;
-      headingText += `${master} sock`;
-    }
-  }
+  const { heading, headingText: headingSuffix } = buildLockHeading({
+    lockTargets, master, hideNames,
+  });
+  const headingText = `Global lock for ${headingSuffix}`;
   // Trim and remove a trailing period since we add our own
   const lockComment = opts.lockComment.trim().replace(/\.+$/, '');
   let message = `=== Global lock for ${heading} ===`;

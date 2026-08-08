@@ -30,6 +30,7 @@ import {
   buildUserActionLogMessage,
   isNonRegisteredAccount,
   isSockmasterTag,
+  isSockpuppetTag,
   spiHelperNormalizeUsername,
 } from './utils.ts';
 import {
@@ -500,7 +501,7 @@ export async function spiHelperHandleBlocks(opts: {
   } = opts.blockData;
   const userRows = opts.accounts.filter(userRow => userRow.username !== '');
 
-  const lockTargets: string[] = [];
+  const lockTargetRows: UserRow[] = [];
   await createSockCategories(userRows);
 
   const blockAvailable = spiHelperIsAdmin() && !blockOptions.noBlock;
@@ -551,7 +552,7 @@ export async function spiHelperHandleBlocks(opts: {
     if (userRow.block.lock && !isNonRegisteredAccount(userRow.username)) {
       // If we already know we're locked. Explicit true check because it can be false or undefined
       if (userLocks.get(userRow.username) !== true) {
-        lockTargets.push(userRow.username);
+        lockTargetRows.push(userRow);
       }
     }
     if (blockAvailable && userRow.block.block) {
@@ -656,10 +657,26 @@ export async function spiHelperHandleBlocks(opts: {
     }
   }
 
-  if (lockTargets.length > 0) {
+  if (lockTargetRows.length > 0) {
     const hideNames = blockOptions.lockHideNames;
-    // Parts of this code were adapted from https://github.com/Xi-Plus/twinkle-global
-    lockPromise = spiHelperRequestLocks({ lockTargets, hideNames, master, lockComment });
+
+    // Work out who to name as the master in the lock request
+    // If we only tag one user as the master, use them.
+    // In all other cases, use the "official" master (case name).
+    const tagMasters = new Set(
+      lockTargetRows
+        .flatMap(row => row.block.tags.filter(tag => isSockpuppetTag(tag)))
+        .map(tag => spiHelperNormalizeUsername(tag.master))
+        .filter(tagMaster => tagMaster !== ''),
+    );
+    const [onlyTagMaster] = tagMasters;
+    const lockMaster = tagMasters.size === 1 && onlyTagMaster ? onlyTagMaster : master;
+    lockPromise = spiHelperRequestLocks({
+      lockTargets: lockTargetRows.map(userRow => userRow.username),
+      hideNames,
+      master: lockMaster,
+      lockComment,
+    });
   }
   return { blockPromises, tagPromises, talkNoticePromises, lockPromise };
 }
