@@ -11,7 +11,7 @@ import { CaseState, loadCaseText, loadSectionText } from '../../state.ts';
 import { spiHelperIsCheckuser } from '../../role.ts';
 import { spiHelperCUBlockRegex } from '../../constants';
 import { parseTemplates } from '../../template.ts';
-import { findStatusTemplateMismatch } from './top/utils';
+import { findBlockLeniency, findStatusTemplateMismatch } from './top/utils';
 
 interface Data {
   popover: {
@@ -126,6 +126,29 @@ export const SubmitFormComponent = defineComponent({
       const hasBlock = blockAction.enabled && this.accounts.some(user => user.block.block);
       return hasBlock ? null : `{{${claimedTemplate}}}`;
     },
+    // Blocks we're set to override with settings that are less restrictive
+    // than the block the user is already under
+    lenientOverrides(): { username: string; reasons: string[] }[] {
+      const blockAction = this.caseActions.block;
+      const { options, userBlocks } = blockAction.data;
+      if (!blockAction.enabled || !options.override || options.noBlock) {
+        return [];
+      }
+      const now = new Date();
+      return this.accounts.flatMap((user) => {
+        const existing = userBlocks.get(user.username);
+        if (!user.block.block || !existing) {
+          return [];
+        }
+        const reasons = findBlockLeniency({
+          username: user.username,
+          existing,
+          intended: user.block,
+          now,
+        });
+        return reasons.length > 0 ? [{ username: user.username, reasons }] : [];
+      });
+    },
     cuBlockConfirmationsNeeded(): Set<string> {
       // If you're not a checkuser, we've asked to overwrite existing blocks, and the block
       // target has a CU block on them, check whether that was intended
@@ -231,6 +254,11 @@ export const SubmitFormComponent = defineComponent({
         </cdx-message>
         <cdx-message v-if="blockClaimTemplateWithoutBlock" type="warning" :inline="true">
           The comment includes {{ blockClaimTemplateWithoutBlock }}, but no block is set to be applied.
+        </cdx-message>
+        <cdx-message v-for="override in lenientOverrides" :key="override.username"
+                     type="warning" :inline="true">
+          Overriding <b>{{ override.username }}</b>'s existing block with a more lenient one:
+          {{ override.reasons.join(', ') }}.
         </cdx-message>
         <cdx-button ref="submitElement" action="progressive" weight="primary" @click="onSubmit"
                     :disabled="disableButton">

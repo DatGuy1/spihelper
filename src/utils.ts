@@ -174,12 +174,12 @@ const RELATIVE_UNITS = [
   'year', 'years',
 ];
 
-const RELATIVE_REGEX = new RegExp(
+export const RELATIVE_EXPIRY_REGEX = new RegExp(
   `^(\\d+(?:\\.\\d+)?)\\s+(${RELATIVE_UNITS.join('|')})$`, 'i',
 );
 
 export function isRelativeExpiry(value: string): value is RelativeExpiry {
-  return RELATIVE_REGEX.test(value);
+  return RELATIVE_EXPIRY_REGEX.test(value);
 }
 
 export function parseExpiry(value: string): Expiry | null {
