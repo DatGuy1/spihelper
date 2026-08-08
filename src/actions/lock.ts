@@ -57,8 +57,15 @@ export async function spiHelperRequestLocks(opts: {
     headingText += heading;
   }
   else {
-    heading = `${lockTargets.length} [[Special:CentralAuth/${master}|${master}]] ${usePlural ? 'socks' : 'sock'}`;
-    headingText += `${lockTargets.length} ${master} ${usePlural ? 'socks' : 'sock'}`;
+    // Only count the socks when there's more than one
+    if (usePlural) {
+      heading = `${lockTargets.length} [[Special:CentralAuth/${master}|${master}]] socks`;
+      headingText += `${lockTargets.length} ${master} socks`;
+    }
+    else {
+      heading = `[[Special:CentralAuth/${master}|${master}]] sock`;
+      headingText += `${master} sock`;
+    }
   }
   // Trim and remove a trailing period since we add our own
   const lockComment = opts.lockComment.trim().replace(/\.+$/, '');
