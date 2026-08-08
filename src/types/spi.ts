@@ -1,4 +1,5 @@
 import { context } from '../context.ts';
+import { spiHelperNormalizeUsername } from '../utils.ts';
 import type { BlockEntry } from './api.ts';
 
 export class ParsedArchiveNotice {
@@ -61,11 +62,11 @@ export class SockpuppetTag {
     altmaster?: string;
     altmasterStatus?: AltmasterTagStatus;
   }) {
-    this.master = opts.master;
+    this.master = spiHelperNormalizeUsername(opts.master);
     this.status = opts.status;
     this.locked = opts.locked ?? false;
     this.evidence = opts.evidence ?? '';
-    this.altmaster = opts.altmaster ?? '';
+    this.altmaster = spiHelperNormalizeUsername(opts.altmaster ?? '');
     this.altmasterStatus = opts.altmasterStatus ?? 'suspected';
   }
 

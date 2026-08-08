@@ -31,6 +31,26 @@ describe('SockpuppetTag', () => {
       expect(makeSockTag().generateWikitext()).not.toContain('altmaster');
     });
   });
+  describe('master normalisation', () => {
+    // Downstream code (sock categories, the lock request heading, the master-vs-sock talk
+    // notice) compares and interpolates these raw, so they have to be canonical here.
+    test('normalises the master', () => {
+      expect(makeSockTag({ master: ' User:Foo ' }).master).toBe('Foo');
+    });
+
+    test('normalises the altmaster', () => {
+      expect(makeSockTag({ altmaster: ' User:Alt ' }).altmaster).toBe('Alt');
+    });
+
+    test('leaves an absent master empty rather than inventing one', () => {
+      expect(makeSockTag({ master: '' }).master).toBe('');
+      expect(makeSockTag().altmaster).toBe('');
+    });
+
+    test('survives a clone', () => {
+      expect(makeSockTag({ master: ' User:Foo ' }).clone().master).toBe('Foo');
+    });
+  });
   describe('equals', () => {
     test('compares altmasterStatus when an altmaster is set', () => {
       const suspected = makeSockTag({ altmaster: 'Alt', altmasterStatus: 'suspected' });

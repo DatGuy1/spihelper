@@ -2,7 +2,7 @@ import { spiHelperBlockUser, spiHelperEditPage } from '../api.ts';
 import { spiHelperSettings } from '../options';
 import type { BlockOptions, UserRow } from '../types';
 import { spiHelperIsCheckuser } from '../role.ts';
-import { isNoExpiry, isSockpuppetTag, spiHelperNormalizeUsername } from '../utils.ts';
+import { isNoExpiry, isSockpuppetTag } from '../utils.ts';
 import { buildContextSummary, context } from '../context.ts';
 
 export function buildTalkNotice(opts: {
@@ -15,7 +15,7 @@ export function buildTalkNotice(opts: {
   let newText: string;
   let isSock = noticeType === 'sock';
   // Hacky workaround for when we didn't make a master tag
-  if (isSock && sockmaster && sock.username === spiHelperNormalizeUsername(sockmaster)) {
+  if (isSock && sockmaster && sock.username === sockmaster) {
     isSock = false;
   }
   if (isSock) {

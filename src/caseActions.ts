@@ -499,6 +499,9 @@ export async function spiHelperHandleBlocks(opts: {
     master,
     skipCUVerifyUsers,
   } = opts.blockData;
+  for (const userRow of opts.accounts) {
+    userRow.username = spiHelperNormalizeUsername(userRow.username);
+  }
   const userRows = opts.accounts.filter(userRow => userRow.username !== '');
 
   const lockTargetRows: UserRow[] = [];
@@ -666,7 +669,7 @@ export async function spiHelperHandleBlocks(opts: {
     const tagMasters = new Set(
       lockTargetRows
         .flatMap(row => row.block.tags.filter(tag => isSockpuppetTag(tag)))
-        .map(tag => spiHelperNormalizeUsername(tag.master))
+        .map(tag => tag.master)
         .filter(tagMaster => tagMaster !== ''),
     );
     const [onlyTagMaster] = tagMasters;

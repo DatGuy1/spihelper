@@ -17,7 +17,7 @@ import {
   cdxIconUserAvatar,
   cdxIconUserAvatarOutline,
 } from '@wikimedia/codex-icons';
-import { isSockpuppetTag } from '../../utils.ts';
+import { isSockpuppetTag, spiHelperNormalizeUsername } from '../../utils.ts';
 
 /** Turns a status map into the `buttons` prop of a cdx-toggle-button-group. */
 function toStatusButtons<T extends string>(
@@ -115,12 +115,19 @@ export const TagPopoverComponent = defineComponent({
       this.originalTag = newTag ? newTag.clone() : null;
       this.temporaryTag = newTag ? newTag.clone() : null;
     },
+    normaliseMasters(tag: Tag): Tag {
+      if (isSockpuppetTag(tag)) {
+        tag.master = spiHelperNormalizeUsername(tag.master);
+        tag.altmaster = spiHelperNormalizeUsername(tag.altmaster);
+      }
+      return tag;
+    },
     handleSave() {
       if (this.temporaryTag === null) {
         console.error('No tag to save');
         return;
       }
-      this.$emit('saveTag', this.temporaryTag);
+      this.$emit('saveTag', this.normaliseMasters(this.temporaryTag));
       this.openValue = false;
     },
     handleCancel() {
@@ -146,7 +153,7 @@ export const TagPopoverComponent = defineComponent({
       this.temporaryTag = this.clipboardTag.clone();
     },
     handleAddTag() {
-      this.$emit('addTag', this.temporaryTag);
+      this.$emit('addTag', this.temporaryTag && this.normaliseMasters(this.temporaryTag));
     },
   },
   template: `

@@ -11,6 +11,7 @@ interface TestCtx {
   emitted: { event: string; args: unknown[] }[];
   $emit(event: string, ...args: unknown[]): void;
   openValue: boolean;
+  normaliseMasters(tag: Tag): Tag;
 }
 
 // defineComponent returns the options object at runtime; cast its methods/computed
@@ -22,6 +23,8 @@ const methods = TagPopoverComponent.methods as unknown as {
   handleDeleteTag(this: TestCtx): void;
   handleCopyTag(this: TestCtx): void;
   handlePasteTag(this: TestCtx): void;
+  handleAddTag(this: TestCtx): void;
+  normaliseMasters(tag: Tag): Tag;
 };
 
 const tagCategory = (TagPopoverComponent.computed as unknown as {
@@ -45,6 +48,7 @@ function makeCtx(overrides: Partial<Pick<TestCtx, 'temporaryTag' | 'clipboardTag
     },
     get openValue() { return this.open; },
     set openValue(value: boolean) { this.$emit('update:open', value); },
+    normaliseMasters: (tag: Tag) => methods.normaliseMasters(tag),
   };
 }
 
@@ -98,6 +102,42 @@ describe('handleSave', () => {
     expect(ctx.emitted).toEqual([]);
     expect(spy).toHaveBeenCalledWith('No tag to save');
     spy.mockRestore();
+  });
+
+  // The master fields are bound straight to their inputs with v-model, so they bypass the
+  // constructor's normalisation and have to be canonicalised when the draft is committed
+  test('normalises master names typed into the fields', () => {
+    const tag = makeSockTag();
+    tag.master = ' User:Bar ';
+    tag.altmaster = ' User:Alt ';
+    const ctx = makeCtx({ temporaryTag: tag, open: true });
+    methods.handleSave.call(ctx);
+    expect(tag.master).toBe('Bar');
+    expect(tag.altmaster).toBe('Alt');
+  });
+
+  test('leaves a sockmaster tag alone, since it has no master field', () => {
+    const tag = new SockmasterTag({ status: 'blocked' });
+    const ctx = makeCtx({ temporaryTag: tag, open: true });
+    methods.handleSave.call(ctx);
+    expect(ctx.emitted[0]).toEqual({ event: 'saveTag', args: [tag] });
+  });
+});
+
+describe('handleAddTag', () => {
+  test('normalises the master before emitting', () => {
+    const tag = makeSockTag();
+    tag.master = ' User:Bar ';
+    const ctx = makeCtx({ temporaryTag: tag });
+    methods.handleAddTag.call(ctx);
+    expect(ctx.emitted).toEqual([{ event: 'addTag', args: [tag] }]);
+    expect(tag.master).toBe('Bar');
+  });
+
+  test('emits null when there is no draft tag', () => {
+    const ctx = makeCtx({ temporaryTag: null });
+    methods.handleAddTag.call(ctx);
+    expect(ctx.emitted).toEqual([{ event: 'addTag', args: [null] }]);
   });
 });
 

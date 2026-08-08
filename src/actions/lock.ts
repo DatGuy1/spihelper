@@ -1,7 +1,7 @@
 import { context } from '../context.ts';
 import { spiHelperEditPage, spiHelperGetGlobalUser, spiHelperGetPageText } from '../api.ts';
 import { VueMessage } from '../ui/messages.ts';
-import { buildTitleLinkHtml, spiHelperNormalizeUsername } from '../utils.ts';
+import { buildTitleLinkHtml } from '../utils.ts';
 
 /**
  * Removes locked accounts from the list
@@ -35,10 +35,7 @@ export function buildLockHeading(opts: {
   const masterLink = `[[Special:CentralAuth/${master}|${master}]]`;
   // The master may be a lock target themselves, in which case
   // they shouldn't be counted among their own socks
-  const normalisedMaster = spiHelperNormalizeUsername(master);
-  const sockCount = lockTargets.filter(
-    target => spiHelperNormalizeUsername(target) !== normalisedMaster,
-  ).length;
+  const sockCount = lockTargets.filter(target => target !== master).length;
   if (sockCount === 0) {
     return { heading: masterLink, headingText: master };
   }

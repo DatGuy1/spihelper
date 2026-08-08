@@ -20,9 +20,9 @@ export function getSockEntries(opts: {
   state: CaseState;
 }): [UserRow[], UserRow[], Set<string>] {
   const { text, fullSearch, state } = opts;
-  const likelySocks: UserRow[] = fullSearch ? [generateUserRow(context.caseName, state)] : [];
+  const likelySocks: UserRow[] = fullSearch ? [generateUserRow(context.userName, state)] : [];
   const possibleSocks: UserRow[] = [];
-  const allUsernames: Set<string> = fullSearch ? new Set([context.caseName]) : new Set();
+  const allUsernames: Set<string> = fullSearch ? new Set([context.userName]) : new Set();
 
   if (fullSearch) {
     let $searchOrigin: JQuery<Element> | JQuery<Document> = $(document);

@@ -41,12 +41,6 @@ describe('buildLockHeading', () => {
         heading: `${MASTER_LINK} and their sock`, headingText: 'Master and their sock',
       });
     });
-
-    test('matches the master through normalisation of the target name', () => {
-      expect(buildLockHeading({
-        lockTargets: [' Master ', 'SockA'], master: 'Master', hideNames: false,
-      }).headingText).toBe('Master and their sock');
-    });
   });
 
   describe('no master to name', () => {

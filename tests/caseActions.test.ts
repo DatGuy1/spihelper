@@ -190,6 +190,46 @@ describe('spiHelperHandleBlocks', () => {
     expect(processSpy).not.toHaveBeenCalled();
   });
 
+  describe('username canonicalisation', () => {
+    // Usernames are typed straight into the table, and the API answers keyed by canonical
+    // names - a stale key would make an existing page look empty and get overwritten
+    async function handleRows(rows: UserRow[]) {
+      spyOn(roleModule, 'spiHelperIsAdmin').mockReturnValue(false);
+      spyOn(tagModule, 'createSockCategories').mockResolvedValue(new Map());
+      spyOn(apiModule, 'spiHelperGetBulkUserBlockSettings').mockResolvedValue(new Map());
+      const pageTextSpy = spyOn(apiModule, 'spiHelperGetBulkPageText').mockResolvedValue(new Map());
+      const tagSpy = spyOn(tagModule, 'spiHelperTagUser').mockResolvedValue(true);
+
+      const { tagPromises } = await spiHelperHandleBlocks({
+        accounts: rows,
+        blockData: { ...setupBlockActionData(), master: 'Master' },
+      });
+      await Promise.all(tagPromises);
+      return { tagSpy, pageTextSpy };
+    }
+
+    test('normalises a typed username before it is used as an API target', async () => {
+      const row = makeRow(' User:Vandal ', {
+        block: false,
+        tags: [new SockpuppetTag({ master: 'Master', status: 'blocked' })],
+      });
+
+      const { tagSpy, pageTextSpy } = await handleRows([row]);
+
+      expect(row.username).toBe('Vandal');
+      expect(pageTextSpy).toHaveBeenCalledWith(['User:Vandal']);
+      expect(tagSpy.mock.calls[0]?.[0].sock.username).toBe('Vandal');
+    });
+
+    test('drops a row whose username is only whitespace', async () => {
+      const row = makeRow('   ', { block: false });
+
+      const { pageTextSpy } = await handleRows([row]);
+
+      expect(pageTextSpy).toHaveBeenCalledWith([]);
+    });
+  });
+
   describe('lock request master', () => {
     /** Locks the given rows and returns the master that the lock request was filed under */
     async function getRequestedLockMaster(rows: UserRow[], caseMaster: string) {

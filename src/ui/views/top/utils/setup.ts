@@ -77,7 +77,7 @@ export function getInitialCaseActions(): CaseActions {
     },
     block: {
       enabled: false,
-      data: setupBlockActionData(context.caseName),
+      data: setupBlockActionData(context.userName),
     },
     link: {
       enabled: false,

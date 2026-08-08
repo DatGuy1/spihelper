@@ -275,7 +275,7 @@ export const AlternateViewComponent = defineComponent({
       else {
         context.valid = false;
       }
-      this.blockData.master = this.targetCase;
+      this.blockData.master = spiHelperNormalizeUsername(this.targetCase);
 
       this.caseLoading = false;
       this.caseLoaded = true;
