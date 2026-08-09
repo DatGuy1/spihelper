@@ -287,7 +287,11 @@
   max-width: 80px;
 }
 
-.spiHelper-submitForm .cdx-button:not(:only-child) {
+.spiHelper-submitForm > * + * {
+  margin-top: 12px;
+}
+
+.spiHelper-submitForm .cdx-message + .cdx-button {
   margin-top: 12px;
 }
 
