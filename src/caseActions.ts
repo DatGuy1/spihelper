@@ -1,5 +1,6 @@
 import { OpState, finishOp, startOp } from './operations.ts';
 import {
+  spiHelperGetBulkGlobalUsers,
   spiHelperGetBulkPageText,
   spiHelperGetBulkUserBlockSettings,
 } from './api.ts';
@@ -519,10 +520,13 @@ export async function spiHelperHandleBlocks(opts: {
   );
   const fetchMessage = new VueMessage({ type: 'notice', content: 'Fetching user blocks and tags' }).show();
   // Don't reuse blocks and tags because they might not have all our users
-  const [userBlocks, userPages, userTalkPages] = await Promise.all([
+  const [userBlocks, userPages, userTalkPages, globalUsers] = await Promise.all([
     spiHelperGetBulkUserBlockSettings(allUsernames),
     spiHelperGetBulkPageText(allUserPages),
     spiHelperGetBulkPageText(allUserTalkPages),
+    spiHelperGetBulkGlobalUsers(
+      new Set([...allUsernames].filter(username => !isNonRegisteredAccount(username))),
+    ),
   ]);
   fetchMessage.update({ type: 'success', content: 'Got previous blocks and tags' });
   const tagSock = async (userRow: UserRow, blocked: boolean): Promise<string | null> => {
@@ -530,6 +534,7 @@ export async function spiHelperHandleBlocks(opts: {
       sock: userRow,
       pageText: userPages.get(userRow.username) ?? '',
       blocked,
+      globalUser: globalUsers.get(userRow.username),
       tagNonLocalAccounts: blockOptions.tagUnattached,
     });
 
@@ -659,8 +664,13 @@ export async function spiHelperHandleBlocks(opts: {
     );
     const [onlyTagMaster] = tagMasters;
     const lockMaster = tagMasters.size === 1 && onlyTagMaster ? onlyTagMaster : master;
+
+    // Filter out accounts that are already locked
+    const lockTargets = lockTargetRows
+      .map(userRow => userRow.username)
+      .filter(user => !globalUsers.get(user)?.locked);
     lockPromise = spiHelperRequestLocks({
-      lockTargets: lockTargetRows.map(userRow => userRow.username),
+      lockTargets,
       hideNames,
       master: lockMaster,
       lockComment,

@@ -1,8 +1,7 @@
-import { type MasterNeeds, type Tag, type UserRow } from '../types';
+import { type GlobalUser, type MasterNeeds, type Tag, type UserRow } from '../types';
 import { spiHelperSettings } from '../options';
 import {
   spiHelperEditPage,
-  spiHelperGetGlobalUser,
   spiHelperGetPageText,
 } from '../api.ts';
 import { buildContextSummary } from '../context.ts';
@@ -89,6 +88,7 @@ function replaceSockTemplates(pageText: string, replacement: string): string {
  * @param {UserRow} opts.sock Sock to run the logic for
  * @param {string} opts.pageText Text of the userpage
  * @param opts.blocked Whether the user is blocked
+ * @param opts.globalUser The sock's global account, absent if they have none
  * @param {boolean} opts.tagNonLocalAccounts Whether to tag accounts that don't exist locally
  * @return {Promise<boolean>} Whether the tag was successfully applied
  */
@@ -96,15 +96,13 @@ export async function spiHelperTagUser(opts: {
   sock: UserRow;
   pageText: string;
   blocked: boolean;
+  globalUser: GlobalUser | undefined;
   tagNonLocalAccounts: boolean;
 }): Promise<boolean> {
-  const { sock, pageText, blocked, tagNonLocalAccounts } = opts;
+  const { sock, pageText, blocked, globalUser: userInfo, tagNonLocalAccounts } = opts;
   if (isNonRegisteredAccount(sock.username)) {
     return false; // do not support tagging IPs
   }
-  // Might like to remove this and use userLocks, but this
-  // also checks whether the user exists to begin with
-  const userInfo = await spiHelperGetGlobalUser(sock.username);
   if (!userInfo) {
     // Skip, don't tag accounts that don't exist
     new VueMessage({

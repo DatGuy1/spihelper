@@ -1,22 +1,7 @@
 import { context } from '../context.ts';
-import { spiHelperEditPage, spiHelperGetGlobalUser, spiHelperGetPageText } from '../api.ts';
+import { spiHelperEditPage, spiHelperGetPageText } from '../api.ts';
 import { VueMessage } from '../ui/messages.ts';
 import { buildTitleLinkHtml } from '../utils.ts';
-
-/**
- * Removes locked accounts from the list
- */
-async function filterLockedAccounts(users: string[]): Promise<string[]> {
-  const lockResults = await Promise.all(
-    users.map(async user =>
-      (await spiHelperGetGlobalUser(user))?.locked ? null : user,
-    ),
-  );
-
-  return lockResults.filter(user => user !== null);
-}
-
-const MAX_LOCK_FILTER_REQUESTS = 6;
 
 /**
  * Builds the SRG section heading, plus the section anchor text.
@@ -66,12 +51,8 @@ export async function spiHelperRequestLocks(opts: {
   hideNames: boolean;
   lockComment: string;
 }) {
-  const { master, hideNames } = opts;
-  // If we're mass requesting locks don't do all those requests.
-  // May want to change this in the future.
-  const lockTargets = opts.lockTargets.length < MAX_LOCK_FILTER_REQUESTS
-    ? await filterLockedAccounts(opts.lockTargets)
-    : opts.lockTargets;
+  // TODO: Introduce global blocks? See twinkle-global
+  const { lockTargets, master, hideNames } = opts;
 
   if (lockTargets.length === 0) {
     return [];

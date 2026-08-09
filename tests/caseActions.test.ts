@@ -56,6 +56,7 @@ function stubUserActions(opts: { isAdmin?: boolean; userBlocks?: Map<string, Blo
   spyOn(roleModule, 'spiHelperIsCheckuser').mockReturnValue(true);
   spyOn(tagModule, 'createSockCategories').mockResolvedValue(new Map());
   spyOn(apiModule, 'spiHelperGetBulkUserBlockSettings').mockResolvedValue(userBlocks);
+  spyOn(apiModule, 'spiHelperGetBulkGlobalUsers').mockResolvedValue(new Map());
   const pageTextSpy = spyOn(apiModule, 'spiHelperGetBulkPageText').mockResolvedValue(new Map());
   const talkNoticeSpy = spyOn(blockModule, 'spiHelperAddTalkBlockNotice')
     .mockResolvedValue(undefined);

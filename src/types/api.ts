@@ -112,13 +112,19 @@ export interface CategoriesResponse {
   };
 }
 
-export interface GlobalAllUsersResponse {
+export interface GlobalUsersResponse {
   query: {
-    globalallusers: {
-      id: number;
+    globalusers: {
       name: string;
-      existslocally?: string;
-      locked?: string;
+      centralid?: number;
+      locked?: boolean;
+      localinfo?: {
+        attached: boolean;
+        localid?: number;
+        timestamp?: string;
+      };
+      missing?: boolean;
+      invalid?: boolean;
     }[];
   };
 }

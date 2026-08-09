@@ -2,6 +2,7 @@ import {
   type BlockEntry,
   type BlockOptions,
   DefaultLinkRowData,
+  type GlobalUser,
   type InputColumn,
   ParsedArchiveNotice,
   type UserRow,
@@ -12,7 +13,6 @@ import { spiHelperSettings } from '../options';
 import { fetchTemplateArguments, parseTemplates } from '../template.ts';
 import { context } from '../context.ts';
 import type { MenuGroupData, MenuItemData } from '@wikimedia/codex';
-import { spiHelperGetGlobalUser } from '../api.ts';
 
 export function getSockEntries(opts: {
   text: string;
@@ -143,15 +143,15 @@ export function updateUserBlockDataSettings(opts: {
 
 export const isMenuGroupData = (item: MenuItemData | MenuGroupData): item is MenuGroupData => 'items' in item;
 
-export async function setUserRowBlockData(opts: {
+export function setUserRowBlockData(opts: {
   userRow: UserRow;
   block: BlockEntry | null | undefined;
   userPage?: string;
   defaultBlock: boolean;
-  checkLock: boolean;
+  globalUser: GlobalUser | null | undefined;
   state: CaseState;
 }) {
-  const { block: blockSetting, userPage, defaultBlock, checkLock, state } = opts;
+  const { block: blockSetting, userPage, defaultBlock, globalUser, state } = opts;
   const userRow = updateUserBlockDataSettings({
     userRow: opts.userRow,
     defaultBlock,
@@ -160,17 +160,14 @@ export async function setUserRowBlockData(opts: {
   });
 
   let isLocked: boolean | null = null;
-  if (checkLock) {
-    const globalUser = await spiHelperGetGlobalUser(userRow.username);
-    if (globalUser) {
-      isLocked = globalUser.locked;
-      // noinspection RedundantIfStatementJS
-      if (globalUser.locked || state.archiveNotice?.crosswiki) {
-        userRow.block.lock = true;
-      }
-      else {
-        userRow.block.lock = false;
-      }
+  if (globalUser) {
+    isLocked = globalUser.locked;
+    // noinspection RedundantIfStatementJS
+    if (globalUser.locked || state.archiveNotice?.crosswiki) {
+      userRow.block.lock = true;
+    }
+    else {
+      userRow.block.lock = false;
     }
   }
 

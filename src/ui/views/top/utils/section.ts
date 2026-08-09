@@ -1,12 +1,12 @@
 import type { CaseState } from '../../../../state.ts';
 import { setUserRowBlockData } from '../../../utils.ts';
 import {
+  spiHelperGetBulkGlobalUsers,
   spiHelperGetBulkPageText,
   spiHelperGetBulkUserBlockSettings,
 } from '../../../../api.ts';
-import type { Tag, UserRow } from '../../../../types/spi.ts';
+import type { BlockEntry, Tag, UserRow } from '../../../../types';
 import { isNonRegisteredAccount } from '../../../../utils.ts';
-import type { BlockEntry } from '../../../../types/api.ts';
 
 export async function prefetchSockRows(opts: {
   likelySocks: UserRow[];
@@ -21,17 +21,19 @@ export async function prefetchSockRows(opts: {
   // For the minute time complexity gains
   const likelySet = new Set(likelySocks.map(sock => sock.id));
 
-  const validUserPages = [...allUsernames]
-    .filter(name => !isNonRegisteredAccount(name))
-    .map(name => `User:${name}`);
+  // We don't currently support requesting locks (global blocks?) for temporary accounts and IPs
+  const registeredUsernames = new Set(
+    [...allUsernames].filter(name => !isNonRegisteredAccount(name)),
+  );
+  const validUserPages = [...registeredUsernames].map(name => `User:${name}`);
 
-  const [blockSettings, userPages] = await Promise.all([
+  const [blockSettings, userPages, globalUsers] = await Promise.all([
     spiHelperGetBulkUserBlockSettings(allUsernames),
     spiHelperGetBulkPageText(validUserPages),
+    spiHelperGetBulkGlobalUsers(registeredUsernames),
   ]);
-  const checkLock = allUsernames.size < 7;
 
-  const userPromises = [...likelySocks, ...possibleSocks].map(async (userRow) => {
+  return [...likelySocks, ...possibleSocks].map((userRow) => {
     const blockSetting = blockSettings.get(userRow.username);
     if (blockSetting !== undefined) {
       userBlocks.set(userRow.username, blockSetting);
@@ -39,8 +41,13 @@ export async function prefetchSockRows(opts: {
 
     const userPage = userPages.get(userRow.username);
     const defaultBlock = likelySet.has(userRow.id);
-    const { userRow: newRow, isLocked } = await setUserRowBlockData({
-      userRow, block: blockSetting, defaultBlock, userPage, checkLock, state,
+    const { userRow: newRow, isLocked } = setUserRowBlockData({
+      userRow,
+      block: blockSetting,
+      defaultBlock,
+      userPage,
+      globalUser: globalUsers.get(userRow.username),
+      state,
     });
     if (isLocked !== null) {
       userLocks.set(userRow.username, isLocked);
@@ -48,6 +55,4 @@ export async function prefetchSockRows(opts: {
     userTags.set(userRow.username, userRow.block.tags);
     return newRow;
   });
-
-  return await Promise.all(userPromises);
 }

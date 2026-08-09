@@ -251,12 +251,12 @@ export const AlternateViewComponent = defineComponent({
             this.blockData.userBlocks.set(this.targetCase, userBlock);
           }
           const userPageText = await spiHelperGetPageText(`User:${this.targetCase}`, false);
-          const { userRow, isLocked } = await setUserRowBlockData({
+          const { userRow, isLocked } = setUserRowBlockData({
             userRow: generateUserRow(this.targetCase, this.state),
             block: userBlock,
             userPage: userPageText,
             defaultBlock: true,
-            checkLock: false,
+            globalUser: null,
             state: this.state,
           });
           if (isLocked !== null) {

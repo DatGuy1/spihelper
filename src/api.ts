@@ -18,7 +18,7 @@ import type {
   ApiQuerySiteinfoParams,
   ApiStabilizeProtectParams,
   ApiUndeleteParams,
-  CentralAuthApiQueryGlobalAllUsersParams,
+  CentralAuthApiQueryGlobalUsersParams,
 } from 'types-mediawiki-api';
 import type {
   AllPage,
@@ -33,8 +33,8 @@ import type {
   CategoryMembersResponse,
   EditResponse,
   FlaggedResponse,
-  GlobalAllUsersResponse,
   GlobalUser,
+  GlobalUsersResponse,
   InfoResponse,
   NewPendingChanges,
   ParseResponse,
@@ -222,38 +222,49 @@ export async function spiHelperGetBulkPageCategories(
 }
 
 /**
- * Get information about a user
+ * Get information about a set of global users
  *
- * @param {string} user Username
- * @return {Promise<GlobalUser | null>} The user, if they exist globally, and information about them
+ * @param {Set<string>} usernames Usernames to look up
+ * @return {Promise<Map<string, GlobalUser>>} Information about each user, keyed by username.
+ * Names without a global account (or that can't have one, such as IPs) are absent from the map.
  */
-export async function spiHelperGetGlobalUser(user: string): Promise<GlobalUser | null> {
+export async function spiHelperGetBulkGlobalUsers(
+  usernames: Set<string>,
+): Promise<Map<string, GlobalUser>> {
+  if (usernames.size === 0) {
+    return new Map<string, GlobalUser>();
+  }
   const api = spiHelperGetAPI();
-  const request: CentralAuthApiQueryGlobalAllUsersParams = {
-    action: 'query',
-    list: 'globalallusers',
-    agulimit: 1,
-    agufrom: user,
-    aguto: user,
-    aguprop: ['lockinfo', 'existslocally'],
-  };
-  try {
-    const response = await api.get(request) as GlobalAllUsersResponse;
-    const [globalUserData] = response.query.globalallusers;
+  const resultMap = new Map<string, GlobalUser>();
+  const chunkSize = await getApiChunkSize();
 
-    if (!globalUserData) {
-      // We couldn't find the global user
-      return null;
-    }
-    return {
-      name: globalUserData.name,
-      existsLocally: 'existslocally' in globalUserData,
-      locked: 'locked' in globalUserData,
+  await Promise.all(chunkArray([...usernames], chunkSize).map(async (chunk) => {
+    const request: CentralAuthApiQueryGlobalUsersParams = {
+      action: 'query',
+      list: 'globalusers',
+      gususers: chunk,
+      gusprop: ['locked', 'localinfo'],
+      formatversion: '2',
     };
-  }
-  catch {
-    return null;
-  }
+    try {
+      const response = await api.post(request) as GlobalUsersResponse;
+      for (const globalUser of response.query.globalusers) {
+        if (globalUser.missing || globalUser.invalid) {
+          continue;
+        }
+        resultMap.set(globalUser.name, {
+          name: globalUser.name,
+          existsLocally: globalUser.localinfo?.attached ?? false,
+          locked: globalUser.locked ?? false,
+        });
+      }
+    }
+    catch (error) {
+      console.error('spiHelperGetBulkGlobalUsers fetch error:', error);
+    }
+  }));
+
+  return resultMap;
 }
 
 export async function spiHelperGetUsers(from: string, limit: number): Promise<AllUser[]> {
@@ -409,8 +420,6 @@ export async function spiHelperGetInvestigationSections(opts: {
   // sections (should all be level-3 headers)
   const request: ApiParseParams = {
     action: 'parse',
-    // @ts-expect-error - Latest MediaWiki deprecated 'section'
-    // Remove me at next types-mediawiki release
     prop: 'tocdata',
     formatversion: '2',
   };
