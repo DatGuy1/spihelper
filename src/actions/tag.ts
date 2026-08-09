@@ -148,10 +148,14 @@ export async function spiHelperTagUser(opts: {
   const newText = replaceSockTemplates(pageText, tagText);
 
   const actionVerb = oldTags.length < cleanedTags.length ? 'Adding' : 'Updating';
+  // Only state the count when there's more than one tag
+  const tagSummary = cleanedTags.length > 1
+    ? pluralise(cleanedTags.length, 'sockpuppetry tag')
+    : 'sockpuppetry tag';
   return spiHelperEditPage({
     title: `User:${sock.username}`,
     newText,
-    summary: buildContextSummary(`${actionVerb} ${pluralise(cleanedTags.length, 'sockpuppetry tag')}`),
+    summary: buildContextSummary(`${actionVerb} ${tagSummary}`),
     createonly: false,
     watch: spiHelperSettings.watch.tagged,
     watchExpiry: spiHelperSettings.expiry.tagged,
