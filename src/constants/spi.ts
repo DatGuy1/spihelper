@@ -22,6 +22,7 @@ export const spiHelperCUTemplates: MenuGroupData[] = [
       { value: '{{behav}}', label: 'Needs behavioral evaluation' },
       { value: '{{nosleepers}}', label: 'No sleepers' },
       { value: '{{ncip}}', label: 'No comment for IPs' },
+      { value: '{{ncta}}', label: 'No comment for TAs' },
     ],
   },
   {
