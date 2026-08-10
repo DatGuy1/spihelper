@@ -9,41 +9,6 @@ import {
   showSectionOverlay,
 } from '../../src/ui/dom.ts';
 
-// Minimal jQuery-like wrapper for the selectors dom.ts uses:
-// $(...).first(), .closest(), .length, .get(0), .parentsUntil(), .last(), .nextUntil()
-function wrap(els: HTMLElement[]) {
-  return {
-    length: els.length,
-    first() { return wrap(els.slice(0, 1)); },
-    last() { return wrap(els.slice(-1)); },
-    get(i: number) { return els[i]; },
-    closest(sel: string) {
-      const found = els[0]?.closest<HTMLElement>(sel) ?? null;
-      return wrap(found ? [found] : []);
-    },
-    parentsUntil(sel: string) {
-      const found: HTMLElement[] = [];
-      let current = els[0]?.parentElement ?? null;
-      while (current && !current.matches(sel)) {
-        found.push(current);
-        current = current.parentElement;
-      }
-      return wrap(found);
-    },
-    nextUntil(sel: string) {
-      const found: HTMLElement[] = [];
-      let current = els[0]?.nextElementSibling as HTMLElement | null;
-      while (current && !current.matches(sel)) {
-        found.push(current);
-        current = current.nextElementSibling as HTMLElement | null;
-      }
-      return wrap(found);
-    },
-  };
-}
-(globalThis as Record<string, unknown>).$ = (sel: string) =>
-  wrap(Array.from(document.querySelectorAll<HTMLElement>(sel)));
-
 function stubRect(el: HTMLElement, partial: Partial<DOMRect>) {
   el.getBoundingClientRect = () => ({
     x: 0, y: 0, width: 0, height: 0, top: 0, right: 0, bottom: 0, left: 0,
