@@ -178,7 +178,8 @@
       items: [
         { value: "{{behav}}", label: "Needs behavioral evaluation" },
         { value: "{{nosleepers}}", label: "No sleepers" },
-        { value: "{{ncip}}", label: "No comment for IPs" }
+        { value: "{{ncip}}", label: "No comment for IPs" },
+        { value: "{{ncta}}", label: "No comment for TAs" }
       ]
     },
     {
@@ -779,7 +780,7 @@
     return `${count} ${count === 1 ? singular : plural}`;
   }
   function buildUserActionLogMessage(opts) {
-    const { blockedUsers, taggedUsers, lockedUsers } = opts;
+    const { blockedUsers, taggedUsers, lockedUsers, globalBlockedUsers } = opts;
     let logMessage = "";
     const filteredBlocked = blockedUsers.filter(Boolean);
     if (filteredBlocked.length > 0) {
@@ -794,6 +795,10 @@
     if (lockedUsers.length > 0) {
       logMessage += `
 ** requested locks for ` + lockedUsers.map((user) => `{{noping|1=${user}}}`).join(", ");
+    }
+    if (globalBlockedUsers.length > 0) {
+      logMessage += `
+** requested global blocks for ` + globalBlockedUsers.map((user) => `{{noping|1=${user}}}`).join(", ");
     }
     return logMessage;
   }
@@ -895,6 +900,7 @@
         lockHideNames: false
       },
       userLocks: new Map,
+      userGlobalBlocks: new Map,
       userBlocks: new Map,
       userTags: new Map,
       master: masterName,
@@ -1157,6 +1163,41 @@
         }
       } catch (error) {
         console.error("spiHelperGetBulkGlobalUsers fetch error:", error);
+      }
+    }));
+    return resultMap;
+  }
+  async function spiHelperGetBulkGlobalBlocks(targets) {
+    if (targets.size === 0) {
+      return new Map;
+    }
+    const api2 = spiHelperGetAPI();
+    const resultMap = new Map;
+    const chunkSize = await getApiChunkSize();
+    await Promise.all(chunkArray([...targets], chunkSize).map(async (chunk) => {
+      const request = {
+        action: "query",
+        list: "globalblocks",
+        bgtargets: chunk,
+        bglimit: "max",
+        bgprop: ["id", "target", "by", "expiry", "reason"],
+        formatversion: "2"
+      };
+      try {
+        const response = await api2.post(request);
+        for (const globalBlock of response.query.globalblocks) {
+          if (!globalBlock.target) {
+            continue;
+          }
+          resultMap.set(globalBlock.target, {
+            target: globalBlock.target,
+            expiry: globalBlock.expiry,
+            by: globalBlock.by,
+            reason: globalBlock.reason
+          });
+        }
+      } catch (error) {
+        console.error("spiHelperGetBulkGlobalBlocks fetch error:", error);
       }
     }));
     return resultMap;
@@ -2240,23 +2281,24 @@
   }
   var isMenuGroupData = (item) => ("items" in item);
   function setUserRowBlockData(opts) {
-    const { block: blockSetting, userPage, defaultBlock, globalUser, state } = opts;
+    const { block: blockSetting, userPage, defaultBlock, globalUser, globalBlock, state } = opts;
     const userRow = updateUserBlockDataSettings({
       userRow: opts.userRow,
       defaultBlock,
       currentBlock: blockSetting,
       userPage
     });
+    const crosswiki = state.archiveNotice?.crosswiki ?? false;
     let isLocked = null;
+    let isGloballyBlocked = null;
     if (globalUser) {
       isLocked = globalUser.locked;
-      if (globalUser.locked || state.archiveNotice?.crosswiki) {
-        userRow.block.lock = true;
-      } else {
-        userRow.block.lock = false;
-      }
+      userRow.block.lock = globalUser.locked || crosswiki;
+    } else if (isNonRegisteredAccount(userRow.username)) {
+      isGloballyBlocked = globalBlock != null;
+      userRow.block.lock = isGloballyBlocked || crosswiki;
     }
-    return { userRow, isLocked };
+    return { userRow, isLocked, isGloballyBlocked };
   }
   function pruneMenuData(nodes) {
     return nodes.map((node) => {
@@ -2274,11 +2316,11 @@
       return node;
     }).filter((node) => node !== null);
   }
-  function isInputDisabled(row, column, blockOptions, userBlocks, userLocks, targetRows) {
+  function isInputDisabled(row, column, blockOptions, userBlocks, userLocks, userGlobalBlocks, targetRows) {
     if (column === "lock") {
       if (row === null)
         return false;
-      return isNonRegisteredAccount(row.username) || userLocks.get(row.username) === true;
+      return isNonRegisteredAccount(row.username) ? userGlobalBlocks.get(row.username) === true : userLocks.get(row.username) === true;
     }
     if (column === "block") {
       if (row === null)
@@ -2896,14 +2938,28 @@
   }
   // src/ui/views/top/utils/section.ts
   async function prefetchSockRows(opts) {
-    const { likelySocks, possibleSocks, allUsernames, userBlocks, userLocks, userTags, state } = opts;
+    const {
+      likelySocks,
+      possibleSocks,
+      allUsernames,
+      userBlocks,
+      userLocks,
+      userGlobalBlocks,
+      userTags,
+      state
+    } = opts;
     const likelySet = new Set(likelySocks.map((sock) => sock.id));
-    const registeredUsernames = new Set([...allUsernames].filter((name) => !isNonRegisteredAccount(name)));
+    const registeredUsernames = new Set;
+    const unregisteredUsernames = new Set;
+    for (const name of allUsernames) {
+      (isNonRegisteredAccount(name) ? unregisteredUsernames : registeredUsernames).add(name);
+    }
     const validUserPages = [...registeredUsernames].map((name) => `User:${name}`);
-    const [blockSettings, userPages, globalUsers] = await Promise.all([
+    const [blockSettings, userPages, globalUsers, globalBlocks] = await Promise.all([
       spiHelperGetBulkUserBlockSettings(allUsernames),
       spiHelperGetBulkPageText(validUserPages),
-      spiHelperGetBulkGlobalUsers(registeredUsernames)
+      spiHelperGetBulkGlobalUsers(registeredUsernames),
+      spiHelperGetBulkGlobalBlocks(unregisteredUsernames)
     ]);
     return [...likelySocks, ...possibleSocks].map((userRow) => {
       const blockSetting = blockSettings.get(userRow.username);
@@ -2912,16 +2968,20 @@
       }
       const userPage = userPages.get(userRow.username);
       const defaultBlock = likelySet.has(userRow.id);
-      const { userRow: newRow, isLocked } = setUserRowBlockData({
+      const { userRow: newRow, isLocked, isGloballyBlocked } = setUserRowBlockData({
         userRow,
         block: blockSetting,
         defaultBlock,
         userPage,
         globalUser: globalUsers.get(userRow.username),
+        globalBlock: globalBlocks.get(userRow.username),
         state
       });
       if (isLocked !== null) {
         userLocks.set(userRow.username, isLocked);
+      }
+      if (isGloballyBlocked !== null) {
+        userGlobalBlocks.set(userRow.username, isGloballyBlocked);
       }
       userTags.set(userRow.username, userRow.block.tags);
       return newRow;
@@ -3257,7 +3317,9 @@
     <block-action v-else-if="name === 'block'" v-model:enabled="caseActions.block.enabled" fetch-type="comment"
                   v-model:block-options="caseActions.block.data.options" :accounts="accounts"
                   :default-master="caseActions.block.data.master"
-                  :user-locks="caseActions.block.data.userLocks" :user-blocks="caseActions.block.data.userBlocks"
+                  :user-locks="caseActions.block.data.userLocks"
+                  :user-global-blocks="caseActions.block.data.userGlobalBlocks"
+                  :user-blocks="caseActions.block.data.userBlocks"
                   @user-selected="handleUserSelected"
                   @remove-rows="handleRemoveRows" @add-row="handleAddRow"
                   @fetch-rows="handleFetchRows" />
@@ -3783,19 +3845,28 @@
     });
   }
   // src/actions/lock.ts
-  function buildLockHeading(opts) {
-    const { lockTargets, master, hideNames } = opts;
+  var SRG_PAGE = "meta:Steward requests/Global";
+  var SRG_SECTION_ANCHORS = {
+    block: /\n+(== Requests for global \(un\)lock and \(un\)hiding == *\n)/,
+    lock: /\n+(== See also == *\n)/
+  };
+  function buildTargetLink(target) {
+    const special = isNonRegisteredAccount(target) ? "Special:Contributions" : "Special:CentralAuth";
+    return `[[${special}/${target}|${target}]]`;
+  }
+  function buildRequestHeading(opts) {
+    const { targets, master, hideNames } = opts;
     if (hideNames || !master) {
-      const heading = lockTargets.length > 1 ? `${lockTargets.length} sockpuppets` : "a sockpuppet";
+      const heading = targets.length > 1 ? `${targets.length} sockpuppets` : "a sockpuppet";
       return { heading, headingText: heading };
     }
-    const masterLink = `[[Special:CentralAuth/${master}|${master}]]`;
-    const sockCount = lockTargets.filter((target) => target !== master).length;
+    const masterLink = buildTargetLink(master);
+    const sockCount = targets.filter((target) => target !== master).length;
     if (sockCount === 0) {
       return { heading: masterLink, headingText: master };
     }
     const usePlural = sockCount > 1;
-    if (sockCount < lockTargets.length) {
+    if (sockCount < targets.length) {
       if (usePlural) {
         return {
           heading: `${masterLink} and ${sockCount} socks`,
@@ -3812,72 +3883,136 @@
     }
     return { heading: `${masterLink} sock`, headingText: `${master} sock` };
   }
-  async function spiHelperRequestLocks(opts) {
-    const { lockTargets, master, hideNames } = opts;
-    if (lockTargets.length === 0) {
-      return [];
-    }
-    let lockTemplate;
-    const usePlural = lockTargets.length > 1;
-    if (!usePlural && lockTargets[0]) {
-      lockTemplate = `* {{LockHide|1=${lockTargets[0]}}}`;
-    } else {
-      lockTemplate = "{{MultiLock";
-      lockTargets.forEach((user, i) => {
-        lockTemplate += `|${i + 1}=${user}`;
-      });
-      if (hideNames) {
-        lockTemplate += "|hidename=1";
-      }
-      lockTemplate += "}}";
-    }
-    const { heading, headingText: headingSuffix } = buildLockHeading({
-      lockTargets,
-      master,
-      hideNames
-    });
-    const headingText = `Global lock for ${headingSuffix}`;
-    const lockComment = opts.lockComment.trim().replace(/\.+$/, "");
-    let message = `=== Global lock for ${heading} ===`;
-    message += `
-{{status}}`;
-    message += `
-${lockTemplate}`;
+  function buildContextSentence(usePlural) {
+    const subject = usePlural ? "Sockpuppets" : "Sockpuppet";
     if (context.source === "spi" && context.valid) {
-      message += `
-${usePlural ? "Sockpuppets" : "Sockpuppet"} found in enwiki sockpuppet investigation, see [[${context.prefixedName}]].`;
-    } else if (context.source === "spi") {
-      message += `
-${usePlural ? "Sockpuppets" : "Sockpuppet"} found in enwiki sockpuppet investigation.`;
-    } else {
-      message += `
-${usePlural ? "Sockpuppets" : "Sockpuppet"} found in enwiki.`;
+      return `${subject} found in enwiki sockpuppet investigation, see [[${context.prefixedName}]].`;
     }
-    if (lockComment !== "") {
-      message += ` ${lockComment}.`;
+    if (context.source === "spi") {
+      return `${subject} found in enwiki sockpuppet investigation.`;
     }
-    message += " ~~~~";
-    let srgText = await spiHelperGetPageText("meta:Steward requests/Global", false);
-    srgText = srgText.replace(/\n+(== See also == *\n)/, `
+    return `${subject} found in enwiki.`;
+  }
+  function buildLockTemplate(targets, hideNames = false) {
+    const [onlyTarget] = targets;
+    if (targets.length === 1 && onlyTarget) {
+      return `* {{LockHide|1=${onlyTarget}${hideNames ? "|hidename=1" : ""}}}`;
+    }
+    let template = "{{MultiLock";
+    targets.forEach((user, i) => {
+      template += `|${i + 1}=${user}`;
+    });
+    if (hideNames) {
+      template += "|hidename=1";
+    }
+    return `${template}}}`;
+  }
+  function buildRequestTail(opts) {
+    const comment = opts.comment.trim().replace(/\.+$/, "");
+    let tail = `
+${buildContextSentence(opts.usePlural)}`;
+    if (comment !== "") {
+      tail += ` ${comment}.`;
+    }
+    return `${tail} ~~~~`;
+  }
+  function buildLockRequest(opts) {
+    const { targets, master, hideNames } = opts;
+    if (targets.length === 0) {
+      return null;
+    }
+    const { heading, headingText } = buildRequestHeading({ targets, master, hideNames });
+    let body = `=== Global lock for ${heading} ===`;
+    body += `
+{{status}}`;
+    body += `
+${buildLockTemplate(targets, hideNames)}`;
+    body += buildRequestTail({ usePlural: targets.length > 1, comment: opts.comment });
+    return { kind: "lock", targets, body, headingText: `Global lock for ${headingText}` };
+  }
+  function buildGlobalBlockRequest(opts) {
+    const { targets, master } = opts;
+    if (targets.length === 0) {
+      return null;
+    }
+    const tempAccounts = targets.filter((target) => mw.util.isTemporaryUser(target));
+    const ips = targets.filter((target) => !mw.util.isTemporaryUser(target));
+    const { heading, headingText } = buildRequestHeading({ targets, master, hideNames: false });
+    let body = `=== Global block for ${heading} ===`;
+    body += `
+{{status}}`;
+    if (tempAccounts.length > 0) {
+      body += `
+${buildLockTemplate(tempAccounts)}`;
+    }
+    for (const ip of ips) {
+      body += `
+* {{Luxotool|${ip}}}`;
+    }
+    body += buildRequestTail({ usePlural: targets.length > 1, comment: opts.comment });
+    return { kind: "block", targets, body, headingText: `Global block for ${headingText}` };
+  }
+  function buildRequestLabel(requests) {
+    const [first] = requests;
+    if (requests.length === 1 && first) {
+      return `Global ${first.kind} request`;
+    }
+    return "Global lock and block requests";
+  }
+  async function spiHelperRequestGlobalActions(opts) {
+    const { lockTargets, blockTargets, master, hideNames, comment } = opts;
+    const nothingFiled = { lockedUsers: [], globalBlockedUsers: [] };
+    const lockRequest = buildLockRequest({ targets: lockTargets, master, hideNames, comment });
+    const blockRequest = buildGlobalBlockRequest({ targets: blockTargets, master, comment });
+    const requests = [blockRequest, lockRequest].filter((request) => request !== null);
+    if (requests.length === 0) {
+      return nothingFiled;
+    }
+    const actionLabel = buildRequestLabel(requests);
+    let newText = await spiHelperGetPageText(SRG_PAGE, false);
+    for (const request of requests) {
+      const splicedText = newText.replace(SRG_SECTION_ANCHORS[request.kind], `
 
-` + message + `
+${request.body}
 
 $1`);
-    new VueMessage({ type: "notice", content: "Filing global lock request" }).show();
+      if (splicedText === newText) {
+        new VueMessage({
+          type: "error",
+          content: `${actionLabel} failed: could not find the global ${request.kind} section on ${SRG_PAGE}.`
+        }).show();
+        return nothingFiled;
+      }
+      newText = splicedText;
+    }
+    new VueMessage({ type: "notice", content: `Filing ${actionLabel.toLowerCase()}` }).show();
     const editId = await spiHelperEditPage({
-      title: "meta:Steward requests/Global",
-      newText: srgText,
-      summary: `Global lock request for ${heading}`,
+      title: SRG_PAGE,
+      newText,
+      summary: `${actionLabel} for ${buildRequestHeading({
+        targets: [...blockTargets, ...lockTargets],
+        master,
+        hideNames
+      }).heading}`,
       createonly: false,
       watch: "nochange"
     });
-    if (editId) {
-      const linkHtml = buildTitleLinkHtml(`meta:Special:Diff/${editId}#${headingText}`, "filed");
-      new VueMessage({ type: "success", content: `Global lock request ${linkHtml} successfully!`, isHtml: true }).show();
-    } else {
-      new VueMessage({ type: "warning", content: "Global lock request failed." }).show();
+    if (!editId) {
+      new VueMessage({ type: "warning", content: `${actionLabel} failed.` }).show();
+      return nothingFiled;
     }
-    return lockTargets;
+    for (const request of requests) {
+      const linkHtml = buildTitleLinkHtml(`meta:Special:Diff/${editId}#${request.headingText}`, "filed");
+      new VueMessage({
+        type: "success",
+        content: `Global ${request.kind} request ${linkHtml} successfully!`,
+        isHtml: true
+      }).show();
+    }
+    return {
+      lockedUsers: lockRequest?.targets ?? [],
+      globalBlockedUsers: blockRequest?.targets ?? []
+    };
   }
   // src/actions/log.ts
   async function spiHelperLog(logString) {
@@ -4412,10 +4547,11 @@ $2`);
 `);
     const newText = replaceSockTemplates(pageText, tagText);
     const actionVerb = oldTags.length < cleanedTags.length ? "Adding" : "Updating";
+    const tagSummary = cleanedTags.length > 1 ? pluralise(cleanedTags.length, "sockpuppetry tag") : "sockpuppetry tag";
     return spiHelperEditPage({
       title: `User:${sock.username}`,
       newText,
-      summary: buildContextSummary(`${actionVerb} ${pluralise(cleanedTags.length, "sockpuppetry tag")}`),
+      summary: buildContextSummary(`${actionVerb} ${tagSummary}`),
       createonly: false,
       watch: spiHelperSettings.watch.tagged,
       watchExpiry: spiHelperSettings.expiry.tagged
@@ -4489,7 +4625,8 @@ $2`);
       archiveNoticeUpdated: false,
       blockedUsers: [],
       taggedUsers: [],
-      lockedUsers: []
+      lockedUsers: [],
+      globalBlockedUsers: []
     };
   }
   function joinVerbs(verbs) {
@@ -4511,6 +4648,11 @@ $2`);
         verb: "requesting locks for",
         users: facts.lockedUsers,
         solo: (count) => `requesting ${pluralise(count, "lock")}`
+      },
+      {
+        verb: "requesting global blocks for",
+        users: facts.globalBlockedUsers,
+        solo: (count) => `requesting ${pluralise(count, "global block")}`
       }
     ];
     const groups = new Map;
@@ -4634,9 +4776,9 @@ $2`);
     let blockPromises = [];
     let tagPromises = [];
     let talkNoticePromises = [];
-    let lockPromise = Promise.resolve([]);
+    let globalRequestPromise = Promise.resolve({ lockedUsers: [], globalBlockedUsers: [] });
     if (actions.block.enabled) {
-      ({ blockPromises, tagPromises, talkNoticePromises, lockPromise } = await spiHelperHandleBlocks({
+      ({ blockPromises, tagPromises, talkNoticePromises, globalRequestPromise } = await spiHelperHandleBlocks({
         accounts,
         blockData: actions.block.data
       }));
@@ -4644,7 +4786,7 @@ $2`);
     const userActionsPromise = Promise.all([
       Promise.all(blockPromises),
       Promise.all(tagPromises),
-      lockPromise
+      globalRequestPromise
     ]);
     const talkNoticePromise = Promise.all(talkNoticePromises);
     if (!context.isArchive) {
@@ -4733,10 +4875,11 @@ $2`);
         }
       }
     }
-    const [blockedUsers, taggedUsers, lockedUsers] = await userActionsPromise;
+    const [blockedUsers, taggedUsers, globalRequests] = await userActionsPromise;
     summaryFacts.blockedUsers = blockedUsers.filter((user) => user !== null);
     summaryFacts.taggedUsers = taggedUsers.filter((user) => user !== null);
-    summaryFacts.lockedUsers = lockedUsers;
+    summaryFacts.lockedUsers = globalRequests.lockedUsers;
+    summaryFacts.globalBlockedUsers = globalRequests.globalBlockedUsers;
     const structureChanged = actions.move.enabled || actions.archive.enabled;
     if (!context.isArchive && targetText !== startText) {
       const sectionId = state.selectedSection.type === "single" ? state.selectedSection.section.id : null;
@@ -4821,7 +4964,12 @@ $2`);
     }
     await talkNoticePromise;
     if (spiHelperSettings.log.enabled) {
-      logMessage += buildUserActionLogMessage({ blockedUsers, taggedUsers, lockedUsers });
+      logMessage += buildUserActionLogMessage({
+        blockedUsers,
+        taggedUsers,
+        lockedUsers: globalRequests.lockedUsers,
+        globalBlockedUsers: globalRequests.globalBlockedUsers
+      });
       await spiHelperLog(logMessage);
     }
     if (structureChanged) {
@@ -4928,9 +5076,8 @@ ${comment}
     const blockPromises = [];
     const tagPromises = [];
     const talkNoticePromises = [];
-    let lockPromise = Promise.resolve([]);
+    let globalRequestPromise = Promise.resolve({ lockedUsers: [], globalBlockedUsers: [] });
     const {
-      userLocks,
       options: blockOptions,
       lockcomment: lockComment,
       master,
@@ -4940,7 +5087,7 @@ ${comment}
       userRow.username = spiHelperNormalizeUsername(userRow.username);
     }
     const userRows = opts.accounts.filter((userRow) => userRow.username !== "");
-    const lockTargetRows = [];
+    const globalTargetRows = [];
     await createSockCategories(userRows);
     const blockAvailable = spiHelperIsAdmin() && !blockOptions.noBlock;
     const { allUsernames, allUserPages, allUserTalkPages } = userRows.reduce((acc, user) => {
@@ -4950,11 +5097,12 @@ ${comment}
       return acc;
     }, { allUsernames: new Set, allUserPages: [], allUserTalkPages: [] });
     const fetchMessage = new VueMessage({ type: "notice", content: "Fetching user blocks and tags" }).show();
-    const [userBlocks, userPages, userTalkPages, globalUsers] = await Promise.all([
+    const [userBlocks, userPages, userTalkPages, globalUsers, userGlobalBlocks] = await Promise.all([
       spiHelperGetBulkUserBlockSettings(allUsernames),
       spiHelperGetBulkPageText(allUserPages),
       spiHelperGetBulkPageText(allUserTalkPages),
-      spiHelperGetBulkGlobalUsers(new Set([...allUsernames].filter((username) => !isNonRegisteredAccount(username))))
+      spiHelperGetBulkGlobalUsers(new Set([...allUsernames].filter((username) => !isNonRegisteredAccount(username)))),
+      spiHelperGetBulkGlobalBlocks(new Set([...allUsernames].filter((username) => isNonRegisteredAccount(username))))
     ]);
     fetchMessage.update({ type: "success", content: "Got previous blocks and tags" });
     const tagSock = async (userRow, blocked) => {
@@ -4968,10 +5116,8 @@ ${comment}
       return tagSuccess ? userRow.username : null;
     };
     for (const userRow of userRows) {
-      if (userRow.block.lock && !isNonRegisteredAccount(userRow.username)) {
-        if (userLocks.get(userRow.username) !== true) {
-          lockTargetRows.push(userRow);
-        }
+      if (userRow.block.lock) {
+        globalTargetRows.push(userRow);
       }
       if (blockAvailable && userRow.block.block) {
         const talkNotices = [];
@@ -5048,20 +5194,25 @@ ${comment}
         tagPromises.push(tagSock(userRow, userBlocks.has(userRow.username)));
       }
     }
-    if (lockTargetRows.length > 0) {
+    const globalRows = globalTargetRows.filter((row) => !(isNonRegisteredAccount(row.username) ? userGlobalBlocks.has(row.username) : globalUsers.get(row.username)?.locked));
+    if (globalRows.length > 0) {
       const hideNames = blockOptions.lockHideNames;
-      const tagMasters = new Set(lockTargetRows.flatMap((row) => row.block.tags.filter((tag2) => isSockpuppetTag(tag2))).map((tag2) => tag2.master).filter((tagMaster) => tagMaster !== ""));
+      const tagMasters = new Set(globalRows.flatMap((row) => row.block.tags.filter((tag2) => isSockpuppetTag(tag2))).map((tag2) => tag2.master).filter((tagMaster) => tagMaster !== ""));
       const [onlyTagMaster] = tagMasters;
-      const lockMaster = tagMasters.size === 1 && onlyTagMaster ? onlyTagMaster : master;
-      const lockTargets = lockTargetRows.map((userRow) => userRow.username).filter((user) => !globalUsers.get(user)?.locked);
-      lockPromise = spiHelperRequestLocks({
+      const globalMaster = tagMasters.size === 1 && onlyTagMaster ? onlyTagMaster : master;
+      const [globalBlockTargets, lockTargets] = globalRows.reduce((acc, row) => {
+        acc[isNonRegisteredAccount(row.username) ? 0 : 1].push(row.username);
+        return acc;
+      }, [[], []]);
+      globalRequestPromise = spiHelperRequestGlobalActions({
         lockTargets,
+        blockTargets: globalBlockTargets,
         hideNames,
-        master: lockMaster,
-        lockComment
+        master: globalMaster,
+        comment: lockComment
       });
     }
-    return { blockPromises, tagPromises, talkNoticePromises, lockPromise };
+    return { blockPromises, tagPromises, talkNoticePromises, globalRequestPromise };
   }
 
   // src/ui/dom.ts
@@ -5597,6 +5748,7 @@ ${comment}
           allUsernames,
           userBlocks: this.caseActions.block.data.userBlocks,
           userLocks: this.caseActions.block.data.userLocks,
+          userGlobalBlocks: this.caseActions.block.data.userGlobalBlocks,
           userTags: this.caseActions.block.data.userTags,
           state: this.state
         });
@@ -5893,6 +6045,7 @@ ${comment}
       accounts: { type: Array, required: true },
       blockOptions: { type: Object, required: true },
       userLocks: { type: Map, required: true },
+      userGlobalBlocks: { type: Map, required: true },
       userBlocks: { type: Map, required: true },
       defaultMaster: { type: String, required: true },
       fetchType: { type: String, required: true },
@@ -5903,7 +6056,7 @@ ${comment}
       const columns = [
         { id: "username", label: "Username" },
         { id: "tag", label: "Tag" },
-        { id: "lock", label: "Request Lock" }
+        { id: "lock", label: "Request Global" }
       ];
       const isAdmin = spiHelperIsAdmin();
       const isCheckuser = spiHelperIsCheckuser();
@@ -5978,7 +6131,7 @@ ${comment}
         return checkedCount > 0 && checkedCount < rows.length;
       },
       isInputDisabled(row, column) {
-        return isInputDisabled(row, column, this.blockOptions, this.userBlocks, this.userLocks, this.getTargetRows());
+        return isInputDisabled(row, column, this.blockOptions, this.userBlocks, this.userLocks, this.userGlobalBlocks, this.getTargetRows());
       },
       async copySocks() {
         if (this.selectedRows.length === 0) {
@@ -6293,12 +6446,13 @@ ${comment}
                            @addTag="handleTagAddAll" @copyTag="popovers.clipboardTag = $event" />
             </th>
 
-            <th scope="col">
+            <th scope="col"
+                v-tooltip="'Locks for accounts, global blocks for temporary accounts and IPs'">
               <cdx-checkbox :hide-label="true"
                             :model-value="setAllValue('lock')" :indeterminate="setAllIndeterminate('lock')"
                             @update:model-value="setAllBlockFields('lock', $event)"
                             :disabled="isInputDisabled(null, 'lock')">
-                Set all request locks
+                Set all global requests
               </cdx-checkbox>
             </th>
           </tr>
@@ -6364,7 +6518,7 @@ ${comment}
         <template #item-lock="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.lock"
                         :disabled="isInputDisabled(row, 'lock')">
-            Request lock
+            Request {{ isNonRegisteredAccount(row.username) ? 'global block' : 'lock' }}
           </cdx-checkbox>
         </template>
 
@@ -7503,12 +7657,15 @@ ${comment}
         const statusData = this.caseActions.status.data;
         return this.caseActions.status.enabled && statusData.new !== "nochange" ? statusData.new : statusData.old;
       },
-      needsLockComment() {
+      globalRequestTargets() {
         const blockAction = this.caseActions.block;
         if (!blockAction.enabled) {
-          return false;
+          return [];
         }
-        return this.accounts.some((sock) => sock.block.lock && !isNonRegisteredAccount(sock.username) && blockAction.data.userLocks.get(sock.username) !== true);
+        return this.accounts.filter((sock) => sock.block.lock && (isNonRegisteredAccount(sock.username) ? blockAction.data.userGlobalBlocks.get(sock.username) !== true : blockAction.data.userLocks.get(sock.username) !== true));
+      },
+      needsLockComment() {
+        return this.globalRequestTargets.length > 0;
       },
       hasInvalidTag() {
         const blockAction = this.caseActions.block;
@@ -7525,8 +7682,8 @@ ${comment}
         const blockAction = this.caseActions.block;
         if (!blockAction.enabled)
           return false;
-        const { options, userBlocks, userLocks } = blockAction.data;
-        return this.accounts.some((user) => !isInputDisabled(user, "duration", options, userBlocks, userLocks, this.accounts) && parseExpiry(user.block.duration) === null);
+        const { options, userBlocks, userLocks, userGlobalBlocks } = blockAction.data;
+        return this.accounts.some((user) => !isInputDisabled(user, "duration", options, userBlocks, userLocks, userGlobalBlocks, this.accounts) && parseExpiry(user.block.duration) === null);
       },
       statusTemplateMismatch() {
         const comment = this.caseActions.comment;
@@ -7644,8 +7801,8 @@ ${comment}
     template: `
     <div class="spiHelper-submitForm">
       <cdx-field v-if="needsLockComment">
-        <template #label>Lock Comment</template>
-        <template #description>Optional comment to include in the global lock request</template>
+        <template #label>Global request comment</template>
+        <template #description>Optional comment to include in the global lock/block request</template>
         <cdx-text-area v-model="lockCommentValue" placeholder="Comment" :autosize="true" />
       </cdx-field>
       <cdx-checkbox v-if="cuBlockConfirmationsNeeded.size > 0"
@@ -8121,6 +8278,7 @@ ${comment}
               userPage: userPageText,
               defaultBlock: true,
               globalUser: null,
+              globalBlock: null,
               state: this.state
             });
             if (isLocked !== null) {
@@ -8150,12 +8308,12 @@ ${comment}
         let blockPromises = [];
         let tagPromises = [];
         let talkNoticePromises = [];
-        let lockPromise = Promise.resolve([]);
+        let globalRequestPromise = Promise.resolve({ lockedUsers: [], globalBlockedUsers: [] });
         ({
           blockPromises,
           tagPromises,
           talkNoticePromises,
-          lockPromise
+          globalRequestPromise
         } = await spiHelperHandleBlocks({
           accounts: this.accounts,
           blockData: this.blockData
@@ -8163,13 +8321,18 @@ ${comment}
         const userActionsPromise = Promise.all([
           Promise.all(blockPromises),
           Promise.all(tagPromises),
-          lockPromise
+          globalRequestPromise
         ]);
         const talkNoticePromise = Promise.all(talkNoticePromises);
-        const [blockedUsers, taggedUsers, lockedUsers] = await userActionsPromise;
+        const [blockedUsers, taggedUsers, globalRequests] = await userActionsPromise;
         await talkNoticePromise;
         if (spiHelperSettings.log.enabled) {
-          const logMessage = `* [[:User:${context.userName}]]` + buildUserActionLogMessage({ blockedUsers, taggedUsers, lockedUsers });
+          const logMessage = `* [[:User:${context.userName}]]` + buildUserActionLogMessage({
+            blockedUsers,
+            taggedUsers,
+            lockedUsers: globalRequests.lockedUsers,
+            globalBlockedUsers: globalRequests.globalBlockedUsers
+          });
           await spiHelperLog(logMessage);
         }
         new VueMessage({ type: "success", content: "Done!" }).show();
@@ -8199,14 +8362,15 @@ ${comment}
           allUsernames,
           userBlocks: this.blockData.userBlocks,
           userLocks: this.blockData.userLocks,
+          userGlobalBlocks: this.blockData.userGlobalBlocks,
           userTags: this.blockData.userTags,
           state: this.state
         });
         this.massAddUserRows(allRows);
       },
-      initialiseCheckUserView() {
-        const $searchOrigin = $("form#checkuserform", document);
-        const searchReason = $("#checkreason input", $searchOrigin).val();
+      async initialiseCheckUserView() {
+        const $reasonSearchOrigin = $("form#checkuserform", document);
+        const searchReason = $("#checkreason input", $reasonSearchOrigin).val();
         if (typeof searchReason === "string") {
           const caseName = SPI_CASE_REGEX.exec(searchReason)?.[1];
           if (caseName) {
@@ -8214,19 +8378,25 @@ ${comment}
             return;
           }
         }
-        const searchTarget = $("#checktarget input", $searchOrigin).val();
+        const searchTarget = $("#checktarget input", $reasonSearchOrigin).val();
         if (typeof searchTarget === "string") {
           if (!mw.util.isIPAddress(searchTarget, true)) {
             this.targetCase = searchTarget;
           }
         }
+        const $userSearchOrigin = $("table.mw-checkuser-helper-table", document);
+        const sockList = $userSearchOrigin.find("td > a.mw-userlink > bdi");
+        await this.populateUserRows(sockList);
       },
       async initialiseSIView() {
-        const allSocks = [];
-        const allUsernames = new Set;
         const $searchOrigin = $("ul.mw-checkuser-suggestedinvestigations-users", document);
         const sockList = $searchOrigin.find("li > a.mw-userlink > bdi");
-        for (const entryElement of sockList) {
+        await this.populateUserRows(sockList);
+      },
+      async populateUserRows(sockElementList) {
+        const allSocks = [];
+        const allUsernames = new Set;
+        for (const entryElement of sockElementList) {
           const username = spiHelperNormalizeUsername($(entryElement).text());
           if (allUsernames.has(username)) {
             continue;
@@ -8243,6 +8413,7 @@ ${comment}
           allUsernames,
           userBlocks: this.blockData.userBlocks,
           userLocks: this.blockData.userLocks,
+          userGlobalBlocks: this.blockData.userGlobalBlocks,
           userTags: this.blockData.userTags,
           state: this.state
         });
@@ -8290,7 +8461,9 @@ ${comment}
           <h4>Block</h4>
           <block-action :enabled="true" fetch-type="clipboard"
                         :accounts="accounts" v-model:block-options="blockData.options"
-                        :user-locks="blockData.userLocks" :user-blocks="blockData.userBlocks"
+                        :user-locks="blockData.userLocks"
+                        :user-global-blocks="blockData.userGlobalBlocks"
+                        :user-blocks="blockData.userBlocks"
                         :default-master="blockData.master"
                         @user-selected="handleUserSelected" @fetch-rows="handleFetchRows"
                         @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
