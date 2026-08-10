@@ -138,7 +138,7 @@ export const AlternateViewComponent = defineComponent({
               void this.initialiseCategoryView();
               break;
             case 'checkuser':
-              this.initialiseCheckUserView();
+              void this.initialiseCheckUserView();
               break;
             case 'si':
               void this.initialiseSIView();
@@ -359,10 +359,10 @@ export const AlternateViewComponent = defineComponent({
       });
       this.massAddUserRows(allRows);
     },
-    initialiseCheckUserView() {
+    async initialiseCheckUserView() {
       // First check for SPI in reason box. If not found, fallback to search target
-      const $searchOrigin: JQuery = $('form#checkuserform', document);
-      const searchReason = $('#checkreason input', $searchOrigin).val();
+      const $reasonSearchOrigin: JQuery = $('form#checkuserform', document);
+      const searchReason = $('#checkreason input', $reasonSearchOrigin).val();
 
       if (typeof searchReason === 'string') {
         const caseName = SPI_CASE_REGEX.exec(searchReason)?.[1];
@@ -372,22 +372,27 @@ export const AlternateViewComponent = defineComponent({
         }
       }
 
-      const searchTarget = $('#checktarget input', $searchOrigin).val();
+      const searchTarget = $('#checktarget input', $reasonSearchOrigin).val();
       if (typeof searchTarget === 'string') {
         // So people don't accidentally leak IPs. Unsure if necessary.
         if (!mw.util.isIPAddress(searchTarget, true)) {
           this.targetCase = searchTarget;
         }
       }
+
+      const $userSearchOrigin: JQuery<Element> | JQuery<Document> = $('table.mw-checkuser-helper-table', document);
+      const sockList = $userSearchOrigin.find('td > a.mw-userlink > bdi');
+      await this.populateUserRows(sockList);
     },
     async initialiseSIView() {
-      const allSocks: UserRow[] = [];
-      const allUsernames = new Set<string>();
-
       const $searchOrigin: JQuery<Element> | JQuery<Document> = $('ul.mw-checkuser-suggestedinvestigations-users', document);
       const sockList = $searchOrigin.find('li > a.mw-userlink > bdi');
-
-      for (const entryElement of sockList) {
+      await this.populateUserRows(sockList);
+    },
+    async populateUserRows(sockElementList: JQuery<Element>) {
+      const allSocks: UserRow[] = [];
+      const allUsernames = new Set<string>();
+      for (const entryElement of sockElementList) {
         const username = spiHelperNormalizeUsername($(entryElement).text());
         if (allUsernames.has(username)) {
           continue;
