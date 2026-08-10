@@ -8,6 +8,14 @@ import { reactive } from 'vue';
 (globalThis as Record<string, unknown>).__VERSION__ = '0.0.0-test';
 (globalThis as Record<string, unknown>).__MODE__ = 'dev';
 
+(globalThis as Record<string, unknown>).$ = () => {
+  const $element = {
+    attr: () => $element,
+    text: () => $element,
+    prop: () => '<a></a>',
+  };
+  return $element;
+};
 (globalThis as Record<string, unknown>).mw = {
   Title: class Title {
     private title: string;
@@ -27,7 +35,7 @@ import { reactive } from 'vue';
   util: {
     isIPAddress: () => false,
     isIPv6Address: () => false,
-    isTemporaryUser: () => false,
+    isTemporaryUser: (name?: string | null) => !!name?.startsWith('~'),
     isInfinity: () => false,
     getUrl: (title: string) => `/wiki/${encodeURIComponent(title)}`,
   },

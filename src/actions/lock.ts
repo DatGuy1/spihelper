@@ -1,31 +1,52 @@
 import { context } from '../context.ts';
 import { spiHelperEditPage, spiHelperGetPageText } from '../api.ts';
 import { VueMessage } from '../ui/messages.ts';
-import { buildTitleLinkHtml } from '../utils.ts';
+import { buildTitleLinkHtml, isNonRegisteredAccount } from '../utils.ts';
+import type { GlobalRequestResults } from '../types';
+
+// Parts of this code were adapted from https://github.com/Xi-Plus/twinkle-global
+
+const SRG_PAGE = 'meta:Steward requests/Global';
+
+/**
+ * Anchors to splice our added text ahead of
+ */
+const SRG_SECTION_ANCHORS = {
+  block: /\n+(== Requests for global \(un\)lock and \(un\)hiding == *\n)/,
+  lock: /\n+(== See also == *\n)/,
+} as const;
+
+/**
+ * Registered accounts get a CentralAuth link, temporary accounts and IPs get a contributions link
+ */
+function buildTargetLink(target: string): string {
+  const special = isNonRegisteredAccount(target) ? 'Special:Contributions' : 'Special:CentralAuth';
+  return `[[${special}/${target}|${target}]]`;
+}
 
 /**
  * Builds the SRG section heading, plus the section anchor text.
- * Both are returned without the "Global lock for " prefix.
+ * Both are returned without the "Global (b)lock for " prefix.
  */
-export function buildLockHeading(opts: {
-  lockTargets: string[];
+export function buildRequestHeading(opts: {
+  targets: string[];
   master: string;
   hideNames: boolean;
 }): { heading: string; headingText: string } {
-  const { lockTargets, master, hideNames } = opts;
+  const { targets, master, hideNames } = opts;
   if (hideNames || !master) {
-    const heading = lockTargets.length > 1 ? `${lockTargets.length} sockpuppets` : 'a sockpuppet';
+    const heading = targets.length > 1 ? `${targets.length} sockpuppets` : 'a sockpuppet';
     return { heading, headingText: heading };
   }
-  const masterLink = `[[Special:CentralAuth/${master}|${master}]]`;
-  // The master may be a lock target themselves, in which case
+  const masterLink = buildTargetLink(master);
+  // The master may be a target themselves, in which case
   // they shouldn't be counted among their own socks
-  const sockCount = lockTargets.filter(target => target !== master).length;
+  const sockCount = targets.filter(target => target !== master).length;
   if (sockCount === 0) {
     return { heading: masterLink, headingText: master };
   }
   const usePlural = sockCount > 1;
-  if (sockCount < lockTargets.length) {
+  if (sockCount < targets.length) {
     // Only count the socks when there's more than one
     if (usePlural) {
       return {
@@ -44,76 +65,187 @@ export function buildLockHeading(opts: {
   return { heading: `${masterLink} sock`, headingText: `${master} sock` };
 }
 
-// Parts of this code were adapted from https://github.com/Xi-Plus/twinkle-global
-export async function spiHelperRequestLocks(opts: {
-  lockTargets: string[];
+/** Where the socks were found, which is the standing behind the request */
+function buildContextSentence(usePlural: boolean): string {
+  const subject = usePlural ? 'Sockpuppets' : 'Sockpuppet';
+  if (context.source === 'spi' && context.valid) {
+    return `${subject} found in enwiki sockpuppet investigation, see [[${context.prefixedName}]].`;
+  }
+  if (context.source === 'spi') {
+    return `${subject} found in enwiki sockpuppet investigation.`;
+  }
+  return `${subject} found in enwiki.`;
+}
+
+/** One request ready to be spliced into SRG */
+interface SrgRequest {
+  kind: keyof typeof SRG_SECTION_ANCHORS;
+  targets: string[];
+  /** Full wikitext, starting with its === heading === */
+  body: string;
+  /** Plain-text heading, used as the diff's section anchor */
+  headingText: string;
+}
+
+/**
+ * Lists accounts for stewards to act on, by their central account. A lone account reads
+ * better as {{LockHide}}, which is also how SRG lists single-target requests.
+ */
+function buildLockTemplate(targets: string[], hideNames = false): string {
+  const [onlyTarget] = targets;
+  if (targets.length === 1 && onlyTarget) {
+    return `* {{LockHide|1=${onlyTarget}${hideNames ? '|hidename=1' : ''}}}`;
+  }
+  let template = '{{MultiLock';
+  targets.forEach((user, i) => {
+    template += `|${i + 1}=${user}`;
+  });
+  if (hideNames) {
+    template += '|hidename=1';
+  }
+  return `${template}}}`;
+}
+
+/** Shared tail of both request bodies: where the socks were found, plus the comment */
+function buildRequestTail(opts: { usePlural: boolean; comment: string }): string {
+  const comment = opts.comment.trim().replace(/\.+$/, '');
+  let tail = `\n${buildContextSentence(opts.usePlural)}`;
+  if (comment !== '') {
+    tail += ` ${comment}.`;
+  }
+  return `${tail} ~~~~`;
+}
+
+export function buildLockRequest(opts: {
+  targets: string[];
   master: string;
   hideNames: boolean;
-  lockComment: string;
-}) {
-  // TODO: Introduce global blocks? See twinkle-global
-  const { lockTargets, master, hideNames } = opts;
-
-  if (lockTargets.length === 0) {
-    return [];
+  comment: string;
+}): SrgRequest | null {
+  const { targets, master, hideNames } = opts;
+  if (targets.length === 0) {
+    return null;
   }
 
-  let lockTemplate: string;
-  const usePlural = lockTargets.length > 1;
-  if (!usePlural && lockTargets[0]) {
-    lockTemplate = `* {{LockHide|1=${lockTargets[0]}}}`;
+  const { heading, headingText } = buildRequestHeading({ targets, master, hideNames });
+  let body = `=== Global lock for ${heading} ===`;
+  body += '\n{{status}}';
+  body += `\n${buildLockTemplate(targets, hideNames)}`;
+  body += buildRequestTail({ usePlural: targets.length > 1, comment: opts.comment });
+
+  return { kind: 'lock', targets, body, headingText: `Global lock for ${headingText}` };
+}
+
+export function buildGlobalBlockRequest(opts: {
+  targets: string[];
+  master: string;
+  comment: string;
+}): SrgRequest | null {
+  const { targets, master } = opts;
+  if (targets.length === 0) {
+    return null;
   }
-  else {
-    lockTemplate = '{{MultiLock';
-    lockTargets.forEach((user, i) => {
-      lockTemplate += `|${i + 1}=${user}`;
-    });
-    if (hideNames) {
-      lockTemplate += '|hidename=1';
+
+  const tempAccounts = targets.filter(target => mw.util.isTemporaryUser(target));
+  const ips = targets.filter(target => !mw.util.isTemporaryUser(target));
+
+  const { heading, headingText } = buildRequestHeading({ targets, master, hideNames: false });
+  let body = `=== Global block for ${heading} ===`;
+  body += '\n{{status}}';
+  if (tempAccounts.length > 0) {
+    body += `\n${buildLockTemplate(tempAccounts)}`;
+  }
+  for (const ip of ips) {
+    body += `\n* {{Luxotool|${ip}}}`;
+  }
+  body += buildRequestTail({ usePlural: targets.length > 1, comment: opts.comment });
+
+  return { kind: 'block', targets, body, headingText: `Global block for ${headingText}` };
+}
+
+/** 'Global lock request' / 'Global block request' / 'Global lock and block requests' */
+function buildRequestLabel(requests: SrgRequest[]): string {
+  const [first] = requests;
+  if (requests.length === 1 && first) {
+    return `Global ${first.kind} request`;
+  }
+  return 'Global lock and block requests';
+}
+
+/**
+ * Files lock and global block requests on SRG.
+ *
+ * The two go in different sections of the same page, so they are spliced into one edit
+ * rather than saved separately — two edits would conflict with each other, and could
+ * leave a case half-filed if the second failed.
+ *
+ * @return Which targets each request was filed for, empty if the edit did not go through
+ */
+export async function spiHelperRequestGlobalActions(opts: {
+  lockTargets: string[];
+  blockTargets: string[];
+  master: string;
+  hideNames: boolean;
+  comment: string;
+}): Promise<GlobalRequestResults> {
+  const { lockTargets, blockTargets, master, hideNames, comment } = opts;
+  const nothingFiled: GlobalRequestResults = { lockedUsers: [], globalBlockedUsers: [] };
+
+  const lockRequest = buildLockRequest({ targets: lockTargets, master, hideNames, comment });
+  const blockRequest = buildGlobalBlockRequest({ targets: blockTargets, master, comment });
+  const requests = [blockRequest, lockRequest].filter(request => request !== null);
+  if (requests.length === 0) {
+    return nothingFiled;
+  }
+  const actionLabel = buildRequestLabel(requests);
+
+  let newText = await spiHelperGetPageText(SRG_PAGE, false);
+  for (const request of requests) {
+    const splicedText = newText.replace(
+      SRG_SECTION_ANCHORS[request.kind], `\n\n${request.body}\n\n$1`,
+    );
+    if (splicedText === newText) {
+      // The section headings are what we splice against, so a rename upstream would
+      // otherwise leave us saving the page unchanged and reporting success
+      new VueMessage({
+        type: 'error',
+        content: `${actionLabel} failed: could not find the global ${request.kind} section on ${SRG_PAGE}.`,
+      }).show();
+      return nothingFiled;
     }
-    lockTemplate += '}}';
+    newText = splicedText;
   }
-  const { heading, headingText: headingSuffix } = buildLockHeading({
-    lockTargets, master, hideNames,
-  });
-  const headingText = `Global lock for ${headingSuffix}`;
-  // Trim and remove a trailing period since we add our own
-  const lockComment = opts.lockComment.trim().replace(/\.+$/, '');
-  let message = `=== Global lock for ${heading} ===`;
-  message += '\n{{status}}';
-  message += `\n${lockTemplate}`;
-  if (context.source === 'spi' && context.valid) {
-    message += `\n${usePlural ? 'Sockpuppets' : 'Sockpuppet'} found in enwiki sockpuppet investigation, see [[${context.prefixedName}]].`;
-  }
-  else if (context.source === 'spi') {
-    message += `\n${usePlural ? 'Sockpuppets' : 'Sockpuppet'} found in enwiki sockpuppet investigation.`;
-  }
-  else {
-    message += `\n${usePlural ? 'Sockpuppets' : 'Sockpuppet'} found in enwiki.`;
-  }
-  if (lockComment !== '') {
-    message += ` ${lockComment}.`;
-  }
-  message += ' ~~~~';
 
-  // Write lock request to [[meta:Steward requests/Global]]
-  let srgText = await spiHelperGetPageText('meta:Steward requests/Global', false);
-  srgText = srgText.replace(/\n+(== See also == *\n)/, '\n\n' + message + '\n\n$1');
-  new VueMessage({ type: 'notice', content: 'Filing global lock request' }).show();
+  new VueMessage({ type: 'notice', content: `Filing ${actionLabel.toLowerCase()}` }).show();
   const editId = await spiHelperEditPage({
-    title: 'meta:Steward requests/Global',
-    newText: srgText,
-    summary: `Global lock request for ${heading}`,
+    title: SRG_PAGE,
+    newText,
+    // Named over every target at once, the per-section headings covering them individually
+    summary: `${actionLabel} for ${buildRequestHeading({
+      targets: [...blockTargets, ...lockTargets], master, hideNames,
+    }).heading}`,
     createonly: false,
     watch: 'nochange',
   });
-  if (editId) {
-    const linkHtml = buildTitleLinkHtml(`meta:Special:Diff/${editId}#${headingText}`, 'filed');
-    new VueMessage({ type: 'success', content: `Global lock request ${linkHtml} successfully!`, isHtml: true }).show();
-  }
-  else {
-    new VueMessage({ type: 'warning', content: 'Global lock request failed.' }).show();
+  if (!editId) {
+    new VueMessage({ type: 'warning', content: `${actionLabel} failed.` }).show();
+    return nothingFiled;
   }
 
-  return lockTargets;
+  // One message per request, each anchored to its own section of the shared diff
+  for (const request of requests) {
+    const linkHtml = buildTitleLinkHtml(
+      `meta:Special:Diff/${editId}#${request.headingText}`, 'filed',
+    );
+    new VueMessage({
+      type: 'success',
+      content: `Global ${request.kind} request ${linkHtml} successfully!`,
+      isHtml: true,
+    }).show();
+  }
+
+  return {
+    lockedUsers: lockRequest?.targets ?? [],
+    globalBlockedUsers: blockRequest?.targets ?? [],
+  };
 }

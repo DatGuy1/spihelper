@@ -140,127 +140,151 @@ function makeCtx({
 
 const noBlocks = new Map<string, BlockEntry>();
 const noLocks = new Map<string, boolean>();
+const noGlobalBlocks = new Map<string, boolean>();
 
 describe('isInputDisabled', () => {
   describe('lock column', () => {
     test('set-all: never disabled', () => {
-      expect(isInputDisabled(null, 'lock', defaultOptions, noBlocks, noLocks, [])).toBe(false);
+      expect(isInputDisabled(null, 'lock', defaultOptions, noBlocks, noLocks, noGlobalBlocks, [])).toBe(false);
     });
 
     test('set-all: never disabled even when noBlock is on', () => {
-      expect(isInputDisabled(null, 'lock', { ...defaultOptions, noBlock: true }, noBlocks, noLocks, [])).toBe(false);
+      expect(isInputDisabled(null, 'lock', { ...defaultOptions, noBlock: true }, noBlocks, noLocks, noGlobalBlocks, [])).toBe(false);
     });
 
     test('row: disabled when user is already locked', () => {
       const row = makeRow('Vandal');
-      expect(isInputDisabled(row, 'lock', defaultOptions, noBlocks, new Map([['Vandal', true]]), [])).toBe(true);
+      expect(isInputDisabled(row, 'lock', defaultOptions, noBlocks, new Map([['Vandal', true]]), noGlobalBlocks, [])).toBe(true);
     });
 
     test('row: enabled when user is not locked', () => {
       const row = makeRow('Vandal');
-      expect(isInputDisabled(row, 'lock', defaultOptions, noBlocks, noLocks, [])).toBe(false);
+      expect(isInputDisabled(row, 'lock', defaultOptions, noBlocks, noLocks, noGlobalBlocks, [])).toBe(false);
+    });
+
+    describe('temporary accounts and IPs, which are globally blocked rather than locked', () => {
+      test('row: disabled when already globally blocked', () => {
+        const row = makeRow('~2026-00000-01');
+        const blocked = new Map([['~2026-00000-01', true]]);
+        expect(isInputDisabled(row, 'lock', defaultOptions, noBlocks, noLocks, blocked, []))
+          .toBe(true);
+      });
+
+      test('row: enabled when not globally blocked', () => {
+        const row = makeRow('~2026-00000-01');
+        const notBlocked = new Map([['~2026-00000-01', false]]);
+        expect(isInputDisabled(row, 'lock', defaultOptions, noBlocks, noLocks, notBlocked, []))
+          .toBe(false);
+      });
+
+      test('row: enabled when the lock map claims a lock, which cannot apply to them', () => {
+        const row = makeRow('~2026-00000-01');
+        const locked = new Map([['~2026-00000-01', true]]);
+        expect(isInputDisabled(row, 'lock', defaultOptions, noBlocks, locked, noGlobalBlocks, []))
+          .toBe(false);
+      });
     });
   });
 
   describe('block column', () => {
     test('set-all: disabled when noBlock is on', () => {
-      expect(isInputDisabled(null, 'block', { ...defaultOptions, noBlock: true }, noBlocks, noLocks, [])).toBe(true);
+      expect(isInputDisabled(null, 'block', { ...defaultOptions, noBlock: true }, noBlocks, noLocks, noGlobalBlocks, [])).toBe(true);
     });
 
     test('set-all: enabled when noBlock is off', () => {
-      expect(isInputDisabled(null, 'block', defaultOptions, noBlocks, noLocks, [])).toBe(false);
+      expect(isInputDisabled(null, 'block', defaultOptions, noBlocks, noLocks, noGlobalBlocks, [])).toBe(false);
     });
 
     test('row: disabled when noBlock is on', () => {
       const row = makeRow('Vandal');
-      expect(isInputDisabled(row, 'block', { ...defaultOptions, noBlock: true }, noBlocks, noLocks, [])).toBe(true);
+      expect(isInputDisabled(row, 'block', { ...defaultOptions, noBlock: true }, noBlocks, noLocks, noGlobalBlocks, [])).toBe(true);
     });
 
     test('row: disabled when user has existing block and override is off', () => {
       const row = makeRow('Vandal');
-      expect(isInputDisabled(row, 'block', defaultOptions, new Map([['Vandal', makeBlockEntry()]]), noLocks, [])).toBe(true);
+      expect(isInputDisabled(row, 'block', defaultOptions, new Map([['Vandal', makeBlockEntry()]]), noLocks, noGlobalBlocks, [])).toBe(true);
     });
 
     test('row: enabled when user has existing block but override is on', () => {
       const row = makeRow('Vandal');
       const opts = { ...defaultOptions, override: true };
-      expect(isInputDisabled(row, 'block', opts, new Map([['Vandal', makeBlockEntry()]]), noLocks, [])).toBe(false);
+      expect(isInputDisabled(row, 'block', opts, new Map([['Vandal', makeBlockEntry()]]), noLocks, noGlobalBlocks, [])).toBe(false);
     });
 
     test('row: enabled when user has no existing block', () => {
       const row = makeRow('Vandal');
-      expect(isInputDisabled(row, 'block', defaultOptions, noBlocks, noLocks, [])).toBe(false);
+      expect(isInputDisabled(row, 'block', defaultOptions, noBlocks, noLocks, noGlobalBlocks, [])).toBe(false);
     });
   });
 
   describe('duration column', () => {
     test('disabled when noBlock is on', () => {
       const row = makeRow('Vandal', { block: true });
-      expect(isInputDisabled(row, 'duration', { ...defaultOptions, noBlock: true }, noBlocks, noLocks, [])).toBe(true);
+      expect(isInputDisabled(row, 'duration', { ...defaultOptions, noBlock: true }, noBlocks, noLocks, noGlobalBlocks, [])).toBe(true);
     });
 
     test('set-all: disabled when no accounts have block checked', () => {
       const accounts = [makeRow('Vandal'), makeRow('Bob')];
-      expect(isInputDisabled(null, 'duration', defaultOptions, noBlocks, noLocks, accounts)).toBe(true);
+      expect(isInputDisabled(null, 'duration', defaultOptions, noBlocks, noLocks, noGlobalBlocks, accounts)).toBe(true);
     });
 
     test('set-all: enabled when at least one account has block checked', () => {
       const accounts = [makeRow('Vandal', { block: true }), makeRow('Bob')];
-      expect(isInputDisabled(null, 'duration', defaultOptions, noBlocks, noLocks, accounts)).toBe(false);
+      expect(isInputDisabled(null, 'duration', defaultOptions, noBlocks, noLocks, noGlobalBlocks, accounts)).toBe(false);
     });
 
     test('row: disabled when block is unchecked', () => {
       const row = makeRow('Vandal');
-      expect(isInputDisabled(row, 'duration', defaultOptions, noBlocks, noLocks, [])).toBe(true);
+      expect(isInputDisabled(row, 'duration', defaultOptions, noBlocks, noLocks, noGlobalBlocks, [])).toBe(true);
     });
 
     test('row: disabled when user has existing block and override is off', () => {
       const row = makeRow('Vandal', { block: true });
-      expect(isInputDisabled(row, 'duration', defaultOptions, new Map([['Vandal', makeBlockEntry()]]), noLocks, [])).toBe(true);
+      expect(isInputDisabled(row, 'duration', defaultOptions, new Map([['Vandal', makeBlockEntry()]]), noLocks, noGlobalBlocks, [])).toBe(true);
     });
 
     test('row: enabled when user has existing block but override is on', () => {
       const row = makeRow('Vandal', { block: true });
       const opts = { ...defaultOptions, override: true };
-      expect(isInputDisabled(row, 'duration', opts, new Map([['Vandal', makeBlockEntry()]]), noLocks, [])).toBe(false);
+      expect(isInputDisabled(row, 'duration', opts, new Map([['Vandal', makeBlockEntry()]]), noLocks, noGlobalBlocks, [])).toBe(false);
     });
 
     test('row: enabled when user is being blocked with no existing block', () => {
       const row = makeRow('Vandal', { block: true });
-      expect(isInputDisabled(row, 'duration', defaultOptions, noBlocks, noLocks, [])).toBe(false);
+      expect(isInputDisabled(row, 'duration', defaultOptions, noBlocks, noLocks, noGlobalBlocks, [])).toBe(false);
     });
   });
 
   describe('block settings subcolumns (acb)', () => {
     test('disabled when noBlock is on', () => {
       const row = makeRow('Vandal', { block: true });
-      expect(isInputDisabled(row, 'acb', { ...defaultOptions, noBlock: true }, noBlocks, noLocks, [])).toBe(true);
+      expect(isInputDisabled(row, 'acb', { ...defaultOptions, noBlock: true }, noBlocks, noLocks, noGlobalBlocks, [])).toBe(true);
     });
 
     test('disabled when block is unchecked', () => {
       const row = makeRow('Vandal');
-      expect(isInputDisabled(row, 'acb', defaultOptions, noBlocks, noLocks, [])).toBe(true);
+      expect(isInputDisabled(row, 'acb', defaultOptions, noBlocks, noLocks, noGlobalBlocks, [])).toBe(true);
     });
 
     test('disabled when existing block has the setting and override is off', () => {
       const row = makeRow('Vandal', { block: true });
-      expect(isInputDisabled(row, 'acb', defaultOptions, new Map([['Vandal', makeBlockEntry({ acb: true })]]), noLocks, [])).toBe(true);
+      expect(isInputDisabled(row, 'acb', defaultOptions, new Map([['Vandal', makeBlockEntry({ acb: true })]]), noLocks, noGlobalBlocks, [])).toBe(true);
     });
 
     test('disabled when existing block does not have the setting and override is off', () => {
       const row = makeRow('Vandal', { block: true });
-      expect(isInputDisabled(row, 'acb', defaultOptions, new Map([['Vandal', makeBlockEntry({ acb: false })]]), noLocks, [])).toBe(true);
+      expect(isInputDisabled(row, 'acb', defaultOptions, new Map([['Vandal', makeBlockEntry({ acb: false })]]), noLocks, noGlobalBlocks, [])).toBe(true);
     });
 
     test('enabled when existing block has the setting but override is on', () => {
       const row = makeRow('Vandal', { block: true });
       const opts = { ...defaultOptions, override: true };
-      expect(isInputDisabled(row, 'acb', opts, new Map([['Vandal', makeBlockEntry({ acb: true })]]), noLocks, [])).toBe(false);
+      expect(isInputDisabled(row, 'acb', opts, new Map([['Vandal', makeBlockEntry({ acb: true })]]), noLocks, noGlobalBlocks, [])).toBe(false);
     });
 
     test('enabled when user is being blocked with no existing block', () => {
       const row = makeRow('Vandal', { block: true });
-      expect(isInputDisabled(row, 'acb', defaultOptions, noBlocks, noLocks, [])).toBe(false);
+      expect(isInputDisabled(row, 'acb', defaultOptions, noBlocks, noLocks, noGlobalBlocks, [])).toBe(false);
     });
   });
 });

@@ -19,6 +19,7 @@ export interface EditSummaryFacts {
   blockedUsers: string[];
   taggedUsers: string[];
   lockedUsers: string[];
+  globalBlockedUsers: string[];
 }
 
 export function setupEditSummaryFacts(multiSection: boolean): EditSummaryFacts {
@@ -32,6 +33,7 @@ export function setupEditSummaryFacts(multiSection: boolean): EditSummaryFacts {
     blockedUsers: [],
     taggedUsers: [],
     lockedUsers: [],
+    globalBlockedUsers: [],
   };
 }
 
@@ -73,6 +75,11 @@ function groupByAccounts(facts: EditSummaryFacts): string[] {
       verb: 'requesting locks for',
       users: facts.lockedUsers,
       solo: count => `requesting ${pluralise(count, 'lock')}`,
+    },
+    {
+      verb: 'requesting global blocks for',
+      users: facts.globalBlockedUsers,
+      solo: count => `requesting ${pluralise(count, 'global block')}`,
     },
   ];
 

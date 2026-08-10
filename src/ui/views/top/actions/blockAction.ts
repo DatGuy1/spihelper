@@ -29,6 +29,7 @@ export const BlockActionComponent = defineComponent({
     accounts: { type: Array as PropType<UserRow[]>, required: true },
     blockOptions: { type: Object as PropType<BlockOptions>, required: true },
     userLocks: { type: Map as PropType<Map<string, boolean>>, required: true },
+    userGlobalBlocks: { type: Map as PropType<Map<string, boolean>>, required: true },
     userBlocks: { type: Map as PropType<Map<string, BlockEntry>>, required: true },
     defaultMaster: { type: String, required: true },
     fetchType: { type: String as PropType<'comment' | 'clipboard'>, required: true },
@@ -39,7 +40,7 @@ export const BlockActionComponent = defineComponent({
     const columns = [
       { id: 'username', label: 'Username' },
       { id: 'tag', label: 'Tag' },
-      { id: 'lock', label: 'Request Lock' },
+      { id: 'lock', label: 'Request Global' },
     ];
     const isAdmin = spiHelperIsAdmin();
     const isCheckuser = spiHelperIsCheckuser();
@@ -125,7 +126,9 @@ export const BlockActionComponent = defineComponent({
     },
     isInputDisabled(row: UserRow | null, column: InputColumn): boolean {
       return isInputDisabled(
-        row, column, this.blockOptions, this.userBlocks, this.userLocks, this.getTargetRows(),
+        row, column, this.blockOptions,
+        this.userBlocks, this.userLocks, this.userGlobalBlocks,
+        this.getTargetRows(),
       );
     },
     async copySocks() {
@@ -467,12 +470,13 @@ export const BlockActionComponent = defineComponent({
                            @addTag="handleTagAddAll" @copyTag="popovers.clipboardTag = $event" />
             </th>
 
-            <th scope="col">
+            <th scope="col"
+                v-tooltip="'Locks for accounts, global blocks for temporary accounts and IPs'">
               <cdx-checkbox :hide-label="true"
                             :model-value="setAllValue('lock')" :indeterminate="setAllIndeterminate('lock')"
                             @update:model-value="setAllBlockFields('lock', $event)"
                             :disabled="isInputDisabled(null, 'lock')">
-                Set all request locks
+                Set all global requests
               </cdx-checkbox>
             </th>
           </tr>
@@ -538,7 +542,7 @@ export const BlockActionComponent = defineComponent({
         <template #item-lock="{ item, row }">
           <cdx-checkbox :hide-label="true" v-model="row.block.lock"
                         :disabled="isInputDisabled(row, 'lock')">
-            Request lock
+            Request {{ isNonRegisteredAccount(row.username) ? 'global block' : 'lock' }}
           </cdx-checkbox>
         </template>
 

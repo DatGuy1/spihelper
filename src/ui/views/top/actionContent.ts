@@ -85,7 +85,9 @@ export const ActionContentComponent = defineComponent({
     <block-action v-else-if="name === 'block'" v-model:enabled="caseActions.block.enabled" fetch-type="comment"
                   v-model:block-options="caseActions.block.data.options" :accounts="accounts"
                   :default-master="caseActions.block.data.master"
-                  :user-locks="caseActions.block.data.userLocks" :user-blocks="caseActions.block.data.userBlocks"
+                  :user-locks="caseActions.block.data.userLocks"
+                  :user-global-blocks="caseActions.block.data.userGlobalBlocks"
+                  :user-blocks="caseActions.block.data.userBlocks"
                   @user-selected="handleUserSelected"
                   @remove-rows="handleRemoveRows" @add-row="handleAddRow"
                   @fetch-rows="handleFetchRows" />

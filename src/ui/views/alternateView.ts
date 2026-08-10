@@ -7,6 +7,7 @@ import { cdxIconFeedback, cdxIconPushPin } from '@wikimedia/codex-icons';
 import {
   type AllUser,
   type BlockActionData,
+  type GlobalRequestResults,
   ParsedArchiveNotice,
   type UserRow,
 } from '../../types';
@@ -257,6 +258,7 @@ export const AlternateViewComponent = defineComponent({
             userPage: userPageText,
             defaultBlock: true,
             globalUser: null,
+            globalBlock: null,
             state: this.state,
           });
           if (isLocked !== null) {
@@ -290,9 +292,11 @@ export const AlternateViewComponent = defineComponent({
       let blockPromises: Promise<string | null>[] = [];
       let tagPromises: Promise<string | null>[] = [];
       let talkNoticePromises: Promise<void>[] = [];
-      let lockPromise: Promise<string[]> = Promise.resolve([]);
+      let globalRequestPromise: Promise<GlobalRequestResults> = Promise.resolve(
+        { lockedUsers: [], globalBlockedUsers: [] },
+      );
       ({
-        blockPromises, tagPromises, talkNoticePromises, lockPromise,
+        blockPromises, tagPromises, talkNoticePromises, globalRequestPromise,
       } = await spiHelperHandleBlocks({
         accounts: this.accounts,
         blockData: this.blockData,
@@ -300,14 +304,19 @@ export const AlternateViewComponent = defineComponent({
       const userActionsPromise = Promise.all([
         Promise.all(blockPromises),
         Promise.all(tagPromises),
-        lockPromise,
+        globalRequestPromise,
       ]);
       const talkNoticePromise = Promise.all(talkNoticePromises);
 
-      const [blockedUsers, taggedUsers, lockedUsers] = await userActionsPromise;
+      const [blockedUsers, taggedUsers, globalRequests] = await userActionsPromise;
       await talkNoticePromise;
       if (spiHelperSettings.log.enabled) {
-        const logMessage = `* [[:User:${context.userName}]]` + buildUserActionLogMessage({ blockedUsers, taggedUsers, lockedUsers });
+        const logMessage = `* [[:User:${context.userName}]]` + buildUserActionLogMessage({
+          blockedUsers,
+          taggedUsers,
+          lockedUsers: globalRequests.lockedUsers,
+          globalBlockedUsers: globalRequests.globalBlockedUsers,
+        });
         await spiHelperLog(logMessage);
       }
 
@@ -344,6 +353,7 @@ export const AlternateViewComponent = defineComponent({
         allUsernames,
         userBlocks: this.blockData.userBlocks,
         userLocks: this.blockData.userLocks,
+        userGlobalBlocks: this.blockData.userGlobalBlocks,
         userTags: this.blockData.userTags,
         state: this.state,
       });
@@ -394,6 +404,7 @@ export const AlternateViewComponent = defineComponent({
         allUsernames,
         userBlocks: this.blockData.userBlocks,
         userLocks: this.blockData.userLocks,
+        userGlobalBlocks: this.blockData.userGlobalBlocks,
         userTags: this.blockData.userTags,
         state: this.state,
       });
@@ -441,7 +452,9 @@ export const AlternateViewComponent = defineComponent({
           <h4>Block</h4>
           <block-action :enabled="true" fetch-type="clipboard"
                         :accounts="accounts" v-model:block-options="blockData.options"
-                        :user-locks="blockData.userLocks" :user-blocks="blockData.userBlocks"
+                        :user-locks="blockData.userLocks"
+                        :user-global-blocks="blockData.userGlobalBlocks"
+                        :user-blocks="blockData.userBlocks"
                         :default-master="blockData.master"
                         @user-selected="handleUserSelected" @fetch-rows="handleFetchRows"
                         @remove-rows="handleRemoveRows" @add-row="handleAddRow" />

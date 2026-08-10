@@ -10,11 +10,9 @@ import {
   getSockEntries,
   isMenuGroupData,
   pruneMenuData,
+  setUserRowBlockData,
   updateUserBlockDataSettings,
 } from '../../src/ui/utils.ts';
-
-// jQuery is not a DOM API; stub it so spyOn can manage per-test replacement.
-(globalThis as Record<string, unknown>).$ = () => ({});
 
 function textNode(content: string): Text {
   return document.createTextNode(content);
@@ -198,6 +196,63 @@ describe('user rows', () => {
       if (!(tag instanceof SockpuppetTag)) throw new Error('expected SockpuppetTag');
       expect(tag.master).toBe('Master');
       expect(tag.status).toBe('confirmed');
+    });
+  });
+
+  describe('setUserRowBlockData', () => {
+    function setRowData(username: string, opts: {
+      globalUser?: { name: string; locked: boolean; existsLocally: boolean };
+      globalBlock?: { target: string; expiry: string; by: string; reason: string };
+      crosswiki?: boolean;
+    } = {}) {
+      const archiveNotice = opts.crosswiki
+        ? new ParsedArchiveNotice({ username: 'Master', crosswiki: true })
+        : null;
+      return setUserRowBlockData({
+        userRow: generateUserRow(username, makeState(archiveNotice)),
+        block: null,
+        defaultBlock: false,
+        globalUser: opts.globalUser ?? null,
+        globalBlock: opts.globalBlock ?? null,
+        state: makeState(archiveNotice),
+      });
+    }
+
+    test('a registered account reports its lock state and no global block state', () => {
+      const result = setRowData('Sock', {
+        globalUser: { name: 'Sock', locked: true, existsLocally: true },
+      });
+
+      expect(result.isLocked).toBe(true);
+      // Registered accounts are locked rather than globally blocked
+      expect(result.isGloballyBlocked).toBeNull();
+      expect(result.userRow.block.lock).toBe(true);
+    });
+
+    test('a globally blocked temporary account is reported blocked and pre-checked', () => {
+      const result = setRowData('~2026-00000-01', {
+        globalBlock: {
+          target: '~2026-00000-01', expiry: 'infinity', by: 'Steward', reason: 'Long-term abuse',
+        },
+      });
+
+      expect(result.isGloballyBlocked).toBe(true);
+      expect(result.isLocked).toBeNull();
+      expect(result.userRow.block.lock).toBe(true);
+    });
+
+    test('an unblocked temporary account is reported unblocked rather than unknown', () => {
+      const result = setRowData('~2026-00000-01');
+
+      expect(result.isGloballyBlocked).toBe(false);
+      expect(result.userRow.block.lock).toBe(false);
+    });
+
+    test('an unblocked temporary account is still pre-checked on a crosswiki case', () => {
+      const result = setRowData('~2026-00000-01', { crosswiki: true });
+
+      expect(result.isGloballyBlocked).toBe(false);
+      expect(result.userRow.block.lock).toBe(true);
     });
   });
 

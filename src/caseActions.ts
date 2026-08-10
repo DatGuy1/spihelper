@@ -1,5 +1,6 @@
 import { OpState, finishOp, startOp } from './operations.ts';
 import {
+  spiHelperGetBulkGlobalBlocks,
   spiHelperGetBulkGlobalUsers,
   spiHelperGetBulkPageText,
   spiHelperGetBulkUserBlockSettings,
@@ -22,7 +23,7 @@ import {
   spiHelperMoveCase,
   spiHelperMoveCaseSection,
   spiHelperProcessBlockRow,
-  spiHelperRequestLocks,
+  spiHelperRequestGlobalActions,
   spiHelperTagUser,
 } from './actions';
 import {
@@ -44,6 +45,7 @@ import {
   type BlockActionData,
   type CaseAction,
   type CaseActions,
+  type GlobalRequestResults,
   ParsedArchiveNotice,
   type UserRow,
 } from './types';
@@ -144,17 +146,20 @@ export async function spiHelperPerformActions(opts: {
   let blockPromises: Promise<string | null>[] = [];
   let tagPromises: Promise<string | null>[] = [];
   let talkNoticePromises: Promise<void>[] = [];
-  let lockPromise: Promise<string[]> = Promise.resolve([]);
+  let globalRequestPromise: Promise<GlobalRequestResults> = Promise.resolve(
+    { lockedUsers: [], globalBlockedUsers: [] },
+  );
   if (actions.block.enabled) {
-    ({ blockPromises, tagPromises, talkNoticePromises, lockPromise } = await spiHelperHandleBlocks({
-      accounts,
-      blockData: actions.block.data,
-    }));
+    ({ blockPromises, tagPromises, talkNoticePromises, globalRequestPromise }
+      = await spiHelperHandleBlocks({
+        accounts,
+        blockData: actions.block.data,
+      }));
   }
   const userActionsPromise = Promise.all([
     Promise.all(blockPromises),
     Promise.all(tagPromises),
-    lockPromise,
+    globalRequestPromise,
   ]);
   const talkNoticePromise = Promise.all(talkNoticePromises);
 
@@ -256,10 +261,11 @@ export async function spiHelperPerformActions(opts: {
 
   // Settle the user actions before writing the case page so the edit summary can report
   // what actually landed rather than what was requested
-  const [blockedUsers, taggedUsers, lockedUsers] = await userActionsPromise;
+  const [blockedUsers, taggedUsers, globalRequests] = await userActionsPromise;
   summaryFacts.blockedUsers = blockedUsers.filter(user => user !== null);
   summaryFacts.taggedUsers = taggedUsers.filter(user => user !== null);
-  summaryFacts.lockedUsers = lockedUsers;
+  summaryFacts.lockedUsers = globalRequests.lockedUsers;
+  summaryFacts.globalBlockedUsers = globalRequests.globalBlockedUsers;
 
   const structureChanged = actions.move.enabled || actions.archive.enabled;
   // Make all the requested edits synchronously since we might make more changes to the page,
@@ -365,7 +371,12 @@ export async function spiHelperPerformActions(opts: {
 
   await talkNoticePromise;
   if (spiHelperSettings.log.enabled) {
-    logMessage += buildUserActionLogMessage({ blockedUsers, taggedUsers, lockedUsers });
+    logMessage += buildUserActionLogMessage({
+      blockedUsers,
+      taggedUsers,
+      lockedUsers: globalRequests.lockedUsers,
+      globalBlockedUsers: globalRequests.globalBlockedUsers,
+    });
     await spiHelperLog(logMessage);
   }
 
@@ -481,15 +492,16 @@ export async function spiHelperHandleBlocks(opts: {
   blockPromises: Promise<string | null>[];
   tagPromises: Promise<string | null>[];
   talkNoticePromises: Promise<void>[];
-  lockPromise: Promise<string[]>;
+  globalRequestPromise: Promise<GlobalRequestResults>;
 }> {
   const blockPromises: Promise<string | null>[] = [];
   const tagPromises: Promise<string | null>[] = [];
   const talkNoticePromises: Promise<void>[] = [];
-  let lockPromise: Promise<string[]> = Promise.resolve([]);
+  let globalRequestPromise: Promise<GlobalRequestResults> = Promise.resolve(
+    { lockedUsers: [], globalBlockedUsers: [] },
+  );
 
   const {
-    userLocks,
     options: blockOptions,
     lockcomment: lockComment,
     master,
@@ -500,7 +512,7 @@ export async function spiHelperHandleBlocks(opts: {
   }
   const userRows = opts.accounts.filter(userRow => userRow.username !== '');
 
-  const lockTargetRows: UserRow[] = [];
+  const globalTargetRows: UserRow[] = [];
   await createSockCategories(userRows);
 
   const blockAvailable = spiHelperIsAdmin() && !blockOptions.noBlock;
@@ -520,12 +532,15 @@ export async function spiHelperHandleBlocks(opts: {
   );
   const fetchMessage = new VueMessage({ type: 'notice', content: 'Fetching user blocks and tags' }).show();
   // Don't reuse blocks and tags because they might not have all our users
-  const [userBlocks, userPages, userTalkPages, globalUsers] = await Promise.all([
+  const [userBlocks, userPages, userTalkPages, globalUsers, userGlobalBlocks] = await Promise.all([
     spiHelperGetBulkUserBlockSettings(allUsernames),
     spiHelperGetBulkPageText(allUserPages),
     spiHelperGetBulkPageText(allUserTalkPages),
     spiHelperGetBulkGlobalUsers(
       new Set([...allUsernames].filter(username => !isNonRegisteredAccount(username))),
+    ),
+    spiHelperGetBulkGlobalBlocks(
+      new Set([...allUsernames].filter(username => isNonRegisteredAccount(username))),
     ),
   ]);
   fetchMessage.update({ type: 'success', content: 'Got previous blocks and tags' });
@@ -541,12 +556,8 @@ export async function spiHelperHandleBlocks(opts: {
     return tagSuccess ? userRow.username : null;
   };
   for (const userRow of userRows) {
-    // do not support locking IPs or TAs
-    if (userRow.block.lock && !isNonRegisteredAccount(userRow.username)) {
-      // If we already know we're locked. Explicit true check because it can be false or undefined
-      if (userLocks.get(userRow.username) !== true) {
-        lockTargetRows.push(userRow);
-      }
+    if (userRow.block.lock) {
+      globalTargetRows.push(userRow);
     }
     if (blockAvailable && userRow.block.block) {
       const talkNotices: ('master' | 'sock')[] = [];
@@ -650,31 +661,40 @@ export async function spiHelperHandleBlocks(opts: {
     }
   }
 
-  if (lockTargetRows.length > 0) {
+  const globalRows = globalTargetRows.filter(row => !(isNonRegisteredAccount(row.username)
+    ? userGlobalBlocks.has(row.username)
+    : globalUsers.get(row.username)?.locked));
+  if (globalRows.length > 0) {
     const hideNames = blockOptions.lockHideNames;
 
-    // Work out who to name as the master in the lock request
+    // Work out who to name as the master in the request
     // If we only tag one user as the master, use them.
     // In all other cases, use the "official" master (case name).
     const tagMasters = new Set(
-      lockTargetRows
+      globalRows
         .flatMap(row => row.block.tags.filter(tag => isSockpuppetTag(tag)))
         .map(tag => tag.master)
         .filter(tagMaster => tagMaster !== ''),
     );
     const [onlyTagMaster] = tagMasters;
-    const lockMaster = tagMasters.size === 1 && onlyTagMaster ? onlyTagMaster : master;
+    const globalMaster = tagMasters.size === 1 && onlyTagMaster ? onlyTagMaster : master;
 
-    // Filter out accounts that are already locked
-    const lockTargets = lockTargetRows
-      .map(userRow => userRow.username)
-      .filter(user => !globalUsers.get(user)?.locked);
-    lockPromise = spiHelperRequestLocks({
+    const [globalBlockTargets, lockTargets] = globalRows.reduce<[string[], string[]]>(
+      (acc, row) => {
+        acc[isNonRegisteredAccount(row.username) ? 0 : 1].push(row.username);
+        return acc;
+      },
+      [[], []],
+    );
+
+    // Both go to the same page, so they are filed together in a single edit
+    globalRequestPromise = spiHelperRequestGlobalActions({
       lockTargets,
+      blockTargets: globalBlockTargets,
       hideNames,
-      master: lockMaster,
-      lockComment,
+      master: globalMaster,
+      comment: lockComment,
     });
   }
-  return { blockPromises, tagPromises, talkNoticePromises, lockPromise };
+  return { blockPromises, tagPromises, talkNoticePromises, globalRequestPromise };
 }

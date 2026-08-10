@@ -2,6 +2,7 @@ import {
   type BlockEntry,
   type BlockOptions,
   DefaultLinkRowData,
+  type GlobalBlockEntry,
   type GlobalUser,
   type InputColumn,
   ParsedArchiveNotice,
@@ -149,9 +150,10 @@ export function setUserRowBlockData(opts: {
   userPage?: string;
   defaultBlock: boolean;
   globalUser: GlobalUser | null | undefined;
+  globalBlock: GlobalBlockEntry | null | undefined;
   state: CaseState;
 }) {
-  const { block: blockSetting, userPage, defaultBlock, globalUser, state } = opts;
+  const { block: blockSetting, userPage, defaultBlock, globalUser, globalBlock, state } = opts;
   const userRow = updateUserBlockDataSettings({
     userRow: opts.userRow,
     defaultBlock,
@@ -159,19 +161,21 @@ export function setUserRowBlockData(opts: {
     userPage: userPage,
   });
 
+  const crosswiki = state.archiveNotice?.crosswiki ?? false;
   let isLocked: boolean | null = null;
+  let isGloballyBlocked: boolean | null = null;
   if (globalUser) {
     isLocked = globalUser.locked;
-    // noinspection RedundantIfStatementJS
-    if (globalUser.locked || state.archiveNotice?.crosswiki) {
-      userRow.block.lock = true;
-    }
-    else {
-      userRow.block.lock = false;
-    }
+    userRow.block.lock = globalUser.locked || crosswiki;
+  }
+  else if (isNonRegisteredAccount(userRow.username)) {
+    // Temporary accounts and IPs can't be locked, so the same checkbox stands for
+    // the global block that gets requested for them instead
+    isGloballyBlocked = globalBlock != null;
+    userRow.block.lock = isGloballyBlocked || crosswiki;
   }
 
-  return { userRow, isLocked };
+  return { userRow, isLocked, isGloballyBlocked };
 }
 
 type MenuNode = MenuItemData | MenuGroupData;
@@ -204,11 +208,16 @@ export function isInputDisabled(
   blockOptions: BlockOptions,
   userBlocks: Map<string, BlockEntry>,
   userLocks: Map<string, boolean>,
+  userGlobalBlocks: Map<string, boolean>,
   targetRows: UserRow[],
 ): boolean {
   if (column === 'lock') {
     if (row === null) return false;
-    return isNonRegisteredAccount(row.username) || userLocks.get(row.username) === true;
+    // Nothing left to request if the target already carries the action we'd ask for.
+    // Explicit true checks because either map can hold false or be missing the row.
+    return isNonRegisteredAccount(row.username)
+      ? userGlobalBlocks.get(row.username) === true
+      : userLocks.get(row.username) === true;
   }
   if (column === 'block') {
     if (row === null) return blockOptions.noBlock;

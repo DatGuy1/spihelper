@@ -59,17 +59,22 @@ export const SubmitFormComponent = defineComponent({
         ? statusData.new
         : statusData.old;
     },
-    needsLockComment() {
+    /** Rows that will produce an SRG request, whether that's a lock or a global block */
+    globalRequestTargets(): UserRow[] {
       const blockAction = this.caseActions.block;
       if (!blockAction.enabled) {
-        return false;
+        return [];
       }
-      // Also check that our user isn't already locked because we'd skip them eventually
-      return this.accounts.some(sock =>
+      // Also check that our user isn't already actioned because we'd skip them eventually
+      return this.accounts.filter(sock =>
         sock.block.lock
-        && !isNonRegisteredAccount(sock.username)
-        && blockAction.data.userLocks.get(sock.username) !== true,
+        && (isNonRegisteredAccount(sock.username)
+          ? blockAction.data.userGlobalBlocks.get(sock.username) !== true
+          : blockAction.data.userLocks.get(sock.username) !== true),
       );
+    },
+    needsLockComment(): boolean {
+      return this.globalRequestTargets.length > 0;
     },
     hasInvalidTag() {
       const blockAction = this.caseActions.block;
@@ -89,9 +94,9 @@ export const SubmitFormComponent = defineComponent({
     hasInvalidDuration() {
       const blockAction = this.caseActions.block;
       if (!blockAction.enabled) return false;
-      const { options, userBlocks, userLocks } = blockAction.data;
+      const { options, userBlocks, userLocks, userGlobalBlocks } = blockAction.data;
       return this.accounts.some(user =>
-        !isInputDisabled(user, 'duration', options, userBlocks, userLocks, this.accounts)
+        !isInputDisabled(user, 'duration', options, userBlocks, userLocks, userGlobalBlocks, this.accounts)
         && parseExpiry(user.block.duration) === null,
       );
     },
@@ -234,8 +239,8 @@ export const SubmitFormComponent = defineComponent({
   template: `
     <div class="spiHelper-submitForm">
       <cdx-field v-if="needsLockComment">
-        <template #label>Lock Comment</template>
-        <template #description>Optional comment to include in the global lock request</template>
+        <template #label>Global request comment</template>
+        <template #description>Optional comment to include in the global lock/block request</template>
         <cdx-text-area v-model="lockCommentValue" placeholder="Comment" :autosize="true" />
       </cdx-field>
       <cdx-checkbox v-if="cuBlockConfirmationsNeeded.size > 0"

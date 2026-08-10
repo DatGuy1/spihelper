@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
-import { chunkArray, spiHelperGetBulkGlobalUsers } from '../src/api.ts';
-import type { GlobalUsersResponse } from '../src/types';
+import {
+  chunkArray,
+  spiHelperGetBulkGlobalBlocks,
+  spiHelperGetBulkGlobalUsers,
+} from '../src/api.ts';
+import type { GlobalBlocksResponse, GlobalUsersResponse } from '../src/types';
 
 describe('chunkArray', () => {
   test('splits into equal chunks', () => {
@@ -120,6 +124,119 @@ describe('spiHelperGetBulkGlobalUsers', () => {
     post.mockRejectedValue(new Error('network'));
 
     const result = await spiHelperGetBulkGlobalUsers(new Set(['Someone']));
+
+    expect(result.size).toBe(0);
+  });
+});
+
+describe('spiHelperGetBulkGlobalBlocks', () => {
+  const mwUser = mw.user as unknown as { getRights?: () => Promise<string[]> };
+  let post: ReturnType<typeof spyOn<typeof mw.Api.prototype, 'post'>>;
+
+  type GlobalBlock = GlobalBlocksResponse['query']['globalblocks'][number];
+
+  function makeBlock(overrides: Partial<GlobalBlock> & { target?: string }): GlobalBlock {
+    return {
+      id: '1',
+      by: 'Steward',
+      bywiki: 'metawiki',
+      timestamp: '2026-01-01T00:00:00Z',
+      expiry: 'infinity',
+      reason: 'Long-term abuse',
+      anononly: false,
+      automatic: false,
+      ...overrides,
+    };
+  }
+
+  function respondWith(globalblocks: GlobalBlock[]) {
+    post.mockResolvedValue({ query: { globalblocks } });
+  }
+
+  beforeEach(() => {
+    post = spyOn(mw.Api.prototype, 'post');
+    mwUser.getRights = () => Promise.resolve([]);
+  });
+
+  afterEach(() => {
+    mock.restore();
+    delete mwUser.getRights;
+  });
+
+  test('keys the block by its target', async () => {
+    respondWith([makeBlock({ target: '~2026-00000-01' })]);
+
+    const result = await spiHelperGetBulkGlobalBlocks(new Set(['~2026-00000-01']));
+
+    expect(result.get('~2026-00000-01')).toEqual({
+      target: '~2026-00000-01',
+      expiry: 'infinity',
+      by: 'Steward',
+      reason: 'Long-term abuse',
+    });
+  });
+
+  test('handles IPs and ranges the same way as accounts', async () => {
+    respondWith([
+      makeBlock({ target: '192.0.2.1' }),
+      makeBlock({ target: '2001:DB8:0:0:0:0:0:0/32' }),
+      makeBlock({ target: 'Spammer' }),
+    ]);
+
+    const result = await spiHelperGetBulkGlobalBlocks(
+      new Set(['192.0.2.1', '2001:DB8:0:0:0:0:0:0/32', 'Spammer']),
+    );
+
+    expect([...result.keys()]).toEqual([
+      '192.0.2.1', '2001:DB8:0:0:0:0:0:0/32', 'Spammer',
+    ]);
+  });
+
+  test('skips autoblocks, which hide the target they were derived from', async () => {
+    respondWith([
+      makeBlock({ automatic: true }),
+      makeBlock({ target: '~2026-00000-02' }),
+    ]);
+
+    const result = await spiHelperGetBulkGlobalBlocks(new Set(['~2026-00000-02']));
+
+    expect([...result.keys()]).toEqual(['~2026-00000-02']);
+  });
+
+  test('leaves unblocked targets out of the map rather than storing a null', async () => {
+    respondWith([makeBlock({ target: 'Blocked' })]);
+
+    const result = await spiHelperGetBulkGlobalBlocks(new Set(['Blocked', 'NotBlocked']));
+
+    expect(result.has('NotBlocked')).toBe(false);
+    expect(result.size).toBe(1);
+  });
+
+  test('splits over the 50-target limit into multiple requests and merges the results', async () => {
+    const targets = Array.from({ length: 120 }, (_, i) => `~2026-00000-${i}`);
+    post.mockImplementation(((request: { bgtargets: string[] }) => Promise.resolve({
+      query: {
+        globalblocks: request.bgtargets.map(target => makeBlock({ target })),
+      },
+    })) as unknown as typeof mw.Api.prototype.post);
+
+    const result = await spiHelperGetBulkGlobalBlocks(new Set(targets));
+
+    expect(post).toHaveBeenCalledTimes(3);
+    expect(result.size).toBe(120);
+  });
+
+  test('makes no request at all for an empty set', async () => {
+    const result = await spiHelperGetBulkGlobalBlocks(new Set());
+
+    expect(post).not.toHaveBeenCalled();
+    expect(result.size).toBe(0);
+  });
+
+  test('returns an empty map rather than throwing when the request fails', async () => {
+    post.mockRejectedValue(new Error('network'));
+
+    const result = await spiHelperGetBulkGlobalBlocks(new Set(['~2026-00000-01']));
 
     expect(result.size).toBe(0);
   });

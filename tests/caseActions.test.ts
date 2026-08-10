@@ -5,7 +5,7 @@ import * as logModule from '../src/actions/log.ts';
 import * as tagModule from '../src/actions/tag.ts';
 import * as apiModule from '../src/api.ts';
 import * as roleModule from '../src/role.ts';
-import type { BlockEntry } from '../src/types';
+import type { BlockEntry, GlobalBlockEntry, GlobalUser } from '../src/types';
 import { spiHelperHandleBlocks, spiHelperPerformActions } from '../src/caseActions.ts';
 import { spiHelperSettings } from '../src/options';
 import { CaseState, SectionEntry } from '../src/state.ts';
@@ -50,13 +50,21 @@ function deferred<T>() {
  * Stubs the role checks and API calls the block/tag/lock pipeline reaches for
  * but only work as a userscript, and hands back the spies tests assert against
  */
-function stubUserActions(opts: { isAdmin?: boolean; userBlocks?: Map<string, BlockEntry> } = {}) {
+function stubUserActions(opts: {
+  isAdmin?: boolean;
+  userBlocks?: Map<string, BlockEntry>;
+  globalBlocks?: Map<string, GlobalBlockEntry>;
+  globalUsers?: Map<string, GlobalUser>;
+} = {}) {
   const userBlocks = opts.userBlocks ?? new Map<string, BlockEntry>();
+  const globalBlocks = opts.globalBlocks ?? new Map<string, GlobalBlockEntry>();
+  const globalUsers = opts.globalUsers ?? new Map<string, GlobalUser>();
   spyOn(roleModule, 'spiHelperIsAdmin').mockReturnValue(opts.isAdmin ?? true);
   spyOn(roleModule, 'spiHelperIsCheckuser').mockReturnValue(true);
   spyOn(tagModule, 'createSockCategories').mockResolvedValue(new Map());
   spyOn(apiModule, 'spiHelperGetBulkUserBlockSettings').mockResolvedValue(userBlocks);
-  spyOn(apiModule, 'spiHelperGetBulkGlobalUsers').mockResolvedValue(new Map());
+  spyOn(apiModule, 'spiHelperGetBulkGlobalUsers').mockResolvedValue(globalUsers);
+  spyOn(apiModule, 'spiHelperGetBulkGlobalBlocks').mockResolvedValue(globalBlocks);
   const pageTextSpy = spyOn(apiModule, 'spiHelperGetBulkPageText').mockResolvedValue(new Map());
   const talkNoticeSpy = spyOn(blockModule, 'spiHelperAddTalkBlockNotice')
     .mockResolvedValue(undefined);
@@ -208,13 +216,14 @@ describe('spiHelperHandleBlocks', () => {
     /** Locks the given rows and returns the master that the lock request was filed under */
     async function getRequestedLockMaster(rows: UserRow[], caseMaster: string) {
       stubUserActions({ isAdmin: false });
-      const lockSpy = spyOn(lockModule, 'spiHelperRequestLocks').mockResolvedValue([]);
+      const lockSpy = spyOn(lockModule, 'spiHelperRequestGlobalActions')
+        .mockResolvedValue({ lockedUsers: [], globalBlockedUsers: [] });
 
-      const { lockPromise } = await spiHelperHandleBlocks({
+      const { globalRequestPromise } = await spiHelperHandleBlocks({
         accounts: rows,
         blockData: { ...setupBlockActionData(), master: caseMaster },
       });
-      await lockPromise;
+      await globalRequestPromise;
 
       expect(lockSpy).toHaveBeenCalledTimes(1);
       return lockSpy.mock.calls[0]?.[0].master;
@@ -277,6 +286,100 @@ describe('spiHelperHandleBlocks', () => {
 
       expect(await getRequestedLockMaster(rows, 'Foo')).toBe('RealMaster');
     });
+
+    test('ignores the tags of rows dropped for being locked already', async () => {
+      // SockB is already locked, so it never reaches the request. Its tag naming a
+      // different master must not drag the request back to the case name.
+      stubUserActions({
+        isAdmin: false,
+        globalUsers: new Map([
+          ['SockB', { name: 'SockB', locked: true, existsLocally: true }],
+        ]),
+      });
+      const lockSpy = spyOn(lockModule, 'spiHelperRequestGlobalActions')
+        .mockResolvedValue({ lockedUsers: [], globalBlockedUsers: [] });
+
+      const { globalRequestPromise } = await spiHelperHandleBlocks({
+        accounts: [
+          makeRow('SockA', {
+            lock: true,
+            tags: [new SockpuppetTag({ master: 'RealMaster', status: 'blocked' })],
+          }),
+          makeRow('SockB', {
+            lock: true,
+            tags: [new SockpuppetTag({ master: 'SomeoneElse', status: 'blocked' })],
+          }),
+        ],
+        blockData: { ...setupBlockActionData(), master: 'Foo' },
+      });
+      await globalRequestPromise;
+
+      expect(lockSpy.mock.calls[0]?.[0]).toMatchObject({
+        lockTargets: ['SockA'],
+        master: 'RealMaster',
+      });
+    });
+  });
+
+  describe('routing between locks and global blocks', () => {
+    async function getGlobalRequests(
+      rows: UserRow[],
+      globalBlocks = new Map<string, GlobalBlockEntry>(),
+    ) {
+      stubUserActions({ isAdmin: false, globalBlocks });
+      const requestSpy = spyOn(lockModule, 'spiHelperRequestGlobalActions')
+        .mockResolvedValue({ lockedUsers: [], globalBlockedUsers: [] });
+
+      const { globalRequestPromise } = await spiHelperHandleBlocks({
+        accounts: rows,
+        blockData: { ...setupBlockActionData(), master: 'Master' },
+      });
+      await globalRequestPromise;
+
+      const call = requestSpy.mock.calls[0]?.[0];
+      return { lockTargets: call?.lockTargets, blockTargets: call?.blockTargets };
+    }
+
+    test('sends registered accounts to the lock request and temporary accounts to the gblock request', async () => {
+      const rows = [
+        makeRow('SockA', { lock: true }),
+        makeRow('~2026-00000-01', { lock: true }),
+      ];
+
+      expect(await getGlobalRequests(rows)).toEqual({
+        lockTargets: ['SockA'],
+        blockTargets: ['~2026-00000-01'],
+      });
+    });
+
+    test('skips temporary accounts that are already globally blocked', async () => {
+      const alreadyBlocked = new Map<string, GlobalBlockEntry>([
+        ['~2026-00000-01', {
+          target: '~2026-00000-01', expiry: 'infinity', by: 'Steward', reason: 'Long-term abuse',
+        }],
+      ]);
+      const rows = [
+        makeRow('~2026-00000-01', { lock: true }),
+        makeRow('~2026-00000-02', { lock: true }),
+      ];
+
+      expect(await getGlobalRequests(rows, alreadyBlocked)).toEqual({
+        lockTargets: [],
+        blockTargets: ['~2026-00000-02'],
+      });
+    });
+
+    test('leaves rows whose box is unchecked out of both requests', async () => {
+      const rows = [
+        makeRow('SockA', { lock: false }),
+        makeRow('~2026-00000-01', { lock: false }),
+      ];
+
+      expect(await getGlobalRequests(rows)).toEqual({
+        lockTargets: undefined,
+        blockTargets: undefined,
+      });
+    });
   });
 });
 
@@ -318,7 +421,8 @@ describe('spiHelperPerformActions', () => {
     test('reports how many accounts were blocked, tagged and locked', async () => {
       stubUserActions();
       spyOn(blockModule, 'spiHelperProcessBlockRow').mockResolvedValue(true);
-      spyOn(lockModule, 'spiHelperRequestLocks').mockResolvedValue(['SockA']);
+      spyOn(lockModule, 'spiHelperRequestGlobalActions')
+        .mockResolvedValue({ lockedUsers: ['SockA'], globalBlockedUsers: [] });
 
       const summary = await getSummaryForAccounts([
         makeRow('SockA', {

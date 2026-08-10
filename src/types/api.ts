@@ -129,6 +129,32 @@ export interface GlobalUsersResponse {
   };
 }
 
+export interface GlobalBlocksResponse {
+  query: {
+    globalblocks: {
+      id: string;
+      // Absent on autoblock entries, which never match an explicit bgtargets lookup
+      target?: string;
+      by: string;
+      bywiki: string;
+      timestamp: string;
+      expiry: string;
+      reason: string;
+      anononly: boolean;
+      automatic: boolean;
+      rangestart?: string;
+      rangeend?: string;
+    }[];
+  };
+}
+
+export interface GlobalBlockEntry {
+  target: string;
+  expiry: string;
+  by: string;
+  reason: string;
+}
+
 export interface AllUsersResponse {
   query: {
     allusers: AllUser[];

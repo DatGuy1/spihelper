@@ -254,6 +254,7 @@ export interface BlockActionData {
   options: BlockOptions;
   userBlocks: Map<string, BlockEntry>;
   userLocks: Map<string, boolean>;
+  userGlobalBlocks: Map<string, boolean>;
   userTags: Map<string, Tag[]>;
   master: string;
   lockcomment: string;
@@ -301,4 +302,9 @@ export interface ArchiveSection {
 export interface MasterNeeds {
   confirmed: boolean;
   suspected: boolean;
+}
+
+export interface GlobalRequestResults {
+  lockedUsers: string[];
+  globalBlockedUsers: string[];
 }

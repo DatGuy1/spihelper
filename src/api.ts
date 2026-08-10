@@ -19,6 +19,7 @@ import type {
   ApiStabilizeProtectParams,
   ApiUndeleteParams,
   CentralAuthApiQueryGlobalUsersParams,
+  GlobalBlockingApiQueryGlobalBlocksParams,
 } from 'types-mediawiki-api';
 import type {
   AllPage,
@@ -33,6 +34,8 @@ import type {
   CategoryMembersResponse,
   EditResponse,
   FlaggedResponse,
+  GlobalBlockEntry,
+  GlobalBlocksResponse,
   GlobalUser,
   GlobalUsersResponse,
   InfoResponse,
@@ -261,6 +264,55 @@ export async function spiHelperGetBulkGlobalUsers(
     }
     catch (error) {
       console.error('spiHelperGetBulkGlobalUsers fetch error:', error);
+    }
+  }));
+
+  return resultMap;
+}
+
+/**
+ * Get the active global blocks on a set of targets
+ *
+ * @param {Set<string>} targets Usernames, IPs, or ranges to look up
+ * @return {Promise<Map<string, GlobalBlockEntry>>} The active block on each target, keyed by
+ * target. Targets that aren't globally blocked are absent from the map.
+ */
+export async function spiHelperGetBulkGlobalBlocks(
+  targets: Set<string>,
+): Promise<Map<string, GlobalBlockEntry>> {
+  if (targets.size === 0) {
+    return new Map<string, GlobalBlockEntry>();
+  }
+  const api = spiHelperGetAPI();
+  const resultMap = new Map<string, GlobalBlockEntry>();
+  const chunkSize = await getApiChunkSize();
+
+  await Promise.all(chunkArray([...targets], chunkSize).map(async (chunk) => {
+    const request: GlobalBlockingApiQueryGlobalBlocksParams = {
+      action: 'query',
+      list: 'globalblocks',
+      bgtargets: chunk,
+      bglimit: 'max',
+      bgprop: ['id', 'target', 'by', 'expiry', 'reason'],
+      formatversion: '2',
+    };
+    try {
+      const response = await api.post(request) as GlobalBlocksResponse;
+      for (const globalBlock of response.query.globalblocks) {
+        // Autoblocks hide their target, and can't be matched to a row without one
+        if (!globalBlock.target) {
+          continue;
+        }
+        resultMap.set(globalBlock.target, {
+          target: globalBlock.target,
+          expiry: globalBlock.expiry,
+          by: globalBlock.by,
+          reason: globalBlock.reason,
+        });
+      }
+    }
+    catch (error) {
+      console.error('spiHelperGetBulkGlobalBlocks fetch error:', error);
     }
   }));
 

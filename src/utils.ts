@@ -222,8 +222,9 @@ export function buildUserActionLogMessage(opts: {
   blockedUsers: (string | null)[];
   taggedUsers: (string | null)[];
   lockedUsers: (string | null)[];
+  globalBlockedUsers: (string | null)[];
 }): string {
-  const { blockedUsers, taggedUsers, lockedUsers } = opts;
+  const { blockedUsers, taggedUsers, lockedUsers, globalBlockedUsers } = opts;
   let logMessage = '';
   const filteredBlocked = blockedUsers.filter(Boolean);
   if (filteredBlocked.length > 0) {
@@ -235,6 +236,9 @@ export function buildUserActionLogMessage(opts: {
   }
   if (lockedUsers.length > 0) {
     logMessage += '\n** requested locks for ' + lockedUsers.map(user => `{{noping|1=${user}}}`).join(', ');
+  }
+  if (globalBlockedUsers.length > 0) {
+    logMessage += '\n** requested global blocks for ' + globalBlockedUsers.map(user => `{{noping|1=${user}}}`).join(', ');
   }
   return logMessage;
 }
@@ -374,6 +378,7 @@ export function setupBlockActionData(masterName = ''): BlockActionData {
       lockHideNames: false,
     },
     userLocks: new Map(),
+    userGlobalBlocks: new Map(),
     userBlocks: new Map(),
     userTags: new Map(),
     master: masterName,
