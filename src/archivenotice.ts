@@ -25,6 +25,16 @@ export async function spiHelperParseArchiveNotice(opts: {
     pageText = await spiHelperGetPageText(page, false);
   }
 
+  return spiHelperParseArchiveNoticeText(pageText);
+}
+
+/**
+ * Parse key features from wikitext with an archivenotice
+ *
+ * @param pageText Wikitext to look for an archivenotice in
+ * @return {ParsedArchiveNotice} Parsed archivenotice, or null if there isn't a usable one
+ */
+export function spiHelperParseArchiveNoticeText(pageText: string): ParsedArchiveNotice | null {
   if (pageText === '') {
     // Page doesn't exist
     return null;

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { SectionEntry } from '../../src/state.ts';
 import { type EditPageOpts, buildArchiveText } from './archiveFixtures.ts';
 
@@ -28,8 +28,9 @@ void mock.module('../../src/api.ts', () => ({
   spiHelperUndeletePage: mock(() => Promise.resolve()),
 }));
 
-const { mergeArchives } = await import('../../src/actions/move.ts');
-const { SpiPageContext } = await import('../../src/context.ts');
+const { mergeArchives, spiHelperMoveCase } = await import('../../src/actions/move.ts');
+const { SpiPageContext, setContext } = await import('../../src/context.ts');
+const { ParsedArchiveNotice } = await import('../../src/types/spi.ts');
 
 beforeEach(() => {
   mockGetPageText.mockReset().mockResolvedValue('');
@@ -201,5 +202,97 @@ describe('mergeArchives', () => {
       c => c[0].title === newContext.archiveName,
     )?.[0];
     expect(mainArchiveCall?.newText).toContain('SockA');
+  });
+});
+
+describe('spiHelperMoveCase', () => {
+  const oldPage = 'Wikipedia:Sockpuppet investigations/Foo';
+  const newPage = 'Wikipedia:Sockpuppet investigations/Bar';
+  // The text the old case carries with it to the new title once the move has happened
+  const movedCaseText = '<noinclude>__TOC__</noinclude>\n{{SPI archive notice|1=Foo|deny=yes}}\n{{SPIpriorcases}}';
+
+  let originalConfigGet: (key: string) => unknown;
+  let originalConfirm: typeof globalThis.confirm;
+
+  beforeEach(() => {
+    setContext(oldPage);
+    // The merge branch is admin-only and asks for confirmation before histmerging
+    originalConfigGet = mw.config.get.bind(mw.config);
+    mw.config.get = ((key: string) => (
+      key === 'wgUserGroups' ? ['sysop'] : originalConfigGet(key)
+    )) as typeof mw.config.get;
+    originalConfirm = globalThis.confirm;
+    globalThis.confirm = () => true;
+  });
+
+  afterEach(() => {
+    mw.config.get = originalConfigGet as typeof mw.config.get;
+    globalThis.confirm = originalConfirm;
+  });
+
+  function stubTargetCase(preMergeText: string) {
+    mockGetPageText.mockImplementation((title: string, show: boolean) => {
+      if (title !== newPage) return Promise.resolve('');
+      return Promise.resolve(show ? movedCaseText : preMergeText);
+    });
+  }
+
+  function newCaseText(): string {
+    return mockEditPage.mock.calls.find(c => c[0].title === newPage)?.[0].newText ?? '';
+  }
+
+  test('keeps the archive notice flags of both cases when merging into an existing case', async () => {
+    stubTargetCase('<noinclude>__TOC__</noinclude>\n{{SPI archive notice|1=Bar|notalk=yes}}\n{{SPIpriorcases}}');
+
+    await spiHelperMoveCase({
+      target: 'Bar',
+      suppress: false,
+      addNote: false,
+      archiveNotice: new ParsedArchiveNotice({ username: 'Foo', deny: true }),
+    });
+
+    // deny came from the old case, notalk from the case being merged into
+    expect(newCaseText()).toContain('{{SPI archive notice|1=Bar|deny=yes|notalk=yes}}');
+  });
+
+  test('does not drop a flag that only the case being merged into had set', async () => {
+    stubTargetCase('<noinclude>__TOC__</noinclude>\n{{SPI archive notice|1=Bar|crosswiki=yes|moot=yes}}\n{{SPIpriorcases}}');
+
+    await spiHelperMoveCase({
+      target: 'Bar',
+      suppress: false,
+      addNote: false,
+      archiveNotice: new ParsedArchiveNotice({ username: 'Foo' }),
+    });
+
+    expect(newCaseText()).toContain('{{SPI archive notice|1=Bar|crosswiki=yes|moot=yes}}');
+  });
+
+  test('leaves only a redirecting archive notice behind on the old case', async () => {
+    stubTargetCase('<noinclude>__TOC__</noinclude>\n{{SPI archive notice|1=Bar|notalk=yes}}\n{{SPIpriorcases}}');
+
+    await spiHelperMoveCase({
+      target: 'Bar',
+      suppress: false,
+      addNote: false,
+      archiveNotice: new ParsedArchiveNotice({ username: 'Foo', deny: true }),
+    });
+
+    const oldCaseEdit = mockEditPage.mock.calls.find(c => c[0].title === oldPage)?.[0];
+    expect(oldCaseEdit?.newText).toBe('{{SPI archive notice|1=Bar}}');
+  });
+
+  test('carries the old flags over unchanged when the target case does not exist', async () => {
+    // Case rename without a merge, no preexisting archive notice to merge into
+    stubTargetCase('');
+
+    await spiHelperMoveCase({
+      target: 'Bar',
+      suppress: false,
+      addNote: false,
+      archiveNotice: new ParsedArchiveNotice({ username: 'Foo', deny: true, notalk: true }),
+    });
+
+    expect(newCaseText()).toContain('{{SPI archive notice|1=Bar|deny=yes|notalk=yes}}');
   });
 });

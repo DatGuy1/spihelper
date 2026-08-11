@@ -22,7 +22,7 @@ import {
 import { SpiPageContext, context } from '../context.ts';
 import { spiHelperCanSuppressRedirect, spiHelperIsAdmin } from '../role.ts';
 import { type NewPendingChanges, ParsedArchiveNotice, type Protection, type Restrictions } from '../types';
-import { spiHelperParseArchiveNotice } from '../archivenotice.ts';
+import { spiHelperParseArchiveNotice, spiHelperParseArchiveNoticeText } from '../archivenotice.ts';
 import { type SectionEntry, loadSectionText } from '../state.ts';
 import { VueMessage } from '../ui/messages.ts';
 import {
@@ -501,13 +501,19 @@ async function spiHelperPostRenameCleanup(opts: {
   preMergeText?: string;
 }): Promise<void> {
   const { oldContext, newContext, oldNotice, deleteOld, preMergeText } = opts;
-  const newNotice = new ParsedArchiveNotice({ username: newContext.caseName });
-  const replacementArchiveNotice = newNotice.generateWikitext();
-  // After generating the replacement wikitext, add in the flags
-  newNotice.crosswiki = oldNotice.crosswiki;
-  newNotice.deny = oldNotice.deny;
-  newNotice.notalk = oldNotice.notalk;
-  newNotice.moot = oldNotice.moot;
+  // The old case and any redirects to it are left with only a pointer to the new name
+  const replacementArchiveNotice = new ParsedArchiveNotice({
+    username: newContext.caseName,
+  }).generateWikitext();
+  // The new case gets the union of the flags of the two cases
+  const targetNotice = preMergeText ? spiHelperParseArchiveNoticeText(preMergeText) : null;
+  const newNotice = new ParsedArchiveNotice({
+    username: newContext.caseName,
+    crosswiki: oldNotice.crosswiki || targetNotice?.crosswiki,
+    deny: oldNotice.deny || targetNotice?.deny,
+    notalk: oldNotice.notalk || targetNotice?.notalk,
+    moot: oldNotice.moot || targetNotice?.moot,
+  });
 
   // Update previous SPI redirects to this location
   const pagesChecked = [];
