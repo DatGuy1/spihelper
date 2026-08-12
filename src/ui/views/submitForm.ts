@@ -13,6 +13,30 @@ import { spiHelperCUBlockRegex } from '../../constants';
 import { parseTemplates } from '../../template.ts';
 import { findBlockLeniency, findStatusTemplateMismatch } from './top/utils';
 
+/**
+ * Looks for a claim in the comment. Returns the wording for the warning to quote back
+ */
+type ClaimMatcher = (commentText: string) => string | null;
+
+/** Matches a comment that transcludes any of `names`, reporting it as '{{name}}' */
+function templateMatcher(...names: string[]): ClaimMatcher {
+  return (commentText) => {
+    const templateNames = new Set(parseTemplates(commentText).map(t => t.name));
+    const claimed = names.find(name => templateNames.has(name.toLowerCase()));
+    return claimed ? `{{${claimed}}}` : null;
+  };
+}
+
+/** An action the comment can claim was carried out, and how to tell whether it actually was */
+interface ActionClaim {
+  /** Ways the comment can claim the action happened */
+  matchers: ClaimMatcher[];
+  /** Whether spihelper is actually set to carry the action out */
+  fulfilled: boolean;
+  /** Reads as 'The comment includes <name>, but <missing>.' */
+  missing: string;
+}
+
 interface Data {
   popover: {
     show: boolean;
@@ -113,23 +137,32 @@ export const SubmitFormComponent = defineComponent({
       }
       return mismatch.kind === 'template' ? `{{${mismatch.match}}}` : `the word "${mismatch.match}"`;
     },
-    // The comment claims a block happened ({{bnt}}/{{btc}}/{{bwt}}/{{sblock}}/{{IPblock}})
-    // but no account is actually set to be blocked
-    blockClaimTemplateWithoutBlock(): string | null {
+    // Text in the comment claiming an action that the submission won't actually carry out
+    unfulfilledClaims(): { text: string; missing: string }[] {
       if (!this.caseActions.comment.enabled) {
-        return null;
+        return [];
       }
-      const commentTemplateNames = new Set(
-        parseTemplates(this.caseActions.comment.data.text).map(t => t.name),
-      );
-      const blockClaimTemplates = ['bnt', 'btc', 'bwt', 'sblock', 'ipblock'];
-      const claimedTemplate = blockClaimTemplates.find(name => commentTemplateNames.has(name));
-      if (!claimedTemplate) {
-        return null;
-      }
+      const commentText = this.caseActions.comment.data.text;
       const blockAction = this.caseActions.block;
-      const hasBlock = blockAction.enabled && this.accounts.some(user => user.block.block);
-      return hasBlock ? null : `{{${claimedTemplate}}}`;
+      const claims: ActionClaim[] = [
+        {
+          matchers: [templateMatcher('bnt', 'btc', 'bwt', 'sblock', 'IPblock')],
+          fulfilled: blockAction.enabled && this.accounts.some(user => user.block.block),
+          missing: 'no block is set to be applied',
+        },
+        {
+          matchers: [templateMatcher('GlobalLocksRequested', 'glr')],
+          fulfilled: this.globalRequestTargets.length > 0,
+          missing: 'no lock or global block is set to be requested',
+        },
+      ];
+      return claims.flatMap(({ matchers, fulfilled, missing }) => {
+        if (fulfilled) {
+          return [];
+        }
+        const claimed = matchers.map(match => match(commentText)).find(text => text !== null);
+        return claimed ? [{ text: claimed, missing }] : [];
+      });
     },
     // Blocks we're set to override with settings that are less restrictive
     // than the block the user is already under
@@ -257,8 +290,9 @@ export const SubmitFormComponent = defineComponent({
         <cdx-message v-if="statusTemplateMismatch" type="warning" :inline="true">
           The comment includes {{ statusTemplateMismatch }}, but the case status is set to {{ effectiveStatus }}.
         </cdx-message>
-        <cdx-message v-if="blockClaimTemplateWithoutBlock" type="warning" :inline="true">
-          The comment includes {{ blockClaimTemplateWithoutBlock }}, but no block is set to be applied.
+        <cdx-message v-for="claim in unfulfilledClaims" :key="claim.text"
+                     type="warning" :inline="true">
+          The comment includes {{ claim.text }}, but {{ claim.missing }}.
         </cdx-message>
         <cdx-message v-for="override in lenientOverrides" :key="override.username"
                      type="warning" :inline="true">

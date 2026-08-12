@@ -12,8 +12,16 @@ interface TestCtx {
   accounts: UserRow[];
 }
 
+interface ClaimCtx extends TestCtx {
+  globalRequestTargets: UserRow[];
+}
+
+interface UnfulfilledClaim { text: string; missing: string }
+
 const computed = SubmitFormComponent.computed as unknown as {
   lenientOverrides(this: TestCtx): LenientOverride[];
+  globalRequestTargets(this: TestCtx): UserRow[];
+  unfulfilledClaims(this: ClaimCtx): UnfulfilledClaim[];
 };
 
 beforeEach(() => {
@@ -41,6 +49,102 @@ function makeCtx(opts: {
   caseActions.block.data.userBlocks = opts.userBlocks ?? new Map<string, BlockEntry>();
   return { caseActions, accounts: opts.accounts };
 }
+
+describe('unfulfilledClaims', () => {
+  function makeClaimCtx(opts: {
+    comment: string;
+    accounts?: UserRow[];
+    commentEnabled?: boolean;
+    blockEnabled?: boolean;
+    userLocks?: Map<string, boolean>;
+  }): ClaimCtx {
+    const caseActions = getInitialCaseActions();
+    caseActions.comment.enabled = opts.commentEnabled ?? true;
+    caseActions.comment.data.text = opts.comment;
+    caseActions.block.enabled = opts.blockEnabled ?? true;
+    caseActions.block.data.userLocks = opts.userLocks ?? new Map<string, boolean>();
+    const ctx: TestCtx = { caseActions, accounts: opts.accounts ?? [] };
+    return {
+      ...ctx,
+      get globalRequestTargets() {
+        return computed.globalRequestTargets.call(ctx);
+      },
+    };
+  }
+
+  const claimsFor = (opts: Parameters<typeof makeClaimCtx>[0]) =>
+    computed.unfulfilledClaims.call(makeClaimCtx(opts)).map(claim => claim.text);
+
+  // makeRow is set to be blocked but not locked unless the test says otherwise
+  const lockedRow = makeRow('Sock', { lock: true });
+
+  describe('block claims', () => {
+    test('flags a block claim when nobody is set to be blocked', () => {
+      expect(claimsFor({ comment: '* {{bnt}} – tagged as well', accounts: [] }))
+        .toEqual(['{{bnt}}']);
+    });
+
+    test('reports the template in its documented casing', () => {
+      expect(claimsFor({ comment: '* {{ipblock}}' })).toEqual(['{{IPblock}}']);
+    });
+
+    test('says nothing when a block is set to be applied', () => {
+      expect(claimsFor({ comment: '* {{bnt}}', accounts: [makeRow('Sock')] })).toEqual([]);
+    });
+
+    test('flags a block claim when the block action is disabled', () => {
+      expect(claimsFor({
+        comment: '* {{btc}}',
+        accounts: [makeRow('Sock')],
+        blockEnabled: false,
+      })).toEqual(['{{btc}}']);
+    });
+  });
+
+  describe('lock claims', () => {
+    test('flags a lock claim when nothing is set to be requested', () => {
+      expect(claimsFor({
+        comment: '* {{GlobalLocksRequested}} – filed at SRG',
+        accounts: [makeRow('Sock')],
+      })).toEqual(['{{GlobalLocksRequested}}']);
+    });
+
+    test('flags the {{glr}} redirect too', () => {
+      expect(claimsFor({ comment: '* {{glr}}', accounts: [makeRow('Sock')] }))
+        .toEqual(['{{glr}}']);
+    });
+
+    test('says nothing when a lock is set to be requested', () => {
+      expect(claimsFor({ comment: '* {{GlobalLocksRequested}}', accounts: [lockedRow] }))
+        .toEqual([]);
+    });
+
+    test('flags a lock claim for a user who is already locked', () => {
+      expect(claimsFor({
+        comment: '* {{GlobalLocksRequested}}',
+        accounts: [lockedRow],
+        userLocks: new Map([['Sock', true]]),
+      })).toEqual(['{{GlobalLocksRequested}}']);
+    });
+  });
+
+  test('reports both claims when neither action is set to happen', () => {
+    expect(claimsFor({ comment: '* {{bnt}} and {{glr}}' }))
+      .toEqual(['{{bnt}}', '{{glr}}']);
+  });
+
+  test('says nothing when the comment action is disabled', () => {
+    expect(claimsFor({ comment: '* {{bnt}} and {{glr}}', commentEnabled: false })).toEqual([]);
+  });
+
+  test('carries the reason the claim went unfulfilled', () => {
+    expect(computed.unfulfilledClaims.call(makeClaimCtx({ comment: '* {{glr}}' })))
+      .toEqual([{
+        text: '{{glr}}',
+        missing: 'no lock or global block is set to be requested',
+      }]);
+  });
+});
 
 describe('lenientOverrides', () => {
   const lenientRow = makeRow('Sock', { ntp: false });
