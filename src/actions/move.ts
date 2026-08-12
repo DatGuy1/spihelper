@@ -16,7 +16,6 @@ import {
 } from '../api.ts';
 import {
   spiHelperArchiveNoticeRegex,
-  spiHelperPriorCasesRegex,
   spiHelperSectionRegex,
   spiHelperSockSectionWithNewlineRegex,
 } from '../constants';
@@ -28,6 +27,7 @@ import { type SectionEntry, loadSectionText } from '../state.ts';
 import { VueMessage } from '../ui/messages.ts';
 import {
   addAdminSectionNote,
+  getContentStartIndex,
   isAbsoluteExpiry,
   parseArchiveSections,
   rebuildArchiveText,
@@ -485,6 +485,20 @@ export function addOldMasterToSockList(pageText: string, oldMasterName: string):
 }
 
 /**
+ * Merge the preamble (everything above the first date section)
+ * of a case being merged into the destination case's preamble
+ */
+export function mergePreambles(destPreamble: string, sourcePreamble: string): string {
+  const destLines = new Set(destPreamble.split('\n').map(line => line.trim()));
+  const extras = sourcePreamble
+    .replace(spiHelperArchiveNoticeRegex, '')
+    .split('\n')
+    .filter(line => line.trim() && !destLines.has(line.trim()));
+
+  return extras.length ? extras.join('\n') + '\n' + destPreamble : destPreamble;
+}
+
+/**
  * Insert a note into the clerk/admin comment area of every section of a case page
  */
 export function addNoteToCaseSections(note: string, pageText: string): string {
@@ -600,12 +614,18 @@ async function spiHelperPostRenameCleanup(opts: {
   newPageText = addNoteToCaseSections(preMergeText
     ? `* {{cnmerged}} from [[${oldContext.pageName}]]. ~~~~`
     : `* {{clerknote}} originally filed under [[${oldContext.pageName}]]. ~~~~`, newPageText);
-  // Merge in our old cases
+  // Merge in our old cases. The target's preamble is merged into the moved-in case's
+  // preamble rather than tacked onto the end, so only the filing sections get appended.
   if (preMergeText) {
-    let appendText = preMergeText.replace(/\n*<noinclude>__TOC__.*\n/ig, '');
-    appendText = appendText.replace(spiHelperArchiveNoticeRegex, '');
-    appendText = appendText.replace(spiHelperPriorCasesRegex, '');
-    newPageText = newPageText + '\n' + appendText;
+    const sourceContentStart = getContentStartIndex(preMergeText);
+    const destContentStart = getContentStartIndex(newPageText);
+
+    const mergedPreambles = mergePreambles(
+      newPageText.slice(0, destContentStart), preMergeText.slice(0, sourceContentStart),
+    );
+    const sourceCaseContent = preMergeText.slice(sourceContentStart);
+    const mergedCaseContent = newPageText.slice(destContentStart) + (sourceCaseContent ? '\n' + sourceCaseContent : '');
+    newPageText = mergedPreambles + mergedCaseContent;
   }
   newPageText = newPageText.replace(
     spiHelperArchiveNoticeRegex, () => newNotice.generateWikitext(),

@@ -29,7 +29,7 @@ void mock.module('../../src/api.ts', () => ({
   spiHelperUndeletePage: mock(() => Promise.resolve()),
 }));
 
-const { addNoteToCaseSections, mergeArchives, spiHelperMoveCase } = await import('../../src/actions/move.ts');
+const { addNoteToCaseSections, mergeArchives, mergePreambles, spiHelperMoveCase } = await import('../../src/actions/move.ts');
 const { SpiPageContext, setContext } = await import('../../src/context.ts');
 const { ParsedArchiveNotice } = await import('../../src/types/spi.ts');
 
@@ -405,6 +405,110 @@ describe('spiHelperMoveCase', () => {
 
       expect(newCaseText()).not.toContain('originally filed under');
     });
+  });
+
+  describe('preamble of the case being merged into', () => {
+    test('keeps a protection banner at the top rather than below the sections', async () => {
+      stubTargetCase(
+        '{{pp-sock|small=yes}}\n<noinclude>__TOC__</noinclude>\n{{SPI archive notice|1=Bar}}\n{{SPIpriorcases}}',
+        twoSectionCaseText,
+      );
+
+      await spiHelperMoveCase({
+        target: 'Bar',
+        suppress: false,
+        addNote: false,
+        archiveNotice: new ParsedArchiveNotice({ username: 'Foo' }),
+      });
+
+      expect(newCaseText().startsWith('{{pp-sock|small=yes}}\n')).toBe(true);
+      expect(newCaseText().trimEnd().endsWith('{{pp-sock|small=yes}}')).toBe(false);
+    });
+
+    test('does not duplicate a banner both cases carry', async () => {
+      stubTargetCase(
+        '{{pp-sock|small=yes}}\n<noinclude>__TOC__</noinclude>\n{{SPI archive notice|1=Bar}}\n{{SPIpriorcases}}',
+        `{{pp-sock|small=yes}}\n${movedCaseText}`,
+      );
+
+      await spiHelperMoveCase({
+        target: 'Bar',
+        suppress: false,
+        addNote: false,
+        archiveNotice: new ParsedArchiveNotice({ username: 'Foo' }),
+      });
+
+      expect(newCaseText().split('{{pp-sock|small=yes}}')).toHaveLength(2);
+    });
+
+    test('carries free text over to the top of the merged case', async () => {
+      const note = 'Please only report users whose name starts with Clown.';
+      stubTargetCase(
+        `<noinclude>__TOC__</noinclude>\n{{SPI archive notice|1=Bar}}\n{{SPIpriorcases}}\n${note}`,
+        twoSectionCaseText,
+      );
+
+      await spiHelperMoveCase({
+        target: 'Bar',
+        suppress: false,
+        addNote: false,
+        archiveNotice: new ParsedArchiveNotice({ username: 'Foo' }),
+      });
+
+      expect(newCaseText().indexOf(note)).toBeLessThan(newCaseText().indexOf('===05 May 2024==='));
+    });
+
+    test('appends the sections of the case being merged into after the moved-in ones', async () => {
+      const targetOwnSection = buildSection('01 January 2019', 'SockC');
+      stubTargetCase(
+        `{{pp-sock|small=yes}}\n<noinclude>__TOC__</noinclude>\n{{SPI archive notice|1=Bar}}\n{{SPIpriorcases}}\n\n${targetOwnSection}`,
+        twoSectionCaseText,
+      );
+
+      await spiHelperMoveCase({
+        target: 'Bar',
+        suppress: false,
+        addNote: false,
+        archiveNotice: new ParsedArchiveNotice({ username: 'Foo' }),
+      });
+
+      expect(newCaseText()).toContain('Evidence about SockC.');
+      expect(newCaseText().indexOf('Evidence about SockB.'))
+        .toBeLessThan(newCaseText().indexOf('Evidence about SockC.'));
+      expect(newCaseText().split('{{SPI archive notice')).toHaveLength(2);
+      expect(newCaseText().split('{{SPIpriorcases}}')).toHaveLength(2);
+    });
+  });
+});
+
+describe('mergePreambles', () => {
+  const destPreamble = '<noinclude>__TOC__</noinclude>\n{{SPI archive notice|1=Bar}}\n{{SPIpriorcases}}\n';
+
+  test('prepends what only the merged-in case had', () => {
+    const result = mergePreambles(destPreamble, '{{pp-sock|small=yes}}\n<noinclude>__TOC__</noinclude>\n{{SPI archive notice|1=Foo}}\n{{SPIpriorcases}}');
+
+    expect(result).toBe(`{{pp-sock|small=yes}}\n${destPreamble}`);
+  });
+
+  test('drops the merged-in archive notice so only the regenerated one survives', () => {
+    const result = mergePreambles(destPreamble, '{{SPI archive notice|1=Foo|deny=yes}}');
+
+    expect(result).toBe(destPreamble);
+  });
+
+  test('keeps free text that is not a template', () => {
+    const note = 'Please only report users whose name starts with Clown.';
+
+    expect(mergePreambles(destPreamble, note)).toBe(`${note}\n${destPreamble}`);
+  });
+
+  test('leaves the destination preamble alone when there is nothing new', () => {
+    expect(mergePreambles(destPreamble, destPreamble)).toBe(destPreamble);
+    expect(mergePreambles(destPreamble, '')).toBe(destPreamble);
+  });
+
+  test('ignores indentation differences when deduping', () => {
+    expect(mergePreambles(destPreamble, '  {{SPIpriorcases}}  ')).toBe(destPreamble);
   });
 });
 
