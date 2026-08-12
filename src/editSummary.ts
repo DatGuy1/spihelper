@@ -1,4 +1,4 @@
-import { pluralise } from './utils.ts';
+import { countOf, pluralise } from './utils.ts';
 
 /**
  * What the case page edit did, collected as the actions run and turned into summary
@@ -37,7 +37,15 @@ export function setupEditSummaryFacts(multiSection: boolean): EditSummaryFacts {
   };
 }
 
-/** 'blocking' / 'blocking and tagging' / 'blocking, tagging, and requesting locks for' */
+interface UserAction {
+  /** Reads into a shared '... N accounts' tail when this action merges with others */
+  verb: (count: number) => string;
+  /** Phrasing to prefer when this action ends up in a group of its own */
+  solo?: (count: number) => string;
+  users: string[];
+}
+
+/** 'blocking' / 'blocking and tagging' / 'blocking, tagging, and requesting lock for' */
 function joinVerbs(verbs: string[]): string {
   const last = verbs.at(-1);
   if (!last) {
@@ -50,12 +58,11 @@ function joinVerbs(verbs: string[]): string {
   return `${rest.join(', ')}${rest.length > 1 ? ',' : ''} and ${last}`;
 }
 
-interface UserAction {
-  /** Reads into a shared '... N accounts' tail when this action merges with others */
-  verb: string;
-  users: string[];
-  /** Phrasing to prefer when this action ends up in a group of its own */
-  solo?: (count: number) => string;
+/**
+ * 'account' / '2 accounts'
+ */
+function countIfSeveral(count: number, singular: string): string {
+  return count === 1 ? singular : countOf(count, singular);
 }
 
 /**
@@ -68,37 +75,45 @@ interface UserAction {
  * naming different people.
  */
 function groupByAccounts(facts: EditSummaryFacts): string[] {
+  // The canonical ordering: fixes both the order of the phrases themselves and the
+  // order of the verbs inside a phrase that several actions merged into
   const userActions: UserAction[] = [
-    { verb: 'blocking', users: facts.blockedUsers },
-    { verb: 'tagging', users: facts.taggedUsers },
+    { verb: () => 'blocking', users: facts.blockedUsers },
+    { verb: () => 'tagging', users: facts.taggedUsers },
     {
-      verb: 'requesting locks for',
+      verb: count => `requesting ${pluralise(count, 'lock')} for`,
+      solo: count => `requesting ${countIfSeveral(count, 'lock')}`,
       users: facts.lockedUsers,
-      solo: count => `requesting ${pluralise(count, 'lock')}`,
     },
     {
-      verb: 'requesting global blocks for',
+      verb: count => `requesting ${pluralise(count, 'global block')} for`,
+      solo: count => `requesting ${countIfSeveral(count, 'global block')}`,
       users: facts.globalBlockedUsers,
-      solo: count => `requesting ${pluralise(count, 'global block')}`,
     },
   ];
 
+  // The actions bucketed by the accounts they landed on, in the order declared above
   const groups = new Map<string, UserAction[]>();
   for (const userAction of userActions.filter(({ users }) => users.length > 0)) {
+    // Sorted so the same accounts key the same however each action ordered them
     const key = [...userAction.users].sort().join('|');
     groups.set(key, [...groups.get(key) ?? [], userAction]);
   }
 
-  return [...groups.values()].map((group) => {
+  return [...groups.values()].flatMap((group) => {
     const [firstAction, ...rest] = group;
     if (!firstAction) {
-      return '';
+      return [];
     }
+    // Every member of a group landed on the same accounts
     const count = firstAction.users.length;
+    // No tail to share, so prefer the action's own phrasing: 'requesting 2 locks'
     if (rest.length === 0 && firstAction.solo) {
       return firstAction.solo(count);
     }
-    return `${joinVerbs(group.map(({ verb }) => verb))} ${pluralise(count, 'account')}`;
+    // Every verb in the group, agreeing with the count and sharing one account tail
+    const verbs = joinVerbs(group.map(({ verb }) => verb(count)));
+    return `${verbs} ${countIfSeveral(count, 'account')}`;
   });
 }
 
@@ -112,16 +127,16 @@ export function buildEditSummaryActions(facts: EditSummaryFacts): string[] {
   }
   if (facts.commentedCount > 0) {
     editSummaryActions.push(facts.multiSection
-      ? `commenting on ${pluralise(facts.commentedCount, 'section')}`
+      ? `commenting on ${countOf(facts.commentedCount, 'section')}`
       : 'commenting');
   }
   editSummaryActions.push(...groupByAccounts(facts));
   if (facts.multiSection) {
     if (facts.statusChangedCount > 0) {
-      editSummaryActions.push(`changing status on ${pluralise(facts.statusChangedCount, 'section')}`);
+      editSummaryActions.push(`changing status on ${countOf(facts.statusChangedCount, 'section')}`);
     }
     if (facts.closedCount > 0) {
-      editSummaryActions.push(`closing ${pluralise(facts.closedCount, 'section')}`);
+      editSummaryActions.push(`closing ${countOf(facts.closedCount, 'section')}`);
     }
   }
   else if (facts.status) {

@@ -29,7 +29,7 @@ export const spiHelperCUTemplates: MenuGroupData[] = [
     label: 'Novelties',
     items: [
       { value: '{{8ball}} ', label: 'Magic 8-Ball' },
-      { value: '{{crystalball', label: 'Not a crystal ball' },
+      { value: '{{crystalball}}', label: 'Not a crystal ball' },
       { value: '{{fishing}}', label: 'Not fishing' },
       { value: '{{pixiedust}}', label: 'Not pixie dust' },
     ],

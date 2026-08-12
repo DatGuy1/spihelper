@@ -1,9 +1,9 @@
 import { type CaseState, SectionEntry, loadCaseText, loadSectionText } from '../state.ts';
 import { context } from '../context.ts';
 import {
+  countOf,
   parseArchiveSections,
   parseSectionDate,
-  pluralise,
   rebuildArchiveText,
   spiHelperGetInterwikiPrefix,
   spiHelperGetMaxPostExpandSize,
@@ -121,7 +121,7 @@ export async function spiHelperArchiveCase(
   }
   newArchiveText = rebuildArchiveText(newArchiveText, parsedArchiveSections);
 
-  const summaryPrefix = `Archiving ${pluralise(archivedSections.length, 'section')}`;
+  const summaryPrefix = `Archiving ${countOf(archivedSections.length, 'section')}`;
   const archiveSuccess = await spiHelperEditPage({
     title: context.archiveName,
     newText: newArchiveText,

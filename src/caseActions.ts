@@ -37,10 +37,10 @@ import {
   addAdminSectionNote,
   addSignature,
   buildUserActionLogMessage,
+  countOf,
   isNonRegisteredAccount,
   isSockmasterTag,
   isSockpuppetTag,
-  pluralise,
   spiHelperNormalizeUsername,
 } from './utils.ts';
 import {
@@ -340,7 +340,7 @@ export async function spiHelperPerformActions(opts: {
         // aren't closed are silently left alone, same as the whole-case 'all' archive above
         const archivedSections = await spiHelperArchiveCase(state, state.selectedSection.sections);
         if (archivedSections.length > 0) {
-          logMessage += `\n** Archived ${pluralise(archivedSections.length, 'section')}`;
+          logMessage += `\n** Archived ${countOf(archivedSections.length, 'section')}`;
         }
         break;
       }

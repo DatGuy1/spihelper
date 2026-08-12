@@ -7,11 +7,11 @@ import {
 import { buildContextSummary } from '../context.ts';
 import {
   buildTitleLinkHtml,
+  countOf,
   isNonRegisteredAccount,
   isSockmasterTag,
   isSockpuppetTag,
   parseUserTags,
-  pluralise,
 } from '../utils.ts';
 import { VueMessage } from '../ui/messages.ts';
 
@@ -150,7 +150,7 @@ export async function spiHelperTagUser(opts: {
   const actionVerb = oldTags.length < cleanedTags.length ? 'Adding' : 'Updating';
   // Only state the count when there's more than one tag
   const tagSummary = cleanedTags.length > 1
-    ? pluralise(cleanedTags.length, 'sockpuppetry tag')
+    ? countOf(cleanedTags.length, 'sockpuppetry tag')
     : 'sockpuppetry tag';
   return spiHelperEditPage({
     title: `User:${sock.username}`,

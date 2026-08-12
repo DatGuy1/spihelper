@@ -25,7 +25,7 @@ describe('buildEditSummaryActions', () => {
     })).toEqual([
       'commenting',
       'blocking and tagging 2 accounts',
-      'requesting 1 lock',
+      'requesting lock',
       'closing case',
     ]);
   });
@@ -43,7 +43,7 @@ describe('buildEditSummaryActions', () => {
       // A row can be tagged without being blocked and vice versa, so equal counts are
       // no evidence the same accounts were involved
       expect(buildFor({ blockedUsers: ['SockA'], taggedUsers: ['SockB'] }))
-        .toEqual(['blocking 1 account', 'tagging 1 account']);
+        .toEqual(['blocking account', 'tagging account']);
     });
 
     test('merges the pair that matches and leaves the odd one out alone', () => {
@@ -51,11 +51,35 @@ describe('buildEditSummaryActions', () => {
         blockedUsers: ['SockA', 'SockB'],
         taggedUsers: ['SockA', 'SockB'],
         lockedUsers: ['SockC'],
-      })).toEqual(['blocking and tagging 2 accounts', 'requesting 1 lock']);
+      })).toEqual(['blocking and tagging 2 accounts', 'requesting lock']);
     });
 
     test('says nothing about an action that affected nobody', () => {
-      expect(buildFor({ taggedUsers: ['SockA'] })).toEqual(['tagging 1 account']);
+      expect(buildFor({ taggedUsers: ['SockA'] })).toEqual(['tagging account']);
+    });
+
+    test('drops the count for a lone account, but keeps it once there are several', () => {
+      expect(buildFor({ blockedUsers: ['SockA'], taggedUsers: ['SockA'] }))
+        .toEqual(['blocking and tagging account']);
+      expect(buildFor({ blockedUsers: ['SockA', 'SockB'], taggedUsers: ['SockA', 'SockB'] }))
+        .toEqual(['blocking and tagging 2 accounts']);
+    });
+
+    test('agrees the requested subject with the number of accounts it merged into', () => {
+      expect(buildFor({ blockedUsers: ['SockA'], lockedUsers: ['SockA'] }))
+        .toEqual(['blocking and requesting lock for account']);
+      expect(buildFor({ blockedUsers: ['SockA', 'SockB'], lockedUsers: ['SockA', 'SockB'] }))
+        .toEqual(['blocking and requesting locks for 2 accounts']);
+      expect(buildFor({ blockedUsers: ['SockA'], globalBlockedUsers: ['SockA'] }))
+        .toEqual(['blocking and requesting global block for account']);
+    });
+
+    test('drops the count from a lone request as well', () => {
+      expect(buildFor({ lockedUsers: ['SockA'] })).toEqual(['requesting lock']);
+      expect(buildFor({ globalBlockedUsers: ['1.2.3.4'] })).toEqual(['requesting global block']);
+      // A block and a lock on different accounts stay apart, and neither counts
+      expect(buildFor({ blockedUsers: ['SockA'], lockedUsers: ['SockB'] }))
+        .toEqual(['blocking account', 'requesting lock']);
     });
 
     test('counts locks rather than accounts when the lock request stands alone', () => {

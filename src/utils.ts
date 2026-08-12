@@ -235,11 +235,19 @@ export function buildURLLinkHtml(url: string, text: string, title?: string): str
 }
 
 /**
- * Formats a count with its noun, e.g. pluralise(1, 'account') -> '1 account',
- * pluralise(3, 'account') -> '3 accounts'
+ * The form of a noun that agrees with a count.
+ * pluralise(1, 'account') -> 'account', pluralise(3, 'account') -> 'accounts'
  */
 export function pluralise(count: number, singular: string, plural = `${singular}s`): string {
-  return `${count} ${count === 1 ? singular : plural}`;
+  return count === 1 ? singular : plural;
+}
+
+/**
+ * A count together with the noun it counts.
+ * countOf(1, 'account') -> '1 account', countOf(3, 'account') -> '3 accounts'
+ */
+export function countOf(count: number, singular: string, plural?: string): string {
+  return `${count} ${pluralise(count, singular, plural)}`;
 }
 
 export function buildUserActionLogMessage(opts: {
