@@ -121,11 +121,13 @@ describe('spiHelperGetBulkGlobalUsers', () => {
   });
 
   test('returns an empty map rather than throwing when the request fails', async () => {
+    const spy = spyOn(console, 'error').mockImplementation(() => { /* suppress expected error log */ });
     post.mockRejectedValue(new Error('network'));
 
     const result = await spiHelperGetBulkGlobalUsers(new Set(['Someone']));
 
     expect(result.size).toBe(0);
+    expect(spy).toHaveBeenCalled();
   });
 });
 
@@ -234,10 +236,12 @@ describe('spiHelperGetBulkGlobalBlocks', () => {
   });
 
   test('returns an empty map rather than throwing when the request fails', async () => {
+    const spy = spyOn(console, 'error').mockImplementation(() => { /* suppress expected error log */ });
     post.mockRejectedValue(new Error('network'));
 
     const result = await spiHelperGetBulkGlobalBlocks(new Set(['~2026-00000-01']));
 
     expect(result.size).toBe(0);
+    expect(spy).toHaveBeenCalled();
   });
 });

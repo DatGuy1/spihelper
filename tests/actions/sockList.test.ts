@@ -120,5 +120,23 @@ describe('addOldMasterToSockList', () => {
         );
       });
     });
+
+    describe('a note already holds a nested template', () => {
+      test('inserts a new entry after the whole list, not inside the note', () => {
+        const page = `${section}{{sock list|1=SockA|2=Prior|note2=${NOTE}|tools_link=yes}}`;
+        const result = addOldMasterToSockList(page, 'OldMaster');
+        expect(result).toBe(
+          `${section}{{sock list|1=SockA|2=Prior|note2=${NOTE}|3=OldMaster|note3=${NOTE}|tools_link=yes}}`,
+        );
+      });
+
+      test('adds a note to an existing entry listed after the nested template', () => {
+        const page = `${section}{{sock list|1=SockA|note1=${NOTE}|2=OldMaster|tools_link=yes}}`;
+        const result = addOldMasterToSockList(page, 'OldMaster');
+        expect(result).toBe(
+          `${section}{{sock list|1=SockA|note1=${NOTE}|2=OldMaster|note2=${NOTE}|tools_link=yes}}`,
+        );
+      });
+    });
   });
 });

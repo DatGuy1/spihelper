@@ -29,7 +29,13 @@ void mock.module('../../src/api.ts', () => ({
   spiHelperUndeletePage: mock(() => Promise.resolve()),
 }));
 
-const { addNoteToCaseSections, mergeArchives, mergePreambles, spiHelperMoveCase } = await import('../../src/actions/move.ts');
+const {
+  addNoteToCaseSections,
+  mergeArchives,
+  mergePreambles,
+  removeNewMasterFromCases,
+  spiHelperMoveCase,
+} = await import('../../src/actions/move.ts');
 const { SpiPageContext, setContext } = await import('../../src/context.ts');
 const { ParsedArchiveNotice } = await import('../../src/types/spi.ts');
 
@@ -478,6 +484,99 @@ describe('spiHelperMoveCase', () => {
       expect(newCaseText().split('{{SPI archive notice')).toHaveLength(2);
       expect(newCaseText().split('{{SPIpriorcases}}')).toHaveLength(2);
     });
+  });
+});
+
+describe('removeNewMasterFromCases', () => {
+  function buildSockSection(entries: string) {
+    return [
+      '====Suspected sockpuppets====',
+      entries,
+      '',
+      '====<big>Comments by other users</big>====',
+      '====<big>Clerk, CheckUser, and/or patrolling admin comments</big>====',
+      '* {{checkuser|1=Bar}} is the master here, per the rename. ~~~~',
+      '----<!-- All comments go ABOVE this line, please. -->',
+    ].join('\n');
+  }
+
+  test('hides the master from a sock list', () => {
+    const result = removeNewMasterFromCases(
+      buildSockSection('{{sock list|1=Alpha|2=Bar|3=Gamma|tools_link=yes}}'), 'Bar',
+    );
+
+    expect(result).toContain('{{sock list|1=Alpha|2=Bar|3=Gamma|tools_link=yes|remove_master=yes}}');
+  });
+
+  test('leaves a sock list that does not name the master alone', () => {
+    const sockList = '{{sock list|1=Alpha|2=Gamma|tools_link=yes}}';
+
+    expect(removeNewMasterFromCases(buildSockSection(sockList), 'Bar')).toContain(sockList);
+  });
+
+  test('does not flag a list twice when moved a second time', () => {
+    const page = buildSockSection('{{sock list|1=Alpha|2=Bar|remove_master=yes}}');
+
+    expect(removeNewMasterFromCases(page, 'Bar')).toBe(page);
+  });
+
+  test('leaves the list alone when an explicit master names somebody else', () => {
+    // remove_master would take Alpha out of the list rather than Bar
+    const sockList = '{{sock list|1=Alpha|2=Bar|master=Alpha}}';
+
+    expect(removeNewMasterFromCases(buildSockSection(sockList), 'Bar')).toContain(sockList);
+  });
+
+  test('prevents a nested template from corrupting the list', () => {
+    const sockList = '{{sock list|1=Alpha|2=Bar|note2=({{clerknote}} original case name)|tools_link=yes}}';
+    const result = removeNewMasterFromCases(buildSockSection(sockList), 'Bar');
+
+    expect(result).toContain('|note2=({{clerknote}} original case name)|tools_link=yes|remove_master=yes}}');
+  });
+
+  test('drops the master from the bullet form', () => {
+    const result = removeNewMasterFromCases(
+      buildSockSection('* {{checkuser|1=Alpha}}\n* {{checkuser|1=Bar}}\n* {{checkuser|1=Gamma}}'),
+      'Bar',
+    );
+
+    expect(result).toContain('* {{checkuser|1=Alpha}}\n* {{checkuser|1=Gamma}}');
+    expect(result).not.toContain('{{checkuser|1=Bar}}\n* {{checkuser|1=Gamma}}');
+  });
+
+  test('drops the positional and master name bullet forms too', () => {
+    const result = removeNewMasterFromCases(
+      buildSockSection('* {{checkuser|Bar|master name=Foo}}\n* {{checkuser|Alpha}}'), 'Bar',
+    );
+
+    expect(result).toContain('* {{checkuser|Alpha}}');
+    expect(result).not.toContain('master name=Foo');
+  });
+
+  test('leaves a checkuser naming the master in the clerk section alone', () => {
+    const result = removeNewMasterFromCases(
+      buildSockSection('* {{checkuser|1=Alpha}}'), 'Bar',
+    );
+
+    expect(result).toContain('* {{checkuser|1=Bar}} is the master here, per the rename.');
+  });
+
+  test('handles a case name that would otherwise be a regex metacharacter', () => {
+    const page = buildSockSection('{{sock list|1=Alpha|2=Money$$Man (+)|3=Gamma}}');
+    const result = removeNewMasterFromCases(page, 'Money$$Man (+)');
+
+    expect(result).toContain('{{sock list|1=Alpha|2=Money$$Man (+)|3=Gamma|remove_master=yes}}');
+  });
+
+  test('covers every section of a merged case', () => {
+    const page = [
+      buildSockSection('{{sock list|1=Alpha|2=Bar}}'),
+      buildSockSection('* {{checkuser|1=Bar}}\n* {{checkuser|1=Gamma}}'),
+    ].join('\n\n');
+    const result = removeNewMasterFromCases(page, 'Bar');
+
+    expect(result).toContain('{{sock list|1=Alpha|2=Bar|remove_master=yes}}');
+    expect(result).not.toContain('* {{checkuser|1=Bar}}\n* {{checkuser|1=Gamma}}');
   });
 });
 

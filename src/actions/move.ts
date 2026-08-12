@@ -33,7 +33,7 @@ import {
   rebuildArchiveText,
   spiHelperGetMaxPostExpandSize,
 } from '../utils.ts';
-import { parseTemplate } from '../template.ts';
+import { findTemplateSpans, parseTemplate, parseTemplates } from '../template.ts';
 import { findArchiveSplitPoint, findFirstEmptySubArchive } from './archive.ts';
 
 async function getNewProtection(
@@ -394,13 +394,14 @@ export async function spiHelperMoveCaseSection(mergeTarget: string, section: Sec
  * the note is added.  Falls back to a {{checkuser}} bullet when no sock list is present.
  */
 export function addOldMasterToSockList(pageText: string, oldMasterName: string): string {
-  const sockListMatch = /\{\{sock\s+list[\s\S]*?\}\}/i.exec(pageText)?.[0];
-  if (!sockListMatch) {
+  const sockListSpan = findTemplateSpans('sock list', pageText)[0];
+  if (!sockListSpan) {
     return pageText.replace(
       spiHelperSockSectionWithNewlineRegex,
       () => '====Suspected sockpuppets====\n* {{checkuser|1=' + oldMasterName + '}} ({{clerknote}} original case name)\n',
     );
   }
+  const sockListMatch = sockListSpan.text;
 
   const sockListTemplate = parseTemplate(sockListMatch.slice(2, -2));
   const isMultiLine = sockListMatch.includes('\n');
@@ -481,7 +482,7 @@ export function addOldMasterToSockList(pageText: string, oldMasterName: string):
     newSockList = sockListMatch.slice(0, insertPos) + newEntry + sockListMatch.slice(insertPos);
   }
 
-  return pageText.replace(sockListMatch, () => newSockList);
+  return pageText.slice(0, sockListSpan.start) + newSockList + pageText.slice(sockListSpan.end);
 }
 
 /**
@@ -496,6 +497,69 @@ export function mergePreambles(destPreamble: string, sourcePreamble: string): st
     .filter(line => line.trim() && !destLines.has(line.trim()));
 
   return extras.length ? extras.join('\n') + '\n' + destPreamble : destPreamble;
+}
+
+/**
+ * Hide the new master's {{sock list}} entry via the remove_master parameter
+ */
+function removeMasterFromSL(sockList: string, normalisedMaster: string): string {
+  const template = parseTemplate(sockList.slice(2, -2));
+  if ('remove_master' in template.params) {
+    return sockList;
+  }
+  // An explicit |master= naming somebody else would take the wrong entry out of the list
+  if ('master' in template.params
+    && String(template.params.master).toLowerCase() !== normalisedMaster) {
+    return sockList;
+  }
+  const isListed = template.positional.some(sock => sock.toLowerCase() === normalisedMaster)
+    || Object.entries(template.params).some(([key, value]) => (
+      /^\d+$/.test(key) && value.toString().toLowerCase() === normalisedMaster
+    ));
+  if (!isListed) {
+    return sockList;
+  }
+
+  const closingPos = sockList.lastIndexOf('}}');
+  const insertPos = closingPos - (sockList[closingPos - 1] === '\n' ? 1 : 0);
+  return sockList.slice(0, insertPos) + '|remove_master=yes' + sockList.slice(insertPos);
+}
+
+/**
+ * Take the new master out of the suspected sockpuppet lists:
+ * they're the master of the case, not a sock of themselves
+ */
+export function removeNewMasterFromCases(pageText: string, newMasterName: string): string {
+  const normalisedMaster = newMasterName.toLowerCase();
+
+  // Hide from {{sock list}}
+  let newText = '';
+  let cursor = 0;
+  for (const span of findTemplateSpans('sock list', pageText)) {
+    newText += pageText.slice(cursor, span.start) + removeMasterFromSL(span.text, normalisedMaster);
+    cursor = span.end;
+  }
+  newText += pageText.slice(cursor);
+
+  // Remove * {{checkuser|Master}} lines
+  // Scoped to the suspected sockpuppets area of each section so that a {{checkuser}} in
+  // the clerk/admin comments naming the master is left alone
+  const sockSectionRegex = new RegExp(
+    spiHelperSockSectionWithNewlineRegex.source + '[\\s\\S]*?(?=\\n====|$)', 'gi',
+  );
+  return newText.replace(sockSectionRegex, sockSection => (
+    sockSection.split('\n').filter((line) => {
+      if (!line.trim().startsWith('*')) {
+        return true;
+      }
+      const template = parseTemplates(line)[0];
+      if (template?.name !== 'checkuser') {
+        return true;
+      }
+      const sockName = template.positional[0] ?? template.params['1'];
+      return String(sockName ?? '').toLowerCase() !== normalisedMaster;
+    }).join('\n')
+  ));
 }
 
 /**
@@ -631,13 +695,7 @@ async function spiHelperPostRenameCleanup(opts: {
     spiHelperArchiveNoticeRegex, () => newNotice.generateWikitext(),
   );
   // Also remove the new master if they're in the sock list
-  // This RE is kind of ugly. The idea is that we find everything from the level 4 heading
-  // ending with "sockpuppets" to the level 4 heading beginning with <big> and pull the checkuser
-  // template matching the current case name out. This keeps us from accidentally replacing a
-  // checkuser entry in the admin section
-  const newMasterReString = '(sockpuppets\\s*====.*?)\\n^\\s*\\*\\s*{{checkuser\\|(?:1=)?' + newContext.caseName + '(?:\\|master name\\s*=.*?)?}}\\s*$(.*====\\s*<big>)';
-  const newMasterRe = new RegExp(newMasterReString, 'sm');
-  newPageText = newPageText.replace(newMasterRe, '$1\n$2');
+  newPageText = removeNewMasterFromCases(newPageText, newContext.caseName);
 
   await newContext.edit({
     newText: newPageText,

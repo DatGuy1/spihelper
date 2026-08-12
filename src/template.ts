@@ -4,6 +4,49 @@ interface Template {
   positional: string[];
 }
 
+export interface TemplateSpan {
+  text: string;
+  start: number;
+  end: number;
+}
+
+/**
+ * Find the full wikitext span of every transclusion of `templateName` in `text`.
+ * Counts braces to prevent nesting issues.
+ *
+ * @param templateName Template name without braces, e.g. 'sock list'
+ * @param text Text to search in
+ */
+export function findTemplateSpans(templateName: string, text: string): TemplateSpan[] {
+  const namePattern = templateName
+    .trim()
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/[\s_]+/g, '[\\s_]+');
+  const spans: TemplateSpan[] = [];
+  for (const match of text.matchAll(new RegExp(`\\{\\{\\s*${namePattern}\\s*(?=[|}])`, 'gi'))) {
+    // A nested match inside a span already found is part of that template, not its own
+    if (spans.some(span => match.index < span.end)) {
+      continue;
+    }
+    let depth = 0;
+    for (let i = match.index; i < text.length - 1; i++) {
+      if (text.startsWith('{{', i)) {
+        depth++;
+        i++;
+      }
+      else if (text.startsWith('}}', i)) {
+        depth--;
+        i++;
+        if (depth === 0) {
+          spans.push({ text: text.slice(match.index, i + 1), start: match.index, end: i + 1 });
+          break;
+        }
+      }
+    }
+  }
+  return spans;
+}
+
 export function parseTemplates(wikitext: string): Template[] {
   const templates: Template[] = [];
   // Rudimentary matching
