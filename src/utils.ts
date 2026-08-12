@@ -299,8 +299,9 @@ export function rebuildArchiveText(originalText: string, sections: ArchiveSectio
   // Sort sections by header date
   sections.sort((a, b) => a.header.getTime() - b.header.getTime());
   // Build new text
-  const headerText = originalText.slice(0, getContentStartIndex(originalText));
-  return headerText + '\n' + sections.map(section => section.fullText).join('\n\n');
+  const headerText = originalText.slice(0, getContentStartIndex(originalText)).trimEnd();
+  const body = sections.map(section => section.fullText).join('\n\n');
+  return headerText ? `${headerText}\n\n${body}` : body;
 }
 
 export function getContentStartIndex(archiveText: string) {

@@ -96,7 +96,10 @@ export async function spiHelperArchiveCase(
       .replace(sectionText + '\n', '')
       .replace(sectionText, '');
 
-    const cleanSectionText = sectionText.slice(sectionText.search(spiHelperSectionRegex)).replace(spiHelperCaseStatusRegex, '');
+    const cleanSectionText = sectionText
+      .slice(sectionText.search(spiHelperSectionRegex))
+      .replace(spiHelperCaseStatusRegex, '')
+      .trim();
     if (newArchiveText.includes(cleanSectionText)) {
       new VueMessage({ type: 'warning', content: `Section ${section.name} already exists in the archive` }).show();
       continue;
@@ -150,7 +153,7 @@ export async function spiHelperArchiveCase(
  */
 export async function spiHelperArchiveCaseSection(section: SectionEntry): Promise<void> {
   let sectionText = await loadSectionText(section);
-  sectionText = sectionText.replace(spiHelperCaseStatusRegex, '');
+  sectionText = sectionText.replace(spiHelperCaseStatusRegex, '').trim();
   let archiveText = await spiHelperGetPageText(context.archiveName, true);
 
   const message = new VueMessage({ type: 'error', content: '' });
