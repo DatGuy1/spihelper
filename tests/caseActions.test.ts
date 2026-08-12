@@ -18,25 +18,16 @@ import {
   SockpuppetTag,
   type UserRow,
 } from '../src/types';
+import { makeUserRow } from './fixtures/spi.ts';
 
 const contextModule = await import('../src/context.ts');
 contextModule.setContext('Wikipedia:Sockpuppet investigations/Foo');
 const { context } = contextModule;
 
-function makeRow(username: string, block: Partial<BlockRowData> = {}): UserRow {
-  return {
-    id: username,
-    username,
-    link: {
-      analyser: false, timeline: false, timecard: false, pages: false,
-      summary: false, cuwiki: false, interleaved: false,
-    },
-    block: {
-      block: true, duration: '1 week', acb: false, abao: false, ntp: false, nem: false,
-      lock: false, tags: [], ...block,
-    },
-  };
-}
+// The pipeline tests start from a row that is already set to be blocked
+const makeRow = (username: string, block: Partial<BlockRowData> = {}): UserRow => (
+  makeUserRow(username, { block: true, duration: '1 week', ...block })
+);
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

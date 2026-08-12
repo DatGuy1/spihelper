@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { ArchiveSection } from '../../src/types';
 import { SectionEntry } from '../../src/state.ts';
-import { type EditPageOpts, buildArchiveText } from './archiveFixtures.ts';
+import { buildArchiveText } from '../fixtures/archive.ts';
+import { type EditPageOpts } from '../fixtures/api.ts';
 
 // Mock api.ts before importing archive.ts so the module under test picks up the stubs.
 const mockGetPostExpandSize = mock((_title: string) => Promise.resolve(0));

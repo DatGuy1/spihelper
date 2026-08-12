@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import type { BlockOptions, UserRow } from '../../src/types';
 import { SockpuppetTag } from '../../src/types';
-import { type EditPageOpts } from './archiveFixtures.ts';
+import { type EditPageOpts } from '../fixtures/api.ts';
+import { makeUserRow as makeBaseUserRow } from '../fixtures/spi.ts';
 
 interface BlockUserOpts {
   user: string; duration: string; reason: string; reblock: boolean;
@@ -29,7 +30,6 @@ const { spiHelperSettings } = await import('../../src/options');
 
 beforeEach(() => {
   contextModule.setContext('Wikipedia:Sockpuppet investigations/Foo');
-  spyOn(mw.util, 'isInfinity').mockReturnValue(false);
   mockBlockUser.mockReset().mockResolvedValue(true);
   mockEditPage.mockReset().mockResolvedValue(null);
 });
@@ -50,32 +50,10 @@ const defaultBlockOptions: BlockOptions = {
   lockHideNames: false,
 };
 
-function makeSock(overrides: Partial<UserRow['block']> = {}, username = 'Vandal'): UserRow {
-  return {
-    id: username,
-    username,
-    link: {
-      analyser: false,
-      timeline: false,
-      timecard: false,
-      pages: false,
-      summary: false,
-      cuwiki: false,
-      interleaved: false,
-    },
-    block: {
-      block: false,
-      duration: 'indefinite',
-      acb: false,
-      abao: false,
-      ntp: false,
-      nem: false,
-      lock: false,
-      tags: [],
-      ...overrides,
-    },
-  };
-}
+// Blocks here default to indefinite, the duration most of these cases exercise
+const makeSock = (
+  overrides: Partial<UserRow['block']> = {}, username = 'Vandal',
+): UserRow => makeBaseUserRow(username, { duration: 'indefinite', ...overrides });
 
 describe('buildTalkNotice', () => {
   test('sock notice uses the sockpuppet header', () => {
@@ -145,7 +123,6 @@ describe('buildTalkNotice', () => {
   });
 
   test('indefinite blocks use indef=yes instead of a time parameter', () => {
-    spyOn(mw.util, 'isInfinity').mockReturnValue(true);
     const text = buildTalkNotice({
       sock: makeSock({ duration: 'indefinite' }),
       noticeType: 'sock',
@@ -335,7 +312,6 @@ describe('spiHelperProcessBlockRow', () => {
   });
 
   test('passes reblock=true when override is set', async () => {
-    spyOn(mw.util, 'isIPAddress').mockReturnValue(false);
     const sock = makeUserRow('Vandal', { duration: '1 week' });
 
     await spiHelperProcessBlockRow({
@@ -346,7 +322,6 @@ describe('spiHelperProcessBlockRow', () => {
   });
 
   test('passes through the watch settings and the result of the block call', async () => {
-    spyOn(mw.util, 'isIPAddress').mockReturnValue(false);
     mockBlockUser.mockResolvedValue(false);
     const sock = makeUserRow('Vandal', { duration: '1 week' });
 

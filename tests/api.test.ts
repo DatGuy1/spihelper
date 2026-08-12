@@ -5,6 +5,7 @@ import {
   spiHelperGetBulkGlobalUsers,
 } from '../src/api.ts';
 import type { GlobalBlocksResponse, GlobalUsersResponse } from '../src/types';
+import { silenceConsoleError } from './fixtures/console.ts';
 
 describe('chunkArray', () => {
   test('splits into equal chunks', () => {
@@ -121,7 +122,7 @@ describe('spiHelperGetBulkGlobalUsers', () => {
   });
 
   test('returns an empty map rather than throwing when the request fails', async () => {
-    const spy = spyOn(console, 'error').mockImplementation(() => { /* suppress expected error log */ });
+    const spy = silenceConsoleError();
     post.mockRejectedValue(new Error('network'));
 
     const result = await spiHelperGetBulkGlobalUsers(new Set(['Someone']));
@@ -236,7 +237,7 @@ describe('spiHelperGetBulkGlobalBlocks', () => {
   });
 
   test('returns an empty map rather than throwing when the request fails', async () => {
-    const spy = spyOn(console, 'error').mockImplementation(() => { /* suppress expected error log */ });
+    const spy = silenceConsoleError();
     post.mockRejectedValue(new Error('network'));
 
     const result = await spiHelperGetBulkGlobalBlocks(new Set(['~2026-00000-01']));

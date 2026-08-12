@@ -31,7 +31,9 @@ import { reactive } from 'vue';
     isIPAddress: () => false,
     isIPv6Address: () => false,
     isTemporaryUser: (name?: string | null) => !!name?.startsWith('~'),
-    isInfinity: () => false,
+    isInfinity: (value?: string | null) => (
+      ['indefinite', 'infinite', 'infinity', 'never'].includes(value ?? '')
+    ),
     getUrl: (title: string) => `/wiki/${encodeURIComponent(title)}`,
   },
   Api: class Api {

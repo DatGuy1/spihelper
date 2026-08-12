@@ -1,11 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { SockmasterTag, SockpuppetTag } from '../../src/types';
-
-function makeSockTag(
-  overrides: Partial<ConstructorParameters<typeof SockpuppetTag>[0]> = {},
-): SockpuppetTag {
-  return new SockpuppetTag({ master: 'Foo', status: 'blocked', ...overrides });
-}
+import { SockmasterTag } from '../../src/types';
+import { makeSockTag } from '../fixtures/spi.ts';
 
 describe('SockpuppetTag', () => {
   describe('altmasterStatus', () => {

@@ -1,6 +1,8 @@
-import { describe, expect, spyOn, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import { SockmasterTag, SockpuppetTag, type Tag } from '../../../src/types';
 import { TagPopoverComponent } from '../../../src/ui/views';
+import { silenceConsoleError } from '../../fixtures/console.ts';
+import { makeSockTag } from '../../fixtures/spi.ts';
 
 interface TestCtx {
   temporaryTag: Tag | null;
@@ -52,12 +54,6 @@ function makeCtx(overrides: Partial<Pick<TestCtx, 'temporaryTag' | 'clipboardTag
   };
 }
 
-function makeSockTag(
-  overrides: Partial<ConstructorParameters<typeof SockpuppetTag>[0]> = {},
-): SockpuppetTag {
-  return new SockpuppetTag({ master: 'Foo', status: 'blocked', ...overrides });
-}
-
 describe('setTag', () => {
   test('clones a given tag rather than aliasing it', () => {
     const ctx = makeCtx();
@@ -97,7 +93,7 @@ describe('handleSave', () => {
 
   test('does nothing when there is no temporary tag to save', () => {
     const ctx = makeCtx({ temporaryTag: null, open: true });
-    const spy = spyOn(console, 'error').mockImplementation(() => { /* suppress expected error log */ });
+    const spy = silenceConsoleError();
     methods.handleSave.call(ctx);
     expect(ctx.emitted).toEqual([]);
     expect(spy).toHaveBeenCalledWith('No tag to save');

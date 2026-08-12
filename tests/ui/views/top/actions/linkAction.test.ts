@@ -3,6 +3,7 @@ import type { LinkRowData, UserRow } from '../../../../../src/types';
 import { LinkActionComponent } from '../../../../../src/ui/views/top';
 import type { ColumnId, LinkRecord } from '../../../../../src/ui/views/top/actions/linkAction.ts';
 import type { LinkFormat } from '../../../../../src/constants';
+import { makeUserRow } from '../../../../fixtures/spi.ts';
 
 interface LinkTestCtx {
   accounts: UserRow[];
@@ -19,32 +20,10 @@ const rawComputed = LinkActionComponent.computed as unknown as {
   linkItems(this: LinkTestCtx): Partial<LinkRecord>;
 };
 
-function makeRow(username: string, link: Partial<LinkRowData> = {}): UserRow {
-  return {
-    id: username,
-    username,
-    link: {
-      analyser: false,
-      timeline: false,
-      timecard: false,
-      pages: false,
-      summary: false,
-      cuwiki: false,
-      interleaved: false,
-      ...link,
-    },
-    block: {
-      block: false,
-      duration: '',
-      acb: false,
-      abao: false,
-      ntp: false,
-      nem: false,
-      lock: false,
-      tags: [],
-    },
-  };
-}
+// Only the link columns matter here, so the block half stays at the fixture's defaults
+const makeRow = (username: string, link: Partial<LinkRowData> = {}): UserRow => (
+  makeUserRow(username, {}, link)
+);
 
 function makeCtx({
   accounts = [] as UserRow[],

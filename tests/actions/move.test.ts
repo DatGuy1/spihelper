@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { SectionEntry } from '../../src/state.ts';
-import { type EditPageOpts, buildArchiveText } from './archiveFixtures.ts';
+import { buildArchiveText } from '../fixtures/archive.ts';
+import { type EditPageOpts } from '../fixtures/api.ts';
 
 // Mock api.ts before importing move.ts so both move.ts and the archive.ts it imports from
 // (module identity is shared) pick up the stubs.

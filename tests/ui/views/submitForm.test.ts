@@ -1,8 +1,9 @@
-import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'bun:test';
 import type { BlockEntry, BlockRowData, CaseActions, UserRow } from '../../../src/types';
 import { SubmitFormComponent } from '../../../src/ui/views';
 import { getInitialCaseActions } from '../../../src/ui/views/top/utils';
 import { setContext } from '../../../src/context.ts';
+import { makeBlockEntry, makeUserRow } from '../../fixtures/spi.ts';
 
 interface LenientOverride { username: string; reasons: string[] }
 
@@ -17,54 +18,14 @@ const computed = SubmitFormComponent.computed as unknown as {
 
 beforeEach(() => {
   setContext('Wikipedia:Sockpuppet investigations/Foo');
-  spyOn(mw.util, 'isInfinity').mockImplementation(value =>
-    ['infinite', 'indefinite', 'infinity', 'never'].includes(value ?? ''),
-  );
 });
 
-afterEach(() => {
-  mock.restore();
-});
-
-function makeRow(username: string, block: Partial<BlockRowData> = {}): UserRow {
-  return {
-    id: username,
-    username,
-    link: {
-      analyser: false,
-      timeline: false,
-      timecard: false,
-      pages: false,
-      summary: false,
-      cuwiki: false,
-      interleaved: false,
-    },
-    block: {
-      block: true,
-      duration: 'infinity',
-      acb: true,
-      abao: true,
-      ntp: true,
-      nem: true,
-      tags: [],
-      lock: false,
-      ...block,
-    },
-  };
-}
-
-function makeBlockEntry(username: string, overrides: Partial<BlockEntry> = {}): BlockEntry {
-  return {
-    username,
-    duration: 'infinity',
-    acb: true,
-    abao: true,
-    ntp: true,
-    nem: true,
-    reason: 'Abusing multiple accounts',
-    ...overrides,
-  };
-}
+// Rows here default to a full indef block, the settings
+// a lenient existing block is compared against
+const makeRow = (username: string, block: Partial<BlockRowData> = {}): UserRow => makeUserRow(
+  username,
+  { block: true, duration: 'infinity', acb: true, abao: true, ntp: true, nem: true, ...block },
+);
 
 function makeCtx(opts: {
   accounts: UserRow[];

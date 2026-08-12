@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { type EditPageOpts } from './archiveFixtures.ts';
+import { type EditPageOpts } from '../fixtures/api.ts';
 
 const mockGetPageText = mock((_title: string, _cache: boolean) => Promise.resolve(''));
 const mockEditPage = mock((_opts: EditPageOpts) => Promise.resolve<number | null>(1234));

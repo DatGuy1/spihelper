@@ -1,13 +1,7 @@
-import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
+import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import type { BlockEntry, BlockRowData } from '../../../../../src/types';
 import { expiryToTimestamp, findBlockLeniency } from '../../../../../src/ui/views/top/utils';
-
-const NO_EXPIRY = ['infinite', 'indefinite', 'infinity', 'never'];
-
-beforeEach(() => {
-  spyOn(mw.util, 'isInfinity').mockImplementation(value => NO_EXPIRY.includes(value ?? ''));
-  spyOn(mw.util, 'isIPAddress').mockReturnValue(false);
-});
+import { makeBlockEntry } from '../../../../fixtures/spi.ts';
 
 afterEach(() => {
   mock.restore();
@@ -15,18 +9,9 @@ afterEach(() => {
 
 const now = new Date('2026-01-01T00:00:00Z');
 
-function makeExisting(overrides: Partial<BlockEntry> = {}): BlockEntry {
-  return {
-    username: 'Sock',
-    duration: 'infinity',
-    acb: true,
-    abao: true,
-    ntp: true,
-    nem: true,
-    reason: 'Abusing multiple accounts',
-    ...overrides,
-  };
-}
+const makeExisting = (overrides: Partial<BlockEntry> = {}): BlockEntry => (
+  makeBlockEntry('Sock', overrides)
+);
 
 function makeIntended(overrides: Partial<BlockRowData> = {}): BlockRowData {
   return {
@@ -45,7 +30,7 @@ function makeIntended(overrides: Partial<BlockRowData> = {}): BlockRowData {
 describe('expiryToTimestamp', () => {
   // Much of this is basically recreating Wikipedia's expiry calculation logic
   test('treats indefinite expiries as Infinity', () => {
-    for (const expiry of NO_EXPIRY) {
+    for (const expiry of ['infinite', 'indefinite', 'infinity', 'never']) {
       expect(expiryToTimestamp(expiry, now)).toBe(Infinity);
     }
   });

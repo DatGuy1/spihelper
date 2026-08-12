@@ -1,8 +1,3 @@
-// Shared test fixtures for archive.test.ts and move.test.ts, which both mock
-// spiHelperEditPage and build archive-page wikitext to exercise merge/archive logic.
-
-export interface EditPageOpts { title: string; newText: string; summary?: string }
-
 /**
  * Builds a minimal archive page with a single investigation section, matching the
  * real shape produced by parseArchiveSections/rebuildArchiveText (header templates,

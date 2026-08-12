@@ -3,6 +3,8 @@ import type { BlockEntry, BlockOptions, BlockRowData, InputColumn, Tag, TagRowPo
 import { SockmasterTag, SockpuppetTag } from '../../../../../src/types';
 import { BlockActionComponent } from '../../../../../src/ui/views/top';
 import { isInputDisabled } from '../../../../../src/ui/utils.ts';
+import { makeBlockEntry as makeBaseBlockEntry, makeSockTag, makeUserRow } from '../../../../fixtures/spi.ts';
+import { silenceConsoleError } from '../../../../fixtures/console.ts';
 
 type SetAllColumn = Exclude<InputColumn, 'duration'>;
 
@@ -59,45 +61,15 @@ const defaultOptions: BlockOptions = {
   lockHideNames: false,
 };
 
-function makeRow(username: string, block: Partial<BlockRowData> = {}): UserRow {
-  return {
-    id: username,
-    username,
-    link: {
-      analyser: false,
-      timeline: false,
-      timecard: false,
-      pages: false,
-      summary: false,
-      cuwiki: false,
-      interleaved: false,
-    },
-    block: {
-      block: false,
-      duration: '',
-      acb: false,
-      abao: false,
-      ntp: false,
-      nem: false,
-      lock: false,
-      tags: [],
-      ...block,
-    },
-  };
-}
+// The block form starts from an untouched row, which is the fixture's own default
+const makeRow = (username: string, block: Partial<BlockRowData> = {}): UserRow => (
+  makeUserRow(username, block)
+);
 
-function makeBlockEntry(overrides: Partial<BlockEntry> = {}): BlockEntry {
-  return {
-    username: '',
-    duration: 'indefinite',
-    acb: false,
-    abao: true,
-    ntp: false,
-    nem: false,
-    reason: '',
-    ...overrides,
-  };
-}
+// An existing block that only autoblocks, to contrast against a row's intended settings
+const makeBlockEntry = (overrides: Partial<BlockEntry> = {}): BlockEntry => makeBaseBlockEntry('', {
+  duration: 'indefinite', acb: false, ntp: false, nem: false, reason: '', ...overrides,
+});
 
 function makeCtx({
   blockOptions = {},
@@ -347,12 +319,6 @@ describe('BlockActionComponent', () => {
   });
 });
 
-function makeSockTag(
-  overrides: Partial<ConstructorParameters<typeof SockpuppetTag>[0]> = {},
-): SockpuppetTag {
-  return new SockpuppetTag({ master: 'Foo', status: 'blocked', ...overrides });
-}
-
 describe('showTagPopover', () => {
   const fakeEvent = { currentTarget: {} as HTMLElement } as unknown as MouseEvent;
 
@@ -446,7 +412,7 @@ describe('handleTagUpdate', () => {
   test('does nothing when the tracked row id no longer exists', () => {
     const vandal = makeRow('Vandal', { tags: [makeSockTag()] });
     const ctx = makeCtx({ accounts: [vandal], popoverRow: { rowId: 'gone', tagIndex: 0 } });
-    const spy = spyOn(console, 'error').mockImplementation(() => { /* suppress expected error log */ });
+    const spy = silenceConsoleError();
     raw.handleTagUpdate.call(ctx, makeSockTag({ master: 'New' }));
     expect(vandal.block.tags).toEqual([makeSockTag()]);
     expect(spy).toHaveBeenCalledWith('Could not find target row for tag update', 'gone');
@@ -482,7 +448,7 @@ describe('handleTagDelete', () => {
   test('does nothing when the tracked row id no longer exists', () => {
     const vandal = makeRow('Vandal', { tags: [makeSockTag()] });
     const ctx = makeCtx({ accounts: [vandal], popoverRow: { rowId: 'gone', tagIndex: 0 } });
-    const spy = spyOn(console, 'error').mockImplementation(() => { /* suppress expected error log */ });
+    const spy = silenceConsoleError();
     raw.handleTagDelete.call(ctx);
     expect(vandal.block.tags).toHaveLength(1);
     expect(spy).toHaveBeenCalledWith('Could not find target row for tag delete', 'gone');
@@ -501,7 +467,7 @@ describe('handleTagAdd', () => {
   test('adds nothing when the row id does not exist', () => {
     const vandal = makeRow('Vandal');
     const ctx = makeCtx({ accounts: [vandal] });
-    const spy = spyOn(console, 'error').mockImplementation(() => { /* suppress expected error log */ });
+    const spy = silenceConsoleError();
     raw.handleTagAdd.call(ctx, 'gone', null);
     expect(vandal.block.tags).toEqual([]);
     expect(spy).toHaveBeenCalledWith('Could not find target row for tag add', 'gone');
@@ -511,7 +477,7 @@ describe('handleTagAdd', () => {
   test('adds nothing when there is no row tracked at all', () => {
     const vandal = makeRow('Vandal');
     const ctx = makeCtx({ accounts: [vandal] });
-    const spy = spyOn(console, 'error').mockImplementation(() => { /* suppress expected error log */ });
+    const spy = silenceConsoleError();
     raw.handleTagAdd.call(ctx, null, null);
     expect(vandal.block.tags).toEqual([]);
     spy.mockRestore();
