@@ -11,6 +11,7 @@ import {
   spiHelperArchiveNoticeRegex,
   spiHelperCUBlockRegex,
   spiHelperCaseStatusRegex,
+  spiHelperCommentMarkerRegex,
   spiHelperSectionRegex,
 } from './constants';
 import { spiHelperSettings } from './options';
@@ -33,6 +34,7 @@ import {
 } from './editSummary.ts';
 import { type CaseState, loadCaseText, loadSectionText, refreshSections } from './state.ts';
 import {
+  addAdminSectionNote,
   addSignature,
   buildUserActionLogMessage,
   isNonRegisteredAccount,
@@ -396,17 +398,13 @@ export async function spiHelperPerformActions(opts: {
 
 function spiHelperHandleComment(targetText: string, comment: string) {
   if (!targetText.includes('\n----')) {
-    targetText = targetText.replace(/<!-+ All comments go ABOVE this line, please. -+>/, '');
+    targetText = targetText.replace(spiHelperCommentMarkerRegex, '');
     targetText += '\n----<!-- All comments go ABOVE this line, please. -->';
   }
   comment = addSignature(comment.trimEnd());
   // Clerks and admins post in the admin section
   if (spiHelperIsClerk() || spiHelperIsAdmin()) {
-    // Find the invisible marker
-    return targetText.replace(
-      /\n*----(?!.*----)/s,
-      `\n${comment}\n----`,
-    );
+    return addAdminSectionNote(comment, targetText);
   }
   else { // Everyone else posts in the "other users" section
     return targetText.replace(spiHelperAdminSectionWithPrecedingNewlinesRegex,

@@ -28,7 +28,7 @@ void mock.module('../../src/api.ts', () => ({
   spiHelperUndeletePage: mock(() => Promise.resolve()),
 }));
 
-const { mergeArchives, spiHelperMoveCase } = await import('../../src/actions/move.ts');
+const { addNoteToCaseSections, mergeArchives, spiHelperMoveCase } = await import('../../src/actions/move.ts');
 const { SpiPageContext, setContext } = await import('../../src/context.ts');
 const { ParsedArchiveNotice } = await import('../../src/types/spi.ts');
 
@@ -230,10 +230,36 @@ describe('spiHelperMoveCase', () => {
     globalThis.confirm = originalConfirm;
   });
 
-  function stubTargetCase(preMergeText: string) {
+  // Workaround for IDE not parsing multiline strings properly
+  function buildSection(date: string, sock: string, comments = '') {
+    return [
+      `===${date}===`,
+      '{{SPI case status|}}',
+      '====Suspected sockpuppets====',
+      '* {{checkuser|1=' + sock + '}}',
+      '',
+      `Evidence about ${sock}.`,
+      '',
+      '====<big>Comments by other users</big>====',
+      '====<big>Clerk, CheckUser, and/or patrolling admin comments</big>====',
+      comments + '----<!-- All comments go ABOVE this line, please. -->',
+    ].join('\n');
+  }
+
+  const twoSectionCaseText = [
+    '<noinclude>__TOC__</noinclude>',
+    '{{SPI archive notice|1=Foo|deny=yes}}',
+    '{{SPIpriorcases}}',
+    '',
+    buildSection('05 May 2024', 'SockA'),
+    '',
+    buildSection('06 June 2024', 'SockB', '* {{clerknote}} an existing note. ~~~~\n'),
+  ].join('\n');
+
+  function stubTargetCase(preMergeText: string, movedText = movedCaseText) {
     mockGetPageText.mockImplementation((title: string, show: boolean) => {
       if (title !== newPage) return Promise.resolve('');
-      return Promise.resolve(show ? movedCaseText : preMergeText);
+      return Promise.resolve(show ? movedText : preMergeText);
     });
   }
 
@@ -294,5 +320,100 @@ describe('spiHelperMoveCase', () => {
     });
 
     expect(newCaseText()).toContain('{{SPI archive notice|1=Bar|deny=yes|notalk=yes}}');
+  });
+
+  describe('clerk section notes', () => {
+    const mergedNote = `* {{cnmerged}} from [[${oldPage}]]. ~~~~`;
+    const movedNote = `* {{clerknote}} originally filed under [[${oldPage}]]. ~~~~`;
+
+    test('notes every moved-in section with {{cnmerged}} when merging into an existing case', async () => {
+      stubTargetCase('<noinclude>__TOC__</noinclude>\n{{SPI archive notice|1=Bar}}\n{{SPIpriorcases}}',
+        twoSectionCaseText);
+
+      await spiHelperMoveCase({
+        target: 'Bar',
+        suppress: false,
+        addNote: false,
+        archiveNotice: new ParsedArchiveNotice({ username: 'Foo' }),
+      });
+
+      expect(newCaseText().split(mergedNote)).toHaveLength(3); // once per section
+      // The merge wording and not the move one
+      expect(newCaseText()).not.toContain('originally filed under');
+    });
+
+    test('notes every section as originally filed when the target case does not exist', async () => {
+      stubTargetCase('', twoSectionCaseText);
+
+      await spiHelperMoveCase({
+        target: 'Bar',
+        suppress: false,
+        addNote: false,
+        archiveNotice: new ParsedArchiveNotice({ username: 'Foo' }),
+      });
+
+      expect(newCaseText().split(movedNote)).toHaveLength(3);
+      expect(newCaseText()).not.toContain('{{cnmerged}}');
+    });
+
+    test('does not note sections that were already on the target case', async () => {
+      const targetOwnSection = buildSection('01 January 2019', 'SockC');
+      stubTargetCase(
+        `<noinclude>__TOC__</noinclude>\n{{SPI archive notice|1=Bar}}\n{{SPIpriorcases}}\n\n${targetOwnSection}`,
+        twoSectionCaseText,
+      );
+
+      await spiHelperMoveCase({
+        target: 'Bar',
+        suppress: false,
+        addNote: false,
+        archiveNotice: new ParsedArchiveNotice({ username: 'Foo' }),
+      });
+
+      const sockCIndex = newCaseText().indexOf('Evidence about SockC.');
+      expect(sockCIndex).toBeGreaterThan(-1);
+      expect(newCaseText().slice(sockCIndex)).not.toContain(mergedNote);
+    });
+
+    test('adds nothing to a case with no sections', async () => {
+      stubTargetCase('');
+
+      await spiHelperMoveCase({
+        target: 'Bar',
+        suppress: false,
+        addNote: false,
+        archiveNotice: new ParsedArchiveNotice({ username: 'Foo' }),
+      });
+
+      expect(newCaseText()).not.toContain('originally filed under');
+    });
+  });
+});
+
+describe('addNoteToCaseSections', () => {
+  const note = '* {{clerknote}} a note. ~~~~';
+
+  test('notes each of several sections independently', () => {
+    const page = '===01 January 2019===\n----\n\n===02 February 2020===\n----';
+    const result = addNoteToCaseSections(note, page);
+    expect(result).toBe(
+      `===01 January 2019===\n${note}\n----\n\n===02 February 2020===\n${note}\n----`,
+    );
+  });
+
+  test('leaves the page header untouched', () => {
+    const header = '<noinclude>__TOC__</noinclude>\n{{SPI archive notice|1=Foo}}\n{{SPIpriorcases}}\n\n';
+    const result = addNoteToCaseSections(note, `${header}===01 January 2019===\n----`);
+    expect(result.startsWith(header)).toBe(true);
+  });
+
+  test('returns the text unchanged when there are no sections', () => {
+    const headerOnly = '<noinclude>__TOC__</noinclude>\n{{SPI archive notice|1=Foo}}\n----';
+    expect(addNoteToCaseSections(note, headerOnly)).toBe(headerOnly);
+  });
+
+  test('ignores level-4 subheadings when splitting sections', () => {
+    const section = '===01 January 2019===\n====Suspected sockpuppets====\n* {{checkuser|1=SockA}}\n----';
+    expect(addNoteToCaseSections(note, section).split(note)).toHaveLength(2);
   });
 });

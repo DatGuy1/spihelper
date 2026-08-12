@@ -17,6 +17,7 @@ import {
 import {
   spiHelperArchiveNoticeRegex,
   spiHelperPriorCasesRegex,
+  spiHelperSectionRegex,
   spiHelperSockSectionWithNewlineRegex,
 } from '../constants';
 import { SpiPageContext, context } from '../context.ts';
@@ -26,6 +27,7 @@ import { spiHelperParseArchiveNotice, spiHelperParseArchiveNoticeText } from '..
 import { type SectionEntry, loadSectionText } from '../state.ts';
 import { VueMessage } from '../ui/messages.ts';
 import {
+  addAdminSectionNote,
   isAbsoluteExpiry,
   parseArchiveSections,
   rebuildArchiveText,
@@ -177,10 +179,7 @@ export async function mergeArchives(
 
   if (addNote) {
     for (const section of sourceArchiveSections) {
-      section.fullText = section.fullText.replace(
-        /\n*----(?!([\n.])*----)/,
-        `\n* {{clerknote}} originally filed under [[${oldContext.pageName}]]. ~~~~\n----`,
-      );
+      section.fullText = addAdminSectionNote(`* {{clerknote}} originally filed under [[${oldContext.pageName}]]. ~~~~`, section.fullText);
     }
   }
   const parsedSections = [...targetArchiveSections, ...sourceArchiveSections];
@@ -359,10 +358,7 @@ export async function spiHelperMoveCaseSection(mergeTarget: string, section: Sec
   const newContext = new SpiPageContext(context.pageName.replace(context.caseName, mergeTarget));
   let targetPageText = await spiHelperGetPageText(newContext.pageName, false);
   let sectionText = await loadSectionText(section);
-  sectionText = sectionText.replace(
-    /\n*----(?!([\n.])*----)/,
-    `\n* {{clerknote}} originally filed under [[${context.pageName}]]. ~~~~\n----`,
-  );
+  sectionText = addAdminSectionNote(`* {{clerknote}} originally filed under [[${context.pageName}]]. ~~~~`, sectionText);
 
   if (targetPageText === '') {
     // Preload the split mergeTarget with the SPI templates if it's empty
@@ -484,6 +480,26 @@ export function addOldMasterToSockList(pageText: string, oldMasterName: string):
 }
 
 /**
+ * Insert a note into the clerk/admin comment area of every section of a case page
+ */
+export function addNoteToCaseSections(note: string, pageText: string): string {
+  // spiHelperSectionRegex is single-match; we need every header to find the boundaries
+  const sectionHeaderRegex = new RegExp(spiHelperSectionRegex.source, 'gm');
+  const sectionStarts = [...pageText.matchAll(sectionHeaderRegex)].map(match => match.index);
+  const firstSectionStart = sectionStarts[0];
+  if (firstSectionStart === undefined) {
+    return pageText;
+  }
+
+  let newText = pageText.slice(0, firstSectionStart);
+  for (const [i, sectionStart] of sectionStarts.entries()) {
+    const sectionEnd = sectionStarts[i + 1] ?? pageText.length;
+    newText += addAdminSectionNote(note, pageText.slice(sectionStart, sectionEnd));
+  }
+  return newText;
+}
+
+/**
  * Cleanups following a rename - update the archive notice, add an archive notice to the
  * old case name, add the original sockmaster to the sock list for reference
  *
@@ -574,6 +590,11 @@ async function spiHelperPostRenameCleanup(opts: {
   // The new case's archivenotice should be updated with the new name
   let newPageText = await spiHelperGetPageText(newContext.pageName, true);
   newPageText = addOldMasterToSockList(newPageText, oldContext.caseName);
+  // Note where each section was originally filed. This runs before the target's own
+  // sections are appended below, since those were never filed under the old name.
+  newPageText = addNoteToCaseSections(preMergeText
+    ? `* {{cnmerged}} from [[${oldContext.pageName}]]. ~~~~`
+    : `* {{clerknote}} originally filed under [[${oldContext.pageName}]]. ~~~~`, newPageText);
   // Merge in our old cases
   if (preMergeText) {
     let appendText = preMergeText.replace(/\n*<noinclude>__TOC__.*\n/ig, '');

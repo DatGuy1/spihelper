@@ -1,4 +1,6 @@
 import {
+  spiHelperClosingRuleRegex,
+  spiHelperCommentMarkerRegex,
   spiHelperHiddenCharNormRegex,
   spiHelperSectionRegex,
   spiHelperSignatureRegex,
@@ -196,6 +198,28 @@ export function isNonRegisteredAccount(username: string) {
 export function addSignature(text: string): string {
   const withSignature = spiHelperSignatureRegex.test(text);
   return withSignature ? text : text.trimEnd() + ' ~~~~';
+}
+
+/**
+ * Add a note to the bottom of a section's clerk/admin comment area.
+ * If the section has no closing rule, one is added along with the note,
+ * and any orphaned "all comments go above" marker is moved with it.
+ *
+ * @param note The note to add, already signed and prefixed with its bullet
+ * @param sourceText The section (or whole page, for a single-section case) to add the note to
+ * @return {string} The section text with the note added
+ */
+export function addAdminSectionNote(note: string, sourceText: string): string {
+  if (spiHelperClosingRuleRegex.test(sourceText)) {
+    // Replacer function, not a replacement string - the note is caller-supplied and may
+    // contain $ patterns ($&, $`, $', $$) that would otherwise be expanded
+    return sourceText.replace(spiHelperClosingRuleRegex, () => `\n${note}\n----`);
+  }
+  const trailingWhitespace = /\s*$/.exec(sourceText)?.[0] ?? '';
+  const body = sourceText
+    .slice(0, sourceText.length - trailingWhitespace.length)
+    .replace(spiHelperCommentMarkerRegex, '');
+  return `${body}\n${note}\n----<!-- All comments go ABOVE this line, please. -->${trailingWhitespace}`;
 }
 
 export function buildTitleLinkHtml(title: string, text?: string): string {

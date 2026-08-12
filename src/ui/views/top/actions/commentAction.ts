@@ -4,7 +4,7 @@ import { spiHelperRenderText } from '../../../../api.ts';
 import { context } from '../../../../context.ts';
 import { cdxIconReload } from '@wikimedia/codex-icons';
 import { spiHelperIsAdmin, spiHelperIsCheckuser, spiHelperIsClerk } from '../../../../role.ts';
-import { spiHelperAdminSectionWithPrecedingNewlinesRegex, spiHelperCUTemplates, spiHelperClerkTemplates } from '../../../../constants';
+import { spiHelperAdminSectionWithPrecedingNewlinesRegex, spiHelperCUTemplates, spiHelperClerkTemplates, spiHelperClosingRuleRegex } from '../../../../constants';
 import { addSignature } from '../../../../utils.ts';
 import { type SectionSelection, loadSectionText } from '../../../../state.ts';
 import { spiHelperSettings } from '../../../../options';
@@ -82,7 +82,7 @@ export const CommentActionComponent = defineComponent({
           if (this.isClerk || this.isAdmin) {
             // Find the invisible marker
             startIndex = spiHelperAdminSectionWithPrecedingNewlinesRegex.exec(sectionText)?.index;
-            endIndex = /\n*----(?!.*----)/s.exec(sectionText)?.index;
+            endIndex = spiHelperClosingRuleRegex.exec(sectionText)?.index;
           }
           else {
             // Everyone else posts in the "other users" section

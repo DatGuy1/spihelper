@@ -1,5 +1,6 @@
 // Regex to match the case status, group 1 is the actual status
 export const spiHelperCaseStatusRegex = /{{\s*SPI case status\s*\|?\s*(\S*?)\s*}}/i;
+
 // Regex to match closed case statuses (close or closed)
 export const spiHelperCaseClosedRegex = /^closed?$/i;
 
@@ -8,6 +9,12 @@ export const spiHelperClerkStatusRegex = /{{(CURequest|awaitingadmin|clerk ?requ
 export const spiHelperSockSectionWithNewlineRegex = /====\s*Suspected sockpuppets\s*====\n*/i;
 
 export const spiHelperAdminSectionWithPrecedingNewlinesRegex = /\n*\s*====\s*<big>Clerk, CheckUser, and\/or patrolling admin comments<\/big>\s*====\s*/i;
+
+// The last horizontal rule in a section, which closes off its clerk/admin comment area
+export const spiHelperClosingRuleRegex = /\n*----(?!.*----)/s;
+
+// The hidden marker that sits just after a section's closing rule
+export const spiHelperCommentMarkerRegex = /<!-+ All comments go ABOVE this line, please. -+>/;
 
 export const spiHelperCUBlockRegex = /{{(checkuserblock(-account|-wide)?|checkuser block)}}/i;
 
