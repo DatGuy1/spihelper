@@ -96,9 +96,10 @@
   var spiHelperClerkStatusRegex = /{{(CURequest|awaitingadmin|clerk ?request|(?:self|requestand|cu-?)?endorse|inprogress|(?:cu\s?)?decline(?:-ip)?|(?:cu)?moreinfo|relisted|onhold)}}/i;
   var spiHelperSockSectionWithNewlineRegex = /====\s*Suspected sockpuppets\s*====\n*/i;
   var spiHelperAdminSectionWithPrecedingNewlinesRegex = /\n*\s*====\s*<big>Clerk, CheckUser, and\/or patrolling admin comments<\/big>\s*====\s*/i;
+  var spiHelperClosingRuleRegex = /\n*----(?!.*----)/s;
+  var spiHelperCommentMarkerRegex = /<!-+ All comments go ABOVE this line, please. -+>/;
   var spiHelperCUBlockRegex = /{{(checkuserblock(-account|-wide)?|checkuser block)}}/i;
   var spiHelperArchiveNoticeRegex = /{{\s*SPI\s*archive notice\|(?:1=)?([^|]*?)(\|.*)?}}/i;
-  var spiHelperPriorCasesRegex = /{{spipriorcases}}/i;
   var spiHelperSectionRegex = /^(?:===[^=]*===|=====[^=]*=====)\s*$/m;
   var spiHelperHiddenCharNormRegex = /\u200E/g;
   var spiHelperSignatureRegex = /(?<!~)~~~~(?!~)/;
@@ -534,6 +535,30 @@
     proven: { label: "Proven", icon: _5 }
   };
   // src/template.ts
+  function findTemplateSpans(templateName, text) {
+    const namePattern = templateName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/[\s_]+/g, "[\\s_]+");
+    const spans = [];
+    for (const match of text.matchAll(new RegExp(`\\{\\{\\s*${namePattern}\\s*(?=[|}])`, "gi"))) {
+      if (spans.some((span) => match.index < span.end)) {
+        continue;
+      }
+      let depth = 0;
+      for (let i = match.index;i < text.length - 1; i++) {
+        if (text.startsWith("{{", i)) {
+          depth++;
+          i++;
+        } else if (text.startsWith("}}", i)) {
+          depth--;
+          i++;
+          if (depth === 0) {
+            spans.push({ text: text.slice(match.index, i + 1), start: match.index, end: i + 1 });
+            break;
+          }
+        }
+      }
+    }
+    return spans;
+  }
   function parseTemplates(wikitext) {
     const templates = [];
     const matches = wikitext.trim().matchAll(/\{\{([\s\S]+?)}}/g);
@@ -765,6 +790,18 @@
   function addSignature(text) {
     const withSignature = spiHelperSignatureRegex.test(text);
     return withSignature ? text : text.trimEnd() + " ~~~~";
+  }
+  function addAdminSectionNote(note, sourceText) {
+    if (spiHelperClosingRuleRegex.test(sourceText)) {
+      return sourceText.replace(spiHelperClosingRuleRegex, () => `
+${note}
+----`);
+    }
+    const trailingWhitespace = /\s*$/.exec(sourceText)?.[0] ?? "";
+    const body = sourceText.slice(0, sourceText.length - trailingWhitespace.length).replace(spiHelperCommentMarkerRegex, "");
+    return `${body}
+${note}
+----<!-- All comments go ABOVE this line, please. -->${trailingWhitespace}`;
   }
   function buildTitleLinkHtml(title, text) {
     text ??= title;
@@ -3510,6 +3547,9 @@
     } else {
       pageText = await spiHelperGetPageText(page, false);
     }
+    return spiHelperParseArchiveNoticeText(pageText);
+  }
+  function spiHelperParseArchiveNoticeText(pageText) {
     if (pageText === "") {
       return null;
     }
@@ -3971,11 +4011,11 @@ ${buildLockTemplate(tempAccounts)}`;
     const actionLabel = buildRequestLabel(requests);
     let newText = await spiHelperGetPageText(SRG_PAGE, false);
     for (const request of requests) {
-      const splicedText = newText.replace(SRG_SECTION_ANCHORS[request.kind], `
+      const splicedText = newText.replace(SRG_SECTION_ANCHORS[request.kind], (_match, heading) => `
 
 ${request.body}
 
-$1`);
+${heading}`);
       if (splicedText === newText) {
         new VueMessage({
           type: "error",
@@ -4146,9 +4186,7 @@ $1`);
     }
     if (addNote) {
       for (const section of sourceArchiveSections) {
-        section.fullText = section.fullText.replace(/\n*----(?!([\n.])*----)/, `
-* {{clerknote}} originally filed under [[${oldContext.pageName}]]. ~~~~
-----`);
+        section.fullText = addAdminSectionNote(`* {{clerknote}} originally filed under [[${oldContext.pageName}]]. ~~~~`, section.fullText);
       }
     }
     const parsedSections = [...targetArchiveSections, ...sourceArchiveSections];
@@ -4197,7 +4235,7 @@ $1`);
   async function spiHelperMoveCase(opts) {
     const { target, suppress, addNote, archiveNotice } = opts;
     const oldContext = context;
-    const newContext = new SpiPageContext(context.pageName.replace(context.caseName, target));
+    const newContext = new SpiPageContext(context.pageName.replace(context.caseName, () => target));
     const targetPageText = await spiHelperGetPageText(newContext.pageName, false);
     if (targetPageText) {
       if (spiHelperIsAdmin()) {
@@ -4278,12 +4316,10 @@ $1`);
     });
   }
   async function spiHelperMoveCaseSection(mergeTarget, section) {
-    const newContext = new SpiPageContext(context.pageName.replace(context.caseName, mergeTarget));
+    const newContext = new SpiPageContext(context.pageName.replace(context.caseName, () => mergeTarget));
     let targetPageText = await spiHelperGetPageText(newContext.pageName, false);
     let sectionText = await loadSectionText(section);
-    sectionText = sectionText.replace(/\n*----(?!([\n.])*----)/, `
-* {{clerknote}} originally filed under [[${context.pageName}]]. ~~~~
-----`);
+    sectionText = addAdminSectionNote(`* {{clerknote}} originally filed under [[${context.pageName}]]. ~~~~`, sectionText);
     if (targetPageText === "") {
       targetPageText = `<noinclude>__TOC__</noinclude>
 {{SPI archive notice|` + mergeTarget + `}}
@@ -4309,12 +4345,13 @@ $1`);
     });
   }
   function addOldMasterToSockList(pageText, oldMasterName) {
-    const sockListMatch = /\{\{sock\s+list[\s\S]*?\}\}/i.exec(pageText)?.[0];
-    if (!sockListMatch) {
-      return pageText.replace(spiHelperSockSectionWithNewlineRegex, `====Suspected sockpuppets====
+    const sockListSpan = findTemplateSpans("sock list", pageText)[0];
+    if (!sockListSpan) {
+      return pageText.replace(spiHelperSockSectionWithNewlineRegex, () => `====Suspected sockpuppets====
 * {{checkuser|1=` + oldMasterName + `}} ({{clerknote}} original case name)
 `);
     }
+    const sockListMatch = sockListSpan.text;
     const sockListTemplate = parseTemplate(sockListMatch.slice(2, -2));
     const isMultiLine = sockListMatch.includes(`
 `);
@@ -4345,7 +4382,7 @@ $1`);
           const match = new RegExp(`\\|(?![^|}\\n]*=)\\s*${escapedName}\\s*(?=[|}\\n])`, "i").exec(sockListMatch);
           entryStr = match ? match[0] : undefined;
         }
-        newSockList = entryStr ? sockListMatch.replace(entryStr, entryStr + `|note${entryIndex}=({{clerknote}} original case name)`) : sockListMatch;
+        newSockList = entryStr ? sockListMatch.replace(entryStr, () => entryStr + `|note${entryIndex}=({{clerknote}} original case name)`) : sockListMatch;
       }
     } else {
       const namedKeys = Object.keys(sockListTemplate.params).filter((k) => /^\d+$/.test(k)).map(Number);
@@ -4371,16 +4408,85 @@ $1`);
       }
       newSockList = sockListMatch.slice(0, insertPos) + newEntry + sockListMatch.slice(insertPos);
     }
-    return pageText.replace(sockListMatch, newSockList);
+    return pageText.slice(0, sockListSpan.start) + newSockList + pageText.slice(sockListSpan.end);
+  }
+  function mergePreambles(destPreamble, sourcePreamble) {
+    const destLines = new Set(destPreamble.split(`
+`).map((line) => line.trim()));
+    const extras = sourcePreamble.replace(spiHelperArchiveNoticeRegex, "").split(`
+`).filter((line) => line.trim() && !destLines.has(line.trim()));
+    return extras.length ? extras.join(`
+`) + `
+` + destPreamble : destPreamble;
+  }
+  function removeMasterFromSL(sockList, normalisedMaster) {
+    const template = parseTemplate(sockList.slice(2, -2));
+    if ("remove_master" in template.params) {
+      return sockList;
+    }
+    if ("master" in template.params && String(template.params.master).toLowerCase() !== normalisedMaster) {
+      return sockList;
+    }
+    const isListed = template.positional.some((sock) => sock.toLowerCase() === normalisedMaster) || Object.entries(template.params).some(([key, value]) => /^\d+$/.test(key) && value.toString().toLowerCase() === normalisedMaster);
+    if (!isListed) {
+      return sockList;
+    }
+    const closingPos = sockList.lastIndexOf("}}");
+    const insertPos = closingPos - (sockList[closingPos - 1] === `
+` ? 1 : 0);
+    return sockList.slice(0, insertPos) + "|remove_master=yes" + sockList.slice(insertPos);
+  }
+  function removeNewMasterFromCases(pageText, newMasterName) {
+    const normalisedMaster = newMasterName.toLowerCase();
+    let newText = "";
+    let cursor = 0;
+    for (const span of findTemplateSpans("sock list", pageText)) {
+      newText += pageText.slice(cursor, span.start) + removeMasterFromSL(span.text, normalisedMaster);
+      cursor = span.end;
+    }
+    newText += pageText.slice(cursor);
+    const sockSectionRegex = new RegExp(spiHelperSockSectionWithNewlineRegex.source + "[\\s\\S]*?(?=\\n====|$)", "gi");
+    return newText.replace(sockSectionRegex, (sockSection) => sockSection.split(`
+`).filter((line) => {
+      if (!line.trim().startsWith("*")) {
+        return true;
+      }
+      const template = parseTemplates(line)[0];
+      if (template?.name !== "checkuser") {
+        return true;
+      }
+      const sockName = template.positional[0] ?? template.params["1"];
+      return String(sockName ?? "").toLowerCase() !== normalisedMaster;
+    }).join(`
+`));
+  }
+  function addNoteToCaseSections(note, pageText) {
+    const sectionHeaderRegex = new RegExp(spiHelperSectionRegex.source, "gm");
+    const sectionStarts = [...pageText.matchAll(sectionHeaderRegex)].map((match) => match.index);
+    const firstSectionStart = sectionStarts[0];
+    if (firstSectionStart === undefined) {
+      return pageText;
+    }
+    let newText = pageText.slice(0, firstSectionStart);
+    for (const [i, sectionStart] of sectionStarts.entries()) {
+      const sectionEnd = sectionStarts[i + 1] ?? pageText.length;
+      newText += addAdminSectionNote(note, pageText.slice(sectionStart, sectionEnd));
+    }
+    return newText;
   }
   async function spiHelperPostRenameCleanup(opts) {
     const { oldContext, newContext, oldNotice, deleteOld, preMergeText } = opts;
-    const newNotice = new ParsedArchiveNotice({ username: newContext.caseName });
-    const replacementArchiveNotice = newNotice.generateWikitext();
-    newNotice.crosswiki = oldNotice.crosswiki;
-    newNotice.deny = oldNotice.deny;
-    newNotice.notalk = oldNotice.notalk;
-    newNotice.moot = oldNotice.moot;
+    const replacementArchiveNotice = new ParsedArchiveNotice({
+      username: newContext.caseName
+    }).generateWikitext();
+    const targetNotice = preMergeText ? spiHelperParseArchiveNoticeText(preMergeText) : null;
+    const newNotice = new ParsedArchiveNotice({
+      username: newContext.caseName,
+      crosswiki: oldNotice.crosswiki || targetNotice?.crosswiki,
+      deny: oldNotice.deny || targetNotice?.deny,
+      notalk: oldNotice.notalk || targetNotice?.notalk,
+      moot: oldNotice.moot || targetNotice?.moot
+    });
     const pagesChecked = [];
     const pagesToCheck = [oldContext.pageName];
     let currentPageToCheck = null;
@@ -4433,18 +4539,18 @@ $1`);
     }
     let newPageText = await spiHelperGetPageText(newContext.pageName, true);
     newPageText = addOldMasterToSockList(newPageText, oldContext.caseName);
+    newPageText = addNoteToCaseSections(preMergeText ? `* {{cnmerged}} from [[${oldContext.pageName}]]. ~~~~` : `* {{clerknote}} originally filed under [[${oldContext.pageName}]]. ~~~~`, newPageText);
     if (preMergeText) {
-      let appendText = preMergeText.replace(/\n*<noinclude>__TOC__.*\n/ig, "");
-      appendText = appendText.replace(spiHelperArchiveNoticeRegex, "");
-      appendText = appendText.replace(spiHelperPriorCasesRegex, "");
-      newPageText = newPageText + `
-` + appendText;
+      const sourceContentStart = getContentStartIndex(preMergeText);
+      const destContentStart = getContentStartIndex(newPageText);
+      const mergedPreambles = mergePreambles(newPageText.slice(0, destContentStart), preMergeText.slice(0, sourceContentStart));
+      const sourceCaseContent = preMergeText.slice(sourceContentStart);
+      const mergedCaseContent = newPageText.slice(destContentStart) + (sourceCaseContent ? `
+` + sourceCaseContent : "");
+      newPageText = mergedPreambles + mergedCaseContent;
     }
-    newPageText = newPageText.replace(spiHelperArchiveNoticeRegex, newNotice.generateWikitext());
-    const newMasterReString = "(sockpuppets\\s*====.*?)\\n^\\s*\\*\\s*{{checkuser\\|(?:1=)?" + newContext.caseName + "(?:\\|master name\\s*=.*?)?}}\\s*$(.*====\\s*<big>)";
-    const newMasterRe = new RegExp(newMasterReString, "sm");
-    newPageText = newPageText.replace(newMasterRe, `$1
-$2`);
+    newPageText = newPageText.replace(spiHelperArchiveNoticeRegex, () => newNotice.generateWikitext());
+    newPageText = removeNewMasterFromCases(newPageText, newContext.caseName);
     await newContext.edit({
       newText: newPageText,
       summary: "Updating new case following page move",
@@ -4496,7 +4602,7 @@ $2`);
       return replacement;
     }
     const matchText = firstMatch[0];
-    pageText = pageText.replace(matchText, replacement);
+    pageText = pageText.replace(matchText, () => replacement);
     matches.slice(1).forEach((match) => {
       const matchText2 = match[0];
       pageText = pageText.replace(matchText2, "");
@@ -4854,7 +4960,7 @@ $2`);
               }
             }
             if (sectionText !== originalSectionText) {
-              targetText = targetText.replace(originalSectionText, sectionText);
+              targetText = targetText.replace(originalSectionText, () => sectionText);
             }
           }
         }
@@ -4868,7 +4974,7 @@ $2`);
             moot: noticeOpts.has("moot")
           });
           const archiveNoticeWikitext = state.archiveNotice.generateWikitext();
-          targetText = targetText.replace(spiHelperArchiveNoticeRegex, archiveNoticeWikitext);
+          targetText = targetText.replace(spiHelperArchiveNoticeRegex, () => archiveNoticeWikitext);
           summaryFacts.archiveNoticeUpdated = true;
           logMessage += `
 ** Updated archivenotice`;
@@ -4902,7 +5008,7 @@ $2`);
         if (state.selectedSection.type === "single") {
           state.selectedSection.section._text = targetText;
           if (state._text) {
-            state._text = state._text.replace(startText, targetText);
+            state._text = state._text.replace(startText, () => targetText);
           }
         } else {
           state._text = targetText;
@@ -4987,17 +5093,15 @@ $2`);
   function spiHelperHandleComment(targetText, comment) {
     if (!targetText.includes(`
 ----`)) {
-      targetText = targetText.replace(/<!-+ All comments go ABOVE this line, please. -+>/, "");
+      targetText = targetText.replace(spiHelperCommentMarkerRegex, "");
       targetText += `
 ----<!-- All comments go ABOVE this line, please. -->`;
     }
     comment = addSignature(comment.trimEnd());
     if (spiHelperIsClerk() || spiHelperIsAdmin()) {
-      return targetText.replace(/\n*----(?!.*----)/s, `
-${comment}
-----`);
+      return addAdminSectionNote(comment, targetText);
     } else {
-      return targetText.replace(spiHelperAdminSectionWithPrecedingNewlinesRegex, `
+      return targetText.replace(spiHelperAdminSectionWithPrecedingNewlinesRegex, () => `
 ` + comment + `
 
 ====<big>Clerk, CheckUser, and/or patrolling admin comments</big>====
@@ -6601,7 +6705,7 @@ ${comment}
             let endIndex;
             if (this.isClerk || this.isAdmin) {
               startIndex = spiHelperAdminSectionWithPrecedingNewlinesRegex.exec(sectionText)?.index;
-              endIndex = /\n*----(?!.*----)/s.exec(sectionText)?.index;
+              endIndex = spiHelperClosingRuleRegex.exec(sectionText)?.index;
             } else {
               startIndex = /\s*====\s*<big>Comments by other users<\/big>\s*====\s*/i.exec(sectionText)?.index;
               endIndex = spiHelperAdminSectionWithPrecedingNewlinesRegex.exec(sectionText)?.index;
