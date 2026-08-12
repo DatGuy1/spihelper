@@ -202,7 +202,8 @@ export async function spiHelperRequestGlobalActions(opts: {
   let newText = await spiHelperGetPageText(SRG_PAGE, false);
   for (const request of requests) {
     const splicedText = newText.replace(
-      SRG_SECTION_ANCHORS[request.kind], `\n\n${request.body}\n\n$1`,
+      SRG_SECTION_ANCHORS[request.kind],
+      (_match: string, heading: string) => `\n\n${request.body}\n\n${heading}`,
     );
     if (splicedText === newText) {
       // The section headings are what we splice against, so a rename upstream would

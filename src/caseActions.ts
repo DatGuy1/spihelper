@@ -239,7 +239,7 @@ export async function spiHelperPerformActions(opts: {
           }
 
           if (sectionText !== originalSectionText) {
-            targetText = targetText.replace(originalSectionText, sectionText);
+            targetText = targetText.replace(originalSectionText, () => sectionText);
           }
         }
       }
@@ -254,7 +254,7 @@ export async function spiHelperPerformActions(opts: {
           moot: noticeOpts.has('moot'),
         });
         const archiveNoticeWikitext = state.archiveNotice.generateWikitext();
-        targetText = targetText.replace(spiHelperArchiveNoticeRegex, archiveNoticeWikitext);
+        targetText = targetText.replace(spiHelperArchiveNoticeRegex, () => archiveNoticeWikitext);
         summaryFacts.archiveNoticeUpdated = true;
         logMessage += '\n** Updated archivenotice';
       }
@@ -306,7 +306,7 @@ export async function spiHelperPerformActions(opts: {
       if (state.selectedSection.type === 'single') {
         state.selectedSection.section._text = targetText;
         if (state._text) {
-          state._text = state._text.replace(startText, targetText);
+          state._text = state._text.replace(startText, () => targetText);
         }
       }
       else {
@@ -408,7 +408,7 @@ function spiHelperHandleComment(targetText: string, comment: string) {
   }
   else { // Everyone else posts in the "other users" section
     return targetText.replace(spiHelperAdminSectionWithPrecedingNewlinesRegex,
-      '\n' + comment + '\n\n====<big>Clerk, CheckUser, and/or patrolling admin comments</big>====\n');
+      () => '\n' + comment + '\n\n====<big>Clerk, CheckUser, and/or patrolling admin comments</big>====\n');
   }
 }
 

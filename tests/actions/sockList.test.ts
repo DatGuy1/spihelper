@@ -111,6 +111,14 @@ describe('addOldMasterToSockList', () => {
           `${section}{{sock list|1=SockA|2=oldmaster|note2=${NOTE}}}`,
         );
       });
+
+      test('keeps $ sequences in the username literal', () => {
+        const page = `${section}{{sock list|1=SockA|2=Money$$Man}}`;
+        const result = addOldMasterToSockList(page, 'Money$$Man');
+        expect(result).toBe(
+          `${section}{{sock list|1=SockA|2=Money$$Man|note2=${NOTE}}}`,
+        );
+      });
     });
   });
 });

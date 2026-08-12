@@ -9,6 +9,7 @@ const mockGetInvestigationSections = mock(
   (_opts: { pageName?: string; content?: string }): Promise<SectionEntry[]> => Promise.resolve([]),
 );
 const mockEditPage = mock((_opts: EditPageOpts) => Promise.resolve(null));
+const mockMovePage = mock((_opts: { sourcePage: string; destPage: string }) => Promise.resolve());
 const mockGetPostExpandSizeFromText = mock((_text: string) => Promise.resolve(0));
 
 void mock.module('../../src/api.ts', () => ({
@@ -23,7 +24,7 @@ void mock.module('../../src/api.ts', () => ({
   spiHelperGetSPIBacklinks: mock(() => Promise.resolve([])),
   spiHelperGetSiteRestrictionInformation: mock(() => Promise.resolve({ types: [], levels: [] })),
   spiHelperGetStabilisationSettings: mock(() => Promise.resolve(null)),
-  spiHelperMovePage: mock(() => Promise.resolve()),
+  spiHelperMovePage: mockMovePage,
   spiHelperProtectPage: mock(() => Promise.resolve()),
   spiHelperUndeletePage: mock(() => Promise.resolve()),
 }));
@@ -36,6 +37,7 @@ beforeEach(() => {
   mockGetPageText.mockReset().mockResolvedValue('');
   mockGetInvestigationSections.mockReset().mockResolvedValue([]);
   mockEditPage.mockReset().mockResolvedValue(null);
+  mockMovePage.mockReset().mockResolvedValue(undefined);
   mockGetPostExpandSizeFromText.mockReset().mockResolvedValue(0);
 });
 
@@ -320,6 +322,22 @@ describe('spiHelperMoveCase', () => {
     });
 
     expect(newCaseText()).toContain('{{SPI archive notice|1=Bar|deny=yes|notalk=yes}}');
+  });
+
+  test('keeps $ sequences in the target name out of the destination title', async () => {
+    // The target comes from a user-entered field, and $$/$&/$`/$' are String.replace
+    // replacement patterns - a mangled title would move the case to the wrong page
+    stubTargetCase('');
+
+    await spiHelperMoveCase({
+      target: 'Money$$Man',
+      suppress: false,
+      addNote: false,
+      archiveNotice: new ParsedArchiveNotice({ username: 'Foo' }),
+    });
+
+    expect(mockMovePage.mock.calls[0]?.[0].destPage)
+      .toBe('Wikipedia:Sockpuppet investigations/Money$$Man');
   });
 
   describe('clerk section notes', () => {

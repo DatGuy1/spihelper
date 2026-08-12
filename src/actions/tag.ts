@@ -73,7 +73,7 @@ function replaceSockTemplates(pageText: string, replacement: string): string {
     return replacement;
   }
   const matchText = firstMatch[0];
-  pageText = pageText.replace(matchText, replacement);
+  pageText = pageText.replace(matchText, () => replacement);
 
   matches.slice(1).forEach((match) => {
     const matchText = match[0];

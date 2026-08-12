@@ -246,7 +246,7 @@ export async function spiHelperMoveCase(opts: {
 }) {
   const { target, suppress, addNote, archiveNotice } = opts;
   const oldContext = context;
-  const newContext = new SpiPageContext(context.pageName.replace(context.caseName, target));
+  const newContext = new SpiPageContext(context.pageName.replace(context.caseName, () => target));
 
   const targetPageText = await spiHelperGetPageText(newContext.pageName, false);
   // TODO: Move this to archiveAction.ts
@@ -355,7 +355,9 @@ export async function spiHelperMoveCase(opts: {
  * @param section The section of this case that should be moved/merged
  */
 export async function spiHelperMoveCaseSection(mergeTarget: string, section: SectionEntry) {
-  const newContext = new SpiPageContext(context.pageName.replace(context.caseName, mergeTarget));
+  const newContext = new SpiPageContext(
+    context.pageName.replace(context.caseName, () => mergeTarget),
+  );
   let targetPageText = await spiHelperGetPageText(newContext.pageName, false);
   let sectionText = await loadSectionText(section);
   sectionText = addAdminSectionNote(`* {{clerknote}} originally filed under [[${context.pageName}]]. ~~~~`, sectionText);
@@ -396,7 +398,7 @@ export function addOldMasterToSockList(pageText: string, oldMasterName: string):
   if (!sockListMatch) {
     return pageText.replace(
       spiHelperSockSectionWithNewlineRegex,
-      '====Suspected sockpuppets====\n* {{checkuser|1=' + oldMasterName + '}} ({{clerknote}} original case name)\n',
+      () => '====Suspected sockpuppets====\n* {{checkuser|1=' + oldMasterName + '}} ({{clerknote}} original case name)\n',
     );
   }
 
@@ -439,7 +441,10 @@ export function addOldMasterToSockList(pageText: string, oldMasterName: string):
       }
 
       newSockList = entryStr
-        ? sockListMatch.replace(entryStr, entryStr + `|note${entryIndex}=({{clerknote}} original case name)`)
+        ? sockListMatch.replace(
+            entryStr,
+            () => entryStr + `|note${entryIndex}=({{clerknote}} original case name)`,
+          )
         : sockListMatch;
     }
   }
@@ -476,7 +481,7 @@ export function addOldMasterToSockList(pageText: string, oldMasterName: string):
     newSockList = sockListMatch.slice(0, insertPos) + newEntry + sockListMatch.slice(insertPos);
   }
 
-  return pageText.replace(sockListMatch, newSockList);
+  return pageText.replace(sockListMatch, () => newSockList);
 }
 
 /**
@@ -602,7 +607,9 @@ async function spiHelperPostRenameCleanup(opts: {
     appendText = appendText.replace(spiHelperPriorCasesRegex, '');
     newPageText = newPageText + '\n' + appendText;
   }
-  newPageText = newPageText.replace(spiHelperArchiveNoticeRegex, newNotice.generateWikitext());
+  newPageText = newPageText.replace(
+    spiHelperArchiveNoticeRegex, () => newNotice.generateWikitext(),
+  );
   // Also remove the new master if they're in the sock list
   // This RE is kind of ugly. The idea is that we find everything from the level 4 heading
   // ending with "sockpuppets" to the level 4 heading beginning with <big> and pull the checkuser
