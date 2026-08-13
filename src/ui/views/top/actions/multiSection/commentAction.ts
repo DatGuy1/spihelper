@@ -18,10 +18,16 @@ export const MultiSectionCommentActionComponent = defineComponent({
       return this.bySection.get(sectionId) ?? defaultEntry;
     },
     onUpdateEnabled(sectionId: number, enabled: boolean) {
-      this.bySection.set(sectionId, { ...this.entry(sectionId), enabled });
+      const existing = this.bySection.get(sectionId);
+      if (existing) {
+        existing.enabled = enabled;
+      }
     },
     onUpdateText(sectionId: number, text: string) {
-      this.bySection.set(sectionId, { ...this.entry(sectionId), text });
+      const existing = this.bySection.get(sectionId);
+      if (existing) {
+        existing.text = text;
+      }
     },
   },
   template: `

@@ -33,6 +33,8 @@ export function getStatusTemplate(status: string): string | null {
       return '{{reopen}}';
     case 'checked':
     case 'closed':
+    case 'new':
+    case '':
       return null;
     default:
       console.warn('New case status', status, 'is unexpected');

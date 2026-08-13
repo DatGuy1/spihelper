@@ -53,7 +53,6 @@ export const ArchiveActionComponent = defineComponent({
     },
     effectiveSectionStatus(sectionId: number): string {
       const entry = this.statusData.bySection.get(sectionId);
-      console.log(entry);
       if (!entry) {
         return '';
       }

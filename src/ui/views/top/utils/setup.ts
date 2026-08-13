@@ -110,5 +110,3 @@ export const ClerkOnlyActions = new Set<CaseActionName>(['move', 'archive', 'man
 export const AlwaysAvailableActions = new Set<CaseActionName>(['sections', 'move', 'archive', 'block', 'link']);
 // Actions available only when a single section is selected
 export const SpecificSectionActions = new Set<CaseActionName>(['status', 'comment']);
-// Actions available only when 'all sections' is selected
-export const AllSectionActions = new Set<CaseActionName>(['management']);

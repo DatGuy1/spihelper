@@ -28,6 +28,7 @@ import {
   getInitialCaseActions,
   getManagementFlagsFromArchiveNotice,
   prefetchSockRows,
+  shouldShowAction,
   updateCommentWithStatus,
 } from './utils';
 import { MODE, VERSION, spiHelperCaseStatusRegex } from '../../../constants';
@@ -35,7 +36,7 @@ import { normalizeCaseStatus } from './utils/status.ts';
 import { OpState, finishOp, getOpState, isOpRunning, startOp } from '../../../operations.ts';
 import { spiHelperPerformActions } from '../../../caseActions.ts';
 import { VueMessage, messages } from '../../messages.ts';
-import { AllSectionActions, AlwaysAvailableActions, SpecificSectionActions } from './utils/setup.ts';
+import { AlwaysAvailableActions, SpecificSectionActions } from './utils/setup.ts';
 import { addSectionButtons, clearSelectedSectionOverlays, setSelectedSectionOverlays } from '../../dom.ts';
 
 interface Data {
@@ -187,18 +188,17 @@ export const TopViewComponent = defineComponent({
           continue;
         }
         const actionDefaultEnabled = spiHelperSettings.defaultActions.includes(caseAN);
-        caseAction.enabled = actionDefaultEnabled;
-        // If the action is enabled by default, it's always available,
-        // or we're going to 'all' and it's supported by 'all sections',
-        // or we're going to a single section, and it's supported as such,
-        // or we're going to a multi-section selection, which combines both
-        if (actionDefaultEnabled && (
-          AlwaysAvailableActions.has(caseAN)
-          || (newSection === 'all' && AllSectionActions.has(caseAN))
-          || (typeof newSection === 'number' && SpecificSectionActions.has(caseAN))
-          || (Array.isArray(newSection)
-            && (SpecificSectionActions.has(caseAN) || AllSectionActions.has(caseAN)))
-        )) {
+        // Only enable actions the new selection can actually run
+        const available = shouldShowAction({
+          name: caseAN,
+          selection: newSection,
+          selectionType: this.actionButtons[caseAN].selectionType,
+        });
+        // The form still opens for these, but each section drives its own entry, so the
+        // top-level flag is never shown or read while the selection holds several sections
+        const perSectionDriven = Array.isArray(newSection) && SpecificSectionActions.has(caseAN);
+        caseAction.enabled = actionDefaultEnabled && available && !perSectionDriven;
+        if (actionDefaultEnabled && available) {
           this.displayedForms.add(caseAN);
         }
       }
@@ -311,6 +311,17 @@ export const TopViewComponent = defineComponent({
     isVisible(name: CaseActionName): boolean {
       return this.displayedForms.has(name);
     },
+    isActionEnabled(name: CaseActionName): boolean {
+      if (this.state.selectedSection?.type === 'multiple') {
+        if (name === 'comment') {
+          return [...this.caseActions.comment.data.bySection.values()].some(e => e.enabled);
+        }
+        if (name === 'status') {
+          return [...this.caseActions.status.data.bySection.values()].some(e => e.enabled);
+        }
+      }
+      return this.caseActions[name].enabled;
+    },
     async onUpdateSectionSelection(newSelection: number | 'all' | null) {
       if (newSelection === null) {
         return;
@@ -421,14 +432,18 @@ export const TopViewComponent = defineComponent({
     // multi-select selection
     async ensureBySectionEntry(section: SectionEntry) {
       if (!this.caseActions.comment.data.bySection.has(section.id)) {
-        this.caseActions.comment.data.bySection.set(section.id, { text: '* ', enabled: false });
+        this.caseActions.comment.data.bySection.set(section.id, {
+          text: '* ', enabled: spiHelperSettings.defaultActions.includes('comment'),
+        });
       }
       if (!this.caseActions.status.data.bySection.has(section.id)) {
         const text = await loadSectionText(section);
         const result = spiHelperCaseStatusRegex.exec(text);
         const normalisedStatus = normalizeCaseStatus(result?.[1] ?? '');
         this.caseActions.status.data.bySection.set(section.id, {
-          old: normalisedStatus, new: normalisedStatus, enabled: false,
+          old: normalisedStatus,
+          new: normalisedStatus,
+          enabled: spiHelperSettings.defaultActions.includes('status'),
         });
       }
     },
@@ -490,11 +505,9 @@ export const TopViewComponent = defineComponent({
     // own comment box in the multi-select selection
     onUpdateSectionStatus(sectionId: number, newStatus: string) {
       const entry = this.caseActions.comment.data.bySection.get(sectionId);
-      const currentComment = entry?.text ?? '* ';
-      this.caseActions.comment.data.bySection.set(sectionId, {
-        text: updateCommentWithStatus(currentComment, newStatus),
-        enabled: entry?.enabled ?? false,
-      });
+      if (entry) {
+        entry.text = updateCommentWithStatus(entry.text, newStatus);
+      }
     },
     async onSubmitActions() {
       if (isOpRunning('mainActions')) {
@@ -633,7 +646,7 @@ export const TopViewComponent = defineComponent({
               :selection-type="button.selectionType"
               :selection="caseActions.sections.data.section"
               :displayedForms="displayedForms"
-              :actionEnabled="caseActions[name].enabled"
+              :actionEnabled="isActionEnabled(name)"
               @click="onActionClick($event, name)"
           />
         </div>
@@ -671,7 +684,7 @@ export const TopViewComponent = defineComponent({
             :selection-type="button.selectionType"
             :selection="caseActions.sections.data.section"
             :displayedForms="displayedForms"
-            :actionEnabled="caseActions[name].enabled"
+            :actionEnabled="isActionEnabled(name)"
             @action-toggled="onAccordionToggle(name)"
         >
           <action-content
