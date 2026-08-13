@@ -74,7 +74,7 @@ export const spiHelperLinkViewURLFormats: LinkFormatCollection = {
       multipleUserQueryStringKeys: false,
     },
     consolidatedTimeline: {
-      baseUrl: (_caseName: string) => new URL('https://sandals.toolforge.org/timeline'),
+      baseUrl: (_caseName: string) => new URL('https://sandals.toolforge.org/contributions'),
       userQueryStringKey: 'users',
       userQueryStringSeparator: '|',
       userQueryStringWrapper: '',
