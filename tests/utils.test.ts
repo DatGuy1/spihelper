@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { addAdminSectionNote, parseArchiveSections, rebuildArchiveText } from '../src/utils.ts';
+import {
+  addAdminSectionNote,
+  parseArchiveSections,
+  rebuildArchiveText,
+  spiHelperGetXWikiPrefix,
+  spiHelperStripXWikiPrefix,
+} from '../src/utils.ts';
 import { SectionEntry } from '../src/state.ts';
 import type { ArchiveSection } from '../src/types';
 
@@ -77,5 +83,26 @@ describe('rebuildArchiveText', () => {
 
   test('does not lead with a blank line when the archive has no header', () => {
     expect(rebuildArchiveText('', [makeSection(1)])).toBe(makeSection(1).fullText);
+  });
+});
+
+describe('spiHelperGetXWikiPrefix', () => {
+  test('returns the prefix of a cross-wiki title', () => {
+    expect(spiHelperGetXWikiPrefix('meta:Steward requests/Global')).toBe('meta');
+    expect(spiHelperGetXWikiPrefix('m:Steward requests/Global')).toBe('m');
+  });
+
+  test('returns null for a local title, namespaced or not', () => {
+    expect(spiHelperGetXWikiPrefix('Wikipedia:Sockpuppet investigations/Foo')).toBeNull();
+    expect(spiHelperGetXWikiPrefix('Foo')).toBeNull();
+  });
+
+  test('does not treat a prefix-lookalike as cross-wiki', () => {
+    expect(spiHelperGetXWikiPrefix('metadata:Foo')).toBeNull();
+  });
+
+  test('stripping leaves the on-wiki title', () => {
+    expect(spiHelperStripXWikiPrefix('meta:Steward requests/Global')).toBe('Steward requests/Global');
+    expect(spiHelperStripXWikiPrefix('User:Foo')).toBe('User:Foo');
   });
 });

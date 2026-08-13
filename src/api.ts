@@ -48,7 +48,9 @@ import type {
   SiteInfoResponse,
   WatchOption,
 } from './types';
-import { buildTitleLinkHtml, buildURLLinkHtml, spiHelperStripXWikiPrefix } from './utils.ts';
+import {
+  buildTitleLinkHtml, buildURLLinkHtml, spiHelperGetXWikiPrefix, spiHelperStripXWikiPrefix,
+} from './utils.ts';
 import { OpState, finishOp, startOp } from './operations.ts';
 import { VERSION, spiHelperAdvert } from './constants';
 import { SectionEntry } from './state.ts';
@@ -904,6 +906,7 @@ export async function spiHelperEditPage(opts: {
   }).show();
 
   const api = spiHelperGetAPI(title);
+  const xwikiPrefix = spiHelperGetXWikiPrefix(title);
   const finalTitle = spiHelperStripXWikiPrefix(title);
 
   const request: ApiEditPageParams = {
@@ -936,7 +939,11 @@ export async function spiHelperEditPage(opts: {
       finishOp(activeOpKey, OpState.Failed);
       return null;
     }
-    const diffLinkHtml = buildURLLinkHtml(mw.util.getUrl('', { diff: diffId }), 'Saved', `View diff ${diffId}`);
+    // Keep the title's interwiki prefix on the diff link
+    const diffUrl = xwikiPrefix === null
+      ? mw.util.getUrl('', { diff: diffId })
+      : mw.util.getUrl(`${xwikiPrefix}:Special:Diff/${diffId}`);
+    const diffLinkHtml = buildURLLinkHtml(diffUrl, 'Saved', `View diff ${diffId}`);
     message.update({ type: 'success', content: `${diffLinkHtml} page ${pageLinkHtml}`, isHtml: true });
     finishOp(activeOpKey, OpState.Success);
     return response.edit.newrevid ?? null;
@@ -1178,7 +1185,7 @@ const APIs = {
  * @return {Object} MediaWiki Api/ForeignAPI for the target page's wiki
  */
 export function spiHelperGetAPI(title?: string): mw.Api {
-  if (title && (title.startsWith('m:') || title.startsWith('meta:'))) {
+  if (title && spiHelperGetXWikiPrefix(title) !== null) {
     return APIs.meta;
   }
   else {

@@ -21,6 +21,23 @@ import {
 } from './types';
 import { parseTemplates } from './template.ts';
 
+const spiHelperXWikiPrefixes = ['m', 'meta'];
+
+/**
+ * Gets the interwiki prefix of a page title, if it has one we operate on
+ *
+ * @param title Page name, possibly including an interwiki prefix
+ * @return {string | null} The prefix without its colon, or null for a local title
+ */
+export function spiHelperGetXWikiPrefix(title: string): string | null {
+  const colonIndex = title.indexOf(':');
+  if (colonIndex === -1) {
+    return null;
+  }
+  const prefix = title.slice(0, colonIndex);
+  return spiHelperXWikiPrefixes.includes(prefix) ? prefix : null;
+}
+
 /**
  * Removes the interwiki prefix from a page title
  *
@@ -28,12 +45,8 @@ import { parseTemplates } from './template.ts';
  * @return {string} Just the page name
  */
 export function spiHelperStripXWikiPrefix(title: string): string {
-  if (title.startsWith('m:') || title.startsWith('meta:')) {
-    return title.slice(title.indexOf(':') + 1);
-  }
-  else {
-    return title;
-  }
+  const prefix = spiHelperGetXWikiPrefix(title);
+  return prefix === null ? title : title.slice(prefix.length + 1);
 }
 
 /**
