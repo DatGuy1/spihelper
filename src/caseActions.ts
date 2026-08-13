@@ -515,6 +515,12 @@ export async function spiHelperHandleBlocks(opts: {
 
   const blockAvailable = spiHelperIsAdmin() && !blockOptions.noBlock;
 
+  // Userpages are only read to diff against the tags we're about to write, and talk pages
+  // only to append a block notice to. Skip either fetch entirely when nothing will use it.
+  const addingTags = userRows.some(user => user.block.tags.length > 0);
+  const addingNotices = blockAvailable && !blockOptions.blankTalk
+    && (blockOptions.addMasterNotice || blockOptions.addSockNotice);
+
   const { allUsernames, allUserPages, allUserTalkPages } = userRows.reduce<{
     allUsernames: Set<string>;
     allUserPages: string[];
@@ -532,8 +538,8 @@ export async function spiHelperHandleBlocks(opts: {
   // Don't reuse blocks and tags because they might not have all our users
   const [userBlocks, userPages, userTalkPages, globalUsers, userGlobalBlocks] = await Promise.all([
     spiHelperGetBulkUserBlockSettings(allUsernames),
-    spiHelperGetBulkPageText(allUserPages),
-    spiHelperGetBulkPageText(allUserTalkPages),
+    spiHelperGetBulkPageText(addingTags ? allUserPages : []),
+    spiHelperGetBulkPageText(addingNotices ? allUserTalkPages : []),
     spiHelperGetBulkGlobalUsers(
       new Set([...allUsernames].filter(username => !isNonRegisteredAccount(username))),
     ),
