@@ -433,7 +433,12 @@ export function setupBlockActionData(masterName = ''): BlockActionData {
   };
 }
 
-export function parseUserTags(userPage: string): Tag[] {
+/**
+ * @param userPage Wikitext of the user page to read tags from
+ * @param username Whose page it is, used only to identify the page in warnings
+ */
+export function parseUserTags(userPage: string, username?: string): Tag[] {
+  const on = username ? ` on ${username}` : '';
   const tags: Tag[] = [];
   const templates = parseTemplates(userPage);
   for (const template of templates) {
@@ -454,6 +459,13 @@ export function parseUserTags(userPage: string): Tag[] {
       }
       else {
         console.warn('Unrecognised master status', firstParam);
+        // A tag we can't read isn't shown in the table and is overwritten by retagging,
+        // so warn rather than let it silently look like the user is untagged
+        new VueMessage({
+          type: 'warning',
+          content: `Ignoring {{${template.name}}} tag${on} with unrecognised status `
+            + `"${firstParam ?? ''}". Tagging will overwrite it`,
+        }).show();
         continue;
       }
 
@@ -495,6 +507,11 @@ export function parseUserTags(userPage: string): Tag[] {
           break;
         default:
           console.warn('Unrecognised sock status', statusParam);
+          new VueMessage({
+            type: 'warning',
+            content: `Ignoring {{${template.name}}} tag${on} with unrecognised status `
+              + `"${statusParam?.toString() ?? ''}". Tagging will overwrite it`,
+          }).show();
           continue;
       }
 
@@ -516,6 +533,12 @@ export function parseUserTags(userPage: string): Tag[] {
             break;
           default:
             console.warn('Unrecognised altmaster status', altmasterStatusParam);
+            // Unlike the cases above the tag itself is kept, just without its altmaster
+            new VueMessage({
+              type: 'warning',
+              content: `Dropping altmaster "${altmaster.toString()}"${on}: unrecognised `
+                + `altmaster-status "${altmasterStatusParam?.toString() ?? ''}"`,
+            }).show();
             break;
         }
 

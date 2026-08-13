@@ -5,6 +5,7 @@ import { context } from './context.ts';
 import { spiHelperSettings } from './options';
 import { CaseState, loadCaseText } from './state.ts';
 import { parseTemplates } from './template.ts';
+import { VueMessage } from './ui/messages.ts';
 
 /**
  * Parse key features from an archivenotice
@@ -67,6 +68,10 @@ export function spiHelperParseArchiveNoticeText(pageText: string): ParsedArchive
     }
     else {
       console.warn('Unrecognised archivenotice parameter', key, '=', val);
+      new VueMessage({
+        type: 'warning',
+        content: `Found unexpected archive notice parameter |${key}=${val.toString()}`,
+      }).show();
     }
   }
 

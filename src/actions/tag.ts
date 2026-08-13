@@ -124,7 +124,7 @@ export async function spiHelperTagUser(opts: {
     tag.locked = userInfo.locked;
   });
 
-  const oldTags = parseUserTags(pageText);
+  const oldTags = parseUserTags(pageText, sock.username);
   // Remove invalid tags and make them unique
   const cleanedTags = sock.block.tags.reduce<Tag[]>((acc, tag) => {
     const isOrphanSockpuppet = isSockpuppetTag(tag) && !tag.master;

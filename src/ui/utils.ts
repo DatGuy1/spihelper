@@ -136,7 +136,7 @@ export function updateUserBlockDataSettings(opts: {
   }
 
   if (userPage) {
-    userRow.block.tags = parseUserTags(userPage);
+    userRow.block.tags = parseUserTags(userPage, userRow.username);
   }
 
   return userRow;
