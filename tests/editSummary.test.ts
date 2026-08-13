@@ -17,7 +17,7 @@ describe('buildEditSummaryActions', () => {
 
   test('puts the status change last, after the work it is a verdict on', () => {
     expect(buildFor({
-      status: 'closing case',
+      status: 'closing',
       commentedCount: 1,
       blockedUsers: ['SockA', 'SockB'],
       taggedUsers: ['SockA', 'SockB'],
@@ -26,7 +26,7 @@ describe('buildEditSummaryActions', () => {
       'commenting',
       'blocking and tagging 2 accounts',
       'requesting lock',
-      'closing case',
+      'closing',
     ]);
   });
 
@@ -102,8 +102,8 @@ describe('buildEditSummaryActions', () => {
   test('ignores multi-section counts on a single-section edit, and vice versa', () => {
     // Multi-section and single-section are exclusionary. Ensure a stray value
     // on the wrong scope doesn't leak a second status phrase into the summary
-    expect(buildFor({ status: 'Closing case', closedCount: 3 })).toEqual(['Closing case']);
-    expect(buildFor({ multiSection: true, status: 'Closing case', closedCount: 3 }))
+    expect(buildFor({ status: 'closing', closedCount: 3 })).toEqual(['closing']);
+    expect(buildFor({ multiSection: true, status: 'closing', closedCount: 3 }))
       .toEqual(['closing 3 sections']);
   });
 

@@ -468,7 +468,7 @@ function spiHelperHandleStatus(newStatus: string, targetText: string) {
       summaryItem = 'placing checkuser request on hold';
       break;
     case 'closed':
-      summaryItem = 'closing case';
+      summaryItem = 'closing';
       break;
     case 'nochange':
       // Do nothing

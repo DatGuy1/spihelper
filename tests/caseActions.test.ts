@@ -426,7 +426,7 @@ describe('spiHelperPerformActions', () => {
       ]);
 
       expect(summary).toBe(
-        '/* 09 July 2020 */ Blocking and tagging 2 accounts, requesting lock, closing case',
+        '/* 09 July 2020 */ Blocking and tagging 2 accounts, requesting lock, closing',
       );
     });
 
@@ -443,7 +443,7 @@ describe('spiHelperPerformActions', () => {
       ]);
 
       // Uncounted singular, and SockB is absent from both counts
-      expect(summary).toBe('/* 09 July 2020 */ Blocking and tagging account, closing case');
+      expect(summary).toBe('/* 09 July 2020 */ Blocking and tagging account, closing');
     });
 
     test('omits the user action phrases when nothing was blocked, tagged or locked', async () => {
@@ -451,7 +451,7 @@ describe('spiHelperPerformActions', () => {
 
       const summary = await getSummaryForAccounts([makeRow('SockA', { block: false })]);
 
-      expect(summary).toBe('/* 09 July 2020 */ Closing case');
+      expect(summary).toBe('/* 09 July 2020 */ Closing');
     });
   });
 
