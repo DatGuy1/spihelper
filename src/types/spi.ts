@@ -255,7 +255,6 @@ export interface BlockActionData {
   userBlocks: Map<string, BlockEntry>;
   userLocks: Map<string, boolean>;
   userGlobalBlocks: Map<string, boolean>;
-  userTags: Map<string, Tag[]>;
   master: string;
   lockcomment: string;
   skipCUVerifyUsers: Set<string>;

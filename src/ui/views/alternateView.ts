@@ -354,7 +354,6 @@ export const AlternateViewComponent = defineComponent({
         userBlocks: this.blockData.userBlocks,
         userLocks: this.blockData.userLocks,
         userGlobalBlocks: this.blockData.userGlobalBlocks,
-        userTags: this.blockData.userTags,
         state: this.state,
       });
       this.massAddUserRows(allRows);
@@ -410,7 +409,6 @@ export const AlternateViewComponent = defineComponent({
         userBlocks: this.blockData.userBlocks,
         userLocks: this.blockData.userLocks,
         userGlobalBlocks: this.blockData.userGlobalBlocks,
-        userTags: this.blockData.userTags,
         state: this.state,
       });
       this.massAddUserRows(allRows);

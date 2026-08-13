@@ -6,7 +6,7 @@ import {
   spiHelperGetBulkPageText,
   spiHelperGetBulkUserBlockSettings,
 } from '../../../../api.ts';
-import type { BlockEntry, Tag, UserRow } from '../../../../types';
+import type { BlockEntry, UserRow } from '../../../../types';
 import { isNonRegisteredAccount } from '../../../../utils.ts';
 
 export async function prefetchSockRows(opts: {
@@ -16,12 +16,11 @@ export async function prefetchSockRows(opts: {
   userBlocks: Map<string, BlockEntry>;
   userLocks: Map<string, boolean>;
   userGlobalBlocks: Map<string, boolean>;
-  userTags: Map<string, Tag[]>;
   state: CaseState;
 }): Promise<UserRow[]> {
   const {
     likelySocks, possibleSocks, allUsernames,
-    userBlocks, userLocks, userGlobalBlocks, userTags, state,
+    userBlocks, userLocks, userGlobalBlocks, state,
   } = opts;
   // For the minute time complexity gains
   const likelySet = new Set(likelySocks.map(sock => sock.id));
@@ -63,7 +62,6 @@ export async function prefetchSockRows(opts: {
     if (isGloballyBlocked !== null) {
       userGlobalBlocks.set(userRow.username, isGloballyBlocked);
     }
-    userTags.set(userRow.username, userRow.block.tags);
     return newRow;
   });
 }
