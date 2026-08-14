@@ -154,7 +154,7 @@ export async function mergeArchives(
   }
   new VueMessage({
     type: 'notice',
-    content: 'Archives detected on both source and target cases, copying it manually.',
+    content: 'Archives detected on both source and target cases, copying it manually',
   }).show();
 
   const sourceArchiveEntries = await spiHelperGetInvestigationSections(

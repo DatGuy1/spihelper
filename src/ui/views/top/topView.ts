@@ -598,7 +598,7 @@ export const TopViewComponent = defineComponent({
         this.state.archiveNotice = new ParsedArchiveNotice({ username: context.caseName });
         new VueMessage({
           type: 'warning',
-          content: 'Can\'t find archivenotice template! Automatically adding the archive notice to the page.',
+          content: 'Can\'t find archivenotice template! Automatically adding the archive notice to the page',
         }).show();
         mw.notify('Can\'t find archivenotice template! If this is incorrect, please contact DatGuy', { type: 'warn' }); // Adding the archive notice to the page
         console.warn('archivenoticeResult is null');

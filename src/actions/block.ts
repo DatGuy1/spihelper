@@ -30,7 +30,7 @@ export function buildTalkNotice(opts: {
   else {
     newText += '{{subst:uw-sockblock|sig=yes';
   }
-  if (context.valid) {
+  if (context.source === 'spi' && context.valid) {
     newText += '|spi=' + context.caseName;
   }
   if (isNoExpiry(sock.block.duration)) {
@@ -56,7 +56,7 @@ export function buildBlockSummary(
   blockOptions: BlockOptions, isIP: boolean, isIPRange: boolean, acb: boolean,
 ) {
   let blockSummary = 'Abusing [[WP:SOCK|multiple accounts]]';
-  if (context.valid) {
+  if (context.source === 'spi' && context.valid) {
     blockSummary += `: Please see: [[${context.prefixedName}]]`;
   }
   if (spiHelperIsCheckuser() && blockOptions.cuBlock) {

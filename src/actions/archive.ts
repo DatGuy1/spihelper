@@ -269,7 +269,7 @@ export async function findFirstEmptySubArchive(archiveName: string): Promise<num
     if (archiveId > 30) {
       new VueMessage({
         type: 'error',
-        content: 'Reached upper bound on possible archives, something probably went catastrophically wrong.',
+        content: 'Reached upper bound on possible archives, something probably went catastrophically wrong',
       }).show();
       return null;
     }
