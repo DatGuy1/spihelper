@@ -1,6 +1,6 @@
 import { context } from '../context.ts';
 import { spiHelperNormalizeUsername } from '../utils.ts';
-import type { BlockEntry } from './api.ts';
+import type { BlockEntry, GlobalBlockEntry } from './api.ts';
 
 export class ParsedArchiveNotice {
   username: string;
@@ -250,11 +250,24 @@ export interface CaseActions {
   archive: { enabled: boolean };
 }
 
+/**
+ * Everything one lookup of a user turned up, exactly as the API gave it back. Absent fields
+ * mean "nothing there", a username missing from the cache means "never looked up".
+ */
+export interface PrefetchedUser {
+  block: BlockEntry | undefined;
+  userPage: string | undefined;
+  globalUser: GlobalUser | undefined;
+  globalBlock: GlobalBlockEntry | undefined;
+}
+
 export interface BlockActionData {
   options: BlockOptions;
   userBlocks: Map<string, BlockEntry>;
   userLocks: Map<string, boolean>;
   userGlobalBlocks: Map<string, boolean>;
+  // Users already looked up this session, so switching sections doesn't refetch them
+  fetchedUsers: Map<string, PrefetchedUser>;
   master: string;
   lockcomment: string;
   skipCUVerifyUsers: Set<string>;

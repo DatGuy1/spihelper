@@ -33,15 +33,14 @@ import type {
   CategoriesResponse,
   CategoryMembersResponse,
   EditResponse,
-  FlaggedResponse,
   GlobalBlockEntry,
   GlobalBlocksResponse,
   GlobalUser,
   GlobalUsersResponse,
-  InfoResponse,
   NewPendingChanges,
+  PageRestrictions,
+  PageRestrictionsResponse,
   ParseResponse,
-  PendingChanges,
   Protection,
   Restrictions,
   RevisionsResponse,
@@ -99,6 +98,13 @@ export async function spiHelperGetUserBlockSettings(user: string): Promise<Block
   }
 }
 
+/**
+ * Fetch the wikitext of several pages at once.
+ *
+ * @param titles Pages to fetch, which may span namespaces
+ * @return The text of each page that exists, keyed by full title. Pages that don't exist
+ * are absent from the map.
+ */
 export async function spiHelperGetBulkPageText(
   titles: string[],
 ): Promise<Map<string, string>> {
@@ -120,6 +126,10 @@ export async function spiHelperGetBulkPageText(
     };
     try {
       const response = await api.post(request) as RevisionsResponse<'content'>;
+      // Titles come back canonicalised
+      const asRequested = new Map(
+        (response.query.normalized ?? []).map(({ from, to }) => [to, from]),
+      );
       for (const page of response.query.pages) {
         if (page.missing) {
           continue;
@@ -128,12 +138,12 @@ export async function spiHelperGetBulkPageText(
         if (!latestRevision) {
           continue;
         }
-        const pageTitle = page.title.split(':', 2)[1];
-        if (!pageTitle) {
-          console.error('spiHelperGetBulkPageText: could not find name for', page.title);
-          continue;
+        const content = latestRevision.slots.main.content;
+        resultMap.set(page.title, content);
+        const requestedTitle = asRequested.get(page.title);
+        if (requestedTitle !== undefined) {
+          resultMap.set(requestedTitle, content);
         }
-        resultMap.set(pageTitle, latestRevision.slots.main.content);
       }
     }
     catch (error) {
@@ -340,9 +350,14 @@ export async function spiHelperGetUsers(from: string, limit: number): Promise<Al
   }
 }
 
+/**
+ * List the pages of a namespace starting with a prefix.
+ *
+ * @return The matching pages, or null if the request failed
+ */
 export async function spiHelperGetPages(
-  from: string, namespace: number, limit: number,
-): Promise<AllPage[]> {
+  from: string, namespace: number, limit: number | 'max',
+): Promise<AllPage[] | null> {
   const api = spiHelperGetAPI();
   const request: ApiQueryAllPagesParams = {
     action: 'query',
@@ -356,8 +371,9 @@ export async function spiHelperGetPages(
     const response = await api.get(request) as AllPagesResponse;
     return response.query.allpages;
   }
-  catch {
-    return [];
+  catch (error) {
+    console.error('spiHelperGetPages fetch error:', error);
+    return null;
   }
 }
 
@@ -538,56 +554,47 @@ export async function spiHelperGetSPIBacklinks(casePageName: string) {
 }
 
 /**
- * Get the page protection level for an SPI page.
+ * Get the protection and pending-changes settings of several pages at once.
  * Used to keep the protection level after a history merge
+ *
+ * @param titles Pages to look up
+ * @return Each page's settings, keyed by full title. Pages with neither are still present,
+ * with an empty protection list and null pending changes.
  */
-export async function spiHelperGetProtectionInformation(
-  casePageName: string,
-): Promise<Protection[]> {
+export async function spiHelperGetBulkPageRestrictions(
+  titles: string[],
+): Promise<Map<string, PageRestrictions>> {
+  const resultMap = new Map<string, PageRestrictions>();
+  if (titles.length === 0) {
+    return resultMap;
+  }
   // Only looking for enwiki protection information
   const api = spiHelperGetAPI();
-  const request: ApiQueryInfoParams = {
-    action: 'query',
-    format: 'json',
-    prop: 'info',
-    titles: casePageName,
-    inprop: 'protection',
-    formatversion: '2',
-  };
-  try {
-    const response = await api.get(request) as InfoResponse;
-    const [page] = response.query.pages;
-    return page?.protection ?? [];
-  }
-  catch {
-    return [];
-  }
-}
+  const chunkSize = await getApiChunkSize();
 
-/**
- * Gets stabilisation settings information for a page.
- * If no pending changes exists then it returns false.
- */
-export async function spiHelperGetStabilisationSettings(
-  pageName: string,
-): Promise<PendingChanges | null> {
-  // Only looking for enwiki stabilisation information
-  const api = spiHelperGetAPI();
-  const request: ApiQueryFlaggedParams = {
-    action: 'query',
-    format: 'json',
-    prop: 'flagged',
-    titles: pageName,
-    formatversion: '2',
-  };
-  try {
-    const response = await api.get(request) as FlaggedResponse;
-    const [page] = response.query.pages;
-    return page?.flagged ?? null;
-  }
-  catch {
-    return null;
-  }
+  await Promise.all(chunkArray(titles, chunkSize).map(async (chunk) => {
+    const request: ApiQueryInfoParams & ApiQueryFlaggedParams = {
+      action: 'query',
+      prop: ['info', 'flagged'],
+      titles: chunk,
+      inprop: 'protection',
+      formatversion: '2',
+    };
+    try {
+      const response = await api.post(request) as PageRestrictionsResponse;
+      for (const page of response.query.pages) {
+        resultMap.set(page.title, {
+          protection: page.protection ?? [],
+          pendingChanges: page.flagged ?? null,
+        });
+      }
+    }
+    catch (error) {
+      console.error('spiHelperGetBulkPageRestrictions fetch error:', error);
+    }
+  }));
+
+  return resultMap;
 }
 
 export async function spiHelperProtectPage(pageName: string, protections: Protection[]) {

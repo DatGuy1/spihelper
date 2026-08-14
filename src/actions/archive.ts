@@ -8,15 +8,12 @@ import {
   spiHelperGetInterwikiPrefix,
   spiHelperGetMaxPostExpandSize,
 } from '../utils.ts';
-import {
-  spiHelperCaseClosedRegex,
-  spiHelperCaseStatusRegex,
-  spiHelperSectionRegex,
-} from '../constants';
+import { spiHelperCaseClosedRegex, spiHelperCaseStatusRegex, spiHelperSectionRegex } from '../constants';
 import {
   spiHelperEditPage,
   spiHelperGetInvestigationSections,
   spiHelperGetPageText,
+  spiHelperGetPages,
   spiHelperGetPostExpandSize,
   spiHelperGetPostExpandSizeFromText,
   spiHelperMovePage,
@@ -24,6 +21,8 @@ import {
 import { spiHelperSettings } from '../options';
 import { VueMessage } from '../ui/messages.ts';
 import type { ArchiveSection } from '../types';
+
+const MAX_SUB_ARCHIVES = 30;
 
 /**
  * Archives all closed sections of a case. If an explicit subset is given, only sections
@@ -41,6 +40,8 @@ export async function spiHelperArchiveCase(
   }).show();
   const pageTextPromise = loadCaseText(state);
   const candidateSections = explicitSections ?? state.sections;
+  // Realistically could make sectionsToArchive use the parseArchiveSections logic
+  // instead of making an API request for each section
   const sectionsToArchive = (await Promise.all(
     candidateSections.map(async (section) => {
       const sectionText = await loadSectionText(section);
@@ -237,10 +238,11 @@ export async function spiHelperArchiveCaseSection(section: SectionEntry): Promis
 export async function spiHelperMoveArchiveIfOverflowing(
   sourcePage: string, archiveName: string,
 ): Promise<'ok' | 'moved' | 'abort'> {
-  const postExpandPercent = (
-    await spiHelperGetPostExpandSize(sourcePage)
-    + await spiHelperGetPostExpandSize(archiveName)
-  ) / spiHelperGetMaxPostExpandSize();
+  const [sourceSize, archiveSize] = await Promise.all([
+    spiHelperGetPostExpandSize(sourcePage),
+    spiHelperGetPostExpandSize(archiveName),
+  ]);
+  const postExpandPercent = (sourceSize + archiveSize) / spiHelperGetMaxPostExpandSize();
   if (postExpandPercent < 1) {
     return 'ok';
   }
@@ -263,19 +265,31 @@ export async function spiHelperMoveArchiveIfOverflowing(
  * Returns the slot number, or null if the 30-slot limit is reached.
  */
 export async function findFirstEmptySubArchive(archiveName: string): Promise<number | null> {
-  let archiveId = 0;
-  let slotText = 'sentinel';
-  while (slotText !== '') {
-    if (archiveId > 30) {
-      new VueMessage({
-        type: 'error',
-        content: 'Reached upper bound on possible archives, something probably went catastrophically wrong',
-      }).show();
-      return null;
-    }
-    slotText = await spiHelperGetPageText(`${archiveName}/${++archiveId}`, false);
+  const subArchives = await spiHelperGetPages(
+    `${archiveName.replace(/^Wikipedia:/, '')}/`,
+    4,
+    'max',
+  );
+  if (subArchives === null) {
+    // Treating a failed listing as "nothing exists" would pick a slot that is already
+    // taken, and the caller overwrites whatever is in it
+    new VueMessage({
+      type: 'error',
+      content: 'Failed to find the existing sub-archives, aborting move',
+    }).show();
+    return null;
   }
-  return archiveId;
+  const existing = new Set(subArchives.map(page => page.title));
+  for (let archiveId = 1; archiveId <= MAX_SUB_ARCHIVES; archiveId++) {
+    if (!existing.has(`${archiveName}/${archiveId}`)) {
+      return archiveId;
+    }
+  }
+  new VueMessage({
+    type: 'error',
+    content: 'Reached upper bound on possible archives, something probably went catastrophically wrong',
+  }).show();
+  return null;
 }
 
 /**

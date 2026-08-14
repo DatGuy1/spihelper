@@ -13,14 +13,24 @@ const mockEditPage = mock((_opts: EditPageOpts) => Promise.resolve<number | null
 const mockGetInvestigationSections = mock(
   (_opts: { pageName?: string; content?: string }): Promise<SectionEntry[]> => Promise.resolve([]),
 );
+const mockGetPages = mock(
+  (_from: string, _namespace: number, _limit: number | 'max'): Promise<{ title: string }[] | null> =>
+    Promise.resolve([]),
+);
 
 void mock.module('../../src/api.ts', () => ({
   spiHelperEditPage: mockEditPage,
   spiHelperGetInvestigationSections: mockGetInvestigationSections,
   spiHelperGetPageText: mockGetPageText,
+  spiHelperGetPages: mockGetPages,
   spiHelperGetPostExpandSize: mockGetPostExpandSize,
   spiHelperGetPostExpandSizeFromText: mockGetPostExpandSizeFromText,
   spiHelperMovePage: mockMovePage,
+}));
+
+/** The sub-archives of Foo that the allpages listing should report as existing */
+const existingSubArchives = (...ids: number[]) => ids.map(id => ({
+  title: `Wikipedia:Sockpuppet investigations/Foo/Archive/${id}`,
 }));
 
 const {
@@ -45,6 +55,7 @@ beforeEach(() => {
   mockGetPostExpandSizeFromText.mockReset().mockResolvedValue(0);
   mockEditPage.mockReset().mockResolvedValue(null);
   mockGetInvestigationSections.mockReset().mockResolvedValue([]);
+  mockGetPages.mockReset().mockResolvedValue([]);
   messages.length = 0;
 });
 
@@ -62,7 +73,7 @@ describe('spiHelperMoveArchiveIfOverflowing', () => {
   test('returns moved and calls movePage when first sub-archive slot is empty', async () => {
     // 1.2 MB + 1.2 MB = 2.4 MB > 2 MiB
     mockGetPostExpandSize.mockResolvedValue(1200000);
-    mockGetPageText.mockResolvedValue(''); // sub-archive /1 is empty
+    mockGetPages.mockResolvedValue([]); // no sub-archives exist yet
     const result = await spiHelperMoveArchiveIfOverflowing(
       'Wikipedia:Sockpuppet investigations/Foo', 'Wikipedia:Sockpuppet investigations/Foo/Archive',
     );
@@ -75,10 +86,7 @@ describe('spiHelperMoveArchiveIfOverflowing', () => {
 
   test('moves to the correct slot when earlier sub-archives are occupied', async () => {
     mockGetPostExpandSize.mockResolvedValue(1200000);
-    mockGetPageText
-      .mockResolvedValueOnce('content') // /1 occupied
-      .mockResolvedValueOnce('content') // /2 occupied
-      .mockResolvedValueOnce(''); // /3 empty
+    mockGetPages.mockResolvedValue(existingSubArchives(1, 2));
     const result = await spiHelperMoveArchiveIfOverflowing(
       'Wikipedia:Sockpuppet investigations/Foo', 'Wikipedia:Sockpuppet investigations/Foo/Archive',
     );
@@ -90,12 +98,36 @@ describe('spiHelperMoveArchiveIfOverflowing', () => {
 
   test('returns abort and skips movePage when all 30 sub-archive slots are occupied', async () => {
     mockGetPostExpandSize.mockResolvedValue(1200000);
-    mockGetPageText.mockResolvedValue('content'); // every slot occupied
+    const everySlot = Array.from({ length: 30 }, (_, i) => i + 1);
+    mockGetPages.mockResolvedValue(existingSubArchives(...everySlot));
     const result = await spiHelperMoveArchiveIfOverflowing(
       'Wikipedia:Sockpuppet investigations/Foo', 'Wikipedia:Sockpuppet investigations/Foo/Archive',
     );
     expect(result).toBe('abort');
     expect(mockMovePage).not.toHaveBeenCalled();
+  });
+
+  test('aborts rather than picking a slot when the sub-archive listing fails', async () => {
+    // A failed listing looks exactly like "no sub-archives exist" unless it is told apart,
+    // and the caller writes over whatever is in the slot it is given
+    mockGetPostExpandSize.mockResolvedValue(1200000);
+    mockGetPages.mockResolvedValue(null);
+    const result = await spiHelperMoveArchiveIfOverflowing(
+      'Wikipedia:Sockpuppet investigations/Foo', 'Wikipedia:Sockpuppet investigations/Foo/Archive',
+    );
+    expect(result).toBe('abort');
+    expect(mockMovePage).not.toHaveBeenCalled();
+  });
+
+  test('asks for every subpage, so the listing cannot truncate past an occupied slot', async () => {
+    mockGetPostExpandSize.mockResolvedValue(1200000);
+    await spiHelperMoveArchiveIfOverflowing(
+      'Wikipedia:Sockpuppet investigations/Foo', 'Wikipedia:Sockpuppet investigations/Foo/Archive',
+    );
+    // apprefix is namespace-relative, so it carries no "Wikipedia:"
+    expect(mockGetPages).toHaveBeenCalledWith(
+      'Sockpuppet investigations/Foo/Archive/', 4, 'max',
+    );
   });
 });
 

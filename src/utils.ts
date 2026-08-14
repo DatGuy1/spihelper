@@ -426,6 +426,7 @@ export function setupBlockActionData(masterName = ''): BlockActionData {
     userLocks: new Map(),
     userGlobalBlocks: new Map(),
     userBlocks: new Map(),
+    fetchedUsers: new Map(),
     master: masterName,
     lockcomment: '',
     skipCUVerifyUsers: new Set<string>(),

@@ -375,6 +375,10 @@ describe('spiHelperHandleBlocks', () => {
   });
 
   describe('skipping unused page fetches', () => {
+    /**
+     * Runs the pipeline and reports the titles the single bulk page fetch asked for.
+     * An empty list means no request goes out and spiHelperGetBulkPageText returns early.
+     */
     async function getFetchedTitles(opts: {
       rows: UserRow[];
       options?: Partial<BlockOptions>;
@@ -391,48 +395,47 @@ describe('spiHelperHandleBlocks', () => {
       });
       await Promise.all([...blockPromises, ...tagPromises, ...talkNoticePromises]);
 
-      // Userpages and talk pages go through the same bulk call, in that order
-      const [userPageCall, talkPageCall] = pageTextSpy.mock.calls;
-      return { userPages: userPageCall?.[0] ?? [], talkPages: talkPageCall?.[0] ?? [] };
+      const [pageTextCall] = pageTextSpy.mock.calls;
+      return pageTextCall?.[0] ?? [];
     }
 
-    test('fetches both when there are tags to write and notices to leave', async () => {
+    test('asks for both when there are tags to write and notices to leave', async () => {
       expect(await getFetchedTitles({ rows: [makeRow('Vandal', { tags: [makeSockTag()] })] }))
-        .toEqual({ userPages: ['User:Vandal'], talkPages: ['User talk:Vandal'] });
+        .toEqual(['User:Vandal', 'User talk:Vandal']);
     });
 
-    test('skips the userpage fetch when no row is being tagged', async () => {
-      const { userPages } = await getFetchedTitles({ rows: [makeRow('Vandal')] });
-
-      expect(userPages).toEqual([]);
+    test('leaves out userpages when no row is being tagged', async () => {
+      expect(await getFetchedTitles({ rows: [makeRow('Vandal')] }))
+        .toEqual(['User talk:Vandal']);
     });
 
-    test('skips the talk page fetch when both notice options are off', async () => {
-      const { talkPages } = await getFetchedTitles({
+    test('leaves out talk pages when both notice options are off', async () => {
+      expect(await getFetchedTitles({
+        rows: [makeRow('Vandal', { tags: [makeSockTag()] })],
+        options: { addMasterNotice: false, addSockNotice: false },
+      })).toEqual(['User:Vandal']);
+    });
+
+    test('leaves out talk pages when the notice replaces the talk page', async () => {
+      // blankTalk throws the existing content away, so there is nothing to read it for
+      expect(await getFetchedTitles({
+        rows: [makeRow('Vandal', { tags: [makeSockTag()] })],
+        options: { blankTalk: true },
+      })).toEqual(['User:Vandal']);
+    });
+
+    test('leaves out talk pages when no block is going out to leave a notice for', async () => {
+      expect(await getFetchedTitles({
+        rows: [makeRow('Vandal', { tags: [makeSockTag()] })],
+        isAdmin: false,
+      })).toEqual(['User:Vandal']);
+    });
+
+    test('asks for nothing at all when neither is needed', async () => {
+      expect(await getFetchedTitles({
         rows: [makeRow('Vandal')],
         options: { addMasterNotice: false, addSockNotice: false },
-      });
-
-      expect(talkPages).toEqual([]);
-    });
-
-    test('skips the talk page fetch when the notice replaces the talk page', async () => {
-      // blankTalk throws the existing content away, so there is nothing to read it for
-      const { talkPages } = await getFetchedTitles({
-        rows: [makeRow('Vandal')],
-        options: { blankTalk: true },
-      });
-
-      expect(talkPages).toEqual([]);
-    });
-
-    test('skips the talk page fetch when no block is going out to leave a notice for', async () => {
-      const { talkPages } = await getFetchedTitles({
-        rows: [makeRow('Vandal')],
-        isAdmin: false,
-      });
-
-      expect(talkPages).toEqual([]);
+      })).toEqual([]);
     });
   });
 });

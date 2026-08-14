@@ -75,7 +75,7 @@ export const PageLookupComponent = defineComponent({
           }
 
           // Reset the menu items if there are no results.
-          if (pages.length === 0) {
+          if (!pages?.length) {
             this.pageSuggestions = [];
             return;
           }
@@ -100,7 +100,7 @@ export const PageLookupComponent = defineComponent({
 
       spiHelperGetPages(this.fullPagename, this.namespace, this.pageSuggestions.length + ITEM_LIMIT)
         .then((pages) => {
-          if (pages.length === 0) {
+          if (!pages?.length) {
             return;
           }
 

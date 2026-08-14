@@ -3,13 +3,13 @@ import {
   spiHelperConfigurePendingChanges,
   spiHelperDeletePage,
   spiHelperEditPage,
+  spiHelperGetBulkPageRestrictions,
+  spiHelperGetBulkPageText,
   spiHelperGetInvestigationSections,
   spiHelperGetPageText,
   spiHelperGetPostExpandSizeFromText,
-  spiHelperGetProtectionInformation,
   spiHelperGetSPIBacklinks,
   spiHelperGetSiteRestrictionInformation,
-  spiHelperGetStabilisationSettings,
   spiHelperMovePage,
   spiHelperProtectPage,
   spiHelperUndeletePage,
@@ -21,8 +21,14 @@ import {
 } from '../constants';
 import { SpiPageContext, context } from '../context.ts';
 import { spiHelperCanSuppressRedirect, spiHelperIsAdmin } from '../role.ts';
-import { type NewPendingChanges, ParsedArchiveNotice, type Protection, type Restrictions } from '../types';
-import { spiHelperParseArchiveNotice, spiHelperParseArchiveNoticeText } from '../archivenotice.ts';
+import {
+  type NewPendingChanges,
+  ParsedArchiveNotice,
+  type PendingChanges,
+  type Protection,
+  type Restrictions,
+} from '../types';
+import { spiHelperParseArchiveNoticeText } from '../archivenotice.ts';
 import { type SectionEntry, loadSectionText } from '../state.ts';
 import { VueMessage } from '../ui/messages.ts';
 import {
@@ -36,11 +42,11 @@ import {
 import { findTemplateSpans, parseTemplate, parseTemplates } from '../template.ts';
 import { findArchiveSplitPoint, findFirstEmptySubArchive } from './archive.ts';
 
-async function getNewProtection(
-  oldTitle: string, newTitle: string, siteRestrictions: Restrictions,
+function getNewProtection(
+  oldPageNameProtection: Protection[],
+  newPageNameProtection: Protection[],
+  siteRestrictions: Restrictions,
 ) {
-  const oldPageNameProtection = await spiHelperGetProtectionInformation(oldTitle);
-  const newPageNameProtection = await spiHelperGetProtectionInformation(newTitle);
   const newProtectionValues: Protection[] = [];
   // First find if both the old page and new page had the same protection type enabled
   siteRestrictions.types.forEach((type: string) => {
@@ -83,11 +89,11 @@ async function getNewProtection(
   return newProtectionValues;
 }
 
-async function getNewPendingChanges(
-  oldTitle: string, newTitle: string, siteRestrictions: Restrictions,
+function getNewPendingChanges(
+  oldPageStabilisation: PendingChanges | null,
+  newPageStabilisation: PendingChanges | null,
+  siteRestrictions: Restrictions,
 ) {
-  const oldPageStabilisation = await spiHelperGetStabilisationSettings(oldTitle);
-  const newPageStabilisation = await spiHelperGetStabilisationSettings(newTitle);
   let newStabilisationSettings: NewPendingChanges = { level: '' };
   if (oldPageStabilisation && newPageStabilisation) {
     // Pending changes is used on both pages
@@ -278,14 +284,20 @@ export async function spiHelperMoveCase(opts: {
     const mergeResult = await mergeArchives(oldContext, newContext, addNote);
     if (mergeResult === 'abort') return;
 
-    const siteRestrictions = await spiHelperGetSiteRestrictionInformation();
-    // Now get existing protection levels on the target and existing page.
-    const newProtection = await getNewProtection(
-      oldContext.pageName, newContext.pageName, siteRestrictions,
+    // Existing protection and pending changes on both the target and existing page
+    const [siteRestrictions, restrictions] = await Promise.all([
+      spiHelperGetSiteRestrictionInformation(),
+      spiHelperGetBulkPageRestrictions([oldContext.pageName, newContext.pageName]),
+    ]);
+    const oldRestrictions = restrictions.get(oldContext.pageName);
+    const newRestrictions = restrictions.get(newContext.pageName);
+    const newProtection = getNewProtection(
+      oldRestrictions?.protection ?? [], newRestrictions?.protection ?? [], siteRestrictions,
     );
-    // Now handle pending changes protection
-    const newPendingChanges = await getNewPendingChanges(
-      oldContext.pageName, newContext.pageName, siteRestrictions,
+    const newPendingChanges = getNewPendingChanges(
+      oldRestrictions?.pendingChanges ?? null,
+      newRestrictions?.pendingChanges ?? null,
+      siteRestrictions,
     );
     // Ignore warnings on the move, we're going to get one since we're stomping an existing page
     await spiHelperDeletePage(newContext.pageName, 'Deleting as part of case merge');
@@ -624,12 +636,11 @@ async function spiHelperPostRenameCleanup(opts: {
       continue;
     }
     pagesChecked.push(currentPageToCheck);
-    const backlinks = await spiHelperGetSPIBacklinks(currentPageToCheck);
+    const backlinks = (await spiHelperGetSPIBacklinks(currentPageToCheck))
+      .filter(backlink => backlink.title !== newContext.pageName);
+    const backlinkTexts = await spiHelperGetBulkPageText(backlinks.map(({ title }) => title));
     for (const backlink of backlinks) {
-      if (backlink.title === newContext.pageName) {
-        continue;
-      }
-      const archiveNotice = await spiHelperParseArchiveNotice({ page: backlink.title });
+      const archiveNotice = spiHelperParseArchiveNoticeText(backlinkTexts.get(backlink.title) ?? '');
       if (!archiveNotice) {
         continue;
       }

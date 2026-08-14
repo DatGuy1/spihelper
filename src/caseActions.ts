@@ -511,7 +511,7 @@ export async function spiHelperHandleBlocks(opts: {
   const userRows = opts.accounts.filter(userRow => userRow.username !== '');
 
   const globalTargetRows: UserRow[] = [];
-  await createSockCategories(userRows);
+  const categoriesPromise = createSockCategories(userRows);
 
   const blockAvailable = spiHelperIsAdmin() && !blockOptions.noBlock;
 
@@ -534,24 +534,29 @@ export async function spiHelperHandleBlocks(opts: {
     },
     { allUsernames: new Set<string>(), allUserPages: [], allUserTalkPages: [] },
   );
+  // Userpages and talk pages are the same kind of lookup, so they travel together
+  const pageTitles = [
+    ...(addingTags ? allUserPages : []),
+    ...(addingNotices ? allUserTalkPages : []),
+  ];
   const fetchMessage = new VueMessage({ type: 'notice', content: 'Fetching user blocks and tags' }).show();
   // Don't reuse blocks and tags because they might not have all our users
-  const [userBlocks, userPages, userTalkPages, globalUsers, userGlobalBlocks] = await Promise.all([
+  const [userBlocks, pageTexts, globalUsers, userGlobalBlocks] = await Promise.all([
     spiHelperGetBulkUserBlockSettings(allUsernames),
-    spiHelperGetBulkPageText(addingTags ? allUserPages : []),
-    spiHelperGetBulkPageText(addingNotices ? allUserTalkPages : []),
+    spiHelperGetBulkPageText(pageTitles),
     spiHelperGetBulkGlobalUsers(
       new Set([...allUsernames].filter(username => !isNonRegisteredAccount(username))),
     ),
     spiHelperGetBulkGlobalBlocks(
       new Set([...allUsernames].filter(username => isNonRegisteredAccount(username))),
     ),
+    categoriesPromise,
   ]);
   fetchMessage.update({ type: 'success', content: 'Got previous blocks and tags' });
   const tagSock = async (userRow: UserRow, blocked: boolean): Promise<string | null> => {
     const tagSuccess = await spiHelperTagUser({
       sock: userRow,
-      pageText: userPages.get(userRow.username) ?? '',
+      pageText: pageTexts.get(`User:${userRow.username}`) ?? '',
       blocked,
       globalUser: globalUsers.get(userRow.username),
       tagNonLocalAccounts: blockOptions.tagUnattached,
@@ -644,7 +649,7 @@ export async function spiHelperHandleBlocks(opts: {
           }
           await spiHelperAddTalkBlockNotice({
             sock: userRow,
-            userTalkContent: userTalkPages.get(userRow.username),
+            userTalkContent: pageTexts.get(`User talk:${userRow.username}`),
             blockOptions,
             talkNotices,
           });

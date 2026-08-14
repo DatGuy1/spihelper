@@ -28,6 +28,12 @@ export interface NewPendingChanges {
   expiry?: string;
 }
 
+/** The restrictions in force on a page, as one lookup returns them */
+export interface PageRestrictions {
+  protection: Protection[];
+  pendingChanges: PendingChanges | null;
+}
+
 export type WatchOption = 'preferences' | 'watch' | 'nochange' | 'unwatch';
 
 interface ParseResponseBase {
@@ -211,6 +217,8 @@ interface RevisionsDataMap {
 
 export interface RevisionsResponse<T extends keyof RevisionsDataMap> {
   query: {
+    // Present only when the API canonicalised a title we asked for
+    normalized?: { from: string; to: string }[];
     pages: {
       pageid: number;
       ns: number;
@@ -231,17 +239,11 @@ export interface BacklinksResponse {
   };
 }
 
-export interface InfoResponse {
+export interface PageRestrictionsResponse {
   query: {
     pages: {
-      protection: Protection[];
-    }[];
-  };
-}
-
-export interface FlaggedResponse {
-  query: {
-    pages: {
+      title: string;
+      protection?: Protection[];
       flagged?: PendingChanges;
     }[];
   };

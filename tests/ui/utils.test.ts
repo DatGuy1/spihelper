@@ -210,10 +210,10 @@ describe('user rows', () => {
         : null;
       return setUserRowBlockData({
         userRow: generateUserRow(username, makeState(archiveNotice)),
-        block: null,
+        block: undefined,
         defaultBlock: false,
-        globalUser: opts.globalUser ?? null,
-        globalBlock: opts.globalBlock ?? null,
+        globalUser: opts.globalUser,
+        globalBlock: opts.globalBlock,
         state: makeState(archiveNotice),
       });
     }

@@ -247,18 +247,20 @@ export const AlternateViewComponent = defineComponent({
         }
 
         if (addRow) {
-          const userBlock = await spiHelperGetUserBlockSettings(this.targetCase);
+          const [userBlock, userPageText] = await Promise.all([
+            spiHelperGetUserBlockSettings(this.targetCase),
+            spiHelperGetPageText(`User:${this.targetCase}`, false),
+          ]);
           if (userBlock !== null) {
             this.blockData.userBlocks.set(this.targetCase, userBlock);
           }
-          const userPageText = await spiHelperGetPageText(`User:${this.targetCase}`, false);
           const { userRow, isLocked } = setUserRowBlockData({
             userRow: generateUserRow(this.targetCase, this.state),
-            block: userBlock,
+            block: userBlock ?? undefined,
             userPage: userPageText,
             defaultBlock: true,
-            globalUser: null,
-            globalBlock: null,
+            globalUser: undefined,
+            globalBlock: undefined,
             state: this.state,
           });
           if (isLocked !== null) {
@@ -354,6 +356,7 @@ export const AlternateViewComponent = defineComponent({
         userBlocks: this.blockData.userBlocks,
         userLocks: this.blockData.userLocks,
         userGlobalBlocks: this.blockData.userGlobalBlocks,
+        fetchedUsers: this.blockData.fetchedUsers,
         state: this.state,
       });
       this.massAddUserRows(allRows);
@@ -409,6 +412,7 @@ export const AlternateViewComponent = defineComponent({
         userBlocks: this.blockData.userBlocks,
         userLocks: this.blockData.userLocks,
         userGlobalBlocks: this.blockData.userGlobalBlocks,
+        fetchedUsers: this.blockData.fetchedUsers,
         state: this.state,
       });
       this.massAddUserRows(allRows);

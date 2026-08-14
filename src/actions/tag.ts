@@ -2,7 +2,7 @@ import { type GlobalUser, type MasterNeeds, type Tag, type UserRow } from '../ty
 import { spiHelperSettings } from '../options';
 import {
   spiHelperEditPage,
-  spiHelperGetPageText,
+  spiHelperGetBulkPageText,
 } from '../api.ts';
 import { buildContextSummary } from '../context.ts';
 import {
@@ -194,28 +194,28 @@ export async function createSockCategories(userRows: UserRow[]): Promise<Map<str
   const purgeMap = new Map<string, boolean>();
   const categoryNeeds = collectCategoryNeeds(userRows);
 
+  const wanted: { master: string; title: string }[] = [];
   for (const [master, { confirmed, suspected }] of categoryNeeds) {
     if (!master) {
       continue;
     }
-    let created = false;
     if (confirmed) {
-      const catName = `Category:Wikipedia sockpuppets of ${master}`;
-      const catText = await spiHelperGetPageText(catName, false);
-      if (!catText) {
-        await createCategoryPage(catName);
-        created = true;
-      }
+      wanted.push({ master, title: `Category:Wikipedia sockpuppets of ${master}` });
     }
     if (suspected) {
-      const catName = `Category:Suspected Wikipedia sockpuppets of ${master}`;
-      const catText = await spiHelperGetPageText(catName, false);
-      if (!catText) {
-        await createCategoryPage(catName);
-        created = true;
-      }
+      wanted.push({ master, title: `Category:Suspected Wikipedia sockpuppets of ${master}` });
     }
-    purgeMap.set(master, created);
+    purgeMap.set(master, false);
+  }
+  if (wanted.length === 0) {
+    return purgeMap;
+  }
+
+  const existing = await spiHelperGetBulkPageText(wanted.map(({ title }) => title));
+  const missing = wanted.filter(({ title }) => !existing.get(title));
+  await Promise.all(missing.map(({ title }) => createCategoryPage(title)));
+  for (const { master } of missing) {
+    purgeMap.set(master, true);
   }
   return purgeMap;
 }

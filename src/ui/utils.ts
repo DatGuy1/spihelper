@@ -146,11 +146,11 @@ export const isMenuGroupData = (item: MenuItemData | MenuGroupData): item is Men
 
 export function setUserRowBlockData(opts: {
   userRow: UserRow;
-  block: BlockEntry | null | undefined;
+  block: BlockEntry | undefined;
   userPage?: string;
   defaultBlock: boolean;
-  globalUser: GlobalUser | null | undefined;
-  globalBlock: GlobalBlockEntry | null | undefined;
+  globalUser: GlobalUser | undefined;
+  globalBlock: GlobalBlockEntry | undefined;
   state: CaseState;
 }) {
   const { block: blockSetting, userPage, defaultBlock, globalUser, globalBlock, state } = opts;
@@ -171,7 +171,7 @@ export function setUserRowBlockData(opts: {
   else if (isNonRegisteredAccount(userRow.username)) {
     // Temporary accounts and IPs can't be locked, so the same checkbox stands for
     // the global block that gets requested for them instead
-    isGloballyBlocked = globalBlock != null;
+    isGloballyBlocked = globalBlock !== undefined;
     userRow.block.lock = isGloballyBlocked || crosswiki;
   }
 

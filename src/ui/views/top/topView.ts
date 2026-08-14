@@ -112,6 +112,10 @@ export const TopViewComponent = defineComponent({
           return false;
         }
       }
+      // If we're not on multi-section mode, our bySection values are irrelevant
+      if (this.state.selectedSection?.type !== 'multiple') {
+        return true;
+      }
       return [
         ...this.caseActions.comment.data.bySection.values(),
         ...this.caseActions.status.data.bySection.values(),
@@ -489,6 +493,7 @@ export const TopViewComponent = defineComponent({
         userBlocks: this.caseActions.block.data.userBlocks,
         userLocks: this.caseActions.block.data.userLocks,
         userGlobalBlocks: this.caseActions.block.data.userGlobalBlocks,
+        fetchedUsers: this.caseActions.block.data.fetchedUsers,
         state: this.state,
       });
       this.sectionAccountNames = new Set(this.massAddUserRows(allRows).map(row => row.username));
@@ -521,6 +526,8 @@ export const TopViewComponent = defineComponent({
         accounts: this.accounts,
         state: this.state,
       });
+      // Blocks, locks and tags we just wrote make every cached lookup stale
+      this.caseActions.block.data.fetchedUsers.clear();
       finishOp('mainActions', OpState.Success);
       this.actionsRunning = false;
     },

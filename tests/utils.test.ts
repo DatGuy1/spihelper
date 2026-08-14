@@ -1,12 +1,14 @@
-import { describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'bun:test';
 import {
   addAdminSectionNote,
   parseArchiveSections,
+  parseUserTags,
   rebuildArchiveText,
   spiHelperGetXWikiPrefix,
   spiHelperStripXWikiPrefix,
 } from '../src/utils.ts';
 import { SectionEntry } from '../src/state.ts';
+import { messages } from '../src/ui/messages.ts';
 import type { ArchiveSection } from '../src/types';
 
 describe('addAdminSectionNote', () => {
@@ -104,5 +106,20 @@ describe('spiHelperGetXWikiPrefix', () => {
   test('stripping leaves the on-wiki title', () => {
     expect(spiHelperStripXWikiPrefix('meta:Steward requests/Global')).toBe('Steward requests/Global');
     expect(spiHelperStripXWikiPrefix('User:Foo')).toBe('User:Foo');
+  });
+});
+
+describe('parseUserTags', () => {
+  beforeEach(() => {
+    messages.length = 0;
+  });
+
+  test('warns that a status it cannot read will be overwritten', () => {
+    const tags = parseUserTags('{{sockpuppet|Master|suspected}}', 'SockA');
+
+    expect(tags).toEqual([]);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.content).toContain('SockA');
+    expect(messages[0]?.content).toContain('suspected');
   });
 });
