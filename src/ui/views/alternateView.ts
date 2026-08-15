@@ -35,6 +35,7 @@ interface Data {
   beforeUnloadHandler: ((e: Event) => void) | null;
   caseLoaded: boolean;
   caseLoading: boolean;
+  accountsLoading: boolean;
   targetCase: string;
   blockData: BlockActionData;
   accounts: UserRow[];
@@ -62,6 +63,7 @@ export const AlternateViewComponent = defineComponent({
       beforeUnloadHandler: null,
       caseLoaded: false,
       caseLoading: false,
+      accountsLoading: false,
       targetCase: this.defaultCase,
       blockData: setupBlockActionData(),
       accounts: [],
@@ -354,17 +356,25 @@ export const AlternateViewComponent = defineComponent({
         member => BuildUserRow(member, false),
       );
       const allUsernames = new Set([...likelySocks, ...possibleSocks].map(sock => sock.username));
-      const allRows = await prefetchSockRows({
-        likelySocks,
-        possibleSocks,
-        allUsernames,
-        userBlocks: this.blockData.userBlocks,
-        userLocks: this.blockData.userLocks,
-        userGlobalBlocks: this.blockData.userGlobalBlocks,
-        fetchedUsers: this.blockData.fetchedUsers,
-        state: this.state,
-      });
-      this.massAddUserRows(allRows);
+      // loadCase has already cleared caseLoading, so without this the form sits there
+      // looking finished while the account lookups are still in flight
+      this.accountsLoading = true;
+      try {
+        const allRows = await prefetchSockRows({
+          likelySocks,
+          possibleSocks,
+          allUsernames,
+          userBlocks: this.blockData.userBlocks,
+          userLocks: this.blockData.userLocks,
+          userGlobalBlocks: this.blockData.userGlobalBlocks,
+          fetchedUsers: this.blockData.fetchedUsers,
+          state: this.state,
+        });
+        this.massAddUserRows(allRows);
+      }
+      finally {
+        this.accountsLoading = false;
+      }
     },
     async initialiseCheckUserView() {
       // First check for SPI in reason box. If not found, fallback to search target
@@ -410,17 +420,23 @@ export const AlternateViewComponent = defineComponent({
       if (allSocks.length > 0 && allSocks[0]) {
         this.targetCase = allSocks[0].username;
       }
-      const allRows = await prefetchSockRows({
-        likelySocks: allSocks,
-        possibleSocks: [],
-        allUsernames,
-        userBlocks: this.blockData.userBlocks,
-        userLocks: this.blockData.userLocks,
-        userGlobalBlocks: this.blockData.userGlobalBlocks,
-        fetchedUsers: this.blockData.fetchedUsers,
-        state: this.state,
-      });
-      this.massAddUserRows(allRows);
+      this.accountsLoading = true;
+      try {
+        const allRows = await prefetchSockRows({
+          likelySocks: allSocks,
+          possibleSocks: [],
+          allUsernames,
+          userBlocks: this.blockData.userBlocks,
+          userLocks: this.blockData.userLocks,
+          userGlobalBlocks: this.blockData.userGlobalBlocks,
+          fetchedUsers: this.blockData.fetchedUsers,
+          state: this.state,
+        });
+        this.massAddUserRows(allRows);
+      }
+      finally {
+        this.accountsLoading = false;
+      }
     },
     launchFeedback() {
       const viewPretty = this.view.charAt(0).toUpperCase() + this.view.slice(1);
@@ -449,7 +465,8 @@ export const AlternateViewComponent = defineComponent({
                      placeholder="Case" label="Case title" description="Optional but recommended" />
         <div style="display: flex; gap: 10px;">
           <cdx-button weight="primary" action="progressive" @click="loadCase(true)">Load</cdx-button>
-          <cdx-progress-indicator v-show="caseLoading">Loading case</cdx-progress-indicator>
+          <cdx-progress-indicator v-if="caseLoading">Loading case</cdx-progress-indicator>
+          <cdx-progress-indicator v-else-if="accountsLoading">Loading accounts</cdx-progress-indicator>
         </div>
       </div>
       <div id="spiHelper-alternateView-Content" v-if="caseLoaded">

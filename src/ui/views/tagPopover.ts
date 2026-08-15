@@ -1,4 +1,4 @@
-import { type PropType, defineComponent } from 'vue';
+import { type ComponentPublicInstance, type PropType, defineComponent } from 'vue';
 import {
   AltmasterTagStatuses,
   SockmasterTag,
@@ -30,7 +30,11 @@ function toStatusButtons<T extends string>(
 export const TagPopoverComponent = defineComponent({
   props: {
     open: { type: Boolean, required: true },
-    anchor: { type: Object as PropType<HTMLElement>, required: true },
+    anchor: {
+      type: Object as PropType<HTMLElement | ComponentPublicInstance | null>,
+      required: false,
+      default: null,
+    },
     clipboardTag: { type: [Object, null] as PropType<Tag | null>, required: true },
     defaultMaster: { type: String, required: true },
   },
@@ -157,7 +161,7 @@ export const TagPopoverComponent = defineComponent({
     },
   },
   template: `
-    <cdx-popover :anchor="anchor" v-model:open="openValue"
+    <cdx-popover v-if="anchor" :anchor="anchor" v-model:open="openValue"
                  title="Edit Tag" class="edit-tag-popover">
       <cdx-toggle-button-group :buttons="tagCategoryButtons" v-model="tagCategory" class="tag-category" />
       <div v-if="tagCategory === 'sock'" class="edit-body">
