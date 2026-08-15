@@ -5,6 +5,7 @@ import {
   type BlockActionData,
   type FeedbackDialog,
   ParsedArchiveNotice,
+  type SubmitFormActions,
   type UserRow,
 } from '../../types';
 import { spiHelperSettings } from '../../options';
@@ -78,15 +79,12 @@ export const AlternateViewComponent = defineComponent({
     pageName() {
       return `Wikipedia:Sockpuppet investigations/${this.targetCase}`;
     },
-    // For compatibility with submitAction
-    caseActions() {
+    // What submit-form takes. This view has no case text, so block is the only action
+    caseActions(): SubmitFormActions {
       return {
         block: {
           enabled: true,
           data: this.blockData,
-        },
-        move: {
-          enabled: false,
         },
       };
     },

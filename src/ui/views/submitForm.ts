@@ -1,5 +1,5 @@
 import { type ComponentPublicInstance, type PropType, defineComponent } from 'vue';
-import type { CaseActions, UserRow } from '../../types';
+import type { SubmitFormActions, UserRow } from '../../types';
 import { isNonRegisteredAccount, isSockpuppetTag, parseExpiry } from '../../utils.ts';
 import { isInputDisabled } from '../utils.ts';
 import { isOpRunning } from '../../operations.ts';
@@ -58,7 +58,7 @@ export const SubmitFormComponent = defineComponent({
     checkConflict: { type: Boolean, required: true },
     state: { type: Object as PropType<CaseState>, required: true },
     accounts: { type: Array as PropType<UserRow[]>, required: true },
-    caseActions: { type: Object as PropType<CaseActions>, required: true },
+    caseActions: { type: Object as PropType<SubmitFormActions>, required: true },
     allDisabled: { type: Boolean, required: true },
   },
   emits: ['update:lockComment', 'update:skipCUVerifyUsers', 'onSubmit'],
@@ -78,10 +78,13 @@ export const SubmitFormComponent = defineComponent({
   },
   computed: {
     effectiveStatus() {
-      const statusData = this.caseActions.status.data;
-      return this.caseActions.status.enabled && statusData.new !== 'nochange'
-        ? statusData.new
-        : statusData.old;
+      const status = this.caseActions.status;
+      if (!status) {
+        return '';
+      }
+      return status.enabled && status.data.new !== 'nochange'
+        ? status.data.new
+        : status.data.old;
     },
     /** Rows that will produce an SRG request, whether that's a lock or a global block */
     globalRequestTargets(): UserRow[] {
@@ -113,7 +116,7 @@ export const SubmitFormComponent = defineComponent({
     },
     hasInvalidMove() {
       const moveAction = this.caseActions.move;
-      return moveAction.enabled && !moveAction.data.target;
+      return moveAction?.enabled === true && !moveAction.data.target;
     },
     hasInvalidDuration() {
       const blockAction = this.caseActions.block;
@@ -128,7 +131,7 @@ export const SubmitFormComponent = defineComponent({
     // status doesn't match what's actually being submitted
     statusTemplateMismatch(): string | null {
       const comment = this.caseActions.comment;
-      if (!comment.enabled) {
+      if (!comment?.enabled) {
         return null;
       }
       const mismatch = findStatusTemplateMismatch(comment.data.text, this.effectiveStatus);
@@ -139,10 +142,11 @@ export const SubmitFormComponent = defineComponent({
     },
     // Text in the comment claiming an action that the submission won't actually carry out
     unfulfilledClaims(): { text: string; missing: string }[] {
-      if (!this.caseActions.comment.enabled) {
+      const comment = this.caseActions.comment;
+      if (!comment?.enabled) {
         return [];
       }
-      const commentText = this.caseActions.comment.data.text;
+      const commentText = comment.data.text;
       const blockAction = this.caseActions.block;
       const claims: ActionClaim[] = [
         {

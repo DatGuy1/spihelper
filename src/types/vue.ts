@@ -8,6 +8,7 @@ import {
 } from '@wikimedia/codex-icons';
 import type {
   AltmasterTagStatus,
+  CaseActions,
   LinkRowData,
   SockmasterTagStatus,
   SockpuppetTagStatus,
@@ -43,6 +44,13 @@ export interface FeedbackDialog {
 }
 
 export type InputColumn = 'block' | 'duration' | 'acb' | 'abao' | 'ntp' | 'nem' | 'lock';
+
+/**
+ * What the submit form needs from its host view. Only `block` is universal; views
+ * without a case page to edit (the alternate view) have no comment, status or move
+ */
+export type SubmitFormActions = Pick<CaseActions, 'block'>
+  & Partial<Pick<CaseActions, 'comment' | 'status' | 'move'>>;
 
 export interface TagRowPopoverState {
   anchor: HTMLElement | null;

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import type { BlockEntry, BlockRowData, CaseActions, UserRow } from '../../../src/types';
+import type { BlockEntry, BlockRowData, SubmitFormActions, UserRow } from '../../../src/types';
 import { SubmitFormComponent } from '../../../src/ui/views';
 import { getInitialCaseActions } from '../../../src/ui/views/top/utils';
 import { setContext } from '../../../src/context.ts';
@@ -8,7 +8,7 @@ import { makeBlockEntry, makeUserRow } from '../../fixtures/spi.ts';
 interface LenientOverride { username: string; reasons: string[] }
 
 interface TestCtx {
-  caseActions: CaseActions;
+  caseActions: SubmitFormActions;
   accounts: UserRow[];
 }
 
@@ -22,6 +22,9 @@ const computed = SubmitFormComponent.computed as unknown as {
   lenientOverrides(this: TestCtx): LenientOverride[];
   globalRequestTargets(this: TestCtx): UserRow[];
   unfulfilledClaims(this: ClaimCtx): UnfulfilledClaim[];
+  effectiveStatus(this: TestCtx): string;
+  statusTemplateMismatch(this: TestCtx): string | null;
+  hasInvalidMove(this: TestCtx): boolean;
 };
 
 beforeEach(() => {
@@ -199,5 +202,31 @@ describe('lenientOverrides', () => {
           reasons: ['account creation is re-enabled', 'email access is restored'],
         },
       ]);
+  });
+});
+
+// The alternate view has no case text, so it hands the form block-only actions
+describe('with block-only case actions', () => {
+  // setContext has to have run, so this can't be hoisted out of the tests
+  const makeBlockOnlyCtx = (): TestCtx => ({
+    caseActions: { block: getInitialCaseActions().block },
+    accounts: [makeRow('Sock')],
+  });
+
+  test('has no effective status', () => {
+    expect(computed.effectiveStatus.call(makeBlockOnlyCtx())).toBe('');
+  });
+
+  test('reports no status template mismatch', () => {
+    expect(computed.statusTemplateMismatch.call(makeBlockOnlyCtx())).toBeNull();
+  });
+
+  test('reports no unfulfilled claims', () => {
+    expect(computed.unfulfilledClaims.call({ ...makeBlockOnlyCtx(), globalRequestTargets: [] }))
+      .toEqual([]);
+  });
+
+  test('reports no invalid move', () => {
+    expect(computed.hasInvalidMove.call(makeBlockOnlyCtx())).toBe(false);
   });
 });
