@@ -28,7 +28,7 @@ function getSectionHeading(sectionId: number): HTMLElement | null {
 export function scrollToSection(sectionId: number) {
   const heading = getSectionHeading(sectionId);
   if (heading) {
-    heading.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }
 

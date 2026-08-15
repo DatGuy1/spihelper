@@ -24,10 +24,12 @@
 }
 
 .spiHelper-mainCard {
+    --spiHelper-card-padding: 12px;
+
     background-color: var(--background-color-base, #fff);
     border: 1px solid var(--border-color-base, #a2a9b1);
     border-radius: 2px;
-    padding: 12px;
+    padding: var(--spiHelper-card-padding);
 }
 
 #spiHelper-topView-Action {
@@ -60,8 +62,16 @@
 }
 
 #spiHelper-topView-Accordion {
+    /* Codex already pads each summary and content by 12px, so cancel the card's own
+       horizontal padding and let the rows (and their backgrounds) reach the card edges */
+    margin-inline: calc(-1 * var(--spiHelper-card-padding, 12px));
+
     .cdx-accordion {
         overflow: visible;
+    }
+
+    > .cdx-accordion {
+        margin-inline: 0;
     }
 
     .cdx-accordion.action-enabled > summary {
