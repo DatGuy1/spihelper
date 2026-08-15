@@ -21,6 +21,7 @@ import {
   type UserRow,
 } from '../../../../types';
 import { isNonRegisteredAccount, isSockmasterTag, isSockpuppetTag } from '../../../../utils.ts';
+import { spiHelperPaginationSizeOptions, spiHelperPaginationThreshold } from '../../../../constants';
 import { isInputDisabled } from '../../../utils.ts';
 import type { TagPopoverComponent } from '../../tagPopover.ts';
 
@@ -92,9 +93,13 @@ export const BlockActionComponent = defineComponent({
       cdxIconTrash,
       cdxIconUserAvatar,
       cdxIconUserAvatarOutline,
+      spiHelperPaginationSizeOptions,
     };
   },
   computed: {
+    paginate(): boolean {
+      return this.accounts.length > spiHelperPaginationThreshold;
+    },
     selectAll(): boolean {
       return this.selectedRows.length === this.accounts.length;
     },
@@ -376,6 +381,7 @@ export const BlockActionComponent = defineComponent({
       </div>
       <cdx-table caption="Socks" :show-vertical-borders="true" :use-row-selection="true"
                  :columns="columns" :data="accounts" v-model:selected-rows="selectedRows"
+                 :paginate="paginate" :pagination-size-options="spiHelperPaginationSizeOptions"
                  class="spiHelper-sockTable">
         <template #header>
           <div class="header-content">

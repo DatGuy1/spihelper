@@ -1,7 +1,11 @@
 import { type PropType, defineComponent } from 'vue';
 import { cdxIconAdd, cdxIconTrash } from '@wikimedia/codex-icons';
 import type { AllUser, UserRow } from '../../../../types';
-import { spiHelperLinkViewURLFormats } from '../../../../constants';
+import {
+  spiHelperLinkViewURLFormats,
+  spiHelperPaginationSizeOptions,
+  spiHelperPaginationThreshold,
+} from '../../../../constants';
 
 export type ColumnId = 'analyser' | 'timeline' | 'timecard' | 'pages' | 'summary' | 'cuwiki' | 'interleaved';
 export type LinkRecord = Record<ColumnId, { url: URL; label: string }>;
@@ -36,9 +40,13 @@ export const LinkActionComponent = defineComponent({
       selectedRows,
       cdxIconAdd,
       cdxIconTrash,
+      spiHelperPaginationSizeOptions,
     };
   },
   computed: {
+    paginate(): boolean {
+      return this.accounts.length > spiHelperPaginationThreshold;
+    },
     columnState() {
       const rows = this.accounts;
       const state: Record<ColumnId, {
@@ -214,6 +222,7 @@ export const LinkActionComponent = defineComponent({
     <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
       <cdx-table :hide-caption="false" caption="Links" :use-row-selection="true"
                  :columns="columns" :data="accounts" v-model:selected-rows="selectedRows"
+                 :paginate="paginate" :pagination-size-options="spiHelperPaginationSizeOptions"
                  class="spiHelper-sockTable linkTable">
         <template #header>
           <div class="header-content">

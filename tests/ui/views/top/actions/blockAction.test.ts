@@ -5,6 +5,7 @@ import { BlockActionComponent } from '../../../../../src/ui/views/top';
 import { isInputDisabled } from '../../../../../src/ui/utils.ts';
 import { makeBlockEntry as makeBaseBlockEntry, makeSockTag, makeUserRow } from '../../../../fixtures/spi.ts';
 import { silenceConsoleError } from '../../../../fixtures/console.ts';
+import { spiHelperPaginationThreshold } from '../../../../../src/constants';
 
 type SetAllColumn = Exclude<InputColumn, 'duration'>;
 
@@ -655,5 +656,27 @@ describe('tagStatusDisplay', () => {
     const ctx = makeCtx();
     expect(raw.tagStatusDisplay.call(ctx, makeSockTag({ status: 'confirmed' })).icon)
       .toBe(raw.tagStatusDisplay.call(ctx, new SockmasterTag({ status: 'confirmed' })).icon);
+  });
+});
+
+describe('paginate', () => {
+  const blockComputed = BlockActionComponent.computed as unknown as {
+    paginate(this: { accounts: unknown[] }): boolean;
+  };
+
+  /** Only the row count matters here, so the rows themselves can be empty */
+  const paginatesWith = (n: number) =>
+    blockComputed.paginate.call({ accounts: Array.from({ length: n }, () => ({})) });
+
+  test('a typical few-account case shows no pager', () => {
+    expect(paginatesWith(5)).toBe(false);
+  });
+
+  test('stays unpaginated right up to the threshold', () => {
+    expect(paginatesWith(spiHelperPaginationThreshold)).toBe(false);
+  });
+
+  test('paginates one row past the threshold', () => {
+    expect(paginatesWith(spiHelperPaginationThreshold + 1)).toBe(true);
   });
 });

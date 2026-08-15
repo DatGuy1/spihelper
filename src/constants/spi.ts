@@ -66,3 +66,11 @@ export const spiHelperClerkTemplates: MenuGroupData[] = [
     ],
   },
 ];
+
+/**
+ * Row count past which the sock tables paginate.
+ */
+export const spiHelperPaginationThreshold = 25;
+
+/** Page sizes offered once a table paginates; the first is the default */
+export const spiHelperPaginationSizeOptions = [{ value: 25 }, { value: 50 }, { value: 100 }];
