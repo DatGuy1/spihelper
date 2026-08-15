@@ -471,3 +471,49 @@ describe('spiHelperGetBulkPageRestrictions', () => {
     expect(result.size).toBe(0);
   });
 });
+
+describe('fetchInChunks chunk sizing', () => {
+  let post: ReturnType<typeof spyOn<typeof mw.Api.prototype, 'post'>>;
+  let getRights: ReturnType<typeof spyOn<typeof mw.user, 'getRights'>>;
+
+  /** n distinct usernames, so the Set doesn't collapse them */
+  const names = (n: number) => new Set(Array.from({ length: n }, (_, i) => `User${i}`));
+
+  beforeEach(() => {
+    post = spyOn(mw.Api.prototype, 'post');
+    post.mockResolvedValue({ query: { globalusers: [] } });
+    getRights = spyOn(mw.user, 'getRights');
+    getRights.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    mock.restore();
+  });
+
+  test('does not ask for rights when the targets fit in one low-limit chunk', async () => {
+    await spiHelperGetBulkGlobalUsers(names(50));
+
+    expect(getRights).not.toHaveBeenCalled();
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  test('asks for rights once the targets exceed the low limit', async () => {
+    await spiHelperGetBulkGlobalUsers(names(51));
+
+    expect(getRights).toHaveBeenCalled();
+  });
+
+  test('splits past the low limit into low-limit chunks without apihighlimits', async () => {
+    await spiHelperGetBulkGlobalUsers(names(51));
+
+    expect(post).toHaveBeenCalledTimes(2);
+  });
+
+  test('keeps past the low limit in one chunk with apihighlimits', async () => {
+    getRights.mockResolvedValue(['apihighlimits']);
+
+    await spiHelperGetBulkGlobalUsers(names(51));
+
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+});

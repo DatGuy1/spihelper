@@ -1287,7 +1287,7 @@ async function fetchInChunks<TResponse>(opts: {
 }): Promise<void> {
   const { targets, fetchName, buildRequest, onResponse, method } = opts;
   const api = spiHelperGetAPI();
-  const chunkSize = await getApiChunkSize();
+  const chunkSize = targets.length <= API_LIMIT ? API_LIMIT : await getApiChunkSize();
 
   await Promise.all(chunkArray(targets, chunkSize).map(async (chunk) => {
     for await (const response of queryWithContinuation<TResponse>(
@@ -1306,23 +1306,39 @@ export function chunkArray<T>(arr: T[], size: number): T[][] {
   return chunks;
 }
 
+/** Cap on multi-value API parameters, and the raised cap apihighlimits holders get */
+const API_LIMIT = 50;
+const API_HIGH_LIMIT = 500;
+
 async function getApiChunkSize(): Promise<number> {
   const rights = await mw.user.getRights();
-  return rights.includes('apihighlimits') ? 500 : 50;
+  return rights.includes('apihighlimits') ? API_HIGH_LIMIT : API_LIMIT;
 }
 
 function getUserAgent(): string {
   return `MediaWiki-JS/${mw.config.get('wgVersion')} spihelper/${VERSION}`;
 }
 
-let APIs: { meta: mw.Api; local: mw.Api } | null = null;
+let localAPI: mw.Api | null = null;
+let metaAPI: mw.Api | null = null;
 
-function getAPIs(): { meta: mw.Api; local: mw.Api } {
-  APIs ??= {
-    meta: new mw.ForeignApi('https://meta.wikimedia.org/w/api.php', { userAgent: getUserAgent() }),
-    local: new mw.Api({ userAgent: getUserAgent() }),
-  };
-  return APIs;
+function getLocalAPI(): mw.Api {
+  localAPI ??= new mw.Api({ userAgent: getUserAgent() });
+  return localAPI;
+}
+
+/**
+ * Built separately from the local API, and only once something actually targets meta.
+ *
+ * Constructing a ForeignApi makes it handshake with the foreign wiki straight away
+ * (a meta=userinfo|tokens request, plus a CORS preflight), so building it alongside the
+ * local one made every page that touched the API pay for meta whether it used it or not.
+ */
+function getMetaAPI(): mw.Api {
+  metaAPI ??= new mw.ForeignApi(
+    'https://meta.wikimedia.org/w/api.php', { userAgent: getUserAgent() },
+  );
+  return metaAPI;
 }
 
 /**
@@ -1332,18 +1348,17 @@ function getAPIs(): { meta: mw.Api; local: mw.Api } {
  * @return {Object} MediaWiki Api/ForeignAPI for the target page's wiki
  */
 export function spiHelperGetAPI(title?: string): mw.Api {
-  const apis = getAPIs();
   if (title && spiHelperGetXWikiPrefix(title) !== null) {
-    return apis.meta;
+    return getMetaAPI();
   }
   else {
-    return apis.local;
+    return getLocalAPI();
   }
 }
 
 export function spiHelperGetEnwikiAPI(): mw.Api {
   if (mw.config.get('wgWikiID') === 'enwiki') {
-    return getAPIs().local;
+    return getLocalAPI();
   }
   return new mw.ForeignApi('https://en.wikipedia.org/w/api.php', { userAgent: getUserAgent() });
 }
