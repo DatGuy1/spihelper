@@ -13,12 +13,16 @@ interface TestCtx {
   userBlocks: Map<string, BlockEntry>;
   userLocks: Map<string, boolean>;
   accounts: UserRow[];
-  selectedRows: number[];
+  selectedRows: string[];
   defaultMaster: string;
   popovers: { row: TagRowPopoverState };
   $refs: { rowTagPopover: { setTag(tag: Tag | null): void } };
   setTagCalls: (Tag | null)[];
-  getTargetRows(): UserRow[];
+  userGlobalBlocks: Map<string, boolean>;
+  // Computeds, exposed on the context as the properties Vue would resolve them to
+  targetRows: UserRow[];
+  disabledCells: Map<string, Record<InputColumn, boolean>>;
+  setAllState: Record<SetAllColumn, { value: boolean; indeterminate: boolean }>;
   isInputDisabled(row: UserRow | null, col: InputColumn): boolean;
   isSameTagTarget(tag: Tag | null, tagIndex: number, rowId: string): boolean;
 }
@@ -26,10 +30,7 @@ interface TestCtx {
 // defineComponent returns the options object at runtime; cast its methods
 // to a typed shape so we can call them with a hand-built context object.
 const raw = BlockActionComponent.methods as unknown as {
-  getTargetRows(this: TestCtx): UserRow[];
   isInputDisabled(this: TestCtx, row: UserRow | null, col: InputColumn): boolean;
-  setAllValue(this: TestCtx, col: SetAllColumn): boolean;
-  setAllIndeterminate(this: TestCtx, col: SetAllColumn): boolean;
   setAllBlockFields(
     this: TestCtx,
     key: InputColumn,
@@ -47,6 +48,13 @@ const raw = BlockActionComponent.methods as unknown as {
   validateTag(this: TestCtx, tag: Tag): boolean;
   tagStatusDisplay(this: TestCtx, tag: Tag): TagStatusDisplay;
   tagLabel(this: TestCtx, tag: Tag | null): string;
+};
+
+// Call the real ones rather than stubbing their results
+const rawComputed = BlockActionComponent.computed as unknown as {
+  targetRows(this: TestCtx): UserRow[];
+  disabledCells(this: TestCtx): Map<string, Record<InputColumn, boolean>>;
+  setAllState(this: TestCtx): Record<SetAllColumn, { value: boolean; indeterminate: boolean }>;
 };
 
 const defaultOptions: BlockOptions = {
@@ -75,16 +83,18 @@ function makeCtx({
   blockOptions = {},
   userBlocks = new Map<string, BlockEntry>(),
   userLocks = new Map<string, boolean>(),
+  userGlobalBlocks = new Map<string, boolean>(),
   accounts = [] as UserRow[],
-  selectedRows = [] as number[],
+  selectedRows = [] as string[],
   defaultMaster = '',
   popoverRow = {},
 }: {
   blockOptions?: Partial<BlockOptions>;
   userBlocks?: Map<string, BlockEntry>;
   userLocks?: Map<string, boolean>;
+  userGlobalBlocks?: Map<string, boolean>;
   accounts?: UserRow[];
-  selectedRows?: number[];
+  selectedRows?: string[];
   defaultMaster?: string;
   popoverRow?: Partial<TagRowPopoverState>;
 } = {}): TestCtx {
@@ -93,6 +103,7 @@ function makeCtx({
     blockOptions: { ...defaultOptions, ...blockOptions },
     userBlocks,
     userLocks,
+    userGlobalBlocks,
     accounts,
     selectedRows,
     defaultMaster,
@@ -101,7 +112,9 @@ function makeCtx({
     },
     $refs: { rowTagPopover: { setTag(tag) { setTagCalls.push(tag); } } },
     setTagCalls,
-    getTargetRows() { return raw.getTargetRows.call(ctx); },
+    get targetRows() { return rawComputed.targetRows.call(ctx); },
+    get disabledCells() { return rawComputed.disabledCells.call(ctx); },
+    get setAllState() { return rawComputed.setAllState.call(ctx); },
     isInputDisabled(row, col) { return raw.isInputDisabled.call(ctx, row, col); },
     isSameTagTarget(tag, tagIndex, rowId) {
       return raw.isSameTagTarget.call(ctx, tag, tagIndex, rowId);
@@ -285,27 +298,24 @@ describe('BlockActionComponent', () => {
     });
   });
 
-  describe('setAllValue / setAllIndeterminate', () => {
+  describe('setAllState', () => {
     test('all rows checked = value true, not indeterminate', () => {
       const ctx = makeCtx({
         accounts: [makeRow('Vandal', { lock: true }), makeRow('Bob', { lock: true })],
       });
-      expect(raw.setAllValue.call(ctx, 'lock')).toBe(true);
-      expect(raw.setAllIndeterminate.call(ctx, 'lock')).toBe(false);
+      expect(ctx.setAllState.lock).toEqual({ value: true, indeterminate: false });
     });
 
     test('no rows checked = value false, not indeterminate', () => {
       const ctx = makeCtx({ accounts: [makeRow('Vandal'), makeRow('Bob')] });
-      expect(raw.setAllValue.call(ctx, 'lock')).toBe(false);
-      expect(raw.setAllIndeterminate.call(ctx, 'lock')).toBe(false);
+      expect(ctx.setAllState.lock).toEqual({ value: false, indeterminate: false });
     });
 
     test('some rows checked = value false, indeterminate', () => {
       const ctx = makeCtx({
         accounts: [makeRow('Vandal', { lock: true }), makeRow('Bob')],
       });
-      expect(raw.setAllValue.call(ctx, 'lock')).toBe(false);
-      expect(raw.setAllIndeterminate.call(ctx, 'lock')).toBe(true);
+      expect(ctx.setAllState.lock).toEqual({ value: false, indeterminate: true });
     });
 
     test('no applicable rows = value false, not indeterminate', () => {
@@ -313,8 +323,15 @@ describe('BlockActionComponent', () => {
         blockOptions: { noBlock: true },
         accounts: [makeRow('Vandal'), makeRow('Bob')],
       });
-      expect(raw.setAllValue.call(ctx, 'acb')).toBe(false);
-      expect(raw.setAllIndeterminate.call(ctx, 'acb')).toBe(false);
+      expect(ctx.setAllState.acb).toEqual({ value: false, indeterminate: false });
+    });
+
+    test('only counts the selected rows when a selection is active', () => {
+      const ctx = makeCtx({
+        accounts: [makeRow('Vandal', { lock: true }), makeRow('Bob')],
+        selectedRows: ['Vandal'],
+      });
+      expect(ctx.setAllState.lock).toEqual({ value: true, indeterminate: false });
     });
   });
 });
@@ -554,7 +571,7 @@ describe('setAllTags', () => {
   test('only applies to the selected rows when a selection is active', () => {
     const vandal = makeRow('Vandal');
     const bob = makeRow('Bob');
-    const ctx = makeCtx({ accounts: [vandal, bob], selectedRows: [0] });
+    const ctx = makeCtx({ accounts: [vandal, bob], selectedRows: [vandal.id] });
     const tag = makeSockTag();
     raw.setAllTags.call(ctx, tag);
     expect(vandal.block.tags).toEqual([tag]);

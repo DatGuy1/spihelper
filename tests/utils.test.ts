@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, mock, test } from 'bun:test';
 import {
   addAdminSectionNote,
   parseArchiveSections,
@@ -9,6 +9,7 @@ import {
 } from '../src/utils.ts';
 import { SectionEntry } from '../src/state.ts';
 import { messages } from '../src/ui/messages.ts';
+import { silenceConsoleWarn } from './fixtures/console.ts';
 import type { ArchiveSection } from '../src/types';
 
 describe('addAdminSectionNote', () => {
@@ -110,16 +111,41 @@ describe('spiHelperGetXWikiPrefix', () => {
 });
 
 describe('parseUserTags', () => {
-  beforeEach(() => {
-    messages.length = 0;
+  afterEach(() => {
+    mock.restore();
   });
 
   test('warns that a status it cannot read will be overwritten', () => {
+    // This path warns by design; silence it so a passing run doesn't look broken
+    const warn = silenceConsoleWarn();
+
     const tags = parseUserTags('{{sockpuppet|Master|suspected}}', 'SockA');
 
     expect(tags).toEqual([]);
+    expect(warn).toHaveBeenCalled();
     expect(messages).toHaveLength(1);
     expect(messages[0]?.content).toContain('SockA');
     expect(messages[0]?.content).toContain('suspected');
+  });
+
+  // Every section switch rebuilds the rows and re-parses the same cached user page, so a
+  // warning that stacked per parse would grow the panel for as long as the clerk works
+  test('warns once however many times the same page is re-parsed', () => {
+    silenceConsoleWarn();
+
+    for (let pass = 0; pass < 5; pass++) {
+      parseUserTags('{{sockpuppet|Master|suspected}}', 'SockA');
+    }
+
+    expect(messages).toHaveLength(1);
+  });
+
+  test('still warns separately for each user it cannot read', () => {
+    silenceConsoleWarn();
+
+    parseUserTags('{{sockpuppet|Master|suspected}}', 'SockA');
+    parseUserTags('{{sockpuppet|Master|suspected}}', 'SockB');
+
+    expect(messages).toHaveLength(2);
   });
 });

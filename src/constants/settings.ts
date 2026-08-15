@@ -3,17 +3,19 @@ import type { ScriptSettings } from '../options/types.ts';
 // Advert to append to the edit summary of edits
 export const spiHelperAdvert = ' (using [[:w:en:WP:SPIH-D|SPIH-D]])';
 
-export const FeedbackConfig = {
-  title: new mw.Title('User talk:DatGuy/spihelper'),
-  bugsLink: '//github.com/DatGuy1/spihelper/issues/new',
-  showUseragentCheckbox: true,
-  useragentCheckboxMessage: 'I want to share my user agent publicly alongside my feedback. This is optional.',
-};
+// mw.Title isn't guaranteed to exist, so load it lazily
+export function getFeedbackConfig() {
+  return {
+    title: new mw.Title('User talk:DatGuy/spihelper'),
+    bugsLink: '//github.com/DatGuy1/spihelper/issues/new',
+    showUseragentCheckbox: true,
+    useragentCheckboxMessage: 'I want to share my user agent publicly alongside my feedback. This is optional.',
+  };
+}
 
-// @ts-expect-error Ignore __VERSION__ not existing error because Bun should replace it on compile
-export const VERSION: string = __VERSION__ as string;
-// @ts-expect-error Same as above
-export const MODE = __MODE__ as 'live' | 'dev' | 'production';
+// See globals.d.ts
+export const VERSION: string = __VERSION__;
+export const MODE = __MODE__;
 
 // User-configurable settings, these are the defaults but will be updated by
 // spiHelperLoadSettings()

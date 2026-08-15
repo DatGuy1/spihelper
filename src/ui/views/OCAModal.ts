@@ -1,5 +1,5 @@
 import { type PropType, defineComponent } from 'vue';
-import { VueMessage, messages } from '../messages.ts';
+import { type VueMessage, messages } from '../messages.ts';
 import { spiHelperOneClickArchive } from '../../caseActions.ts';
 import type { CaseState } from '../../state.ts';
 

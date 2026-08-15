@@ -2,8 +2,10 @@
 // mw.* calls inside function bodies don't need to be exhaustive here —
 // only the ones that run during import (e.g. in const initialisers) matter.
 
+import { beforeEach } from 'bun:test';
 import jQuery from 'jquery';
 import { reactive } from 'vue';
+import { messages, setMessagesReactive } from '../src/ui/messages.ts';
 
 (globalThis as Record<string, unknown>).window = globalThis;
 (globalThis as Record<string, unknown>).__VERSION__ = '0.0.0-test';
@@ -44,13 +46,16 @@ import { reactive } from 'vue';
     get() { return Promise.resolve({}); }
     post() { return Promise.resolve({}); }
   },
-  user: { options: { get: () => null } },
+  user: { options: { get: () => null }, getRights: () => Promise.resolve([]) },
   loader: {
-    // Real Vue.reactive() (not an identity stub) so modules like ui/messages.ts that rely
-    // on mw.loader.using(['vue'], ...) to make module-level state reactive actually get
-    // working reactivity under tests, instead of a silent no-op.
     using: (_modules: unknown, callback: (require: (mod: string) => unknown) => void) => {
       callback((_mod: string) => ({ reactive, defineComponent: () => ({}) }));
     },
   },
 };
+
+// Stands in for the call bootstrap() makes in spihelper.ts
+setMessagesReactive(reactive);
+beforeEach(() => {
+  messages.length = 0;
+});

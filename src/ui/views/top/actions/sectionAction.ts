@@ -6,12 +6,12 @@ import {
   scrollToSection,
   showSectionOverlay,
 } from '../../../dom.ts';
-import {
+import type {
   CdxMultiselectLookup,
-  type CdxSelect,
-  type ChipInputItem,
-  type MenuItemData,
-  type MenuItemValue,
+  CdxSelect,
+  ChipInputItem,
+  MenuItemData,
+  MenuItemValue,
 } from '@wikimedia/codex';
 import { spiHelperSettings } from '../../../../options';
 import type { CaseActionSection } from '../../../../types';

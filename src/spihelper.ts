@@ -38,14 +38,15 @@ import {
   UserLookupComponent,
 } from './ui/views';
 import { hasRunningOps } from './operations.ts';
-import { FeedbackConfig, MODE, VERSION } from './constants';
+import { MODE, VERSION, getFeedbackConfig } from './constants';
 import type * as VueType from 'vue';
 import type * as CodexType from '@wikimedia/codex';
 import type { FeedbackDialog } from './types';
 import { setContext } from './context.ts';
 import { getUnseenChanges } from './changelog.ts';
 import { ToastContainerComponent } from './ui/views/toastView.ts';
-import { setToRaw } from './ui/utils.ts';
+import { setMarkRaw, setTableRowIdentifier, setToRaw } from './ui/utils.ts';
+import { setMessagesReactive } from './ui/messages.ts';
 
 // DatGuy's rewrite of GeneralNotability's rewrite of Tim's SPI helper script
 // With additional contributions from 0xDeadbeef, Dreamy Jazz,
@@ -67,21 +68,24 @@ else if (
 }
 
 function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
-  mw.loader.using(['vue', '@wikimedia/codex', 'mediawiki.api', 'mediawiki.util', 'mediawiki.user', 'mediawiki.feedback'], (require) => {
+  mw.loader.using(['vue', '@wikimedia/codex', 'mediawiki.api', 'mediawiki.ForeignApi', 'mediawiki.util', 'mediawiki.user'], (require) => {
     const Vue = require('vue') as typeof VueType;
     const Codex = require('@wikimedia/codex') as typeof CodexType;
 
     // Ugly ugly ugly
     setToRaw(Vue.toRaw);
-    // For some reason mw.Feedback isn't typed
-    // @ts-expect-error - mw.Feedback exists at runtime but not in type definitions
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-call
-    const feedbackDialog: FeedbackDialog = new mw.Feedback(FeedbackConfig);
+    setMarkRaw(Vue.markRaw);
+    setMessagesReactive(Vue.reactive);
+    setTableRowIdentifier(Codex.TableRowIdentifier);
+    const feedbackDialog = createLazyFeedbackDialog();
 
-    if (MODE === 'live') {
+    // __MODE__ rather than the MODE re-export: comparing the define directly lets the
+    // minifier fold these away, so the plain-HTTP localhost branch never reaches a
+    // build that isn't the local dev server
+    if (__MODE__ === 'live') {
       mw.loader.load('http://localhost:8080/spihelper.css', 'text/css');
     }
-    else if (MODE === 'dev') {
+    else if (__MODE__ === 'dev') {
       importStylesheet('User:DatGuy/spihelper.dev.css');
     }
     else {
@@ -248,6 +252,37 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
       }
     });
   });
+}
+
+/**
+ * A stand-in for mw.Feedback that defers loading it until someone actually opens the dialog
+ *
+ * mediawiki.feedback pulls in the whole of OOUI, so keeping it out of the
+ * bootstrap dependency list stops every SPI page view paying for a dialog
+ * that is rarely opened
+ */
+function createLazyFeedbackDialog(): FeedbackDialog {
+  let dialog: FeedbackDialog | null = null;
+  return {
+    launch(contents) {
+      void (async () => {
+        try {
+          if (!dialog) {
+            await mw.loader.using(['mediawiki.feedback']);
+            // For some reason mw.Feedback isn't typed
+            // @ts-expect-error - mw.Feedback exists at runtime but not in type definitions
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+            dialog = new mw.Feedback(getFeedbackConfig()) as FeedbackDialog;
+          }
+          dialog.launch(contents);
+        }
+        catch (error) {
+          mw.notify('Could not load the feedback dialog', { type: 'error' });
+          console.error('Error loading mediawiki.feedback:', error);
+        }
+      })();
+    },
+  };
 }
 
 function createSettingsLink(

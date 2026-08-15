@@ -1,11 +1,13 @@
 import { defineComponent } from 'vue';
 import { spiHelperGetUsers } from '../../api.ts';
-import { type MenuItemData, type ValidationStatusType } from '@wikimedia/codex';
-import type { AllUser } from '../../types/api.ts';
+import type { MenuItemData, ValidationStatusType } from '@wikimedia/codex';
+import type { AllUser, UserRow } from '../../types';
 import { spiHelperSettings } from '../../options';
-import type { UserRow } from '../../types/spi.ts';
 
 const ITEM_LIMIT = 10;
+// Typing a name would otherwise fire one list=allusers request per keystroke, and a table
+// of socks has one of these per row
+const SEARCH_DEBOUNCE_MS = 250;
 
 export function UpdateUserAllUserData(data: AllUser, row: UserRow) {
   if (data.blockid !== undefined) {
@@ -42,6 +44,7 @@ interface Data {
   userSuggestions: (MenuItemData & { customData: AllUser })[];
   menuConfig: { visibleItemLimit: number; searchQuery: string };
   useLookup: boolean;
+  searchTimer: ReturnType<typeof setTimeout> | null;
 }
 
 export const UserLookupComponent = defineComponent({
@@ -69,6 +72,7 @@ export const UserLookupComponent = defineComponent({
       userSuggestions: [],
       menuConfig,
       useLookup: spiHelperSettings.useLookup,
+      searchTimer: null,
     };
   },
   computed: {
@@ -81,16 +85,33 @@ export const UserLookupComponent = defineComponent({
       },
     },
   },
+  beforeUnmount() {
+    this.cancelPendingSearch();
+  },
   methods: {
+    cancelPendingSearch() {
+      if (this.searchTimer !== null) {
+        clearTimeout(this.searchTimer);
+        this.searchTimer = null;
+      }
+    },
     onUpdateInputValue(value: string) {
       const trimmedValue = value.trim();
       this.menuConfig.searchQuery = trimmedValue;
+      // Supersede whatever the previous keystroke queued up
+      this.cancelPendingSearch();
       // Clear menu items if there is no input.
       if (!trimmedValue) {
         this.userSuggestions = [];
         return;
       }
 
+      this.searchTimer = setTimeout(() => {
+        this.searchTimer = null;
+        this.fetchSuggestions(value, trimmedValue);
+      }, SEARCH_DEBOUNCE_MS);
+    },
+    fetchSuggestions(value: string, trimmedValue: string) {
       spiHelperGetUsers(trimmedValue, ITEM_LIMIT)
         .then((users) => {
           // Make sure this data is still relevant first.
@@ -115,6 +136,12 @@ export const UserLookupComponent = defineComponent({
           // On error, set results to empty.
           this.userSuggestions = [];
         });
+    },
+    // Focusing a field that already has suggestions doesn't need to re-ask for them
+    onFocus() {
+      if (this.userSuggestions.length === 0) {
+        this.onLoadMore();
+      }
     },
     onLoadMore() {
       if (!this.username) {
@@ -181,7 +208,7 @@ export const UserLookupComponent = defineComponent({
           placeholder="Sock"
           @update:input-value="onUpdateInputValue"
           @load-more="onLoadMore"
-          @focus="onLoadMore"
+          @focus="onFocus"
           @update:selected="onSelection"
           @blur="validateInstantly"
           @keydown.enter="validateInstantly"

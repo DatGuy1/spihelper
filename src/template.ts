@@ -71,30 +71,23 @@ export function parseTemplates(wikitext: string): Template[] {
 function splitTemplateParts(text: string): string[] {
   const parts: string[] = [];
   let depth = 0;
-  let current = '';
+  let segmentStart = 0;
   for (let i = 0; i < text.length; i++) {
-    const ch = text.charAt(i);
-    const next = text.charAt(i + 1); // returns '' if out of bounds
-    if ((ch === '[' && next === '[') || (ch === '{' && next === '{')) {
+    if (text.startsWith('[[', i) || text.startsWith('{{', i)) {
       depth++;
-      current += ch + next;
       i++; // skip the second bracket/brace
     }
-    else if ((ch === ']' && next === ']') || (ch === '}' && next === '}')) {
+    else if (text.startsWith(']]', i) || text.startsWith('}}', i)) {
       depth--;
-      current += ch + next;
       i++;
     }
-    else if (ch === '|' && depth === 0) {
-      // Real argument separator, end the accumulated segment and start fresh
-      parts.push(current);
-      current = '';
-    }
-    else {
-      current += ch;
+    else if (text[i] === '|' && depth === 0) {
+      // Real argument separator, so the segment ends here
+      parts.push(text.slice(segmentStart, i));
+      segmentStart = i + 1;
     }
   }
-  parts.push(current); // commit the final segment
+  parts.push(text.slice(segmentStart)); // commit the final segment
   return parts;
 }
 
@@ -134,12 +127,16 @@ export function parseTemplate(templateText: string): Template {
   return { name, params, positional };
 }
 
+// From Module:Yesno
+const TRUTHY_PARAM_VALUES = new Set(['y', 'yes', 'true', 'on']);
+const FALSY_PARAM_VALUES = new Set(['n', 'no', 'false', 'off']);
+
 function convertParamToBoolean(value: string): boolean | null {
-  // From Module:Yesno
-  if (['y', 'yes', 'true', 'on'].includes(value.toLowerCase())) {
+  const normalised = value.toLowerCase();
+  if (TRUTHY_PARAM_VALUES.has(normalised)) {
     return true;
   }
-  if (['n', 'no', 'false', 'off'].includes(value.toLowerCase())) {
+  if (FALSY_PARAM_VALUES.has(normalised)) {
     return false;
   }
   return null;

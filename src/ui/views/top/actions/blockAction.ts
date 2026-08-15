@@ -22,7 +22,12 @@ import {
 } from '../../../../types';
 import { isNonRegisteredAccount, isSockmasterTag, isSockpuppetTag } from '../../../../utils.ts';
 import { isInputDisabled } from '../../../utils.ts';
-import { TagPopoverComponent } from '../../tagPopover.ts';
+import type { TagPopoverComponent } from '../../tagPopover.ts';
+
+const InputColumns: InputColumn[] = ['block', 'duration', 'acb', 'abao', 'ntp', 'nem', 'lock'];
+// The columns the "(all users)" header row can toggle
+type ToggleColumn = Exclude<InputColumn, 'duration'>;
+const ToggleColumns: ToggleColumn[] = ['block', 'acb', 'abao', 'ntp', 'nem', 'lock'];
 
 export const BlockActionComponent = defineComponent({
   props: {
@@ -56,8 +61,8 @@ export const BlockActionComponent = defineComponent({
       ]);
     }
 
-    // An array of selected row indices
-    const selectedRows: number[] = [];
+    // An array of selected row IDs
+    const selectedRows: string[] = [];
 
     const topButtonActions = { copied: false, fetched: false };
     const popovers = {
@@ -99,11 +104,6 @@ export const BlockActionComponent = defineComponent({
       }
       else return this.selectedRows.length !== 0;
     },
-    selectedRowIDs(): string[] {
-      return this.selectedRows
-        .map(index => this.accounts[index]?.id)
-        .filter((id): id is string => !!id);
-    },
     allowLockOption(): boolean {
       return this.accounts.some(user =>
         user.block.lock
@@ -111,25 +111,65 @@ export const BlockActionComponent = defineComponent({
         && !this.userLocks.get(user.username),
       );
     },
+    targetRows(): UserRow[] {
+      if (this.selectedRows.length === 0) {
+        // An "(all users)" action applies to everything when nothing is ticked
+        return this.accounts;
+      }
+      const selected = new Set(this.selectedRows);
+      return this.accounts.filter(row => selected.has(row.id));
+    },
+    // The following two functions used to be methods but are now
+    // computed Map properties for performance reasons
+    disabledCells(): Map<string, Record<InputColumn, boolean>> {
+      const cells = new Map<string, Record<InputColumn, boolean>>();
+      for (const row of this.accounts) {
+        const rowCells = {} as Record<InputColumn, boolean>;
+        for (const column of InputColumns) {
+          rowCells[column] = isInputDisabled(
+            row, column, this.blockOptions,
+            this.userBlocks, this.userLocks, this.userGlobalBlocks, this.targetRows,
+          );
+        }
+        cells.set(row.id, rowCells);
+      }
+      return cells;
+    },
+    setAllState(): Record<ToggleColumn, { value: boolean; indeterminate: boolean }> {
+      const state = {} as Record<ToggleColumn, { value: boolean; indeterminate: boolean }>;
+      for (const column of ToggleColumns) {
+        let eligible = 0;
+        let checked = 0;
+        for (const row of this.targetRows) {
+          if (this.disabledCells.get(row.id)?.[column]) {
+            continue;
+          }
+          eligible++;
+          if (row.block[column]) {
+            checked++;
+          }
+        }
+        state[column] = {
+          value: eligible > 0 && checked === eligible,
+          indeterminate: checked > 0 && checked < eligible,
+        };
+      }
+      return state;
+    },
   },
   methods: {
     isNonRegisteredAccount,
     isSockmasterTag,
-    setAllValue(column: 'block' | 'acb' | 'abao' | 'ntp' | 'nem' | 'lock'): boolean {
-      const rows = this.getTargetRows().filter(row => !this.isInputDisabled(row, column));
-      return rows.length > 0 && rows.every(row => row.block[column]);
-    },
-    setAllIndeterminate(column: 'block' | 'acb' | 'abao' | 'ntp' | 'nem' | 'lock'): boolean {
-      const rows = this.getTargetRows().filter(row => !this.isInputDisabled(row, column));
-      const checkedCount = rows.filter(row => row.block[column]).length;
-      return checkedCount > 0 && checkedCount < rows.length;
-    },
     isInputDisabled(row: UserRow | null, column: InputColumn): boolean {
-      return isInputDisabled(
-        row, column, this.blockOptions,
-        this.userBlocks, this.userLocks, this.userGlobalBlocks,
-        this.getTargetRows(),
-      );
+      // The header row isn't in the per-row map, and its state depends on the whole
+      // target set rather than one account
+      if (row === null) {
+        return isInputDisabled(
+          null, column, this.blockOptions,
+          this.userBlocks, this.userLocks, this.userGlobalBlocks, this.targetRows,
+        );
+      }
+      return this.disabledCells.get(row.id)?.[column] ?? false;
     },
     async copySocks() {
       if (this.selectedRows.length === 0) {
@@ -137,11 +177,10 @@ export const BlockActionComponent = defineComponent({
       }
       let text = '{{sock list';
       let i = 0;
-      this.selectedRows.forEach((row) => {
-        const rowData = this.accounts[row];
-        if (!rowData) return;
-        text += `|${++i}=${rowData.username}`;
-      });
+      // targetRows keeps them in table order rather than the order they were ticked
+      for (const row of this.targetRows) {
+        text += `|${++i}=${row.username}`;
+      }
       text += '}}';
       await navigator.clipboard.writeText(text);
       this.topButtonActions.copied = true;
@@ -153,7 +192,7 @@ export const BlockActionComponent = defineComponent({
       }, 200);
     },
     removeSocks() {
-      this.$emit('removeRows', this.selectedRowIDs);
+      this.$emit('removeRows', [...this.selectedRows]);
       this.selectedRows = [];
     },
     addDefaultRow() {
@@ -166,11 +205,8 @@ export const BlockActionComponent = defineComponent({
      * @param newValue Whether the "select all" box is checked.
      */
     handleSelectAll(newValue: boolean) {
-      // Always remove indeterminate status.
-      this.selectAllIndeterminate = false;
-
       if (newValue) {
-        this.selectedRows = [...this.accounts.keys()];
+        this.selectedRows = this.accounts.map(row => row.id);
       }
       else {
         this.selectedRows = [];
@@ -180,23 +216,18 @@ export const BlockActionComponent = defineComponent({
       this.$emit('userSelected', data, row.id);
     },
     setAllBlockFields<K extends InputColumn>(key: K, value: BlockRowData[K]) {
-      for (const row of this.getTargetRows()) {
-        if (this.isInputDisabled(row, key)) continue;
+      const rows = this.targetRows.filter(row => !this.isInputDisabled(row, key));
+      for (const row of rows) {
         row.block[key] = value;
       }
     },
     setAllTags(tag: Tag) {
-      for (const row of this.getTargetRows()) {
+      for (const row of this.targetRows) {
         if (isNonRegisteredAccount(row.username)) {
           continue;
         }
         row.block.tags = [tag.clone()];
       }
-    },
-    getTargetRows() {
-      if (this.selectedRows.length === 0) return this.accounts;
-      const selected = new Set(this.selectedRows);
-      return this.accounts.filter((_, i) => selected.has(i));
     },
     fetchSocks() {
       this.topButtonActions.fetched = true;
@@ -276,7 +307,7 @@ export const BlockActionComponent = defineComponent({
       }
     },
     handleTagAddAll() {
-      for (const row of this.getTargetRows()) {
+      for (const row of this.targetRows) {
         if (isNonRegisteredAccount(row.username)) {
           continue;
         }
@@ -284,7 +315,7 @@ export const BlockActionComponent = defineComponent({
       }
     },
     handleTagDeleteAll() {
-      for (const row of this.getTargetRows()) {
+      for (const row of this.targetRows) {
         row.block.tags.length = 0;
       }
     },
@@ -416,7 +447,7 @@ export const BlockActionComponent = defineComponent({
             <th scope="col" style="min-width: 150px;">(all users)</th>
             <th scope="col" v-if="isAdmin">
               <cdx-checkbox :hide-label="true"
-                            :model-value="setAllValue('block')" :indeterminate="setAllIndeterminate('block')"
+                            :model-value="setAllState.block.value" :indeterminate="setAllState.block.indeterminate"
                             @update:model-value="setAllBlockFields('block', $event)"
                             :disabled="isInputDisabled(null, 'block')">
                 Set all block
@@ -429,7 +460,7 @@ export const BlockActionComponent = defineComponent({
 
             <th scope="col" v-if="isAdmin">
               <cdx-checkbox :hide-label="true"
-                            :model-value="setAllValue('acb')" :indeterminate="setAllIndeterminate('acb')"
+                            :model-value="setAllState.acb.value" :indeterminate="setAllState.acb.indeterminate"
                             @update:model-value="setAllBlockFields('acb', $event)"
                             :disabled="isInputDisabled(null, 'acb')">
                 Set all account creation blocked
@@ -437,7 +468,7 @@ export const BlockActionComponent = defineComponent({
             </th>
             <th scope="col" v-if="isAdmin">
               <cdx-checkbox :hide-label="true"
-                            :model-value="setAllValue('abao')" :indeterminate="setAllIndeterminate('abao')"
+                            :model-value="setAllState.abao.value" :indeterminate="setAllState.abao.indeterminate"
                             @update:model-value="setAllBlockFields('abao', $event)"
                             :disabled="isInputDisabled(null, 'abao')">
                 Set all autoblock/anon-only
@@ -445,7 +476,7 @@ export const BlockActionComponent = defineComponent({
             </th>
             <th scope="col" v-if="isAdmin">
               <cdx-checkbox :hide-label="true"
-                            :model-value="setAllValue('ntp')" :indeterminate="setAllIndeterminate('ntp')"
+                            :model-value="setAllState.ntp.value" :indeterminate="setAllState.ntp.indeterminate"
                             @update:model-value="setAllBlockFields('ntp', $event)"
                             :disabled="isInputDisabled(null, 'ntp')">
                 Set all no talk page
@@ -453,7 +484,7 @@ export const BlockActionComponent = defineComponent({
             </th>
             <th scope="col" v-if="isAdmin">
               <cdx-checkbox :hide-label="true"
-                            :model-value="setAllValue('nem')" :indeterminate="setAllIndeterminate('nem')"
+                            :model-value="setAllState.nem.value" :indeterminate="setAllState.nem.indeterminate"
                             @update:model-value="setAllBlockFields('nem', $event)"
                             :disabled="isInputDisabled(null, 'nem')">
                 Set all no email
@@ -473,7 +504,7 @@ export const BlockActionComponent = defineComponent({
             <th scope="col"
                 v-tooltip="'Locks for accounts, global blocks for temporary accounts and IPs'">
               <cdx-checkbox :hide-label="true"
-                            :model-value="setAllValue('lock')" :indeterminate="setAllIndeterminate('lock')"
+                            :model-value="setAllState.lock.value" :indeterminate="setAllState.lock.indeterminate"
                             @update:model-value="setAllBlockFields('lock', $event)"
                             :disabled="isInputDisabled(null, 'lock')">
                 Set all global requests

@@ -1,9 +1,9 @@
 import { ParsedArchiveNotice } from './types';
 import { spiHelperEditPage, spiHelperGetPageText } from './api.ts';
-import { spiHelperPriorCasesRegex } from './constants';
+import { spiHelperArchiveNoticeNameRegex, spiHelperPriorCasesRegex } from './constants';
 import { context } from './context.ts';
 import { spiHelperSettings } from './options';
-import { CaseState, loadCaseText } from './state.ts';
+import { type CaseState, loadCaseText } from './state.ts';
 import { parseTemplates } from './template.ts';
 import { VueMessage } from './ui/messages.ts';
 
@@ -42,7 +42,7 @@ export function spiHelperParseArchiveNoticeText(pageText: string): ParsedArchive
   }
 
   const templates = parseTemplates(pageText);
-  const archiveNoticeTemplate = templates.find(tl => /SPI\s*archive notice/i.exec(tl.name));
+  const archiveNoticeTemplate = templates.find(tl => spiHelperArchiveNoticeNameRegex.test(tl.name));
   if (!archiveNoticeTemplate) {
     console.error('Missing archive notice');
     return null;
@@ -70,8 +70,8 @@ export function spiHelperParseArchiveNoticeText(pageText: string): ParsedArchive
       console.warn('Unrecognised archivenotice parameter', key, '=', val);
       new VueMessage({
         type: 'warning',
-        content: `Found unexpected archive notice parameter |${key}=${val.toString()}`,
-      }).show();
+        content: `Ignoring unrecognised archive notice parameter |${key}`,
+      }).showOnce();
     }
   }
 

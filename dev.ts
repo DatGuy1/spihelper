@@ -11,7 +11,7 @@ async function build() {
     minify: false, // Don't minify in dev mode for easier debugging
     sourcemap: 'external',
     target: 'browser',
-    plugins: [VueImportPlugin],
+    plugins: [VueImportPlugin(false)],
     format: 'iife',
     define: {
       __VERSION__: JSON.stringify(version),

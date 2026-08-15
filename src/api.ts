@@ -38,6 +38,7 @@ import type {
   GlobalUser,
   GlobalUsersResponse,
   NewPendingChanges,
+  NormalizedTitle,
   PageRestrictions,
   PageRestrictionsResponse,
   ParseResponse,
@@ -55,7 +56,6 @@ import { VERSION, spiHelperAdvert } from './constants';
 import { SectionEntry } from './state.ts';
 import { VueMessage } from './ui/messages.ts';
 
-// noinspection JSUnusedGlobalSymbols
 /**
  * Get a user's current block settings
  *
@@ -104,6 +104,8 @@ export async function spiHelperGetUserBlockSettings(user: string): Promise<Block
  * @param titles Pages to fetch, which may span namespaces
  * @return The text of each page that exists, keyed by full title. Pages that don't exist
  * are absent from the map.
+ * @throws Error If any chunk fails. The caller has to abort
+ * rather than work from what did come back.
  */
 export async function spiHelperGetBulkPageText(
   titles: string[],
@@ -111,25 +113,21 @@ export async function spiHelperGetBulkPageText(
   if (titles.length === 0) {
     return new Map<string, string>();
   }
-  const api = spiHelperGetAPI();
   const resultMap = new Map<string, string>();
-  const chunkSize = await getApiChunkSize();
 
-  await Promise.all(chunkArray(titles, chunkSize).map(async (chunk) => {
-    const request: ApiQueryRevisionsParams = {
+  await fetchInChunks<RevisionsResponse<'content'>>({
+    targets: titles,
+    fetchName: 'spiHelperGetBulkPageText',
+    buildRequest: (chunk): ApiQueryRevisionsParams => ({
       action: 'query',
       prop: 'revisions',
       rvprop: 'content',
       rvslots: 'main',
       titles: chunk,
       formatversion: '2',
-    };
-    try {
-      const response = await api.post(request) as RevisionsResponse<'content'>;
-      // Titles come back canonicalised
-      const asRequested = new Map(
-        (response.query.normalized ?? []).map(({ from, to }) => [to, from]),
-      );
+    }),
+    onResponse: (response) => {
+      const setNormalisedMap = keyByRequestedTitle(resultMap, response.query.normalized);
       for (const page of response.query.pages) {
         if (page.missing) {
           continue;
@@ -138,43 +136,42 @@ export async function spiHelperGetBulkPageText(
         if (!latestRevision) {
           continue;
         }
-        const content = latestRevision.slots.main.content;
-        resultMap.set(page.title, content);
-        const requestedTitle = asRequested.get(page.title);
-        if (requestedTitle !== undefined) {
-          resultMap.set(requestedTitle, content);
-        }
+        setNormalisedMap(page.title, latestRevision.slots.main.content);
       }
-    }
-    catch (error) {
-      console.error('spiHelperGetBulkPageText fetch error:', error);
-    }
-  }));
+    },
+  });
 
   return resultMap;
 }
 
+/**
+ * Get the current block settings for a set of users.
+ *
+ * @param usernames Users to look up
+ * @return The active block on each user, keyed by username. Users who aren't blocked are
+ * absent from the map.
+ * @throws Error If any chunk fails
+ */
 export async function spiHelperGetBulkUserBlockSettings(
   usernames: Set<string>,
 ): Promise<Map<string, BlockEntry>> {
   if (usernames.size === 0) {
     return new Map<string, BlockEntry>();
   }
-  const api = spiHelperGetAPI();
   const resultMap = new Map<string, BlockEntry>();
-  const chunkSize = await getApiChunkSize();
 
-  await Promise.all(chunkArray([...usernames], chunkSize).map(async (chunk) => {
-    const request: ApiQueryBlocksParams = {
+  await fetchInChunks<BlocksResponse>({
+    targets: [...usernames],
+    fetchName: 'spiHelperGetBulkUserBlockSettings',
+    buildRequest: (chunk): ApiQueryBlocksParams => ({
       action: 'query',
       list: 'blocks',
       bklimit: 'max',
       bkusers: chunk,
       bkprop: ['user', 'reason', 'flags', 'expiry'],
       formatversion: '2',
-    };
-    try {
-      const response = await api.post(request) as BlocksResponse;
+    }),
+    onResponse: (response) => {
       for (const block of response.query.blocks) {
         resultMap.set(block.user, {
           username: block.user,
@@ -186,11 +183,8 @@ export async function spiHelperGetBulkUserBlockSettings(
           reason: block.reason,
         });
       }
-    }
-    catch (error) {
-      console.error('spiHelperGetBulkUserBlockSettings fetch error:', error);
-    }
-  }));
+    },
+  });
 
   return resultMap;
 }
@@ -199,23 +193,22 @@ export async function spiHelperGetBulkUserBlockSettings(
 export async function spiHelperGetBulkPageCategories(
   pages: string[],
 ): Promise<Map<string, string[]>> {
-  const api = spiHelperGetAPI();
   const resultMap = new Map<string, string[]>();
   if (pages.length === 0) {
     return resultMap;
   }
-  const chunkSize = await getApiChunkSize();
 
-  await Promise.all(chunkArray(pages, chunkSize).map(async (chunk) => {
-    const request: ApiQueryCategoriesParams = {
+  await fetchInChunks<CategoriesResponse>({
+    targets: pages,
+    fetchName: 'spiHelperGetBulkPageCategories',
+    buildRequest: (chunk): ApiQueryCategoriesParams => ({
       action: 'query',
       prop: 'categories',
       titles: chunk,
       cllimit: 'max',
       formatversion: '2',
-    };
-    try {
-      const response = await api.post(request) as CategoriesResponse;
+    }),
+    onResponse: (response) => {
       for (const page of response.query.pages) {
         if (!page.categories) {
           continue;
@@ -225,13 +218,13 @@ export async function spiHelperGetBulkPageCategories(
           console.error('spiHelperGetBulkPageCategories: could not find name for', page.title);
           continue;
         }
-        resultMap.set(pageTitle, page.categories.map(item => item.title));
+        // A page's categories can be split across responses, so add rather than replace
+        const existing = resultMap.get(pageTitle) ?? [];
+        existing.push(...page.categories.map(item => item.title));
+        resultMap.set(pageTitle, existing);
       }
-    }
-    catch (error) {
-      console.error('spiHelperGetBulkPageCategories fetch error:', error);
-    }
-  }));
+    },
+  });
 
   return resultMap;
 }
@@ -242,6 +235,7 @@ export async function spiHelperGetBulkPageCategories(
  * @param {Set<string>} usernames Usernames to look up
  * @return {Promise<Map<string, GlobalUser>>} Information about each user, keyed by username.
  * Names without a global account (or that can't have one, such as IPs) are absent from the map.
+ * @throws Error If any chunk fails
  */
 export async function spiHelperGetBulkGlobalUsers(
   usernames: Set<string>,
@@ -249,20 +243,19 @@ export async function spiHelperGetBulkGlobalUsers(
   if (usernames.size === 0) {
     return new Map<string, GlobalUser>();
   }
-  const api = spiHelperGetAPI();
   const resultMap = new Map<string, GlobalUser>();
-  const chunkSize = await getApiChunkSize();
 
-  await Promise.all(chunkArray([...usernames], chunkSize).map(async (chunk) => {
-    const request: CentralAuthApiQueryGlobalUsersParams = {
+  await fetchInChunks<GlobalUsersResponse>({
+    targets: [...usernames],
+    fetchName: 'spiHelperGetBulkGlobalUsers',
+    buildRequest: (chunk): CentralAuthApiQueryGlobalUsersParams => ({
       action: 'query',
       list: 'globalusers',
       gususers: chunk,
       gusprop: ['locked', 'localinfo'],
       formatversion: '2',
-    };
-    try {
-      const response = await api.post(request) as GlobalUsersResponse;
+    }),
+    onResponse: (response) => {
       for (const globalUser of response.query.globalusers) {
         if (globalUser.missing || globalUser.invalid) {
           continue;
@@ -273,11 +266,8 @@ export async function spiHelperGetBulkGlobalUsers(
           locked: globalUser.locked ?? false,
         });
       }
-    }
-    catch (error) {
-      console.error('spiHelperGetBulkGlobalUsers fetch error:', error);
-    }
-  }));
+    },
+  });
 
   return resultMap;
 }
@@ -288,6 +278,7 @@ export async function spiHelperGetBulkGlobalUsers(
  * @param {Set<string>} targets Usernames, IPs, or ranges to look up
  * @return {Promise<Map<string, GlobalBlockEntry>>} The active block on each target, keyed by
  * target. Targets that aren't globally blocked are absent from the map.
+ * @throws Error If any chunk fails
  */
 export async function spiHelperGetBulkGlobalBlocks(
   targets: Set<string>,
@@ -295,21 +286,20 @@ export async function spiHelperGetBulkGlobalBlocks(
   if (targets.size === 0) {
     return new Map<string, GlobalBlockEntry>();
   }
-  const api = spiHelperGetAPI();
   const resultMap = new Map<string, GlobalBlockEntry>();
-  const chunkSize = await getApiChunkSize();
 
-  await Promise.all(chunkArray([...targets], chunkSize).map(async (chunk) => {
-    const request: GlobalBlockingApiQueryGlobalBlocksParams = {
+  await fetchInChunks<GlobalBlocksResponse>({
+    targets: [...targets],
+    fetchName: 'spiHelperGetBulkGlobalBlocks',
+    buildRequest: (chunk): GlobalBlockingApiQueryGlobalBlocksParams => ({
       action: 'query',
       list: 'globalblocks',
       bgtargets: chunk,
       bglimit: 'max',
       bgprop: ['id', 'target', 'by', 'expiry', 'reason'],
       formatversion: '2',
-    };
-    try {
-      const response = await api.post(request) as GlobalBlocksResponse;
+    }),
+    onResponse: (response) => {
       for (const globalBlock of response.query.globalblocks) {
         // Autoblocks hide their target, and can't be matched to a row without one
         if (!globalBlock.target) {
@@ -322,11 +312,8 @@ export async function spiHelperGetBulkGlobalBlocks(
           reason: globalBlock.reason,
         });
       }
-    }
-    catch (error) {
-      console.error('spiHelperGetBulkGlobalBlocks fetch error:', error);
-    }
-  }));
+    },
+  });
 
   return resultMap;
 }
@@ -539,6 +526,7 @@ export async function spiHelperGetSPIBacklinks(casePageName: string) {
     blnamespace: 4,
     bldir: 'ascending',
     blfilterredir: 'nonredirects',
+    bllimit: 'max',
   };
   try {
     const response = await api.get(request) as BacklinksResponse;
@@ -559,7 +547,9 @@ export async function spiHelperGetSPIBacklinks(casePageName: string) {
  *
  * @param titles Pages to look up
  * @return Each page's settings, keyed by full title. Pages with neither are still present,
- * with an empty protection list and null pending changes.
+ * with an empty protection list and null pending changes. Titles the API canonicalised are
+ * keyed under the form that was asked for as well as the canonical one.
+ * @throws Error If any chunk fails
  */
 export async function spiHelperGetBulkPageRestrictions(
   titles: string[],
@@ -568,31 +558,26 @@ export async function spiHelperGetBulkPageRestrictions(
   if (titles.length === 0) {
     return resultMap;
   }
-  // Only looking for enwiki protection information
-  const api = spiHelperGetAPI();
-  const chunkSize = await getApiChunkSize();
-
-  await Promise.all(chunkArray(titles, chunkSize).map(async (chunk) => {
-    const request: ApiQueryInfoParams & ApiQueryFlaggedParams = {
+  await fetchInChunks<PageRestrictionsResponse>({
+    targets: titles,
+    fetchName: 'spiHelperGetBulkPageRestrictions',
+    buildRequest: (chunk): ApiQueryInfoParams & ApiQueryFlaggedParams => ({
       action: 'query',
       prop: ['info', 'flagged'],
       titles: chunk,
       inprop: 'protection',
       formatversion: '2',
-    };
-    try {
-      const response = await api.post(request) as PageRestrictionsResponse;
+    }),
+    onResponse: (response) => {
+      const setNormalisedMap = keyByRequestedTitle(resultMap, response.query.normalized);
       for (const page of response.query.pages) {
-        resultMap.set(page.title, {
+        setNormalisedMap(page.title, {
           protection: page.protection ?? [],
           pendingChanges: page.flagged ?? null,
         });
       }
-    }
-    catch (error) {
-      console.error('spiHelperGetBulkPageRestrictions fetch error:', error);
-    }
-  }));
+    },
+  });
 
   return resultMap;
 }
@@ -1157,13 +1142,160 @@ export async function spiHelperGetCategoryMembers(category: string): Promise<str
     cmnamespace: 2,
     formatversion: '2',
   };
+  const members: string[] = [];
   try {
-    const response = await api.get(request) as CategoryMembersResponse;
-    return response.query.categorymembers.map(member => member.title);
+    for await (const response of queryWithContinuation<CategoryMembersResponse>(
+      api, request, 'spiHelperGetCategoryMembers', [category], 'get',
+    )) {
+      members.push(...response.query.categorymembers.map(member => member.title));
+    }
   }
   catch {
     return [];
   }
+  return members;
+}
+
+type ApiRequestParams = Parameters<mw.Api['post']>[0];
+
+/**
+ * Continuation rounds to follow before treating the query as broken
+ */
+const MAX_CONTINUATION_ROUNDS = 10;
+
+/**
+ * Build a setter that records a page's result under the title the API gave back, and also
+ * under the form we asked for whenever the API canonicalised it
+ *
+ * @param resultMap Map being built
+ * @param normalized The response's query.normalized, if it had one
+ * @return A setter to call once per page
+ */
+function keyByRequestedTitle<T>(
+  resultMap: Map<string, T>,
+  normalized: NormalizedTitle[] | undefined,
+): (title: string, value: T) => void {
+  const asRequested = new Map((normalized ?? []).map(({ from, to }) => [to, from]));
+  return (title, value) => {
+    resultMap.set(title, value);
+    const requestedTitle = asRequested.get(title);
+    if (requestedTitle !== undefined) {
+      resultMap.set(requestedTitle, value);
+    }
+  };
+}
+
+/**
+ * Describe a bulk lookup's failure while we still know which fetch and which targets it was.
+ *
+ * mw.Api rejects with a bare API error code rather than an Error, so an unwrapped rejection
+ * arrives at the caller with no stack and nothing to say what it was doing.
+ *
+ * @param fetchName Name of the calling fetch
+ * @param targets What the failed query was asking about
+ * @param cause The original rejection
+ * @return The error to throw in the query's place
+ */
+function bulkFetchError(fetchName: string, targets: string[], cause: unknown): Error {
+  return new Error(
+    `${fetchName} failed fetching ${targets.length} item(s), `
+    + `starting with ${targets[0] ?? '(none)'}`,
+    { cause },
+  );
+}
+
+/**
+ * Run a query, handing back each response as it arrives and following the API's continuation
+ * until the result set is exhausted.
+ *
+ * Callers must accumulate across the responses rather than replacing, since one page's
+ * results can be split between them
+ *
+ * @param api API to query
+ * @param request Request parameters, without any continuation
+ * @param fetchName Name of the calling fetch, for the message
+ * @param targets What this query is asking about, named only so a failure can say what it
+ * was doing
+ * @param method HTTP method to use; POST unless the caller says otherwise
+ * @yields Each response the query produced, in order. Can (and usually is) just the one
+ * @throws Error If a round fails, or if the round cap is hit
+ */
+async function* queryWithContinuation<TResponse>(
+  api: mw.Api,
+  request: ApiRequestParams,
+  fetchName: string,
+  targets: string[],
+  method: 'get' | 'post' = 'post',
+): AsyncGenerator<TResponse> {
+  let continuation: ApiRequestParams = {};
+  // The API terminates on its own; the cap only stops a malformed or looping token
+  // from spinning forever
+  for (let round = 0; round < MAX_CONTINUATION_ROUNDS; round++) {
+    let response: TResponse;
+    try {
+      response = await api[method]({ ...request, ...continuation }) as TResponse;
+    }
+    catch (error) {
+      throw bulkFetchError(fetchName, targets, error);
+    }
+    // Read the token off a separate view rather than typing `response` as an intersection:
+    // TS only lets a bare `TResponse` satisfy the `Awaited<TResponse>` an async generator
+    // yields, and `TResponse & {...}` falls outside that rule
+    const { continue: nextContinuation } = response as TResponse & {
+      continue?: ApiRequestParams;
+    };
+    yield response;
+    if (!nextContinuation) {
+      return;
+    }
+    continuation = nextContinuation;
+  }
+  throw bulkFetchError(fetchName, targets, new Error(
+    `still continuing after ${MAX_CONTINUATION_ROUNDS} rounds, `
+    + 'giving up rather than returning a partial result',
+  ));
+}
+
+/**
+ * Run one bulk lookup across as many requests as the API's two limits demand.
+ *
+ * There are two separate ceilings: how many targets one request may name, and how much one
+ * response may carry. This splits `targets` to satisfy the first and follows each chunk's
+ * continuation to satisfy the second.
+ *
+ * Chunks go out together, so the caller merges each response as it lands rather than being
+ * handed a gathered list
+ *
+ * @param opts.targets Everything to look up: titles, usernames, or block targets
+ * @param opts.fetchName Name of the calling fetch, for the error message
+ * @param opts.buildRequest Builds the request naming one chunk
+ * @param opts.onResponse Merges one response into whatever the caller is building. Awaited
+ * before the chunk asks for its next page, so it may do async work of its own
+ * @param opts.method HTTP method to use; POST unless the caller says otherwise
+ * @throws Error If any chunk fails or runs away, since a partial result is indistinguishable
+ * from a complete one once the caller has merged it
+ */
+// TResponse appears once because it only describes what onResponse is handed. Dropping it
+// would leave that parameter as unknown and push a cast into all six callers
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
+async function fetchInChunks<TResponse>(opts: {
+  targets: string[];
+  fetchName: string;
+  buildRequest: (chunk: string[]) => ApiRequestParams;
+  onResponse: (response: TResponse) => void | Promise<void>;
+  method?: 'get' | 'post';
+}): Promise<void> {
+  const { targets, fetchName, buildRequest, onResponse, method } = opts;
+  const api = spiHelperGetAPI();
+  const chunkSize = await getApiChunkSize();
+
+  await Promise.all(chunkArray(targets, chunkSize).map(async (chunk) => {
+    for await (const response of queryWithContinuation<TResponse>(
+      api, buildRequest(chunk), fetchName, chunk, method,
+    )) {
+      await onResponse(response);
+    }
+  }));
 }
 
 export function chunkArray<T>(arr: T[], size: number): T[][] {
@@ -1179,11 +1311,19 @@ async function getApiChunkSize(): Promise<number> {
   return rights.includes('apihighlimits') ? 500 : 50;
 }
 
-const userAgent = `MediaWiki-JS/${mw.config.get('wgVersion')} spihelper/${VERSION}`;
-const APIs = {
-  meta: new mw.ForeignApi('https://meta.wikimedia.org/w/api.php', { userAgent }),
-  local: new mw.Api({ userAgent }),
-};
+function getUserAgent(): string {
+  return `MediaWiki-JS/${mw.config.get('wgVersion')} spihelper/${VERSION}`;
+}
+
+let APIs: { meta: mw.Api; local: mw.Api } | null = null;
+
+function getAPIs(): { meta: mw.Api; local: mw.Api } {
+  APIs ??= {
+    meta: new mw.ForeignApi('https://meta.wikimedia.org/w/api.php', { userAgent: getUserAgent() }),
+    local: new mw.Api({ userAgent: getUserAgent() }),
+  };
+  return APIs;
+}
 
 /**
  * Given a page title, get an API to operate on that page
@@ -1192,17 +1332,18 @@ const APIs = {
  * @return {Object} MediaWiki Api/ForeignAPI for the target page's wiki
  */
 export function spiHelperGetAPI(title?: string): mw.Api {
+  const apis = getAPIs();
   if (title && spiHelperGetXWikiPrefix(title) !== null) {
-    return APIs.meta;
+    return apis.meta;
   }
   else {
-    return APIs.local;
+    return apis.local;
   }
 }
 
 export function spiHelperGetEnwikiAPI(): mw.Api {
   if (mw.config.get('wgWikiID') === 'enwiki') {
-    return APIs.local;
+    return getAPIs().local;
   }
-  return new mw.ForeignApi('https://en.wikipedia.org/w/api.php', { userAgent });
+  return new mw.ForeignApi('https://en.wikipedia.org/w/api.php', { userAgent: getUserAgent() });
 }

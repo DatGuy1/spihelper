@@ -3,9 +3,15 @@ import {
   chunkArray,
   spiHelperGetBulkGlobalBlocks,
   spiHelperGetBulkGlobalUsers,
+  spiHelperGetBulkPageRestrictions,
+  spiHelperGetBulkPageText,
 } from '../src/api.ts';
-import type { GlobalBlocksResponse, GlobalUsersResponse } from '../src/types';
-import { silenceConsoleError } from './fixtures/console.ts';
+import type {
+  GlobalBlocksResponse,
+  GlobalUsersResponse,
+  PendingChanges,
+  Protection,
+} from '../src/types';
 
 describe('chunkArray', () => {
   test('splits into equal chunks', () => {
@@ -36,9 +42,6 @@ describe('chunkArray', () => {
 });
 
 describe('spiHelperGetBulkGlobalUsers', () => {
-  // getApiChunkSize() reads the user's rights to pick the batch size; the setup.ts
-  // stub has no getRights, so add one for the duration of these tests
-  const mwUser = mw.user as unknown as { getRights?: () => Promise<string[]> };
   // spiHelperGetAPI() hands back an mw.Api built at module load, so the stub goes on the
   // prototype rather than on the (unexported) instance
   let post: ReturnType<typeof spyOn<typeof mw.Api.prototype, 'post'>>;
@@ -50,13 +53,10 @@ describe('spiHelperGetBulkGlobalUsers', () => {
 
   beforeEach(() => {
     post = spyOn(mw.Api.prototype, 'post');
-    // No apihighlimits, so batches cap at 50
-    mwUser.getRights = () => Promise.resolve([]);
   });
 
   afterEach(() => {
     mock.restore();
-    delete mwUser.getRights;
   });
 
   test('maps an attached account to existsLocally', async () => {
@@ -121,19 +121,19 @@ describe('spiHelperGetBulkGlobalUsers', () => {
     expect(result.size).toBe(0);
   });
 
-  test('returns an empty map rather than throwing when the request fails', async () => {
-    const spy = silenceConsoleError();
-    post.mockRejectedValue(new Error('network'));
+  test('rejects rather than returning a map missing the failed chunk', async () => {
+    const apiError = new Error('network');
+    post.mockRejectedValue(apiError);
 
-    const result = await spiHelperGetBulkGlobalUsers(new Set(['Someone']));
+    const error = await spiHelperGetBulkGlobalUsers(new Set(['Someone'])).catch((e: unknown) => e);
 
-    expect(result.size).toBe(0);
-    expect(spy).toHaveBeenCalled();
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain('spiHelperGetBulkGlobalUsers failed');
+    expect((error as Error).cause).toBe(apiError);
   });
 });
 
 describe('spiHelperGetBulkGlobalBlocks', () => {
-  const mwUser = mw.user as unknown as { getRights?: () => Promise<string[]> };
   let post: ReturnType<typeof spyOn<typeof mw.Api.prototype, 'post'>>;
 
   type GlobalBlock = GlobalBlocksResponse['query']['globalblocks'][number];
@@ -158,12 +158,10 @@ describe('spiHelperGetBulkGlobalBlocks', () => {
 
   beforeEach(() => {
     post = spyOn(mw.Api.prototype, 'post');
-    mwUser.getRights = () => Promise.resolve([]);
   });
 
   afterEach(() => {
     mock.restore();
-    delete mwUser.getRights;
   });
 
   test('keys the block by its target', async () => {
@@ -215,6 +213,23 @@ describe('spiHelperGetBulkGlobalBlocks', () => {
     expect(result.size).toBe(1);
   });
 
+  // bglimit caps how many blocks come back at once, so one chunk's results can arrive over
+  // several responses. Dropping the tail would read as "those targets aren't blocked", which
+  // is indistinguishable from the normal case
+  test('follows the continuation and merges targets split across responses', async () => {
+    post
+      .mockResolvedValueOnce({
+        query: { globalblocks: [makeBlock({ target: 'First' })] },
+        continue: { bgcontinue: '1|2', continue: '-||' },
+      })
+      .mockResolvedValueOnce({ query: { globalblocks: [makeBlock({ target: 'Second' })] } });
+
+    const result = await spiHelperGetBulkGlobalBlocks(new Set(['First', 'Second']));
+
+    expect(post).toHaveBeenCalledTimes(2);
+    expect([...result.keys()]).toEqual(['First', 'Second']);
+  });
+
   test('splits over the 50-target limit into multiple requests and merges the results', async () => {
     const targets = Array.from({ length: 120 }, (_, i) => `~2026-00000-${i}`);
     post.mockImplementation(((request: { bgtargets: string[] }) => Promise.resolve({
@@ -236,13 +251,223 @@ describe('spiHelperGetBulkGlobalBlocks', () => {
     expect(result.size).toBe(0);
   });
 
-  test('returns an empty map rather than throwing when the request fails', async () => {
-    const spy = silenceConsoleError();
-    post.mockRejectedValue(new Error('network'));
+  test('rejects rather than returning a map missing the failed chunk', async () => {
+    const apiError = new Error('network');
+    post.mockRejectedValue(apiError);
 
-    const result = await spiHelperGetBulkGlobalBlocks(new Set(['~2026-00000-01']));
+    const error = await spiHelperGetBulkGlobalBlocks(new Set(['~2026-00000-01']))
+      .catch((e: unknown) => e);
 
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain('spiHelperGetBulkGlobalBlocks failed');
+    expect((error as Error).cause).toBe(apiError);
+  });
+});
+
+describe('spiHelperGetBulkPageText', () => {
+  let post: ReturnType<typeof spyOn<typeof mw.Api.prototype, 'post'>>;
+
+  /** One response's worth of pages, in the shape prop=revisions returns */
+  function pagesFor(titles: string[]) {
+    return titles.map((title, index) => ({
+      pageid: index + 1,
+      title,
+      revisions: [{ slots: { main: { content: `content of ${title}` } } }],
+    }));
+  }
+
+  beforeEach(() => {
+    post = spyOn(mw.Api.prototype, 'post');
+  });
+
+  afterEach(() => {
+    mock.restore();
+  });
+
+  test('makes a single request when the response is complete', async () => {
+    post.mockResolvedValue({ query: { pages: pagesFor(['User:A', 'User:B']) } });
+
+    const result = await spiHelperGetBulkPageText(['User:A', 'User:B']);
+
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(result.get('User:A')).toBe('content of User:A');
+    expect(result.get('User:B')).toBe('content of User:B');
+  });
+
+  test('follows the continue token and merges the truncated remainder', async () => {
+    // The API truncates once a response would exceed $wgAPIMaxResultSize and hands back a
+    // token instead of erroring, so the pages left out arrive only on the next round
+    post
+      .mockResolvedValueOnce({
+        query: { pages: pagesFor(['User:A']) },
+        continue: { rvcontinue: '123|456', continue: '||' },
+      })
+      .mockResolvedValueOnce({ query: { pages: pagesFor(['User:B']) } });
+
+    const result = await spiHelperGetBulkPageText(['User:A', 'User:B']);
+
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(result.get('User:A')).toBe('content of User:A');
+    expect(result.get('User:B')).toBe('content of User:B');
+  });
+
+  test('passes the continuation parameters back on the follow-up request', async () => {
+    post
+      .mockResolvedValueOnce({
+        query: { pages: pagesFor(['User:A']) },
+        continue: { rvcontinue: '123|456', continue: '||' },
+      })
+      .mockResolvedValueOnce({ query: { pages: pagesFor(['User:B']) } });
+
+    await spiHelperGetBulkPageText(['User:A', 'User:B']);
+
+    expect(post.mock.calls[1]?.[0]).toMatchObject({ rvcontinue: '123|456', continue: '||' });
+  });
+
+  test('resolves normalised titles under the name that was asked for', async () => {
+    post.mockResolvedValue({
+      query: {
+        normalized: [{ from: 'User:some_sock', to: 'User:Some sock' }],
+        pages: pagesFor(['User:Some sock']),
+      },
+    });
+
+    const result = await spiHelperGetBulkPageText(['User:some_sock']);
+
+    expect(result.get('User:some_sock')).toBe('content of User:Some sock');
+    expect(result.get('User:Some sock')).toBe('content of User:Some sock');
+  });
+
+  test('makes no request at all for an empty list', async () => {
+    const result = await spiHelperGetBulkPageText([]);
+
+    expect(post).not.toHaveBeenCalled();
     expect(result.size).toBe(0);
-    expect(spy).toHaveBeenCalled();
+  });
+
+  describe('when the text cannot be fetched in full', () => {
+    test('rejects rather than returning the pages that did come back', async () => {
+      post
+        .mockResolvedValueOnce({
+          query: { pages: pagesFor(['User:A']) },
+          continue: { rvcontinue: '123|456', continue: '||' },
+        })
+        .mockRejectedValueOnce(new Error('network'));
+
+      const error = await spiHelperGetBulkPageText(['User:A', 'User:B']).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain('spiHelperGetBulkPageText failed');
+    });
+
+    test('names the failing pages and keeps the underlying error as the cause', async () => {
+      const apiError = new Error('http');
+      post.mockRejectedValue(apiError);
+
+      const error = await spiHelperGetBulkPageText(['User talk:A']).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain('User talk:A');
+      expect((error as Error).cause).toBe(apiError);
+    });
+
+    test('rejects instead of truncating when the continuation never terminates', async () => {
+      post.mockResolvedValue({
+        query: { pages: pagesFor(['User:A']) },
+        continue: { rvcontinue: '123|456', continue: '||' },
+      });
+
+      const error = await spiHelperGetBulkPageText(['User:A', 'User:B']).catch((e: unknown) => e);
+
+      expect((error as Error).cause).toMatchObject({
+        message: expect.stringMatching(/still continuing after \d+ rounds/) as unknown as string,
+      });
+    });
+  });
+});
+
+describe('spiHelperGetBulkPageRestrictions', () => {
+  const semiProtection: Protection[] = [
+    { type: 'edit', level: 'autoconfirmed', expiry: 'infinity' },
+  ];
+  /* eslint-disable camelcase -- these are the API's own field names */
+  const pendingChanges: PendingChanges = {
+    stable_revid: 1,
+    level: 1,
+    level_text: 'stable',
+    protection_level: 'autoconfirmed',
+    protection_expiry: 'infinity',
+  };
+  /* eslint-enable camelcase */
+  let post: ReturnType<typeof spyOn<typeof mw.Api.prototype, 'post'>>;
+
+  beforeEach(() => {
+    post = spyOn(mw.Api.prototype, 'post');
+  });
+
+  afterEach(() => {
+    mock.restore();
+  });
+
+  test('records the protection and pending changes it got back', async () => {
+    post.mockResolvedValue({
+      query: {
+        pages: [{
+          title: 'Wikipedia:Sockpuppet investigations/Foo',
+          protection: semiProtection,
+          flagged: pendingChanges,
+        }],
+      },
+    });
+
+    const result = await spiHelperGetBulkPageRestrictions(['Wikipedia:Sockpuppet investigations/Foo']);
+
+    expect(result.get('Wikipedia:Sockpuppet investigations/Foo')).toEqual({
+      protection: semiProtection,
+      pendingChanges,
+    });
+  });
+
+  test('resolves normalised titles under the name that was asked for', async () => {
+    post.mockResolvedValue({
+      query: {
+        normalized: [{
+          from: 'Wikipedia:Sockpuppet investigations/Foo_bar',
+          to: 'Wikipedia:Sockpuppet investigations/Foo bar',
+        }],
+        pages: [{
+          title: 'Wikipedia:Sockpuppet investigations/Foo bar',
+          protection: semiProtection,
+        }],
+      },
+    });
+
+    const result = await spiHelperGetBulkPageRestrictions([
+      'Wikipedia:Sockpuppet investigations/Foo_bar',
+    ]);
+
+    expect(result.get('Wikipedia:Sockpuppet investigations/Foo_bar')?.protection)
+      .toEqual(semiProtection);
+    expect(result.get('Wikipedia:Sockpuppet investigations/Foo bar')?.protection)
+      .toEqual(semiProtection);
+  });
+
+  test('rejects rather than returning a map missing the failed chunk', async () => {
+    const apiError = new Error('network');
+    post.mockRejectedValue(apiError);
+
+    const error = await spiHelperGetBulkPageRestrictions(['Wikipedia:Sockpuppet investigations/Foo'])
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain('spiHelperGetBulkPageRestrictions failed');
+    expect((error as Error).cause).toBe(apiError);
+  });
+
+  test('makes no request at all for an empty list', async () => {
+    const result = await spiHelperGetBulkPageRestrictions([]);
+
+    expect(post).not.toHaveBeenCalled();
+    expect(result.size).toBe(0);
   });
 });

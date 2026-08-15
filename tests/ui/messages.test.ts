@@ -1,26 +1,99 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import { watchEffect } from 'vue';
-import { VueMessage, messages } from '../../src/ui/messages.ts';
-
-beforeEach(() => {
-  messages.length = 0;
-});
+import { VueMessage, dismissMessage, messages } from '../../src/ui/messages.ts';
 
 describe('show', () => {
-  test('appends the message and records its index', () => {
+  test('appends the message and marks it shown', () => {
     const msg = new VueMessage({ type: 'notice', content: 'Editing X' });
     msg.show();
     expect(messages).toEqual([msg]);
-    expect(msg._index).toBe(0);
+    expect(msg._shown).toBe(true);
   });
 
-  test('appends at the correct index when messages already exist', () => {
+  test('appends after messages that already exist', () => {
     new VueMessage({ type: 'notice', content: 'first' }).show();
     const second = new VueMessage({ type: 'notice', content: 'second' }).show();
-    expect(second._index).toBe(1);
+    expect(messages).toHaveLength(2);
     // Not toBe: reading messages[1] back returns Vue's reactive-proxy wrapper around
     // the same underlying object, not the raw `second` reference itself.
     expect(messages[1]).toEqual(second);
+  });
+
+  test('gives every message its own id', () => {
+    const first = new VueMessage({ type: 'notice', content: 'first' }).show();
+    const second = new VueMessage({ type: 'notice', content: 'second' }).show();
+    expect(first.id).not.toBe(second.id);
+  });
+});
+
+describe('showOnce', () => {
+  test('does not stack a second copy of a message already on screen', () => {
+    new VueMessage({ type: 'warning', content: 'Unreadable tag' }).showOnce();
+    const repeat = new VueMessage({ type: 'warning', content: 'Unreadable tag' }).showOnce();
+
+    expect(messages).toHaveLength(1);
+    // The suppressed copy never entered the array, so nothing should think it was shown
+    expect(repeat._shown).toBe(false);
+  });
+
+  test('still shows a message that only differs by content', () => {
+    new VueMessage({ type: 'warning', content: 'Unreadable tag on SockA' }).showOnce();
+    new VueMessage({ type: 'warning', content: 'Unreadable tag on SockB' }).showOnce();
+
+    expect(messages).toHaveLength(2);
+  });
+
+  test('still shows a message that only differs by type', () => {
+    new VueMessage({ type: 'warning', content: 'Same words' }).showOnce();
+    new VueMessage({ type: 'error', content: 'Same words' }).showOnce();
+
+    expect(messages).toHaveLength(2);
+  });
+
+  test('shows again once the duplicate has been dismissed', async () => {
+    const first = new VueMessage({ type: 'warning', content: 'Unreadable tag' }).showOnce();
+    dismissMessage(first.id);
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    new VueMessage({ type: 'warning', content: 'Unreadable tag' }).showOnce();
+
+    expect(messages).toHaveLength(1);
+  });
+});
+
+describe('dismissMessage', () => {
+  test('removes the dismissed message once the fade has run', async () => {
+    const first = new VueMessage({ type: 'notice', content: 'first' }).show();
+    const second = new VueMessage({ type: 'notice', content: 'second' }).show();
+
+    dismissMessage(first.id);
+    // Removal is deferred so Codex's fade-out isn't cut short
+    expect(messages).toHaveLength(2);
+
+    await new Promise(resolve => setTimeout(resolve, 300));
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toEqual(second);
+  });
+
+  test('still updates the right message after an earlier one is removed', async () => {
+    const first = new VueMessage({ type: 'notice', content: 'first' }).show();
+    const second = new VueMessage({ type: 'notice', content: 'Editing X' }).show();
+
+    dismissMessage(first.id);
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // An index stored at show() time would now point past the end of the array
+    second.update({ type: 'success', content: 'Saved X' });
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({ type: 'success', content: 'Saved X' });
+  });
+
+  test('ignores an id that is no longer present', async () => {
+    const msg = new VueMessage({ type: 'notice', content: 'only' }).show();
+    dismissMessage(msg.id);
+    dismissMessage(msg.id);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    expect(messages).toHaveLength(0);
   });
 });
 

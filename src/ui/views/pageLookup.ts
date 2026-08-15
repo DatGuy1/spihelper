@@ -4,6 +4,7 @@ import { type MenuItemData, type ValidationStatusType } from '@wikimedia/codex';
 import { spiHelperSettings } from '../../options';
 
 const ITEM_LIMIT = 10;
+const SEARCH_DEBOUNCE_MS = 250;
 
 interface Data {
   lookupStatus: ValidationStatusType;
@@ -12,6 +13,7 @@ interface Data {
   pageSuggestions: MenuItemData[];
   menuConfig: { visibleItemLimit: number; searchQuery: string };
   useLookup: boolean;
+  searchTimer: ReturnType<typeof setTimeout> | null;
 }
 
 export const PageLookupComponent = defineComponent({
@@ -40,6 +42,7 @@ export const PageLookupComponent = defineComponent({
       messages: messages,
       pageSuggestions: [],
       useLookup: spiHelperSettings.useLookup,
+      searchTimer: null,
       selection: null,
       menuConfig,
     };
@@ -57,15 +60,31 @@ export const PageLookupComponent = defineComponent({
       return `${this.prefix}${this.pagename}`;
     },
   },
+  beforeUnmount() {
+    this.cancelPendingSearch();
+  },
   methods: {
-    async onUpdateInputValue(value: string) {
+    cancelPendingSearch() {
+      if (this.searchTimer !== null) {
+        clearTimeout(this.searchTimer);
+        this.searchTimer = null;
+      }
+    },
+    onUpdateInputValue(value: string) {
       this.menuConfig.searchQuery = value;
+      this.cancelPendingSearch();
       // Clear menu items if there is no input.
       if (!value) {
         this.pageSuggestions = [];
         return;
       }
 
+      this.searchTimer = setTimeout(() => {
+        this.searchTimer = null;
+        void this.fetchSuggestions(value);
+      }, SEARCH_DEBOUNCE_MS);
+    },
+    async fetchSuggestions(value: string) {
       await this.$nextTick();
       spiHelperGetPages(this.fullPagename, this.namespace, ITEM_LIMIT)
         .then((pages) => {
@@ -92,6 +111,11 @@ export const PageLookupComponent = defineComponent({
           // On error, set results to empty.
           this.pageSuggestions = [];
         });
+    },
+    onFocus() {
+      if (this.pageSuggestions.length === 0) {
+        this.onLoadMore();
+      }
     },
     onLoadMore() {
       if (!this.pagename) {
@@ -158,7 +182,7 @@ export const PageLookupComponent = defineComponent({
           :placeholder="placeholder"
           @update:input-value="onUpdateInputValue"
           @load-more="onLoadMore"
-          @focus="onLoadMore"
+          @focus="onFocus"
           @update:selected="onSelection"
           @blur="validateInstantly"
           @keydown.enter="validateInstantly"

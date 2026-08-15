@@ -1,7 +1,6 @@
 import { type PropType, defineComponent } from 'vue';
-import type { CaseActionName, CaseActions, UserRow } from '../../../types';
+import type { AllUser, CaseActionName, CaseActions, UserRow } from '../../../types';
 import type { CaseState, SectionEntry } from '../../../state.ts';
-import type { AllUser } from '../../../types';
 import { context } from '../../../context.ts';
 
 export const ActionContentComponent = defineComponent({

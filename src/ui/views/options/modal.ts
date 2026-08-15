@@ -13,14 +13,12 @@ import {
   cdxIconWatchlist,
 } from '@wikimedia/codex-icons';
 import { saveOptions, spiHelperSettings } from '../../../options';
-import { MODE, VERSION, spiHelperDefaultSettings } from '../../../constants/settings.ts';
+import { MODE, VERSION, spiHelperDefaultSettings } from '../../../constants';
 import { getFullLogPage } from '../../../options/utils.ts';
 import type { ScriptSettings } from '../../../options/types.ts';
-import type { ChipInputItem, MenuItemData, MenuItemValue } from '@wikimedia/codex';
-import { CASE_ACTION_NAMES, type CaseActionName } from '../../../types/spi.ts';
-import type { FeedbackDialog } from '../../../types/vue.ts';
+import type { ChipInputItem, MenuItemData, MenuItemValue, useToast } from '@wikimedia/codex';
+import { CASE_ACTION_NAMES, type CaseActionName, type FeedbackDialog } from '../../../types';
 import { isMenuGroupData, toRaw } from '../../utils.ts';
-import type { useToast } from '@wikimedia/codex';
 import { setGlobalSettings } from '../../../options/options.ts';
 
 type UseToastReturn = ReturnType<typeof useToast>;

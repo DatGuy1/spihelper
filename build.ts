@@ -1,6 +1,6 @@
 import { version } from './package.json';
 import { VueImportPlugin } from './plugin.ts';
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
 const branch = process.env.GITHUB_REF_NAME ?? 'develop'; // "stable" or "develop"
@@ -10,13 +10,16 @@ const mode = branch === 'stable' ? 'production' : 'dev';
 const versionBanner = `v${version}`;
 
 const usyncTemplateJs = `{{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=${buildRef}|path=spihelper.js}}`;
+
+rmSync('dist', { recursive: true, force: true });
+
 await Bun.build({
   entrypoints: ['src/spihelper.ts', 'src/spihelper.css'],
   outdir: './dist',
   minify: mode === 'production',
   sourcemap: 'none', // We might like to make this 'inline' for dev
   target: 'browser',
-  plugins: [VueImportPlugin],
+  plugins: [VueImportPlugin(mode === 'production')],
   format: 'iife',
   define: {
     __VERSION__: JSON.stringify(version),

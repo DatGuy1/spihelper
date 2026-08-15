@@ -10,3 +10,10 @@ import { spyOn } from 'bun:test';
 export function silenceConsoleError() {
   return spyOn(console, 'error').mockImplementation(() => { /* suppress expected error log */ });
 }
+
+/**
+ * As silenceConsoleError, for paths that warn rather than error.
+ */
+export function silenceConsoleWarn() {
+  return spyOn(console, 'warn').mockImplementation(() => { /* suppress expected warning log */ });
+}

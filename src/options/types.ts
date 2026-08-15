@@ -1,5 +1,4 @@
-import type { WatchOption } from '../types/api.ts';
-import type { CaseActionName } from '../types/spi.ts';
+import type { CaseActionName, WatchOption } from '../types';
 import type { MenuGroupData, MenuItemData } from '@wikimedia/codex';
 
 export interface ScriptSettings {

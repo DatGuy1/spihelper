@@ -1,5 +1,10 @@
 type ProtectionType = 'edit' | 'move' | 'create';
 
+export interface NormalizedTitle {
+  from: string;
+  to: string;
+}
+
 export interface SectionResult {
   tocLevel: number;
   hLevel: number;
@@ -218,7 +223,7 @@ interface RevisionsDataMap {
 export interface RevisionsResponse<T extends keyof RevisionsDataMap> {
   query: {
     // Present only when the API canonicalised a title we asked for
-    normalized?: { from: string; to: string }[];
+    normalized?: NormalizedTitle[];
     pages: {
       pageid: number;
       ns: number;
@@ -241,6 +246,8 @@ export interface BacklinksResponse {
 
 export interface PageRestrictionsResponse {
   query: {
+    // Present only when the API canonicalised a title we asked for
+    normalized?: NormalizedTitle[];
     pages: {
       title: string;
       protection?: Protection[];

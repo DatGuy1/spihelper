@@ -239,7 +239,11 @@ export async function spiHelperPerformActions(opts: {
           }
 
           if (sectionText !== originalSectionText) {
-            targetText = targetText.replace(originalSectionText, () => sectionText);
+            const updatedText = targetText.replace(originalSectionText, () => sectionText);
+            if (updatedText === targetText) {
+              new VueMessage({ type: 'error', content: `Failed to update section ${section.name}` }).show();
+            }
+            targetText = updatedText;
           }
         }
       }

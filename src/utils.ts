@@ -5,20 +5,23 @@ import {
   spiHelperSectionRegex,
   spiHelperSignatureRegex,
 } from './constants';
-import type { AbsoluteExpiry, Expiry, NoExpiry, RelativeExpiry } from './types';
-import { SectionEntry } from './state.ts';
-import { VueMessage } from './ui/messages.ts';
 import {
+  type AbsoluteExpiry,
   type AltmasterTagStatus,
   type ArchiveSection,
   type BlockActionData,
   type BlockRowData,
+  type Expiry,
+  type NoExpiry,
+  type RelativeExpiry,
   SockmasterTag,
   type SockmasterTagStatus,
   SockpuppetTag,
   type SockpuppetTagStatus,
   type Tag,
 } from './types';
+import type { SectionEntry } from './state.ts';
+import { VueMessage } from './ui/messages.ts';
 import { parseTemplates } from './template.ts';
 
 const spiHelperXWikiPrefixes = ['m', 'meta'];
@@ -223,10 +226,12 @@ export function addSignature(text: string): string {
  * @return {string} The section text with the note added
  */
 export function addAdminSectionNote(note: string, sourceText: string): string {
-  if (spiHelperClosingRuleRegex.test(sourceText)) {
-    // Replacer function, not a replacement string - the note is caller-supplied and may
-    // contain $ patterns ($&, $`, $', $$) that would otherwise be expanded
-    return sourceText.replace(spiHelperClosingRuleRegex, () => `\n${note}\n----`);
+  const closingRule = spiHelperClosingRuleRegex.exec(sourceText);
+  if (closingRule) {
+    const startIndex = closingRule.index;
+    const startText = sourceText.slice(0, startIndex);
+    const endText = sourceText.slice(startIndex + closingRule[0].length);
+    return `${startText}\n${note}\n----${endText}`;
   }
   const trailingWhitespace = /\s*$/.exec(sourceText)?.[0] ?? '';
   const body = sourceText
@@ -465,7 +470,7 @@ export function parseUserTags(userPage: string, username?: string): Tag[] {
           type: 'warning',
           content: `Ignoring {{${template.name}}} tag${on} with unrecognised status `
             + `"${firstParam ?? ''}". Tagging will overwrite it`,
-        }).show();
+        }).showOnce();
         continue;
       }
 
@@ -511,7 +516,7 @@ export function parseUserTags(userPage: string, username?: string): Tag[] {
             type: 'warning',
             content: `Ignoring {{${template.name}}} tag${on} with unrecognised status `
               + `"${statusParam?.toString() ?? ''}". Tagging will overwrite it`,
-          }).show();
+          }).showOnce();
           continue;
       }
 
@@ -538,7 +543,7 @@ export function parseUserTags(userPage: string, username?: string): Tag[] {
               type: 'warning',
               content: `Dropping altmaster "${altmaster.toString()}"${on}: unrecognised `
                 + `altmaster-status "${altmasterStatusParam?.toString() ?? ''}"`,
-            }).show();
+            }).showOnce();
             break;
         }
 

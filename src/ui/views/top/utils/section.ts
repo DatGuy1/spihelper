@@ -1,5 +1,5 @@
 import type { CaseState } from '../../../../state.ts';
-import { setUserRowBlockData } from '../../../utils.ts';
+import { markRaw, setUserRowBlockData } from '../../../utils.ts';
 import {
   spiHelperGetBulkGlobalBlocks,
   spiHelperGetBulkGlobalUsers,
@@ -8,6 +8,7 @@ import {
 } from '../../../../api.ts';
 import type { BlockEntry, PrefetchedUser, UserRow } from '../../../../types';
 import { isNonRegisteredAccount } from '../../../../utils.ts';
+import { VueMessage } from '../../../messages.ts';
 
 export async function prefetchSockRows(opts: {
   likelySocks: UserRow[];
@@ -37,21 +38,33 @@ export async function prefetchSockRows(opts: {
   }
   const validUserPages = [...registeredUsernames].map(name => `User:${name}`);
 
-  // Could bundle the 4 API calls into a single spiHelperGetUserSnapshot
-  // call that calls list=blocks|globalusers|...&bkusers=...&gususers=...
-  const [blockSettings, userPages, globalUsers, globalBlocks] = await Promise.all([
+  // Could maybe bundle the 4 API calls into a single spiHelperGetUserSnapshot
+  // call that calls list=blocks|globalusers|...&bkusers=...&gususers=...?
+  const lookups = await Promise.all([
     spiHelperGetBulkUserBlockSettings(newUsernames),
     spiHelperGetBulkPageText(validUserPages),
     spiHelperGetBulkGlobalUsers(registeredUsernames),
     spiHelperGetBulkGlobalBlocks(unregisteredUsernames),
-  ]);
-  for (const name of newUsernames) {
-    fetchedUsers.set(name, {
-      block: blockSettings.get(name),
-      userPage: userPages.get(`User:${name}`),
-      globalUser: globalUsers.get(name),
-      globalBlock: globalBlocks.get(name),
-    });
+  ]).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    new VueMessage({
+      type: 'warning',
+      content: `Could not look up blocks and tags for these accounts: ${message}`,
+    }).show();
+    return null;
+  });
+  if (lookups) {
+    const [blockSettings, userPages, globalUsers, globalBlocks] = lookups;
+    for (const name of newUsernames) {
+      // Nothing renders these entries so keep Vue from proxying
+      const fetched: PrefetchedUser = {
+        block: blockSettings.get(name),
+        userPage: userPages.get(`User:${name}`),
+        globalUser: globalUsers.get(name),
+        globalBlock: globalBlocks.get(name),
+      };
+      fetchedUsers.set(name, markRaw ? markRaw(fetched) : fetched);
+    }
   }
 
   return [...likelySocks, ...possibleSocks].map((userRow) => {

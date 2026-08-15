@@ -30,12 +30,26 @@ function makeAnchor(...children: Node[]): HTMLAnchorElement {
   return a;
 }
 
-function installJQueryMock(anchors: Element[]): void {
-  const cuResult = { find: (_: string) => anchors };
-  const docResult = {
-    find: (sel: string) => (sel === '.cuEntry' ? cuResult : { find: () => [] }),
-  };
-  spyOn(globalThis as unknown as { $: () => unknown }, '$').mockImplementation(() => docResult);
+/**
+ * Put the given username anchors on the page in the markup an SPI case actually uses,
+ * and let the real jQuery from setup.ts query it
+ */
+function renderCuEntries(anchors: Element[]): void {
+  const list = document.createElement('ul');
+  for (const anchor of anchors) {
+    const item = document.createElement('li');
+    const entry = document.createElement('span');
+    entry.className = 'plainlinks cuEntry';
+    const inner = document.createElement('span');
+    inner.className = 'plainlinks';
+    inner.appendChild(anchor);
+    const talkLink = document.createElement('a');
+    talkLink.appendChild(document.createTextNode('talk'));
+    entry.append(inner, talkLink);
+    item.appendChild(entry);
+    list.appendChild(item);
+  }
+  document.body.appendChild(list);
 }
 
 function makeState(archiveNotice: ParsedArchiveNotice | null = null): CaseState {
@@ -44,6 +58,8 @@ function makeState(archiveNotice: ParsedArchiveNotice | null = null): CaseState 
 
 afterEach(() => {
   mock.restore();
+  // renderCuEntries appends to the real document, so each test starts from a clean page
+  document.body.innerHTML = '';
 });
 
 describe('menu data', () => {
@@ -343,19 +359,19 @@ describe('getSockEntries', () => {
     });
 
     test('anchor with a plain text node is included as a sock entry', () => {
-      installJQueryMock([makeAnchor(textNode('SockA'))]);
+      renderCuEntries([makeAnchor(textNode('SockA'))]);
       const [likely] = getSockEntries({ text: '', fullSearch: true, state: makeState() });
       expect(likely.map(r => r.username)).toContain('SockA');
     });
 
     test('leading/trailing whitespace in the text node is trimmed', () => {
-      installJQueryMock([makeAnchor(textNode(' SockA '))]);
+      renderCuEntries([makeAnchor(textNode(' SockA '))]);
       const [likely] = getSockEntries({ text: '', fullSearch: true, state: makeState() });
       expect(likely.map(r => r.username)).toContain('SockA');
     });
 
     test('only the text node is used when a sibling element node is present', () => {
-      installJQueryMock([makeAnchor(textNode('RealSock'), elementNode('UserHighlightType'))]);
+      renderCuEntries([makeAnchor(textNode('RealSock'), elementNode('UserHighlightType'))]);
       const [likely] = getSockEntries({ text: '', fullSearch: true, state: makeState() });
       const names = likely.map(r => r.username);
       expect(names).toContain('RealSock');
@@ -363,7 +379,7 @@ describe('getSockEntries', () => {
     });
 
     test('anchor with only an element node (no text node) is skipped entirely', () => {
-      installJQueryMock([makeAnchor(elementNode('IgnoredUser'))]);
+      renderCuEntries([makeAnchor(elementNode('IgnoredUser'))]);
       const [likely] = getSockEntries({ text: '', fullSearch: true, state: makeState() });
       const names = likely.map(r => r.username);
       expect(names).not.toContain('IgnoredUser');
@@ -371,19 +387,19 @@ describe('getSockEntries', () => {
     });
 
     test('anchor with an empty text node is skipped', () => {
-      installJQueryMock([makeAnchor(textNode(''))]);
+      renderCuEntries([makeAnchor(textNode(''))]);
       const [likely] = getSockEntries({ text: '', fullSearch: true, state: makeState() });
       expect(likely).toHaveLength(1); // only the case master
     });
 
     test('duplicate usernames from the DOM are deduplicated', () => {
-      installJQueryMock([makeAnchor(textNode('SockA')), makeAnchor(textNode('SockA'))]);
+      renderCuEntries([makeAnchor(textNode('SockA')), makeAnchor(textNode('SockA'))]);
       const [likely] = getSockEntries({ text: '', fullSearch: true, state: makeState() });
       expect(likely.filter(r => r.username === 'SockA')).toHaveLength(1);
     });
 
     test('username already in allUsernames (from template text) is not added from DOM', () => {
-      installJQueryMock([makeAnchor(textNode('SockA'))]);
+      renderCuEntries([makeAnchor(textNode('SockA'))]);
       const [likely, possible] = getSockEntries({
         text: '{{user|SockA}}',
         fullSearch: true,

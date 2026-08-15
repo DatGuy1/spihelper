@@ -1,8 +1,7 @@
 import { type PropType, defineComponent } from 'vue';
 import { cdxIconAdd, cdxIconTrash } from '@wikimedia/codex-icons';
-import type { AllUser } from '../../../../types/api.ts';
-import { spiHelperLinkViewURLFormats } from '../../../../constants/linkview.ts';
-import type { UserRow } from '../../../../types/spi.ts';
+import type { AllUser, UserRow } from '../../../../types';
+import { spiHelperLinkViewURLFormats } from '../../../../constants';
 
 export type ColumnId = 'analyser' | 'timeline' | 'timecard' | 'pages' | 'summary' | 'cuwiki' | 'interleaved';
 export type LinkRecord = Record<ColumnId, { url: URL; label: string }>;
@@ -28,8 +27,8 @@ export const LinkActionComponent = defineComponent({
     ];
     const optionColumns = columns.slice(1) as { id: ColumnId; label: string }[];
 
-    // An array of selected row indices
-    const selectedRows: number[] = [];
+    // An array of selected row IDs
+    const selectedRows: string[] = [];
 
     return {
       columns,
@@ -129,29 +128,24 @@ export const LinkActionComponent = defineComponent({
       }
       else return this.selectedRows.length !== 0;
     },
-    selectedRowIDs(): string[] {
-      return this.selectedRows
-        .map(index => this.accounts[index]?.id)
-        .filter((id): id is string => !!id);
-    },
   },
   watch: {
-    selectedRows(newValue: number[], oldValue: number[]) {
-      // Probably not best practice!
+    selectedRows(newValue: string[], oldValue: string[]) {
       const oldSet = new Set(oldValue);
       const newSet = new Set(newValue);
+      const rowsById = new Map(this.accounts.map(row => [row.id, row]));
 
-      const toggle = (index: number, enabled: boolean) => {
-        const row = this.accounts[index];
+      const toggle = (id: string, enabled: boolean) => {
+        const row = rowsById.get(id);
         if (row) this.toggleRow(row, enabled);
       };
 
-      for (const index of newSet) {
-        if (!oldSet.has(index)) toggle(index, true);
+      for (const id of newSet) {
+        if (!oldSet.has(id)) toggle(id, true);
       }
 
-      for (const index of oldSet) {
-        if (!newSet.has(index)) toggle(index, false);
+      for (const id of oldSet) {
+        if (!newSet.has(id)) toggle(id, false);
       }
     },
   },
@@ -163,7 +157,7 @@ export const LinkActionComponent = defineComponent({
      */
     handleSelectAll(newValue: boolean) {
       if (newValue) {
-        this.selectedRows = [...this.accounts.keys()];
+        this.selectedRows = this.accounts.map(row => row.id);
       }
       else {
         this.selectedRows = [];
@@ -176,7 +170,7 @@ export const LinkActionComponent = defineComponent({
       this.$emit('addRow');
     },
     removeRows() {
-      this.$emit('removeRows', this.selectedRowIDs);
+      this.$emit('removeRows', [...this.selectedRows]);
       this.selectedRows = [];
     },
     toggleColumn(key: ColumnId, value: boolean) {

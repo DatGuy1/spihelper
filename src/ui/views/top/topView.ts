@@ -35,7 +35,7 @@ import { MODE, VERSION, spiHelperCaseStatusRegex } from '../../../constants';
 import { normalizeCaseStatus } from './utils/status.ts';
 import { OpState, finishOp, getOpState, isOpRunning, startOp } from '../../../operations.ts';
 import { spiHelperPerformActions } from '../../../caseActions.ts';
-import { VueMessage, messages } from '../../messages.ts';
+import { VueMessage, dismissMessage, messages } from '../../messages.ts';
 import { AlwaysAvailableActions, SpecificSectionActions } from './utils/setup.ts';
 import { addSectionButtons, clearSelectedSectionOverlays, setSelectedSectionOverlays } from '../../dom.ts';
 
@@ -256,7 +256,10 @@ export const TopViewComponent = defineComponent({
     this.sectionClickCleanup = null;
   },
   methods: {
+    dismissMessage,
     setupSectionButtons() {
+      this.sectionClickCleanup?.();
+      this.sectionClickCleanup = null;
       const ids = this.state.sections.map(s => s.id);
       if (ids.length === 0) {
         return;
@@ -521,15 +524,28 @@ export const TopViewComponent = defineComponent({
       startOp('mainActions');
       // I would have liked to use isOpRunning in the v-if, but it's messed up with Vue's reactivity
       this.actionsRunning = true;
-      await spiHelperPerformActions({
-        actions: this.caseActions,
-        accounts: this.accounts,
-        state: this.state,
-      });
-      // Blocks, locks and tags we just wrote make every cached lookup stale
-      this.caseActions.block.data.fetchedUsers.clear();
-      finishOp('mainActions', OpState.Success);
-      this.actionsRunning = false;
+      try {
+        await spiHelperPerformActions({
+          actions: this.caseActions,
+          accounts: this.accounts,
+          state: this.state,
+        });
+        finishOp('mainActions', OpState.Success);
+      }
+      catch (error) {
+        // A lookup we act on failed, so we stopped rather than write from incomplete data
+        const message = error instanceof Error ? error.message : String(error);
+        new VueMessage({
+          type: 'error',
+          content: `Actions stopped: ${message}. Reload and try again. If the issue persists, file a bug report`,
+        }).show();
+        finishOp('mainActions', OpState.Failed);
+      }
+      finally {
+        // Blocks, locks and tags we just wrote make every cached lookup stale
+        this.caseActions.block.data.fetchedUsers.clear();
+        this.actionsRunning = false;
+      }
     },
     handleFetchRows() {
       const [likelySocks, possibleSocks] = getSockEntries({
@@ -721,8 +737,8 @@ export const TopViewComponent = defineComponent({
                    @on-submit="onSubmitActions" ref="submitForm" />
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
       <div id="messageRow">
-        <cdx-message v-for="(message, index) in messages" :key="index" :type="message.type" :fade-in="true"
-                     :allow-user-dismiss="true">
+        <cdx-message v-for="message in messages" :key="message.id" :type="message.type" :fade-in="true"
+                     :allow-user-dismiss="true" @user-dismissed="dismissMessage(message.id)">
           <span v-if="message.isHtml" v-html="message.content" />
           <span v-else>
             {{ message.content }}

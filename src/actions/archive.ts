@@ -1,4 +1,4 @@
-import { type CaseState, SectionEntry, loadCaseText, loadSectionText } from '../state.ts';
+import { type CaseState, type SectionEntry, loadCaseText, loadSectionText } from '../state.ts';
 import { context } from '../context.ts';
 import {
   countOf,
@@ -97,8 +97,8 @@ export async function spiHelperArchiveCase(
       .replace(sectionText + '\n', '')
       .replace(sectionText, '');
 
-    const cleanSectionText = sectionText
-      .slice(sectionText.search(spiHelperSectionRegex))
+    const headerIndex = sectionText.search(spiHelperSectionRegex);
+    const cleanSectionText = (headerIndex === -1 ? sectionText : sectionText.slice(headerIndex))
       .replace(spiHelperCaseStatusRegex, '')
       .trim();
     if (newArchiveText.includes(cleanSectionText)) {

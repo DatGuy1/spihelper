@@ -5,15 +5,23 @@ import {
   type GlobalBlockEntry,
   type GlobalUser,
   type InputColumn,
-  ParsedArchiveNotice,
+  type ParsedArchiveNotice,
   type UserRow,
 } from '../types';
-import { type CaseState } from '../state.ts';
+import type { CaseState } from '../state.ts';
 import { isNonRegisteredAccount, parseUserTags, setupDefaultBlockRowData, spiHelperNormalizeUsername } from '../utils.ts';
 import { spiHelperSettings } from '../options';
 import { fetchTemplateArguments, parseTemplates } from '../template.ts';
 import { context } from '../context.ts';
 import type { MenuGroupData, MenuItemData } from '@wikimedia/codex';
+
+const SockListTemplateRegex = /sock ?list/;
+const UserTemplateNameParts = ['ip', 'vandal', 'user', 'noping'];
+
+function isRelevantTemplate(templateName: string): boolean {
+  return SockListTemplateRegex.test(templateName)
+    || UserTemplateNameParts.some(part => templateName.includes(part));
+}
 
 export function getSockEntries(opts: {
   text: string;
@@ -30,7 +38,9 @@ export function getSockEntries(opts: {
     if (state.selectedSection?.type === 'single') {
       $searchOrigin = $(`a[href$="section=${state.selectedSection.section.id}"]`).parentsUntil(':has(hr)').last().nextUntil('hr');
     }
-    const sockList = $searchOrigin.find('.cuEntry').find('a:first');
+    const sockList = $searchOrigin.find('.cuEntry').toArray()
+      .map(entry => entry.querySelector('a'))
+      .filter(link => link !== null);
 
     for (const entryElement of sockList) {
       const filteredUsername = Array.from(entryElement.childNodes).find(n => n.nodeType === Node.TEXT_NODE)?.textContent ?? '';
@@ -46,9 +56,6 @@ export function getSockEntries(opts: {
     }
   }
 
-  const isRelevantTemplate = (templateName: string) => {
-    return (/sock ?list/.exec(templateName)) !== null || ['ip', 'vandal', 'user', 'noping'].some(t => templateName.includes(t));
-  };
   const allTemplates = parseTemplates(text);
   for (const template of allTemplates) {
     if (isRelevantTemplate(template.name)) {
@@ -90,13 +97,30 @@ function buildIPBlock(fullIP: string): string {
   return fullIP.split(':').slice(0, 4).concat('0', '0', '0', '0').join(':') + '/64';
 }
 
+/**
+ * Codex's TableRowIdentifier symbol, handed over by bootstrap once Codex has loaded.
+ *
+ * Without it CdxTable keys rows by their array index, so inserting or removing a row
+ * re-patches every row after it, and per-row child state (a lookup's suggestions, an
+ * expiry input's touched flag) stays attached to the position rather than the account.
+ */
+export let tableRowIdentifier: symbol | null = null;
+export function setTableRowIdentifier(identifier: symbol) {
+  tableRowIdentifier = identifier;
+}
+
 export function getDefaultUserRow(archiveNotice: ParsedArchiveNotice | null): UserRow {
+  const id = crypto.randomUUID();
   const newRow: UserRow = {
-    id: crypto.randomUUID(),
+    id,
     username: '',
     block: setupDefaultBlockRowData(),
     link: { ...DefaultLinkRowData },
   };
+  if (tableRowIdentifier) {
+    // Object spread carries own enumerable symbols, so this survives generateUserRow
+    (newRow as unknown as Record<symbol, string>)[tableRowIdentifier] = id;
+  }
   if (archiveNotice) {
     if (archiveNotice.crosswiki) {
       newRow.block.lock = true;
@@ -235,4 +259,9 @@ export function isInputDisabled(
 export let toRaw: (<T>(observed: T) => T) | null = null;
 export function setToRaw(toRawArg: <T>(observed: T) => T) {
   toRaw = toRawArg;
+}
+
+export let markRaw: (<T extends object>(value: T) => T) | null = null;
+export function setMarkRaw(markRawArg: <T extends object>(value: T) => T) {
+  markRaw = markRawArg;
 }

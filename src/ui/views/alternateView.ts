@@ -1,16 +1,15 @@
 import { type PropType, defineComponent } from 'vue';
-import { type CaseState } from '../../state.ts';
-import { type FeedbackDialog } from '../../types';
-import { spiHelperSettings } from '../../options';
-import { VueMessage, messages } from '../messages.ts';
-import { cdxIconFeedback, cdxIconPushPin } from '@wikimedia/codex-icons';
+import type { CaseState } from '../../state.ts';
 import {
   type AllUser,
   type BlockActionData,
-  type GlobalRequestResults,
+  type FeedbackDialog,
   ParsedArchiveNotice,
   type UserRow,
 } from '../../types';
+import { spiHelperSettings } from '../../options';
+import { VueMessage, dismissMessage, messages } from '../messages.ts';
+import { cdxIconFeedback, cdxIconPushPin } from '@wikimedia/codex-icons';
 import { OpState, finishOp, getOpState, isOpRunning, startOp } from '../../operations.ts';
 import { UpdateUserAllUserData } from './userLookup.ts';
 import {
@@ -166,6 +165,7 @@ export const AlternateViewComponent = defineComponent({
     }
   },
   methods: {
+    dismissMessage,
     handleUserSelected(data: AllUser, rowId: string) {
       const userRow = this.accounts.find(r => r.id === rowId);
       if (!userRow) {
@@ -291,40 +291,47 @@ export const AlternateViewComponent = defineComponent({
       mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'submit', type: 'alternate' });
       startOp('alternateActions');
       this.actionsRunning = true;
-      let blockPromises: Promise<string | null>[] = [];
-      let tagPromises: Promise<string | null>[] = [];
-      let talkNoticePromises: Promise<void>[] = [];
-      let globalRequestPromise: Promise<GlobalRequestResults> = Promise.resolve(
-        { lockedUsers: [], globalBlockedUsers: [] },
-      );
-      ({
-        blockPromises, tagPromises, talkNoticePromises, globalRequestPromise,
-      } = await spiHelperHandleBlocks({
-        accounts: this.accounts,
-        blockData: this.blockData,
-      }));
-      const userActionsPromise = Promise.all([
-        Promise.all(blockPromises),
-        Promise.all(tagPromises),
-        globalRequestPromise,
-      ]);
-      const talkNoticePromise = Promise.all(talkNoticePromises);
-
-      const [blockedUsers, taggedUsers, globalRequests] = await userActionsPromise;
-      await talkNoticePromise;
-      if (spiHelperSettings.log.enabled) {
-        const logMessage = `* [[:User:${context.userName}]]` + buildUserActionLogMessage({
-          blockedUsers,
-          taggedUsers,
-          lockedUsers: globalRequests.lockedUsers,
-          globalBlockedUsers: globalRequests.globalBlockedUsers,
+      try {
+        const {
+          blockPromises, tagPromises, talkNoticePromises, globalRequestPromise,
+        } = await spiHelperHandleBlocks({
+          accounts: this.accounts,
+          blockData: this.blockData,
         });
-        await spiHelperLog(logMessage);
-      }
+        const userActionsPromise = Promise.all([
+          Promise.all(blockPromises),
+          Promise.all(tagPromises),
+          globalRequestPromise,
+        ]);
+        const talkNoticePromise = Promise.all(talkNoticePromises);
 
-      new VueMessage({ type: 'success', content: 'Done!' }).show();
-      finishOp('alternateActions', OpState.Success);
-      this.actionsRunning = false;
+        const [blockedUsers, taggedUsers, globalRequests] = await userActionsPromise;
+        await talkNoticePromise;
+        if (spiHelperSettings.log.enabled) {
+          const logMessage = `* [[:User:${context.userName}]]` + buildUserActionLogMessage({
+            blockedUsers,
+            taggedUsers,
+            lockedUsers: globalRequests.lockedUsers,
+            globalBlockedUsers: globalRequests.globalBlockedUsers,
+          });
+          await spiHelperLog(logMessage);
+        }
+
+        new VueMessage({ type: 'success', content: 'Done!' }).show();
+        finishOp('alternateActions', OpState.Success);
+      }
+      catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        new VueMessage({
+          type: 'error',
+          content: `Actions stopped: ${message}. Reload and try again. If the issue persists, file a bug report`,
+        }).show();
+        finishOp('alternateActions', OpState.Failed);
+      }
+      finally {
+        this.blockData.fetchedUsers.clear();
+        this.actionsRunning = false;
+      }
     },
     async initialiseCategoryView() {
       if (this.defaultCase === '' || this.caseLoading || this.caseLoaded) {
@@ -476,8 +483,8 @@ export const AlternateViewComponent = defineComponent({
       </div>
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
       <div id="messageRow">
-        <cdx-message v-for="(message, index) in messages" :key="index" :type="message.type" :fade-in="true"
-                     :allow-user-dismiss="true">
+        <cdx-message v-for="message in messages" :key="message.id" :type="message.type" :fade-in="true"
+                     :allow-user-dismiss="true" @user-dismissed="dismissMessage(message.id)">
           <span v-if="message.isHtml" v-html="message.content" />
           <span v-else>
             {{ message.content }}

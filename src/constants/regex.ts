@@ -8,7 +8,7 @@ export const spiHelperClerkStatusRegex = /{{(CURequest|awaitingadmin|clerk ?requ
 
 export const spiHelperSockSectionWithNewlineRegex = /====\s*Suspected sockpuppets\s*====\n*/i;
 
-export const spiHelperAdminSectionWithPrecedingNewlinesRegex = /\n*\s*====\s*<big>Clerk, CheckUser, and\/or patrolling admin comments<\/big>\s*====\s*/i;
+export const spiHelperAdminSectionWithPrecedingNewlinesRegex = /\s*====\s*<big>Clerk, CheckUser, and\/or patrolling admin comments<\/big>\s*====\s*/i;
 
 // The last horizontal rule in a section, which closes off its clerk/admin comment area
 export const spiHelperClosingRuleRegex = /\n*----(?!.*----)/s;
@@ -19,6 +19,8 @@ export const spiHelperCommentMarkerRegex = /<!-+ All comments go ABOVE this line
 export const spiHelperCUBlockRegex = /{{(checkuserblock(-account|-wide)?|checkuser block)}}/i;
 
 export const spiHelperArchiveNoticeRegex = /{{\s*SPI\s*archive notice\|(?:1=)?([^|]*?)(\|.*)?}}/i;
+
+export const spiHelperArchiveNoticeNameRegex = /SPI\s*archive notice/i;
 
 export const spiHelperPriorCasesRegex = /{{spipriorcases}}/i;
 

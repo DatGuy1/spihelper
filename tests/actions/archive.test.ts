@@ -56,7 +56,6 @@ beforeEach(() => {
   mockEditPage.mockReset().mockResolvedValue(null);
   mockGetInvestigationSections.mockReset().mockResolvedValue([]);
   mockGetPages.mockReset().mockResolvedValue([]);
-  messages.length = 0;
 });
 
 describe('spiHelperMoveArchiveIfOverflowing', () => {

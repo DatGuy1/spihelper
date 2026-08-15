@@ -2,22 +2,27 @@ import type { MenuItemData } from '@wikimedia/codex';
 
 export type SectionOverlayType = 'selected' | 'preview';
 
-function getSectionContainer(sectionId: number): JQuery | null {
+/*
+ * The section's [edit] link, which is what anchors every lookup below
+ */
+function getSectionLink(sectionId: number): JQuery | null {
   const sectionLink = $(`a[href$="section=${sectionId}"]`).first();
-  if (sectionLink.length === 0) {
-    return null;
-  }
+  return sectionLink.length > 0 ? sectionLink : null;
+}
+
+function getSectionContainerFor(sectionLink: JQuery): JQuery | null {
   const sectionContainer = sectionLink.parentsUntil(':has(hr)').last().nextUntil('hr');
   return sectionContainer.length > 0 ? sectionContainer : null;
 }
 
-function getSectionHeading(sectionId: number): HTMLElement | null {
-  const sectionLink = $(`a[href$="section=${sectionId}"]`).first();
-  if (sectionLink.length === 0) {
-    return null;
-  }
+function getSectionHeadingFor(sectionLink: JQuery): HTMLElement | null {
   const heading = sectionLink.closest('.mw-heading');
   return heading.length > 0 ? heading.get(0) ?? null : null;
+}
+
+function getSectionHeading(sectionId: number): HTMLElement | null {
+  const sectionLink = getSectionLink(sectionId);
+  return sectionLink ? getSectionHeadingFor(sectionLink) : null;
 }
 
 export function scrollToSection(sectionId: number) {
@@ -31,13 +36,15 @@ function getSectionHighlightRoot(): HTMLElement | null {
   return document.querySelector('#mw-content-text .mw-parser-output');
 }
 
-function getSectionBounds(sectionId: number): { top: number; height: number } | null {
-  const root = getSectionHighlightRoot();
-  const heading = getSectionHeading(sectionId);
-  if (!root || !heading) {
+interface SectionBounds { top: number; height: number }
+
+function getSectionBounds(sectionId: number, root: HTMLElement | null): SectionBounds | null {
+  const sectionLink = getSectionLink(sectionId);
+  const heading = sectionLink && getSectionHeadingFor(sectionLink);
+  if (!root || !sectionLink || !heading) {
     return null;
   }
-  const container = getSectionContainer(sectionId);
+  const container = getSectionContainerFor(sectionLink);
   const lastElement = container?.last().get(0) ?? heading;
 
   const rootRect = root.getBoundingClientRect();
@@ -61,17 +68,25 @@ function createSectionOverlay(): HTMLElement | null {
   return overlay;
 }
 
-function renderSectionOverlay(overlay: HTMLElement | null, sectionId: number, type: 'selected' | 'preview') {
-  const bounds = getSectionBounds(sectionId);
-  if (!overlay || !bounds) {
-    return;
-  }
+function applySectionOverlay(
+  overlay: HTMLElement, sectionId: number, bounds: SectionBounds, type: SectionOverlayType,
+) {
   overlay.style.top = `${Math.max(0, bounds.top)}px`;
   overlay.style.height = `${bounds.height + 8}px`;
   overlay.style.display = 'block';
   overlay.dataset.sectionId = String(sectionId);
   overlay.classList.toggle('spiHelper-section-overlay--preview', type === 'preview');
   overlay.classList.toggle('spiHelper-section-overlay--selected', type === 'selected');
+}
+
+function renderSectionOverlay(
+  overlay: HTMLElement | null, sectionId: number, type: SectionOverlayType,
+) {
+  const bounds = getSectionBounds(sectionId, getSectionHighlightRoot());
+  if (!overlay || !bounds) {
+    return;
+  }
+  applySectionOverlay(overlay, sectionId, bounds, type);
 }
 
 /*
@@ -139,8 +154,30 @@ export function setSelectedSectionOverlays(sectionIds: number[]): void {
       selectedOverlayEls.delete(id);
     }
   }
+
+  // Create, then measure, then write
+  const overlays = new Map<number, HTMLElement>();
   for (const id of sectionIds) {
-    showSectionOverlay(id, 'selected');
+    const overlay = getOrCreateSelectedOverlay(id);
+    if (overlay) {
+      overlays.set(id, overlay);
+    }
+  }
+
+  const root = getSectionHighlightRoot();
+  const bounds = new Map<number, SectionBounds>();
+  for (const id of overlays.keys()) {
+    const sectionBounds = getSectionBounds(id, root);
+    if (sectionBounds) {
+      bounds.set(id, sectionBounds);
+    }
+  }
+
+  for (const [id, overlay] of overlays) {
+    const sectionBounds = bounds.get(id);
+    if (sectionBounds) {
+      applySectionOverlay(overlay, id, sectionBounds, 'selected');
+    }
   }
 }
 
