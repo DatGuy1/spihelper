@@ -1,5 +1,5 @@
 /* {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.css}} */
-/* v3.3.2 */
+/* v3.4.0 */
 /* src/spihelper.css */
 .spiHelper-section-open {
   background-color: var(--background-color-progressive-subtle, #eaf3ff);
@@ -37,10 +37,11 @@
 }
 
 .spiHelper-mainCard {
+  --spiHelper-card-padding: 12px;
   background-color: var(--background-color-base, #fff);
   border: 1px solid var(--border-color-base, #a2a9b1);
+  padding: var(--spiHelper-card-padding);
   border-radius: 2px;
-  padding: 12px;
 }
 
 #spiHelper-topView-Action {
@@ -95,8 +96,17 @@
   left: 0;
 }
 
+#spiHelper-topView-Accordion {
+  margin-inline: calc(-1 * var(--spiHelper-card-padding, 12px));
+}
+
 #spiHelper-topView-Accordion .cdx-accordion {
   overflow: visible;
+}
+
+#spiHelper-topView-Accordion > .cdx-accordion {
+  margin-inline-start: 0;
+  margin-inline-end: 0;
 }
 
 #spiHelper-topView-Accordion .cdx-accordion.action-enabled > summary {

@@ -1,5 +1,5 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
-// v3.3.2
+// v3.4.0
 // <nowiki>
 'use strict';
 (() => {
@@ -53,7 +53,7 @@
         multipleUserQueryStringKeys: false
       },
       consolidatedTimeline: {
-        baseUrl: (_caseName) => new URL("https://sandals.toolforge.org/timeline"),
+        baseUrl: (_caseName) => new URL("https://sandals.toolforge.org/contributions"),
         userQueryStringKey: "users",
         userQueryStringSeparator: "|",
         userQueryStringWrapper: "",
@@ -95,23 +95,26 @@
   var spiHelperCaseClosedRegex = /^closed?$/i;
   var spiHelperClerkStatusRegex = /{{(CURequest|awaitingadmin|clerk ?request|(?:self|requestand|cu-?)?endorse|inprogress|(?:cu\s?)?decline(?:-ip)?|(?:cu)?moreinfo|relisted|onhold)}}/i;
   var spiHelperSockSectionWithNewlineRegex = /====\s*Suspected sockpuppets\s*====\n*/i;
-  var spiHelperAdminSectionWithPrecedingNewlinesRegex = /\n*\s*====\s*<big>Clerk, CheckUser, and\/or patrolling admin comments<\/big>\s*====\s*/i;
+  var spiHelperAdminSectionWithPrecedingNewlinesRegex = /\s*====\s*<big>Clerk, CheckUser, and\/or patrolling admin comments<\/big>\s*====\s*/i;
   var spiHelperClosingRuleRegex = /\n*----(?!.*----)/s;
   var spiHelperCommentMarkerRegex = /<!-+ All comments go ABOVE this line, please. -+>/;
   var spiHelperCUBlockRegex = /{{(checkuserblock(-account|-wide)?|checkuser block)}}/i;
   var spiHelperArchiveNoticeRegex = /{{\s*SPI\s*archive notice\|(?:1=)?([^|]*?)(\|.*)?}}/i;
+  var spiHelperArchiveNoticeNameRegex = /SPI\s*archive notice/i;
   var spiHelperSectionRegex = /^(?:===[^=]*===|=====[^=]*=====)\s*$/m;
   var spiHelperHiddenCharNormRegex = /\u200E/g;
   var spiHelperSignatureRegex = /(?<!~)~~~~(?!~)/;
   // src/constants/settings.ts
   var spiHelperAdvert = " (using [[:w:en:WP:SPIH-D|SPIH-D]])";
-  var FeedbackConfig = {
-    title: new mw.Title("User talk:DatGuy/spihelper"),
-    bugsLink: "//github.com/DatGuy1/spihelper/issues/new",
-    showUseragentCheckbox: true,
-    useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
-  };
-  var VERSION = "3.3.2";
+  function getFeedbackConfig() {
+    return {
+      title: new mw.Title("User talk:DatGuy/spihelper"),
+      bugsLink: "//github.com/DatGuy1/spihelper/issues/new",
+      showUseragentCheckbox: true,
+      useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
+    };
+  }
+  var VERSION = "3.4.0";
   var MODE = "dev";
   var spiHelperDefaultSettings = {
     watch: {
@@ -187,7 +190,7 @@
       label: "Novelties",
       items: [
         { value: "{{8ball}} ", label: "Magic 8-Ball" },
-        { value: "{{crystalball", label: "Not a crystal ball" },
+        { value: "{{crystalball}}", label: "Not a crystal ball" },
         { value: "{{fishing}}", label: "Not fishing" },
         { value: "{{pixiedust}}", label: "Not pixie dust" }
       ]
@@ -223,42 +226,8 @@
       ]
     }
   ];
-  // src/ui/messages.ts
-  class VueMessage {
-    type;
-    content;
-    isHtml;
-    _index;
-    constructor(opts) {
-      this.type = opts.type;
-      this.content = opts.content;
-      this.isHtml = opts.isHtml;
-    }
-    show() {
-      const index = messages.length;
-      messages.push(this);
-      this._index = index;
-      return this;
-    }
-    update(opts) {
-      if (this._index === undefined) {
-        Object.assign(this, opts);
-        this.show();
-        return this;
-      }
-      const current = messages[this._index];
-      if (current) {
-        Object.assign(current, opts);
-      }
-      Object.assign(this, opts);
-      return this;
-    }
-  }
-  var messages = [];
-  mw.loader.using(["vue"], (require2) => {
-    const Vue = require2("vue");
-    messages = Vue.reactive(messages);
-  });
+  var spiHelperPaginationThreshold = 25;
+  var spiHelperPaginationSizeOptions = [{ value: 25 }, { value: 50 }, { value: 100 }];
   // src/types/spi.ts
   class ParsedArchiveNotice {
     username;
@@ -534,6 +503,57 @@
     suspected: { label: "Suspected", icon: O6 },
     proven: { label: "Proven", icon: _5 }
   };
+  // src/ui/messages.ts
+  var DISMISS_FADE_MS = 250;
+  var nextMessageId = 0;
+
+  class VueMessage {
+    type;
+    content;
+    isHtml;
+    id = nextMessageId++;
+    _shown = false;
+    constructor(opts) {
+      this.type = opts.type;
+      this.content = opts.content;
+      this.isHtml = opts.isHtml;
+    }
+    show() {
+      this._shown = true;
+      messages.push(this);
+      return this;
+    }
+    showOnce() {
+      const alreadyShown = messages.some((message) => message.type === this.type && message.content === this.content && message.isHtml === this.isHtml);
+      return alreadyShown ? this : this.show();
+    }
+    update(opts) {
+      if (!this._shown) {
+        Object.assign(this, opts);
+        this.show();
+        return this;
+      }
+      const current = messages.find((message) => message.id === this.id);
+      if (current) {
+        Object.assign(current, opts);
+      }
+      Object.assign(this, opts);
+      return this;
+    }
+  }
+  function dismissMessage(id) {
+    setTimeout(() => {
+      const index = messages.findIndex((message) => message.id === id);
+      if (index !== -1) {
+        messages.splice(index, 1);
+      }
+    }, DISMISS_FADE_MS);
+  }
+  var messages = [];
+  function setMessagesReactive(reactive) {
+    messages = reactive(messages);
+  }
+
   // src/template.ts
   function findTemplateSpans(templateName, text) {
     const namePattern = templateName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/[\s_]+/g, "[\\s_]+");
@@ -573,26 +593,20 @@
   function splitTemplateParts(text) {
     const parts = [];
     let depth = 0;
-    let current = "";
+    let segmentStart = 0;
     for (let i = 0;i < text.length; i++) {
-      const ch = text.charAt(i);
-      const next = text.charAt(i + 1);
-      if (ch === "[" && next === "[" || ch === "{" && next === "{") {
+      if (text.startsWith("[[", i) || text.startsWith("{{", i)) {
         depth++;
-        current += ch + next;
         i++;
-      } else if (ch === "]" && next === "]" || ch === "}" && next === "}") {
+      } else if (text.startsWith("]]", i) || text.startsWith("}}", i)) {
         depth--;
-        current += ch + next;
         i++;
-      } else if (ch === "|" && depth === 0) {
-        parts.push(current);
-        current = "";
-      } else {
-        current += ch;
+      } else if (text[i] === "|" && depth === 0) {
+        parts.push(text.slice(segmentStart, i));
+        segmentStart = i + 1;
       }
     }
-    parts.push(current);
+    parts.push(text.slice(segmentStart));
     return parts;
   }
   function parseTemplate(templateText) {
@@ -626,11 +640,14 @@
     }
     return { name, params, positional };
   }
+  var TRUTHY_PARAM_VALUES = new Set(["y", "yes", "true", "on"]);
+  var FALSY_PARAM_VALUES = new Set(["n", "no", "false", "off"]);
   function convertParamToBoolean(value) {
-    if (["y", "yes", "true", "on"].includes(value.toLowerCase())) {
+    const normalised = value.toLowerCase();
+    if (TRUTHY_PARAM_VALUES.has(normalised)) {
       return true;
     }
-    if (["n", "no", "false", "off"].includes(value.toLowerCase())) {
+    if (FALSY_PARAM_VALUES.has(normalised)) {
       return false;
     }
     return null;
@@ -649,12 +666,18 @@
   }
 
   // src/utils.ts
-  function spiHelperStripXWikiPrefix(title) {
-    if (title.startsWith("m:") || title.startsWith("meta:")) {
-      return title.slice(title.indexOf(":") + 1);
-    } else {
-      return title;
+  var spiHelperXWikiPrefixes = ["m", "meta"];
+  function spiHelperGetXWikiPrefix(title) {
+    const colonIndex = title.indexOf(":");
+    if (colonIndex === -1) {
+      return null;
     }
+    const prefix = title.slice(0, colonIndex);
+    return spiHelperXWikiPrefixes.includes(prefix) ? prefix : null;
+  }
+  function spiHelperStripXWikiPrefix(title) {
+    const prefix = spiHelperGetXWikiPrefix(title);
+    return prefix === null ? title : title.slice(prefix.length + 1);
   }
   function spiHelperGetMaxPostExpandSize() {
     return mw.config.get("wgPageParseReport")?.limitreport.postexpandincludesize.limit ?? 2097152;
@@ -792,10 +815,14 @@
     return withSignature ? text : text.trimEnd() + " ~~~~";
   }
   function addAdminSectionNote(note, sourceText) {
-    if (spiHelperClosingRuleRegex.test(sourceText)) {
-      return sourceText.replace(spiHelperClosingRuleRegex, () => `
+    const closingRule = spiHelperClosingRuleRegex.exec(sourceText);
+    if (closingRule) {
+      const startIndex = closingRule.index;
+      const startText = sourceText.slice(0, startIndex);
+      const endText = sourceText.slice(startIndex + closingRule[0].length);
+      return `${startText}
 ${note}
-----`);
+----${endText}`;
     }
     const trailingWhitespace = /\s*$/.exec(sourceText)?.[0] ?? "";
     const body = sourceText.slice(0, sourceText.length - trailingWhitespace.length).replace(spiHelperCommentMarkerRegex, "");
@@ -814,7 +841,10 @@ ${note}
     return $link.prop("outerHTML");
   }
   function pluralise(count, singular, plural = `${singular}s`) {
-    return `${count} ${count === 1 ? singular : plural}`;
+    return count === 1 ? singular : plural;
+  }
+  function countOf(count, singular, plural) {
+    return `${count} ${pluralise(count, singular, plural)}`;
   }
   function buildUserActionLogMessage(opts) {
     const { blockedUsers, taggedUsers, lockedUsers, globalBlockedUsers } = opts;
@@ -856,11 +886,13 @@ ${note}
   }
   function rebuildArchiveText(originalText, sections) {
     sections.sort((a, b) => a.header.getTime() - b.header.getTime());
-    const headerText = originalText.slice(0, getContentStartIndex(originalText));
-    return headerText + `
-` + sections.map((section) => section.fullText).join(`
+    const headerText = originalText.slice(0, getContentStartIndex(originalText)).trimEnd();
+    const body = sections.map((section) => section.fullText).join(`
 
 `);
+    return headerText ? `${headerText}
+
+${body}` : body;
   }
   function getContentStartIndex(archiveText) {
     const firstSectionMatch = spiHelperSectionRegex.exec(archiveText);
@@ -939,13 +971,14 @@ ${note}
       userLocks: new Map,
       userGlobalBlocks: new Map,
       userBlocks: new Map,
-      userTags: new Map,
+      fetchedUsers: new Map,
       master: masterName,
       lockcomment: "",
       skipCUVerifyUsers: new Set
     };
   }
-  function parseUserTags(userPage) {
+  function parseUserTags(userPage, username) {
+    const on = username ? ` on ${username}` : "";
     const tags = [];
     const templates = parseTemplates(userPage);
     for (const template of templates) {
@@ -962,6 +995,10 @@ ${note}
           tagStatus = sockChecked ? "confirmed" : "blocked";
         } else {
           console.warn("Unrecognised master status", firstParam);
+          new VueMessage({
+            type: "warning",
+            content: `Ignoring {{${template.name}}} tag${on} with unrecognised status ` + `"${firstParam ?? ""}". Tagging will overwrite it`
+          }).showOnce();
           continue;
         }
         const newTag = new SockmasterTag({ status: tagStatus, checked: sockChecked });
@@ -1000,6 +1037,10 @@ ${note}
             break;
           default:
             console.warn("Unrecognised sock status", statusParam);
+            new VueMessage({
+              type: "warning",
+              content: `Ignoring {{${template.name}}} tag${on} with unrecognised status ` + `"${statusParam?.toString() ?? ""}". Tagging will overwrite it`
+            }).showOnce();
             continue;
         }
         const newTag = new SockpuppetTag({
@@ -1020,6 +1061,10 @@ ${note}
               break;
             default:
               console.warn("Unrecognised altmaster status", altmasterStatusParam);
+              new VueMessage({
+                type: "warning",
+                content: `Dropping altmaster "${altmaster.toString()}"${on}: unrecognised ` + `altmaster-status "${altmasterStatusParam?.toString() ?? ""}"`
+              }).showOnce();
               break;
           }
           if (altmasterStatus) {
@@ -1101,20 +1146,20 @@ ${note}
     if (titles.length === 0) {
       return new Map;
     }
-    const api2 = spiHelperGetAPI();
     const resultMap = new Map;
-    const chunkSize = await getApiChunkSize();
-    await Promise.all(chunkArray(titles, chunkSize).map(async (chunk) => {
-      const request = {
+    await fetchInChunks({
+      targets: titles,
+      fetchName: "spiHelperGetBulkPageText",
+      buildRequest: (chunk) => ({
         action: "query",
         prop: "revisions",
         rvprop: "content",
         rvslots: "main",
         titles: chunk,
         formatversion: "2"
-      };
-      try {
-        const response = await api2.post(request);
+      }),
+      onResponse: (response) => {
+        const setNormalisedMap = keyByRequestedTitle(resultMap, response.query.normalized);
         for (const page of response.query.pages) {
           if (page.missing) {
             continue;
@@ -1123,37 +1168,29 @@ ${note}
           if (!latestRevision) {
             continue;
           }
-          const pageTitle = page.title.split(":", 2)[1];
-          if (!pageTitle) {
-            console.error("spiHelperGetBulkPageText: could not find name for", page.title);
-            continue;
-          }
-          resultMap.set(pageTitle, latestRevision.slots.main.content);
+          setNormalisedMap(page.title, latestRevision.slots.main.content);
         }
-      } catch (error) {
-        console.error("spiHelperGetBulkPageText fetch error:", error);
       }
-    }));
+    });
     return resultMap;
   }
   async function spiHelperGetBulkUserBlockSettings(usernames) {
     if (usernames.size === 0) {
       return new Map;
     }
-    const api2 = spiHelperGetAPI();
     const resultMap = new Map;
-    const chunkSize = await getApiChunkSize();
-    await Promise.all(chunkArray([...usernames], chunkSize).map(async (chunk) => {
-      const request = {
+    await fetchInChunks({
+      targets: [...usernames],
+      fetchName: "spiHelperGetBulkUserBlockSettings",
+      buildRequest: (chunk) => ({
         action: "query",
         list: "blocks",
         bklimit: "max",
         bkusers: chunk,
         bkprop: ["user", "reason", "flags", "expiry"],
         formatversion: "2"
-      };
-      try {
-        const response = await api2.post(request);
+      }),
+      onResponse: (response) => {
         for (const block of response.query.blocks) {
           resultMap.set(block.user, {
             username: block.user,
@@ -1165,29 +1202,26 @@ ${note}
             reason: block.reason
           });
         }
-      } catch (error) {
-        console.error("spiHelperGetBulkUserBlockSettings fetch error:", error);
       }
-    }));
+    });
     return resultMap;
   }
   async function spiHelperGetBulkGlobalUsers(usernames) {
     if (usernames.size === 0) {
       return new Map;
     }
-    const api2 = spiHelperGetAPI();
     const resultMap = new Map;
-    const chunkSize = await getApiChunkSize();
-    await Promise.all(chunkArray([...usernames], chunkSize).map(async (chunk) => {
-      const request = {
+    await fetchInChunks({
+      targets: [...usernames],
+      fetchName: "spiHelperGetBulkGlobalUsers",
+      buildRequest: (chunk) => ({
         action: "query",
         list: "globalusers",
         gususers: chunk,
         gusprop: ["locked", "localinfo"],
         formatversion: "2"
-      };
-      try {
-        const response = await api2.post(request);
+      }),
+      onResponse: (response) => {
         for (const globalUser of response.query.globalusers) {
           if (globalUser.missing || globalUser.invalid) {
             continue;
@@ -1198,30 +1232,27 @@ ${note}
             locked: globalUser.locked ?? false
           });
         }
-      } catch (error) {
-        console.error("spiHelperGetBulkGlobalUsers fetch error:", error);
       }
-    }));
+    });
     return resultMap;
   }
   async function spiHelperGetBulkGlobalBlocks(targets) {
     if (targets.size === 0) {
       return new Map;
     }
-    const api2 = spiHelperGetAPI();
     const resultMap = new Map;
-    const chunkSize = await getApiChunkSize();
-    await Promise.all(chunkArray([...targets], chunkSize).map(async (chunk) => {
-      const request = {
+    await fetchInChunks({
+      targets: [...targets],
+      fetchName: "spiHelperGetBulkGlobalBlocks",
+      buildRequest: (chunk) => ({
         action: "query",
         list: "globalblocks",
         bgtargets: chunk,
         bglimit: "max",
         bgprop: ["id", "target", "by", "expiry", "reason"],
         formatversion: "2"
-      };
-      try {
-        const response = await api2.post(request);
+      }),
+      onResponse: (response) => {
         for (const globalBlock of response.query.globalblocks) {
           if (!globalBlock.target) {
             continue;
@@ -1233,10 +1264,8 @@ ${note}
             reason: globalBlock.reason
           });
         }
-      } catch (error) {
-        console.error("spiHelperGetBulkGlobalBlocks fetch error:", error);
       }
-    }));
+    });
     return resultMap;
   }
   async function spiHelperGetUsers(from, limit) {
@@ -1269,8 +1298,9 @@ ${note}
     try {
       const response = await api2.get(request);
       return response.query.allpages;
-    } catch {
-      return [];
+    } catch (error) {
+      console.error("spiHelperGetPages fetch error:", error);
+      return null;
     }
   }
   async function spiHelperDeletePage(title, reason) {
@@ -1387,7 +1417,8 @@ ${note}
       bltitle: casePageName,
       blnamespace: 4,
       bldir: "ascending",
-      blfilterredir: "nonredirects"
+      blfilterredir: "nonredirects",
+      bllimit: "max"
     };
     try {
       const response = await api2.get(request);
@@ -1398,40 +1429,32 @@ ${note}
       return [];
     }
   }
-  async function spiHelperGetProtectionInformation(casePageName) {
-    const api2 = spiHelperGetAPI();
-    const request = {
-      action: "query",
-      format: "json",
-      prop: "info",
-      titles: casePageName,
-      inprop: "protection",
-      formatversion: "2"
-    };
-    try {
-      const response = await api2.get(request);
-      const [page] = response.query.pages;
-      return page?.protection ?? [];
-    } catch {
-      return [];
+  async function spiHelperGetBulkPageRestrictions(titles) {
+    const resultMap = new Map;
+    if (titles.length === 0) {
+      return resultMap;
     }
-  }
-  async function spiHelperGetStabilisationSettings(pageName) {
-    const api2 = spiHelperGetAPI();
-    const request = {
-      action: "query",
-      format: "json",
-      prop: "flagged",
-      titles: pageName,
-      formatversion: "2"
-    };
-    try {
-      const response = await api2.get(request);
-      const [page] = response.query.pages;
-      return page?.flagged ?? null;
-    } catch {
-      return null;
-    }
+    await fetchInChunks({
+      targets: titles,
+      fetchName: "spiHelperGetBulkPageRestrictions",
+      buildRequest: (chunk) => ({
+        action: "query",
+        prop: ["info", "flagged"],
+        titles: chunk,
+        inprop: "protection",
+        formatversion: "2"
+      }),
+      onResponse: (response) => {
+        const setNormalisedMap = keyByRequestedTitle(resultMap, response.query.normalized);
+        for (const page of response.query.pages) {
+          setNormalisedMap(page.title, {
+            protection: page.protection ?? [],
+            pendingChanges: page.flagged ?? null
+          });
+        }
+      }
+    });
+    return resultMap;
   }
   async function spiHelperProtectPage(pageName, protections) {
     const activeOpKey = "protect_" + pageName;
@@ -1631,6 +1654,7 @@ ${note}
       isHtml: true
     }).show();
     const api2 = spiHelperGetAPI(title);
+    const xwikiPrefix = spiHelperGetXWikiPrefix(title);
     const finalTitle = spiHelperStripXWikiPrefix(title);
     const request = {
       action: "edit",
@@ -1662,7 +1686,8 @@ ${note}
         finishOp(activeOpKey, "failed" /* Failed */);
         return null;
       }
-      const diffLinkHtml = buildURLLinkHtml(mw.util.getUrl("", { diff: diffId }), "Saved", `View diff ${diffId}`);
+      const diffUrl = xwikiPrefix === null ? mw.util.getUrl("", { diff: diffId }) : mw.util.getUrl(`${xwikiPrefix}:Special:Diff/${diffId}`);
+      const diffLinkHtml = buildURLLinkHtml(diffUrl, "Saved", `View diff ${diffId}`);
       message.update({ type: "success", content: `${diffLinkHtml} page ${pageLinkHtml}`, isHtml: true });
       finishOp(activeOpKey, "success" /* Success */);
       return response.edit.newrevid ?? null;
@@ -1807,12 +1832,57 @@ ${note}
       cmnamespace: 2,
       formatversion: "2"
     };
+    const members = [];
     try {
-      const response = await api2.get(request);
-      return response.query.categorymembers.map((member) => member.title);
+      for await (const response of queryWithContinuation(api2, request, "spiHelperGetCategoryMembers", [category], "get")) {
+        members.push(...response.query.categorymembers.map((member) => member.title));
+      }
     } catch {
       return [];
     }
+    return members;
+  }
+  var MAX_CONTINUATION_ROUNDS = 10;
+  function keyByRequestedTitle(resultMap, normalized) {
+    const asRequested = new Map((normalized ?? []).map(({ from, to }) => [to, from]));
+    return (title, value) => {
+      resultMap.set(title, value);
+      const requestedTitle = asRequested.get(title);
+      if (requestedTitle !== undefined) {
+        resultMap.set(requestedTitle, value);
+      }
+    };
+  }
+  function bulkFetchError(fetchName, targets, cause) {
+    return new Error(`${fetchName} failed fetching ${targets.length} item(s), ` + `starting with ${targets[0] ?? "(none)"}`, { cause });
+  }
+  async function* queryWithContinuation(api2, request, fetchName, targets, method = "post") {
+    let continuation = {};
+    for (let round = 0;round < MAX_CONTINUATION_ROUNDS; round++) {
+      let response;
+      try {
+        response = await api2[method]({ ...request, ...continuation });
+      } catch (error) {
+        throw bulkFetchError(fetchName, targets, error);
+      }
+      const { continue: nextContinuation } = response;
+      yield response;
+      if (!nextContinuation) {
+        return;
+      }
+      continuation = nextContinuation;
+    }
+    throw bulkFetchError(fetchName, targets, new Error(`still continuing after ${MAX_CONTINUATION_ROUNDS} rounds, ` + "giving up rather than returning a partial result"));
+  }
+  async function fetchInChunks(opts) {
+    const { targets, fetchName, buildRequest, onResponse, method } = opts;
+    const api2 = spiHelperGetAPI();
+    const chunkSize = targets.length <= API_LIMIT ? API_LIMIT : await getApiChunkSize();
+    await Promise.all(chunkArray(targets, chunkSize).map(async (chunk) => {
+      for await (const response of queryWithContinuation(api2, buildRequest(chunk), fetchName, chunk, method)) {
+        await onResponse(response);
+      }
+    }));
   }
   function chunkArray(arr, size) {
     const chunks = [];
@@ -1821,27 +1891,37 @@ ${note}
     }
     return chunks;
   }
+  var API_LIMIT = 50;
+  var API_HIGH_LIMIT = 500;
   async function getApiChunkSize() {
     const rights = await mw.user.getRights();
-    return rights.includes("apihighlimits") ? 500 : 50;
+    return rights.includes("apihighlimits") ? API_HIGH_LIMIT : API_LIMIT;
   }
-  var userAgent = `MediaWiki-JS/${mw.config.get("wgVersion")} spihelper/${VERSION}`;
-  var APIs = {
-    meta: new mw.ForeignApi("https://meta.wikimedia.org/w/api.php", { userAgent }),
-    local: new mw.Api({ userAgent })
-  };
+  function getUserAgent() {
+    return `MediaWiki-JS/${mw.config.get("wgVersion")} spihelper/${VERSION}`;
+  }
+  var localAPI = null;
+  var metaAPI = null;
+  function getLocalAPI() {
+    localAPI ??= new mw.Api({ userAgent: getUserAgent() });
+    return localAPI;
+  }
+  function getMetaAPI() {
+    metaAPI ??= new mw.ForeignApi("https://meta.wikimedia.org/w/api.php", { userAgent: getUserAgent() });
+    return metaAPI;
+  }
   function spiHelperGetAPI(title) {
-    if (title && (title.startsWith("m:") || title.startsWith("meta:"))) {
-      return APIs.meta;
+    if (title && spiHelperGetXWikiPrefix(title) !== null) {
+      return getMetaAPI();
     } else {
-      return APIs.local;
+      return getLocalAPI();
     }
   }
   function spiHelperGetEnwikiAPI() {
     if (mw.config.get("wgWikiID") === "enwiki") {
-      return APIs.local;
+      return getLocalAPI();
     }
-    return new mw.ForeignApi("https://en.wikipedia.org/w/api.php", { userAgent });
+    return new mw.ForeignApi("https://en.wikipedia.org/w/api.php", { userAgent: getUserAgent() });
   }
 
   // src/context.ts
@@ -1900,7 +1980,7 @@ ${note}
     context = new SpiPageContext(cleanPageName(pageName), pageName === mw.config.get("wgPageName"), source);
   }
   function buildContextSummary(baseText) {
-    return context.valid ? baseText + ` per [[${context.prefixedName}]]` : baseText;
+    return context.source === "spi" && context.valid ? baseText + ` per [[${context.prefixedName}]]` : baseText;
   }
 
   // src/state.ts
@@ -2215,6 +2295,11 @@ ${note}
   }
 
   // src/ui/utils.ts
+  var SockListTemplateRegex = /sock ?list/;
+  var UserTemplateNameParts = ["ip", "vandal", "user", "noping"];
+  function isRelevantTemplate(templateName) {
+    return SockListTemplateRegex.test(templateName) || UserTemplateNameParts.some((part) => templateName.includes(part));
+  }
   function getSockEntries(opts) {
     const { text, fullSearch, state } = opts;
     const likelySocks = fullSearch ? [generateUserRow(context.userName, state)] : [];
@@ -2225,7 +2310,7 @@ ${note}
       if (state.selectedSection?.type === "single") {
         $searchOrigin = $(`a[href$="section=${state.selectedSection.section.id}"]`).parentsUntil(":has(hr)").last().nextUntil("hr");
       }
-      const sockList = $searchOrigin.find(".cuEntry").find("a:first");
+      const sockList = $searchOrigin.find(".cuEntry").toArray().map((entry) => entry.querySelector("a")).filter((link) => link !== null);
       for (const entryElement of sockList) {
         const filteredUsername = Array.from(entryElement.childNodes).find((n) => n.nodeType === Node.TEXT_NODE)?.textContent ?? "";
         if (!filteredUsername) {
@@ -2239,9 +2324,6 @@ ${note}
         allUsernames.add(username);
       }
     }
-    const isRelevantTemplate = (templateName) => {
-      return /sock ?list/.exec(templateName) !== null || ["ip", "vandal", "user", "noping"].some((t) => templateName.includes(t));
-    };
     const allTemplates = parseTemplates(text);
     for (const template of allTemplates) {
       if (isRelevantTemplate(template.name)) {
@@ -2277,13 +2359,21 @@ ${note}
     }
     return fullIP.split(":").slice(0, 4).concat("0", "0", "0", "0").join(":") + "/64";
   }
+  var tableRowIdentifier = null;
+  function setTableRowIdentifier(identifier) {
+    tableRowIdentifier = identifier;
+  }
   function getDefaultUserRow(archiveNotice) {
+    const id = crypto.randomUUID();
     const newRow = {
-      id: crypto.randomUUID(),
+      id,
       username: "",
       block: setupDefaultBlockRowData(),
       link: { ...DefaultLinkRowData }
     };
+    if (tableRowIdentifier) {
+      newRow[tableRowIdentifier] = id;
+    }
     if (archiveNotice) {
       if (archiveNotice.crosswiki) {
         newRow.block.lock = true;
@@ -2312,7 +2402,7 @@ ${note}
       }
     }
     if (userPage) {
-      userRow.block.tags = parseUserTags(userPage);
+      userRow.block.tags = parseUserTags(userPage, userRow.username);
     }
     return userRow;
   }
@@ -2332,7 +2422,7 @@ ${note}
       isLocked = globalUser.locked;
       userRow.block.lock = globalUser.locked || crosswiki;
     } else if (isNonRegisteredAccount(userRow.username)) {
-      isGloballyBlocked = globalBlock != null;
+      isGloballyBlocked = globalBlock !== undefined;
       userRow.block.lock = isGloballyBlocked || crosswiki;
     }
     return { userRow, isLocked, isGloballyBlocked };
@@ -2376,6 +2466,10 @@ ${note}
   var toRaw = null;
   function setToRaw(toRawArg) {
     toRaw = toRawArg;
+  }
+  var markRaw = null;
+  function setMarkRaw(markRawArg) {
+    markRaw = markRawArg;
   }
 
   // src/ui/views/options/modal.ts
@@ -2855,7 +2949,6 @@ ${note}
   var ClerkOnlyActions = new Set(["move", "archive", "management"]);
   var AlwaysAvailableActions = new Set(["sections", "move", "archive", "block", "link"]);
   var SpecificSectionActions = new Set(["status", "comment"]);
-  var AllSectionActions = new Set(["management"]);
 
   // src/ui/views/top/utils/actionVisibility.ts
   function shouldShowAction(opts) {
@@ -2982,36 +3075,56 @@ ${note}
       userBlocks,
       userLocks,
       userGlobalBlocks,
-      userTags,
+      fetchedUsers,
       state
     } = opts;
     const likelySet = new Set(likelySocks.map((sock) => sock.id));
+    const newUsernames = new Set([...allUsernames].filter((name) => !fetchedUsers.has(name)));
     const registeredUsernames = new Set;
     const unregisteredUsernames = new Set;
-    for (const name of allUsernames) {
+    for (const name of newUsernames) {
       (isNonRegisteredAccount(name) ? unregisteredUsernames : registeredUsernames).add(name);
     }
     const validUserPages = [...registeredUsernames].map((name) => `User:${name}`);
-    const [blockSettings, userPages, globalUsers, globalBlocks] = await Promise.all([
-      spiHelperGetBulkUserBlockSettings(allUsernames),
+    const lookups = await Promise.all([
+      spiHelperGetBulkUserBlockSettings(newUsernames),
       spiHelperGetBulkPageText(validUserPages),
       spiHelperGetBulkGlobalUsers(registeredUsernames),
       spiHelperGetBulkGlobalBlocks(unregisteredUsernames)
-    ]);
+    ]).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      new VueMessage({
+        type: "warning",
+        content: `Could not look up blocks and tags for these accounts: ${message}`
+      }).show();
+      return null;
+    });
+    if (lookups) {
+      const [blockSettings, userPages, globalUsers, globalBlocks] = lookups;
+      for (const name of newUsernames) {
+        const fetched = {
+          block: blockSettings.get(name),
+          userPage: userPages.get(`User:${name}`),
+          globalUser: globalUsers.get(name),
+          globalBlock: globalBlocks.get(name)
+        };
+        fetchedUsers.set(name, markRaw ? markRaw(fetched) : fetched);
+      }
+    }
     return [...likelySocks, ...possibleSocks].map((userRow) => {
-      const blockSetting = blockSettings.get(userRow.username);
-      if (blockSetting !== undefined) {
+      const fetched = fetchedUsers.get(userRow.username);
+      const blockSetting = fetched?.block;
+      if (blockSetting) {
         userBlocks.set(userRow.username, blockSetting);
       }
-      const userPage = userPages.get(userRow.username);
       const defaultBlock = likelySet.has(userRow.id);
       const { userRow: newRow, isLocked, isGloballyBlocked } = setUserRowBlockData({
         userRow,
         block: blockSetting,
         defaultBlock,
-        userPage,
-        globalUser: globalUsers.get(userRow.username),
-        globalBlock: globalBlocks.get(userRow.username),
+        userPage: fetched?.userPage,
+        globalUser: fetched?.globalUser,
+        globalBlock: fetched?.globalBlock,
         state
       });
       if (isLocked !== null) {
@@ -3020,7 +3133,6 @@ ${note}
       if (isGloballyBlocked !== null) {
         userGlobalBlocks.set(userRow.username, isGloballyBlocked);
       }
-      userTags.set(userRow.username, userRow.block.tags);
       return newRow;
     });
   }
@@ -3057,6 +3169,8 @@ ${note}
         return "{{reopen}}";
       case "checked":
       case "closed":
+      case "new":
+      case "":
         return null;
       default:
         console.warn("New case status", status, "is unexpected");
@@ -3267,11 +3381,24 @@ ${note}
       disabled: { type: Boolean, default: false }
     },
     emits: ["update:enabled"],
+    data() {
+      return { built: this.enabled };
+    },
+    watch: {
+      enabled(newValue) {
+        if (!newValue || this.built) {
+          return;
+        }
+        requestAnimationFrame(() => {
+          this.built = this.enabled;
+        });
+      }
+    },
     template: `
     <cdx-toggle-switch class="enableSwitch" :disabled="disabled" :model-value="enabled" @update:model-value="$emit('update:enabled', $event)">
       Enabled
     </cdx-toggle-switch>
-    <div v-if="enabled && !empty">
+    <div v-if="!empty && built" v-show="enabled">
       <slot />
     </div>
   `
@@ -3378,6 +3505,7 @@ ${note}
   });
   // src/ui/views/userLookup.ts
   var ITEM_LIMIT = 10;
+  var SEARCH_DEBOUNCE_MS = 250;
   function UpdateUserAllUserData(data, row) {
     if (data.blockid !== undefined) {
       row.block.block = true;
@@ -3427,7 +3555,8 @@ ${note}
         selection: null,
         userSuggestions: [],
         menuConfig,
-        useLookup: spiHelperSettings.useLookup
+        useLookup: spiHelperSettings.useLookup,
+        searchTimer: null
       };
     },
     computed: {
@@ -3440,14 +3569,30 @@ ${note}
         }
       }
     },
+    beforeUnmount() {
+      this.cancelPendingSearch();
+    },
     methods: {
+      cancelPendingSearch() {
+        if (this.searchTimer !== null) {
+          clearTimeout(this.searchTimer);
+          this.searchTimer = null;
+        }
+      },
       onUpdateInputValue(value) {
         const trimmedValue = value.trim();
         this.menuConfig.searchQuery = trimmedValue;
+        this.cancelPendingSearch();
         if (!trimmedValue) {
           this.userSuggestions = [];
           return;
         }
+        this.searchTimer = setTimeout(() => {
+          this.searchTimer = null;
+          this.fetchSuggestions(value, trimmedValue);
+        }, SEARCH_DEBOUNCE_MS);
+      },
+      fetchSuggestions(value, trimmedValue) {
         spiHelperGetUsers(trimmedValue, ITEM_LIMIT).then((users) => {
           if (this.username !== value && this.username !== trimmedValue) {
             return;
@@ -3464,6 +3609,11 @@ ${note}
         }).catch(() => {
           this.userSuggestions = [];
         });
+      },
+      onFocus() {
+        if (this.userSuggestions.length === 0) {
+          this.onLoadMore();
+        }
       },
       onLoadMore() {
         if (!this.username) {
@@ -3518,7 +3668,7 @@ ${note}
           placeholder="Sock"
           @update:input-value="onUpdateInputValue"
           @load-more="onLoadMore"
-          @focus="onLoadMore"
+          @focus="onFocus"
           @update:selected="onSelection"
           @blur="validateInstantly"
           @keydown.enter="validateInstantly"
@@ -3554,7 +3704,7 @@ ${note}
       return null;
     }
     const templates = parseTemplates(pageText);
-    const archiveNoticeTemplate = templates.find((tl) => /SPI\s*archive notice/i.exec(tl.name));
+    const archiveNoticeTemplate = templates.find((tl) => spiHelperArchiveNoticeNameRegex.test(tl.name));
     if (!archiveNoticeTemplate) {
       console.error("Missing archive notice");
       return null;
@@ -3577,12 +3727,17 @@ ${note}
         flags[key] = true;
       } else {
         console.warn("Unrecognised archivenotice parameter", key, "=", val);
+        new VueMessage({
+          type: "warning",
+          content: `Ignoring unrecognised archive notice parameter |${key}`
+        }).showOnce();
       }
     }
     return new ParsedArchiveNotice({ username, ...flags });
   }
 
   // src/actions/archive.ts
+  var MAX_SUB_ARCHIVES = 30;
   async function spiHelperArchiveCase(state, explicitSections) {
     const sectionFetchMessage = new VueMessage({
       type: "notice",
@@ -3631,7 +3786,8 @@ ${note}
       const sectionText = await loadSectionText(section);
       newText = newText.replace(sectionText + `
 `, "").replace(sectionText, "");
-      const cleanSectionText = sectionText.slice(sectionText.search(spiHelperSectionRegex)).replace(spiHelperCaseStatusRegex, "");
+      const headerIndex = sectionText.search(spiHelperSectionRegex);
+      const cleanSectionText = (headerIndex === -1 ? sectionText : sectionText.slice(headerIndex)).replace(spiHelperCaseStatusRegex, "").trim();
       if (newArchiveText.includes(cleanSectionText)) {
         new VueMessage({ type: "warning", content: `Section ${section.name} already exists in the archive` }).show();
         continue;
@@ -3652,7 +3808,7 @@ ${note}
       return [];
     }
     newArchiveText = rebuildArchiveText(newArchiveText, parsedArchiveSections);
-    const summaryPrefix = `Archiving ${pluralise(archivedSections.length, "section")}`;
+    const summaryPrefix = `Archiving ${countOf(archivedSections.length, "section")}`;
     const archiveSuccess = await spiHelperEditPage({
       title: context.archiveName,
       newText: newArchiveText,
@@ -3675,7 +3831,7 @@ ${note}
   }
   async function spiHelperArchiveCaseSection(section) {
     let sectionText = await loadSectionText(section);
-    sectionText = sectionText.replace(spiHelperCaseStatusRegex, "");
+    sectionText = sectionText.replace(spiHelperCaseStatusRegex, "").trim();
     let archiveText = await spiHelperGetPageText(context.archiveName, true);
     const message = new VueMessage({ type: "error", content: "" });
     if (archiveText.includes(sectionText)) {
@@ -3736,7 +3892,11 @@ ${note}
     });
   }
   async function spiHelperMoveArchiveIfOverflowing(sourcePage, archiveName) {
-    const postExpandPercent = (await spiHelperGetPostExpandSize(sourcePage) + await spiHelperGetPostExpandSize(archiveName)) / spiHelperGetMaxPostExpandSize();
+    const [sourceSize, archiveSize] = await Promise.all([
+      spiHelperGetPostExpandSize(sourcePage),
+      spiHelperGetPostExpandSize(archiveName)
+    ]);
+    const postExpandPercent = (sourceSize + archiveSize) / spiHelperGetMaxPostExpandSize();
     if (postExpandPercent < 1) {
       return "ok";
     }
@@ -3754,19 +3914,25 @@ ${note}
     return "moved";
   }
   async function findFirstEmptySubArchive(archiveName) {
-    let archiveId = 0;
-    let slotText = "sentinel";
-    while (slotText !== "") {
-      if (archiveId > 30) {
-        new VueMessage({
-          type: "error",
-          content: "Reached upper bound on possible archives, something probably went catastrophically wrong."
-        }).show();
-        return null;
-      }
-      slotText = await spiHelperGetPageText(`${archiveName}/${++archiveId}`, false);
+    const subArchives = await spiHelperGetPages(`${archiveName.replace(/^Wikipedia:/, "")}/`, 4, "max");
+    if (subArchives === null) {
+      new VueMessage({
+        type: "error",
+        content: "Failed to find the existing sub-archives, aborting move"
+      }).show();
+      return null;
     }
-    return archiveId;
+    const existing = new Set(subArchives.map((page) => page.title));
+    for (let archiveId = 1;archiveId <= MAX_SUB_ARCHIVES; archiveId++) {
+      if (!existing.has(`${archiveName}/${archiveId}`)) {
+        return archiveId;
+      }
+    }
+    new VueMessage({
+      type: "error",
+      content: "Reached upper bound on possible archives, something probably went catastrophically wrong"
+    }).show();
+    return null;
   }
   async function findArchiveSplitPoint(sections, archiveText) {
     const maxSize = spiHelperGetMaxPostExpandSize();
@@ -3803,7 +3969,7 @@ ${note}
     } else {
       newText += "{{subst:uw-sockblock|sig=yes";
     }
-    if (context.valid) {
+    if (context.source === "spi" && context.valid) {
       newText += "|spi=" + context.caseName;
     }
     if (isNoExpiry(sock.block.duration)) {
@@ -3825,7 +3991,7 @@ ${note}
   }
   function buildBlockSummary(blockOptions, isIP, isIPRange, acb) {
     let blockSummary = "Abusing [[WP:SOCK|multiple accounts]]";
-    if (context.valid) {
+    if (context.source === "spi" && context.valid) {
       blockSummary += `: Please see: [[${context.prefixedName}]]`;
     }
     if (spiHelperIsCheckuser() && blockOptions.cuBlock) {
@@ -4094,9 +4260,7 @@ ${heading}`);
     });
   }
   // src/actions/move.ts
-  async function getNewProtection(oldTitle, newTitle, siteRestrictions) {
-    const oldPageNameProtection = await spiHelperGetProtectionInformation(oldTitle);
-    const newPageNameProtection = await spiHelperGetProtectionInformation(newTitle);
+  function getNewProtection(oldPageNameProtection, newPageNameProtection, siteRestrictions) {
     const newProtectionValues = [];
     siteRestrictions.types.forEach((type) => {
       const oldPageNameEntry = oldPageNameProtection.find((dict) => dict.type === type);
@@ -4128,9 +4292,7 @@ ${heading}`);
     });
     return newProtectionValues;
   }
-  async function getNewPendingChanges(oldTitle, newTitle, siteRestrictions) {
-    const oldPageStabilisation = await spiHelperGetStabilisationSettings(oldTitle);
-    const newPageStabilisation = await spiHelperGetStabilisationSettings(newTitle);
+  function getNewPendingChanges(oldPageStabilisation, newPageStabilisation, siteRestrictions) {
     let newStabilisationSettings = { level: "" };
     if (oldPageStabilisation && newPageStabilisation) {
       if (isAbsoluteExpiry(oldPageStabilisation.protection_expiry) || isAbsoluteExpiry(newPageStabilisation.protection_expiry)) {
@@ -4171,7 +4333,7 @@ ${heading}`);
     }
     new VueMessage({
       type: "notice",
-      content: "Archives detected on both source and target cases, copying it manually."
+      content: "Archives detected on both source and target cases, copying it manually"
     }).show();
     const sourceArchiveEntries = await spiHelperGetInvestigationSections({ pageName: oldContext.archiveName });
     const targetArchiveEntries = await spiHelperGetInvestigationSections({ pageName: newContext.archiveName });
@@ -4260,9 +4422,14 @@ ${heading}`);
       const mergeResult = await mergeArchives(oldContext, newContext, addNote);
       if (mergeResult === "abort")
         return;
-      const siteRestrictions = await spiHelperGetSiteRestrictionInformation();
-      const newProtection = await getNewProtection(oldContext.pageName, newContext.pageName, siteRestrictions);
-      const newPendingChanges = await getNewPendingChanges(oldContext.pageName, newContext.pageName, siteRestrictions);
+      const [siteRestrictions, restrictions] = await Promise.all([
+        spiHelperGetSiteRestrictionInformation(),
+        spiHelperGetBulkPageRestrictions([oldContext.pageName, newContext.pageName])
+      ]);
+      const oldRestrictions = restrictions.get(oldContext.pageName);
+      const newRestrictions = restrictions.get(newContext.pageName);
+      const newProtection = getNewProtection(oldRestrictions?.protection ?? [], newRestrictions?.protection ?? [], siteRestrictions);
+      const newPendingChanges = getNewPendingChanges(oldRestrictions?.pendingChanges ?? null, newRestrictions?.pendingChanges ?? null, siteRestrictions);
       await spiHelperDeletePage(newContext.pageName, "Deleting as part of case merge");
       await spiHelperMovePage({
         sourcePage: oldContext.pageName,
@@ -4496,12 +4663,10 @@ ${heading}`);
         continue;
       }
       pagesChecked.push(currentPageToCheck);
-      const backlinks = await spiHelperGetSPIBacklinks(currentPageToCheck);
+      const backlinks = (await spiHelperGetSPIBacklinks(currentPageToCheck)).filter((backlink) => backlink.title !== newContext.pageName);
+      const backlinkTexts = await spiHelperGetBulkPageText(backlinks.map(({ title }) => title));
       for (const backlink of backlinks) {
-        if (backlink.title === newContext.pageName) {
-          continue;
-        }
-        const archiveNotice = await spiHelperParseArchiveNotice({ page: backlink.title });
+        const archiveNotice = spiHelperParseArchiveNoticeText(backlinkTexts.get(backlink.title) ?? "");
         if (!archiveNotice) {
           continue;
         }
@@ -4631,7 +4796,7 @@ ${heading}`);
     sock.block.tags.forEach((tag) => {
       tag.locked = userInfo.locked;
     });
-    const oldTags = parseUserTags(pageText);
+    const oldTags = parseUserTags(pageText, sock.username);
     const cleanedTags = sock.block.tags.reduce((acc, tag) => {
       const isOrphanSockpuppet = isSockpuppetTag(tag) && !tag.master;
       const alreadyAdded = acc.some((existing) => existing.equals(tag));
@@ -4653,7 +4818,7 @@ ${heading}`);
 `);
     const newText = replaceSockTemplates(pageText, tagText);
     const actionVerb = oldTags.length < cleanedTags.length ? "Adding" : "Updating";
-    const tagSummary = cleanedTags.length > 1 ? pluralise(cleanedTags.length, "sockpuppetry tag") : "sockpuppetry tag";
+    const tagSummary = cleanedTags.length > 1 ? countOf(cleanedTags.length, "sockpuppetry tag") : "sockpuppetry tag";
     return spiHelperEditPage({
       title: `User:${sock.username}`,
       newText,
@@ -4695,28 +4860,27 @@ ${heading}`);
   async function createSockCategories(userRows) {
     const purgeMap = new Map;
     const categoryNeeds = collectCategoryNeeds(userRows);
+    const wanted = [];
     for (const [master, { confirmed, suspected }] of categoryNeeds) {
       if (!master) {
         continue;
       }
-      let created = false;
       if (confirmed) {
-        const catName = `Category:Wikipedia sockpuppets of ${master}`;
-        const catText = await spiHelperGetPageText(catName, false);
-        if (!catText) {
-          await createCategoryPage(catName);
-          created = true;
-        }
+        wanted.push({ master, title: `Category:Wikipedia sockpuppets of ${master}` });
       }
       if (suspected) {
-        const catName = `Category:Suspected Wikipedia sockpuppets of ${master}`;
-        const catText = await spiHelperGetPageText(catName, false);
-        if (!catText) {
-          await createCategoryPage(catName);
-          created = true;
-        }
+        wanted.push({ master, title: `Category:Suspected Wikipedia sockpuppets of ${master}` });
       }
-      purgeMap.set(master, created);
+      purgeMap.set(master, false);
+    }
+    if (wanted.length === 0) {
+      return purgeMap;
+    }
+    const existing = await spiHelperGetBulkPageText(wanted.map(({ title }) => title));
+    const missing = wanted.filter(({ title }) => !existing.get(title));
+    await Promise.all(missing.map(({ title }) => createCategoryPage(title)));
+    for (const { master } of missing) {
+      purgeMap.set(master, true);
     }
     return purgeMap;
   }
@@ -4746,19 +4910,22 @@ ${heading}`);
     }
     return `${rest.join(", ")}${rest.length > 1 ? "," : ""} and ${last}`;
   }
+  function countIfSeveral(count, singular) {
+    return count === 1 ? singular : countOf(count, singular);
+  }
   function groupByAccounts(facts) {
     const userActions = [
-      { verb: "blocking", users: facts.blockedUsers },
-      { verb: "tagging", users: facts.taggedUsers },
+      { verb: () => "blocking", users: facts.blockedUsers },
+      { verb: () => "tagging", users: facts.taggedUsers },
       {
-        verb: "requesting locks for",
-        users: facts.lockedUsers,
-        solo: (count) => `requesting ${pluralise(count, "lock")}`
+        verb: (count) => `requesting ${pluralise(count, "lock")} for`,
+        solo: (count) => `requesting ${countIfSeveral(count, "lock")}`,
+        users: facts.lockedUsers
       },
       {
-        verb: "requesting global blocks for",
-        users: facts.globalBlockedUsers,
-        solo: (count) => `requesting ${pluralise(count, "global block")}`
+        verb: (count) => `requesting ${pluralise(count, "global block")} for`,
+        solo: (count) => `requesting ${countIfSeveral(count, "global block")}`,
+        users: facts.globalBlockedUsers
       }
     ];
     const groups = new Map;
@@ -4766,16 +4933,17 @@ ${heading}`);
       const key = [...userAction.users].sort().join("|");
       groups.set(key, [...groups.get(key) ?? [], userAction]);
     }
-    return [...groups.values()].map((group) => {
+    return [...groups.values()].flatMap((group) => {
       const [firstAction, ...rest] = group;
       if (!firstAction) {
-        return "";
+        return [];
       }
       const count = firstAction.users.length;
       if (rest.length === 0 && firstAction.solo) {
         return firstAction.solo(count);
       }
-      return `${joinVerbs(group.map(({ verb }) => verb))} ${pluralise(count, "account")}`;
+      const verbs = joinVerbs(group.map(({ verb }) => verb(count)));
+      return `${verbs} ${countIfSeveral(count, "account")}`;
     });
   }
   function buildEditSummaryActions(facts) {
@@ -4784,15 +4952,15 @@ ${heading}`);
       editSummaryActions.push("updating archivenotice");
     }
     if (facts.commentedCount > 0) {
-      editSummaryActions.push(facts.multiSection ? `commenting on ${pluralise(facts.commentedCount, "section")}` : "commenting");
+      editSummaryActions.push(facts.multiSection ? `commenting on ${countOf(facts.commentedCount, "section")}` : "commenting");
     }
     editSummaryActions.push(...groupByAccounts(facts));
     if (facts.multiSection) {
       if (facts.statusChangedCount > 0) {
-        editSummaryActions.push(`changing status on ${pluralise(facts.statusChangedCount, "section")}`);
+        editSummaryActions.push(`changing status on ${countOf(facts.statusChangedCount, "section")}`);
       }
       if (facts.closedCount > 0) {
-        editSummaryActions.push(`closing ${pluralise(facts.closedCount, "section")}`);
+        editSummaryActions.push(`closing ${countOf(facts.closedCount, "section")}`);
       }
     } else if (facts.status) {
       editSummaryActions.push(facts.status);
@@ -4960,7 +5128,11 @@ ${heading}`);
               }
             }
             if (sectionText !== originalSectionText) {
-              targetText = targetText.replace(originalSectionText, () => sectionText);
+              const updatedText = targetText.replace(originalSectionText, () => sectionText);
+              if (updatedText === targetText) {
+                new VueMessage({ type: "error", content: `Failed to update section ${section.name}` }).show();
+              }
+              targetText = updatedText;
             }
           }
         }
@@ -5039,7 +5211,7 @@ ${heading}`);
           const archivedSections = await spiHelperArchiveCase(state, state.selectedSection.sections);
           if (archivedSections.length > 0) {
             logMessage += `
-** Archived ${pluralise(archivedSections.length, "section")}`;
+** Archived ${countOf(archivedSections.length, "section")}`;
           }
           break;
         }
@@ -5163,7 +5335,7 @@ ${heading}`);
         summaryItem = "placing checkuser request on hold";
         break;
       case "closed":
-        summaryItem = "closing case";
+        summaryItem = "closing";
         break;
       case "nochange":
         break;
@@ -5192,27 +5364,33 @@ ${heading}`);
     }
     const userRows = opts.accounts.filter((userRow) => userRow.username !== "");
     const globalTargetRows = [];
-    await createSockCategories(userRows);
+    const categoriesPromise = createSockCategories(userRows);
     const blockAvailable = spiHelperIsAdmin() && !blockOptions.noBlock;
+    const addingTags = userRows.some((user) => user.block.tags.length > 0);
+    const addingNotices = blockAvailable && !blockOptions.blankTalk && (blockOptions.addMasterNotice || blockOptions.addSockNotice);
     const { allUsernames, allUserPages, allUserTalkPages } = userRows.reduce((acc, user) => {
       acc.allUsernames.add(user.username);
       acc.allUserPages.push(`User:${user.username}`);
       acc.allUserTalkPages.push(`User talk:${user.username}`);
       return acc;
     }, { allUsernames: new Set, allUserPages: [], allUserTalkPages: [] });
+    const pageTitles = [
+      ...addingTags ? allUserPages : [],
+      ...addingNotices ? allUserTalkPages : []
+    ];
     const fetchMessage = new VueMessage({ type: "notice", content: "Fetching user blocks and tags" }).show();
-    const [userBlocks, userPages, userTalkPages, globalUsers, userGlobalBlocks] = await Promise.all([
+    const [userBlocks, pageTexts, globalUsers, userGlobalBlocks] = await Promise.all([
       spiHelperGetBulkUserBlockSettings(allUsernames),
-      spiHelperGetBulkPageText(allUserPages),
-      spiHelperGetBulkPageText(allUserTalkPages),
+      spiHelperGetBulkPageText(pageTitles),
       spiHelperGetBulkGlobalUsers(new Set([...allUsernames].filter((username) => !isNonRegisteredAccount(username)))),
-      spiHelperGetBulkGlobalBlocks(new Set([...allUsernames].filter((username) => isNonRegisteredAccount(username))))
+      spiHelperGetBulkGlobalBlocks(new Set([...allUsernames].filter((username) => isNonRegisteredAccount(username)))),
+      categoriesPromise
     ]);
     fetchMessage.update({ type: "success", content: "Got previous blocks and tags" });
     const tagSock = async (userRow, blocked) => {
       const tagSuccess = await spiHelperTagUser({
         sock: userRow,
-        pageText: userPages.get(userRow.username) ?? "",
+        pageText: pageTexts.get(`User:${userRow.username}`) ?? "",
         blocked,
         globalUser: globalUsers.get(userRow.username),
         tagNonLocalAccounts: blockOptions.tagUnattached
@@ -5279,7 +5457,7 @@ ${heading}`);
             }
             await spiHelperAddTalkBlockNotice({
               sock: userRow,
-              userTalkContent: userTalkPages.get(userRow.username),
+              userTalkContent: pageTexts.get(`User talk:${userRow.username}`),
               blockOptions,
               talkNotices
             });
@@ -5320,38 +5498,38 @@ ${heading}`);
   }
 
   // src/ui/dom.ts
-  function getSectionContainer(sectionId) {
+  function getSectionLink(sectionId) {
     const sectionLink = $(`a[href$="section=${sectionId}"]`).first();
-    if (sectionLink.length === 0) {
-      return null;
-    }
+    return sectionLink.length > 0 ? sectionLink : null;
+  }
+  function getSectionContainerFor(sectionLink) {
     const sectionContainer = sectionLink.parentsUntil(":has(hr)").last().nextUntil("hr");
     return sectionContainer.length > 0 ? sectionContainer : null;
   }
-  function getSectionHeading(sectionId) {
-    const sectionLink = $(`a[href$="section=${sectionId}"]`).first();
-    if (sectionLink.length === 0) {
-      return null;
-    }
+  function getSectionHeadingFor(sectionLink) {
     const heading = sectionLink.closest(".mw-heading");
     return heading.length > 0 ? heading.get(0) ?? null : null;
+  }
+  function getSectionHeading(sectionId) {
+    const sectionLink = getSectionLink(sectionId);
+    return sectionLink ? getSectionHeadingFor(sectionLink) : null;
   }
   function scrollToSection(sectionId) {
     const heading = getSectionHeading(sectionId);
     if (heading) {
-      heading.scrollIntoView({ behavior: "smooth", block: "center" });
+      heading.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }
   function getSectionHighlightRoot() {
     return document.querySelector("#mw-content-text .mw-parser-output");
   }
-  function getSectionBounds(sectionId) {
-    const root = getSectionHighlightRoot();
-    const heading = getSectionHeading(sectionId);
-    if (!root || !heading) {
+  function getSectionBounds(sectionId, root) {
+    const sectionLink = getSectionLink(sectionId);
+    const heading = sectionLink && getSectionHeadingFor(sectionLink);
+    if (!root || !sectionLink || !heading) {
       return null;
     }
-    const container = getSectionContainer(sectionId);
+    const container = getSectionContainerFor(sectionLink);
     const lastElement = container?.last().get(0) ?? heading;
     const rootRect = root.getBoundingClientRect();
     const headingRect = heading.getBoundingClientRect();
@@ -5371,17 +5549,20 @@ ${heading}`);
     root.appendChild(overlay);
     return overlay;
   }
-  function renderSectionOverlay(overlay, sectionId, type) {
-    const bounds = getSectionBounds(sectionId);
-    if (!overlay || !bounds) {
-      return;
-    }
+  function applySectionOverlay(overlay, sectionId, bounds, type) {
     overlay.style.top = `${Math.max(0, bounds.top)}px`;
     overlay.style.height = `${bounds.height + 8}px`;
     overlay.style.display = "block";
     overlay.dataset.sectionId = String(sectionId);
     overlay.classList.toggle("spiHelper-section-overlay--preview", type === "preview");
     overlay.classList.toggle("spiHelper-section-overlay--selected", type === "selected");
+  }
+  function renderSectionOverlay(overlay, sectionId, type) {
+    const bounds = getSectionBounds(sectionId, getSectionHighlightRoot());
+    if (!overlay || !bounds) {
+      return;
+    }
+    applySectionOverlay(overlay, sectionId, bounds, type);
   }
   function getSectionIdByMenuItem(menuItem, menuItems) {
     const idResult = /v-\d+-(\d+)/.exec(menuItem.id);
@@ -5429,8 +5610,26 @@ ${heading}`);
         selectedOverlayEls.delete(id);
       }
     }
+    const overlays = new Map;
     for (const id of sectionIds) {
-      showSectionOverlay(id, "selected");
+      const overlay = getOrCreateSelectedOverlay(id);
+      if (overlay) {
+        overlays.set(id, overlay);
+      }
+    }
+    const root = getSectionHighlightRoot();
+    const bounds = new Map;
+    for (const id of overlays.keys()) {
+      const sectionBounds = getSectionBounds(id, root);
+      if (sectionBounds) {
+        bounds.set(id, sectionBounds);
+      }
+    }
+    for (const [id, overlay] of overlays) {
+      const sectionBounds = bounds.get(id);
+      if (sectionBounds) {
+        applySectionOverlay(overlay, id, sectionBounds, "selected");
+      }
     }
   }
   function clearSelectedSectionOverlays() {
@@ -5539,6 +5738,9 @@ ${heading}`);
             return false;
           }
         }
+        if (this.state.selectedSection?.type !== "multiple") {
+          return true;
+        }
         return [
           ...this.caseActions.comment.data.bySection.values(),
           ...this.caseActions.status.data.bySection.values()
@@ -5608,8 +5810,14 @@ ${heading}`);
             continue;
           }
           const actionDefaultEnabled = spiHelperSettings.defaultActions.includes(caseAN);
-          caseAction.enabled = actionDefaultEnabled;
-          if (actionDefaultEnabled && (AlwaysAvailableActions.has(caseAN) || newSection === "all" && AllSectionActions.has(caseAN) || typeof newSection === "number" && SpecificSectionActions.has(caseAN) || Array.isArray(newSection) && (SpecificSectionActions.has(caseAN) || AllSectionActions.has(caseAN)))) {
+          const available = shouldShowAction({
+            name: caseAN,
+            selection: newSection,
+            selectionType: this.actionButtons[caseAN].selectionType
+          });
+          const perSectionDriven = Array.isArray(newSection) && SpecificSectionActions.has(caseAN);
+          caseAction.enabled = actionDefaultEnabled && available && !perSectionDriven;
+          if (actionDefaultEnabled && available) {
             this.displayedForms.add(caseAN);
           }
         }
@@ -5657,7 +5865,10 @@ ${heading}`);
       this.sectionClickCleanup = null;
     },
     methods: {
+      dismissMessage,
       setupSectionButtons() {
+        this.sectionClickCleanup?.();
+        this.sectionClickCleanup = null;
         const ids = this.state.sections.map((s) => s.id);
         if (ids.length === 0) {
           return;
@@ -5706,6 +5917,17 @@ ${heading}`);
       },
       isVisible(name) {
         return this.displayedForms.has(name);
+      },
+      isActionEnabled(name) {
+        if (this.state.selectedSection?.type === "multiple") {
+          if (name === "comment") {
+            return [...this.caseActions.comment.data.bySection.values()].some((e) => e.enabled);
+          }
+          if (name === "status") {
+            return [...this.caseActions.status.data.bySection.values()].some((e) => e.enabled);
+          }
+        }
+        return this.caseActions[name].enabled;
       },
       async onUpdateSectionSelection(newSelection) {
         if (newSelection === null) {
@@ -5803,7 +6025,10 @@ ${heading}`);
       },
       async ensureBySectionEntry(section) {
         if (!this.caseActions.comment.data.bySection.has(section.id)) {
-          this.caseActions.comment.data.bySection.set(section.id, { text: "* ", enabled: false });
+          this.caseActions.comment.data.bySection.set(section.id, {
+            text: "* ",
+            enabled: spiHelperSettings.defaultActions.includes("comment")
+          });
         }
         if (!this.caseActions.status.data.bySection.has(section.id)) {
           const text = await loadSectionText(section);
@@ -5812,7 +6037,7 @@ ${heading}`);
           this.caseActions.status.data.bySection.set(section.id, {
             old: normalisedStatus,
             new: normalisedStatus,
-            enabled: false
+            enabled: spiHelperSettings.defaultActions.includes("status")
           });
         }
       },
@@ -5853,7 +6078,7 @@ ${heading}`);
           userBlocks: this.caseActions.block.data.userBlocks,
           userLocks: this.caseActions.block.data.userLocks,
           userGlobalBlocks: this.caseActions.block.data.userGlobalBlocks,
-          userTags: this.caseActions.block.data.userTags,
+          fetchedUsers: this.caseActions.block.data.fetchedUsers,
           state: this.state
         });
         this.sectionAccountNames = new Set(this.massAddUserRows(allRows).map((row) => row.username));
@@ -5863,11 +6088,9 @@ ${heading}`);
       },
       onUpdateSectionStatus(sectionId, newStatus) {
         const entry = this.caseActions.comment.data.bySection.get(sectionId);
-        const currentComment = entry?.text ?? "* ";
-        this.caseActions.comment.data.bySection.set(sectionId, {
-          text: updateCommentWithStatus(currentComment, newStatus),
-          enabled: entry?.enabled ?? false
-        });
+        if (entry) {
+          entry.text = updateCommentWithStatus(entry.text, newStatus);
+        }
       },
       async onSubmitActions() {
         if (isOpRunning("mainActions")) {
@@ -5876,13 +6099,24 @@ ${heading}`);
         mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "submit", type: "top" });
         startOp("mainActions");
         this.actionsRunning = true;
-        await spiHelperPerformActions({
-          actions: this.caseActions,
-          accounts: this.accounts,
-          state: this.state
-        });
-        finishOp("mainActions", "success" /* Success */);
-        this.actionsRunning = false;
+        try {
+          await spiHelperPerformActions({
+            actions: this.caseActions,
+            accounts: this.accounts,
+            state: this.state
+          });
+          finishOp("mainActions", "success" /* Success */);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          new VueMessage({
+            type: "error",
+            content: `Actions stopped: ${message}. Reload and try again. If the issue persists, file a bug report`
+          }).show();
+          finishOp("mainActions", "failed" /* Failed */);
+        } finally {
+          this.caseActions.block.data.fetchedUsers.clear();
+          this.actionsRunning = false;
+        }
       },
       handleFetchRows() {
         const [likelySocks, possibleSocks] = getSockEntries({
@@ -5948,7 +6182,7 @@ ${heading}`);
           this.state.archiveNotice = new ParsedArchiveNotice({ username: context.caseName });
           new VueMessage({
             type: "warning",
-            content: "Can't find archivenotice template! Automatically adding the archive notice to the page."
+            content: "Can't find archivenotice template! Automatically adding the archive notice to the page"
           }).show();
           mw.notify("Can't find archivenotice template! If this is incorrect, please contact DatGuy", { type: "warn" });
           console.warn("archivenoticeResult is null");
@@ -5993,7 +6227,7 @@ ${heading}`);
               :selection-type="button.selectionType"
               :selection="caseActions.sections.data.section"
               :displayedForms="displayedForms"
-              :actionEnabled="caseActions[name].enabled"
+              :actionEnabled="isActionEnabled(name)"
               @click="onActionClick($event, name)"
           />
         </div>
@@ -6031,7 +6265,7 @@ ${heading}`);
             :selection-type="button.selectionType"
             :selection="caseActions.sections.data.section"
             :displayedForms="displayedForms"
-            :actionEnabled="caseActions[name].enabled"
+            :actionEnabled="isActionEnabled(name)"
             @action-toggled="onAccordionToggle(name)"
         >
           <action-content
@@ -6062,8 +6296,8 @@ ${heading}`);
                    @on-submit="onSubmitActions" ref="submitForm" />
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
       <div id="messageRow">
-        <cdx-message v-for="(message, index) in messages" :key="index" :type="message.type" :fade-in="true"
-                     :allow-user-dismiss="true">
+        <cdx-message v-for="message in messages" :key="message.id" :type="message.type" :fade-in="true"
+                     :allow-user-dismiss="true" @user-dismissed="dismissMessage(message.id)">
           <span v-if="message.isHtml" v-html="message.content" />
           <span v-else>
             {{ message.content }}
@@ -6120,7 +6354,6 @@ ${heading}`);
       },
       effectiveSectionStatus(sectionId) {
         const entry = this.statusData.bySection.get(sectionId);
-        console.log(entry);
         if (!entry) {
           return "";
         }
@@ -6144,6 +6377,8 @@ ${heading}`);
   `
   });
   // src/ui/views/top/actions/blockAction.ts
+  var InputColumns = ["block", "duration", "acb", "abao", "ntp", "nem", "lock"];
+  var ToggleColumns = ["block", "acb", "abao", "ntp", "nem", "lock"];
   var BlockActionComponent = defineComponent({
     props: {
       accounts: { type: Array, required: true },
@@ -6202,10 +6437,14 @@ ${heading}`);
         cdxIconDownload: V6,
         cdxIconTrash: Q9,
         cdxIconUserAvatar: vc,
-        cdxIconUserAvatarOutline: dc
+        cdxIconUserAvatarOutline: dc,
+        spiHelperPaginationSizeOptions
       };
     },
     computed: {
+      paginate() {
+        return this.accounts.length > spiHelperPaginationThreshold;
+      },
       selectAll() {
         return this.selectedRows.length === this.accounts.length;
       },
@@ -6215,27 +6454,57 @@ ${heading}`);
         } else
           return this.selectedRows.length !== 0;
       },
-      selectedRowIDs() {
-        return this.selectedRows.map((index) => this.accounts[index]?.id).filter((id) => !!id);
-      },
       allowLockOption() {
         return this.accounts.some((user) => user.block.lock && !isNonRegisteredAccount(user.username) && !this.userLocks.get(user.username));
+      },
+      targetRows() {
+        if (this.selectedRows.length === 0) {
+          return this.accounts;
+        }
+        const selected = new Set(this.selectedRows);
+        return this.accounts.filter((row) => selected.has(row.id));
+      },
+      disabledCells() {
+        const cells = new Map;
+        for (const row of this.accounts) {
+          const rowCells = {};
+          for (const column of InputColumns) {
+            rowCells[column] = isInputDisabled(row, column, this.blockOptions, this.userBlocks, this.userLocks, this.userGlobalBlocks, this.targetRows);
+          }
+          cells.set(row.id, rowCells);
+        }
+        return cells;
+      },
+      setAllState() {
+        const state = {};
+        for (const column of ToggleColumns) {
+          let eligible = 0;
+          let checked = 0;
+          for (const row of this.targetRows) {
+            if (this.disabledCells.get(row.id)?.[column]) {
+              continue;
+            }
+            eligible++;
+            if (row.block[column]) {
+              checked++;
+            }
+          }
+          state[column] = {
+            value: eligible > 0 && checked === eligible,
+            indeterminate: checked > 0 && checked < eligible
+          };
+        }
+        return state;
       }
     },
     methods: {
       isNonRegisteredAccount,
       isSockmasterTag,
-      setAllValue(column) {
-        const rows = this.getTargetRows().filter((row) => !this.isInputDisabled(row, column));
-        return rows.length > 0 && rows.every((row) => row.block[column]);
-      },
-      setAllIndeterminate(column) {
-        const rows = this.getTargetRows().filter((row) => !this.isInputDisabled(row, column));
-        const checkedCount = rows.filter((row) => row.block[column]).length;
-        return checkedCount > 0 && checkedCount < rows.length;
-      },
       isInputDisabled(row, column) {
-        return isInputDisabled(row, column, this.blockOptions, this.userBlocks, this.userLocks, this.userGlobalBlocks, this.getTargetRows());
+        if (row === null) {
+          return isInputDisabled(null, column, this.blockOptions, this.userBlocks, this.userLocks, this.userGlobalBlocks, this.targetRows);
+        }
+        return this.disabledCells.get(row.id)?.[column] ?? false;
       },
       async copySocks() {
         if (this.selectedRows.length === 0) {
@@ -6243,12 +6512,9 @@ ${heading}`);
         }
         let text = "{{sock list";
         let i = 0;
-        this.selectedRows.forEach((row) => {
-          const rowData = this.accounts[row];
-          if (!rowData)
-            return;
-          text += `|${++i}=${rowData.username}`;
-        });
+        for (const row of this.targetRows) {
+          text += `|${++i}=${row.username}`;
+        }
         text += "}}";
         await navigator.clipboard.writeText(text);
         this.topButtonActions.copied = true;
@@ -6259,16 +6525,15 @@ ${heading}`);
         }, 200);
       },
       removeSocks() {
-        this.$emit("removeRows", this.selectedRowIDs);
+        this.$emit("removeRows", [...this.selectedRows]);
         this.selectedRows = [];
       },
       addDefaultRow() {
         this.$emit("addRow");
       },
       handleSelectAll(newValue) {
-        this.selectAllIndeterminate = false;
         if (newValue) {
-          this.selectedRows = [...this.accounts.keys()];
+          this.selectedRows = this.accounts.map((row) => row.id);
         } else {
           this.selectedRows = [];
         }
@@ -6277,25 +6542,18 @@ ${heading}`);
         this.$emit("userSelected", data, row.id);
       },
       setAllBlockFields(key, value) {
-        for (const row of this.getTargetRows()) {
-          if (this.isInputDisabled(row, key))
-            continue;
+        const rows = this.targetRows.filter((row) => !this.isInputDisabled(row, key));
+        for (const row of rows) {
           row.block[key] = value;
         }
       },
       setAllTags(tag2) {
-        for (const row of this.getTargetRows()) {
+        for (const row of this.targetRows) {
           if (isNonRegisteredAccount(row.username)) {
             continue;
           }
           row.block.tags = [tag2.clone()];
         }
-      },
-      getTargetRows() {
-        if (this.selectedRows.length === 0)
-          return this.accounts;
-        const selected = new Set(this.selectedRows);
-        return this.accounts.filter((_, i) => selected.has(i));
       },
       fetchSocks() {
         this.topButtonActions.fetched = true;
@@ -6359,7 +6617,7 @@ ${heading}`);
         }
       },
       handleTagAddAll() {
-        for (const row of this.getTargetRows()) {
+        for (const row of this.targetRows) {
           if (isNonRegisteredAccount(row.username)) {
             continue;
           }
@@ -6367,7 +6625,7 @@ ${heading}`);
         }
       },
       handleTagDeleteAll() {
-        for (const row of this.getTargetRows()) {
+        for (const row of this.targetRows) {
           row.block.tags.length = 0;
         }
       },
@@ -6425,6 +6683,7 @@ ${heading}`);
       </div>
       <cdx-table caption="Socks" :show-vertical-borders="true" :use-row-selection="true"
                  :columns="columns" :data="accounts" v-model:selected-rows="selectedRows"
+                 :paginate="paginate" :pagination-size-options="spiHelperPaginationSizeOptions"
                  class="spiHelper-sockTable">
         <template #header>
           <div class="header-content">
@@ -6496,7 +6755,7 @@ ${heading}`);
             <th scope="col" style="min-width: 150px;">(all users)</th>
             <th scope="col" v-if="isAdmin">
               <cdx-checkbox :hide-label="true"
-                            :model-value="setAllValue('block')" :indeterminate="setAllIndeterminate('block')"
+                            :model-value="setAllState.block.value" :indeterminate="setAllState.block.indeterminate"
                             @update:model-value="setAllBlockFields('block', $event)"
                             :disabled="isInputDisabled(null, 'block')">
                 Set all block
@@ -6509,7 +6768,7 @@ ${heading}`);
 
             <th scope="col" v-if="isAdmin">
               <cdx-checkbox :hide-label="true"
-                            :model-value="setAllValue('acb')" :indeterminate="setAllIndeterminate('acb')"
+                            :model-value="setAllState.acb.value" :indeterminate="setAllState.acb.indeterminate"
                             @update:model-value="setAllBlockFields('acb', $event)"
                             :disabled="isInputDisabled(null, 'acb')">
                 Set all account creation blocked
@@ -6517,7 +6776,7 @@ ${heading}`);
             </th>
             <th scope="col" v-if="isAdmin">
               <cdx-checkbox :hide-label="true"
-                            :model-value="setAllValue('abao')" :indeterminate="setAllIndeterminate('abao')"
+                            :model-value="setAllState.abao.value" :indeterminate="setAllState.abao.indeterminate"
                             @update:model-value="setAllBlockFields('abao', $event)"
                             :disabled="isInputDisabled(null, 'abao')">
                 Set all autoblock/anon-only
@@ -6525,7 +6784,7 @@ ${heading}`);
             </th>
             <th scope="col" v-if="isAdmin">
               <cdx-checkbox :hide-label="true"
-                            :model-value="setAllValue('ntp')" :indeterminate="setAllIndeterminate('ntp')"
+                            :model-value="setAllState.ntp.value" :indeterminate="setAllState.ntp.indeterminate"
                             @update:model-value="setAllBlockFields('ntp', $event)"
                             :disabled="isInputDisabled(null, 'ntp')">
                 Set all no talk page
@@ -6533,7 +6792,7 @@ ${heading}`);
             </th>
             <th scope="col" v-if="isAdmin">
               <cdx-checkbox :hide-label="true"
-                            :model-value="setAllValue('nem')" :indeterminate="setAllIndeterminate('nem')"
+                            :model-value="setAllState.nem.value" :indeterminate="setAllState.nem.indeterminate"
                             @update:model-value="setAllBlockFields('nem', $event)"
                             :disabled="isInputDisabled(null, 'nem')">
                 Set all no email
@@ -6553,7 +6812,7 @@ ${heading}`);
             <th scope="col"
                 v-tooltip="'Locks for accounts, global blocks for temporary accounts and IPs'">
               <cdx-checkbox :hide-label="true"
-                            :model-value="setAllValue('lock')" :indeterminate="setAllIndeterminate('lock')"
+                            :model-value="setAllState.lock.value" :indeterminate="setAllState.lock.indeterminate"
                             @update:model-value="setAllBlockFields('lock', $event)"
                             :disabled="isInputDisabled(null, 'lock')">
                 Set all global requests
@@ -6891,10 +7150,14 @@ ${heading}`);
         optionColumns,
         selectedRows,
         cdxIconAdd: z5,
-        cdxIconTrash: Q9
+        cdxIconTrash: Q9,
+        spiHelperPaginationSizeOptions
       };
     },
     computed: {
+      paginate() {
+        return this.accounts.length > spiHelperPaginationThreshold;
+      },
       columnState() {
         const rows = this.accounts;
         const state = {};
@@ -6965,34 +7228,32 @@ ${heading}`);
           return false;
         } else
           return this.selectedRows.length !== 0;
-      },
-      selectedRowIDs() {
-        return this.selectedRows.map((index) => this.accounts[index]?.id).filter((id) => !!id);
       }
     },
     watch: {
       selectedRows(newValue, oldValue) {
         const oldSet = new Set(oldValue);
         const newSet = new Set(newValue);
-        const toggle = (index, enabled) => {
-          const row = this.accounts[index];
+        const rowsById = new Map(this.accounts.map((row) => [row.id, row]));
+        const toggle = (id, enabled) => {
+          const row = rowsById.get(id);
           if (row)
             this.toggleRow(row, enabled);
         };
-        for (const index of newSet) {
-          if (!oldSet.has(index))
-            toggle(index, true);
+        for (const id of newSet) {
+          if (!oldSet.has(id))
+            toggle(id, true);
         }
-        for (const index of oldSet) {
-          if (!newSet.has(index))
-            toggle(index, false);
+        for (const id of oldSet) {
+          if (!newSet.has(id))
+            toggle(id, false);
         }
       }
     },
     methods: {
       handleSelectAll(newValue) {
         if (newValue) {
-          this.selectedRows = [...this.accounts.keys()];
+          this.selectedRows = this.accounts.map((row) => row.id);
         } else {
           this.selectedRows = [];
         }
@@ -7004,7 +7265,7 @@ ${heading}`);
         this.$emit("addRow");
       },
       removeRows() {
-        this.$emit("removeRows", this.selectedRowIDs);
+        this.$emit("removeRows", [...this.selectedRows]);
         this.selectedRows = [];
       },
       toggleColumn(key, value) {
@@ -7048,6 +7309,7 @@ ${heading}`);
     <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
       <cdx-table :hide-caption="false" caption="Links" :use-row-selection="true"
                  :columns="columns" :data="accounts" v-model:selected-rows="selectedRows"
+                 :paginate="paginate" :pagination-size-options="spiHelperPaginationSizeOptions"
                  class="spiHelper-sockTable linkTable">
         <template #header>
           <div class="header-content">
@@ -7274,10 +7536,16 @@ ${heading}`);
         return this.bySection.get(sectionId) ?? defaultEntry;
       },
       onUpdateEnabled(sectionId, enabled) {
-        this.bySection.set(sectionId, { ...this.entry(sectionId), enabled });
+        const existing = this.bySection.get(sectionId);
+        if (existing) {
+          existing.enabled = enabled;
+        }
       },
       onUpdateText(sectionId, text) {
-        this.bySection.set(sectionId, { ...this.entry(sectionId), text });
+        const existing = this.bySection.get(sectionId);
+        if (existing) {
+          existing.text = text;
+        }
       }
     },
     template: `
@@ -7590,6 +7858,7 @@ ${heading}`);
   });
   // src/ui/views/pageLookup.ts
   var ITEM_LIMIT2 = 10;
+  var SEARCH_DEBOUNCE_MS2 = 250;
   var PageLookupComponent = defineComponent({
     props: {
       modelValue: { type: String, required: true },
@@ -7615,6 +7884,7 @@ ${heading}`);
         messages: messages2,
         pageSuggestions: [],
         useLookup: spiHelperSettings.useLookup,
+        searchTimer: null,
         selection: null,
         menuConfig
       };
@@ -7632,19 +7902,35 @@ ${heading}`);
         return `${this.prefix}${this.pagename}`;
       }
     },
+    beforeUnmount() {
+      this.cancelPendingSearch();
+    },
     methods: {
-      async onUpdateInputValue(value) {
+      cancelPendingSearch() {
+        if (this.searchTimer !== null) {
+          clearTimeout(this.searchTimer);
+          this.searchTimer = null;
+        }
+      },
+      onUpdateInputValue(value) {
         this.menuConfig.searchQuery = value;
+        this.cancelPendingSearch();
         if (!value) {
           this.pageSuggestions = [];
           return;
         }
+        this.searchTimer = setTimeout(() => {
+          this.searchTimer = null;
+          this.fetchSuggestions(value);
+        }, SEARCH_DEBOUNCE_MS2);
+      },
+      async fetchSuggestions(value) {
         await this.$nextTick();
         spiHelperGetPages(this.fullPagename, this.namespace, ITEM_LIMIT2).then((pages) => {
           if (this.pagename !== value) {
             return;
           }
-          if (pages.length === 0) {
+          if (!pages?.length) {
             this.pageSuggestions = [];
             return;
           }
@@ -7656,12 +7942,17 @@ ${heading}`);
           this.pageSuggestions = [];
         });
       },
+      onFocus() {
+        if (this.pageSuggestions.length === 0) {
+          this.onLoadMore();
+        }
+      },
       onLoadMore() {
         if (!this.pagename) {
           return;
         }
         spiHelperGetPages(this.fullPagename, this.namespace, this.pageSuggestions.length + ITEM_LIMIT2).then((pages) => {
-          if (pages.length === 0) {
+          if (!pages?.length) {
             return;
           }
           this.pageSuggestions = pages.filter((page) => !page.title.includes("/Archive")).map((page) => ({
@@ -7714,7 +8005,7 @@ ${heading}`);
           :placeholder="placeholder"
           @update:input-value="onUpdateInputValue"
           @load-more="onLoadMore"
-          @focus="onLoadMore"
+          @focus="onFocus"
           @update:selected="onSelection"
           @blur="validateInstantly"
           @keydown.enter="validateInstantly"
@@ -7730,6 +8021,13 @@ ${heading}`);
   `
   });
   // src/ui/views/submitForm.ts
+  function templateMatcher(...names) {
+    return (commentText) => {
+      const templateNames = new Set(parseTemplates(commentText).map((t) => t.name));
+      const claimed = names.find((name) => templateNames.has(name.toLowerCase()));
+      return claimed ? `{{${claimed}}}` : null;
+    };
+  }
   var SubmitFormComponent = defineComponent({
     props: {
       lockComment: { type: String, required: true },
@@ -7758,8 +8056,11 @@ ${heading}`);
     },
     computed: {
       effectiveStatus() {
-        const statusData = this.caseActions.status.data;
-        return this.caseActions.status.enabled && statusData.new !== "nochange" ? statusData.new : statusData.old;
+        const status = this.caseActions.status;
+        if (!status) {
+          return "";
+        }
+        return status.enabled && status.data.new !== "nochange" ? status.data.new : status.data.old;
       },
       globalRequestTargets() {
         const blockAction = this.caseActions.block;
@@ -7780,7 +8081,7 @@ ${heading}`);
       },
       hasInvalidMove() {
         const moveAction = this.caseActions.move;
-        return moveAction.enabled && !moveAction.data.target;
+        return moveAction?.enabled === true && !moveAction.data.target;
       },
       hasInvalidDuration() {
         const blockAction = this.caseActions.block;
@@ -7791,7 +8092,7 @@ ${heading}`);
       },
       statusTemplateMismatch() {
         const comment = this.caseActions.comment;
-        if (!comment.enabled) {
+        if (!comment?.enabled) {
           return null;
         }
         const mismatch = findStatusTemplateMismatch(comment.data.text, this.effectiveStatus);
@@ -7800,19 +8101,32 @@ ${heading}`);
         }
         return mismatch.kind === "template" ? `{{${mismatch.match}}}` : `the word "${mismatch.match}"`;
       },
-      blockClaimTemplateWithoutBlock() {
-        if (!this.caseActions.comment.enabled) {
-          return null;
+      unfulfilledClaims() {
+        const comment = this.caseActions.comment;
+        if (!comment?.enabled) {
+          return [];
         }
-        const commentTemplateNames = new Set(parseTemplates(this.caseActions.comment.data.text).map((t) => t.name));
-        const blockClaimTemplates = ["bnt", "btc", "bwt", "sblock", "ipblock"];
-        const claimedTemplate = blockClaimTemplates.find((name) => commentTemplateNames.has(name));
-        if (!claimedTemplate) {
-          return null;
-        }
+        const commentText = comment.data.text;
         const blockAction = this.caseActions.block;
-        const hasBlock = blockAction.enabled && this.accounts.some((user) => user.block.block);
-        return hasBlock ? null : `{{${claimedTemplate}}}`;
+        const claims = [
+          {
+            matchers: [templateMatcher("bnt", "btc", "bwt", "sblock", "IPblock")],
+            fulfilled: blockAction.enabled && this.accounts.some((user) => user.block.block),
+            missing: "no block is set to be applied"
+          },
+          {
+            matchers: [templateMatcher("GlobalLocksRequested", "glr")],
+            fulfilled: this.globalRequestTargets.length > 0,
+            missing: "no lock or global block is set to be requested"
+          }
+        ];
+        return claims.flatMap(({ matchers, fulfilled, missing }) => {
+          if (fulfilled) {
+            return [];
+          }
+          const claimed = matchers.map((match) => match(commentText)).find((text) => text !== null);
+          return claimed ? [{ text: claimed, missing }] : [];
+        });
       },
       lenientOverrides() {
         const blockAction = this.caseActions.block;
@@ -7923,8 +8237,9 @@ ${heading}`);
         <cdx-message v-if="statusTemplateMismatch" type="warning" :inline="true">
           The comment includes {{ statusTemplateMismatch }}, but the case status is set to {{ effectiveStatus }}.
         </cdx-message>
-        <cdx-message v-if="blockClaimTemplateWithoutBlock" type="warning" :inline="true">
-          The comment includes {{ blockClaimTemplateWithoutBlock }}, but no block is set to be applied.
+        <cdx-message v-for="claim in unfulfilledClaims" :key="claim.text"
+                     type="warning" :inline="true">
+          The comment includes {{ claim.text }}, but {{ claim.missing }}.
         </cdx-message>
         <cdx-message v-for="override in lenientOverrides" :key="override.username"
                      type="warning" :inline="true">
@@ -7953,7 +8268,11 @@ ${heading}`);
   var TagPopoverComponent = defineComponent({
     props: {
       open: { type: Boolean, required: true },
-      anchor: { type: Object, required: true },
+      anchor: {
+        type: Object,
+        required: false,
+        default: null
+      },
       clipboardTag: { type: [Object, null], required: true },
       defaultMaster: { type: String, required: true }
     },
@@ -8072,7 +8391,7 @@ ${heading}`);
       }
     },
     template: `
-    <cdx-popover :anchor="anchor" v-model:open="openValue"
+    <cdx-popover v-if="anchor" :anchor="anchor" v-model:open="openValue"
                  title="Edit Tag" class="edit-tag-popover">
       <cdx-toggle-button-group :buttons="tagCategoryButtons" v-model="tagCategory" class="tag-category" />
       <div v-if="tagCategory === 'sock'" class="edit-body">
@@ -8203,6 +8522,7 @@ ${heading}`);
         beforeUnloadHandler: null,
         caseLoaded: false,
         caseLoading: false,
+        accountsLoading: false,
         targetCase: this.defaultCase,
         blockData: setupBlockActionData(),
         accounts: [],
@@ -8225,9 +8545,6 @@ ${heading}`);
           block: {
             enabled: true,
             data: this.blockData
-          },
-          move: {
-            enabled: false
           }
         };
       }
@@ -8299,6 +8616,7 @@ ${heading}`);
       }
     },
     methods: {
+      dismissMessage,
       handleUserSelected(data, rowId) {
         const userRow = this.accounts.find((r) => r.id === rowId);
         if (!userRow) {
@@ -8371,18 +8689,20 @@ ${heading}`);
             this.state.archiveNotice = archiveNoticeResult;
           }
           if (addRow) {
-            const userBlock = await spiHelperGetUserBlockSettings(this.targetCase);
+            const [userBlock, userPageText] = await Promise.all([
+              spiHelperGetUserBlockSettings(this.targetCase),
+              spiHelperGetPageText(`User:${this.targetCase}`, false)
+            ]);
             if (userBlock !== null) {
               this.blockData.userBlocks.set(this.targetCase, userBlock);
             }
-            const userPageText = await spiHelperGetPageText(`User:${this.targetCase}`, false);
             const { userRow, isLocked } = setUserRowBlockData({
               userRow: generateUserRow(this.targetCase, this.state),
-              block: userBlock,
+              block: userBlock ?? undefined,
               userPage: userPageText,
               defaultBlock: true,
-              globalUser: null,
-              globalBlock: null,
+              globalUser: undefined,
+              globalBlock: undefined,
               state: this.state
             });
             if (isLocked !== null) {
@@ -8409,39 +8729,46 @@ ${heading}`);
         mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "submit", type: "alternate" });
         startOp("alternateActions");
         this.actionsRunning = true;
-        let blockPromises = [];
-        let tagPromises = [];
-        let talkNoticePromises = [];
-        let globalRequestPromise = Promise.resolve({ lockedUsers: [], globalBlockedUsers: [] });
-        ({
-          blockPromises,
-          tagPromises,
-          talkNoticePromises,
-          globalRequestPromise
-        } = await spiHelperHandleBlocks({
-          accounts: this.accounts,
-          blockData: this.blockData
-        }));
-        const userActionsPromise = Promise.all([
-          Promise.all(blockPromises),
-          Promise.all(tagPromises),
-          globalRequestPromise
-        ]);
-        const talkNoticePromise = Promise.all(talkNoticePromises);
-        const [blockedUsers, taggedUsers, globalRequests] = await userActionsPromise;
-        await talkNoticePromise;
-        if (spiHelperSettings.log.enabled) {
-          const logMessage = `* [[:User:${context.userName}]]` + buildUserActionLogMessage({
-            blockedUsers,
-            taggedUsers,
-            lockedUsers: globalRequests.lockedUsers,
-            globalBlockedUsers: globalRequests.globalBlockedUsers
+        try {
+          const {
+            blockPromises,
+            tagPromises,
+            talkNoticePromises,
+            globalRequestPromise
+          } = await spiHelperHandleBlocks({
+            accounts: this.accounts,
+            blockData: this.blockData
           });
-          await spiHelperLog(logMessage);
+          const userActionsPromise = Promise.all([
+            Promise.all(blockPromises),
+            Promise.all(tagPromises),
+            globalRequestPromise
+          ]);
+          const talkNoticePromise = Promise.all(talkNoticePromises);
+          const [blockedUsers, taggedUsers, globalRequests] = await userActionsPromise;
+          await talkNoticePromise;
+          if (spiHelperSettings.log.enabled) {
+            const logMessage = `* [[:User:${context.userName}]]` + buildUserActionLogMessage({
+              blockedUsers,
+              taggedUsers,
+              lockedUsers: globalRequests.lockedUsers,
+              globalBlockedUsers: globalRequests.globalBlockedUsers
+            });
+            await spiHelperLog(logMessage);
+          }
+          new VueMessage({ type: "success", content: "Done!" }).show();
+          finishOp("alternateActions", "success" /* Success */);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          new VueMessage({
+            type: "error",
+            content: `Actions stopped: ${message}. Reload and try again. If the issue persists, file a bug report`
+          }).show();
+          finishOp("alternateActions", "failed" /* Failed */);
+        } finally {
+          this.blockData.fetchedUsers.clear();
+          this.actionsRunning = false;
         }
-        new VueMessage({ type: "success", content: "Done!" }).show();
-        finishOp("alternateActions", "success" /* Success */);
-        this.actionsRunning = false;
       },
       async initialiseCategoryView() {
         if (this.defaultCase === "" || this.caseLoading || this.caseLoaded) {
@@ -8460,17 +8787,22 @@ ${heading}`);
         const likelySocks = [...confirmedMembers, `User:${this.targetCase}`].map((member) => BuildUserRow(member, true));
         const possibleSocks = suspectedMembers.map((member) => BuildUserRow(member, false));
         const allUsernames = new Set([...likelySocks, ...possibleSocks].map((sock) => sock.username));
-        const allRows = await prefetchSockRows({
-          likelySocks,
-          possibleSocks,
-          allUsernames,
-          userBlocks: this.blockData.userBlocks,
-          userLocks: this.blockData.userLocks,
-          userGlobalBlocks: this.blockData.userGlobalBlocks,
-          userTags: this.blockData.userTags,
-          state: this.state
-        });
-        this.massAddUserRows(allRows);
+        this.accountsLoading = true;
+        try {
+          const allRows = await prefetchSockRows({
+            likelySocks,
+            possibleSocks,
+            allUsernames,
+            userBlocks: this.blockData.userBlocks,
+            userLocks: this.blockData.userLocks,
+            userGlobalBlocks: this.blockData.userGlobalBlocks,
+            fetchedUsers: this.blockData.fetchedUsers,
+            state: this.state
+          });
+          this.massAddUserRows(allRows);
+        } finally {
+          this.accountsLoading = false;
+        }
       },
       async initialiseCheckUserView() {
         const $reasonSearchOrigin = $("form#checkuserform", document);
@@ -8511,17 +8843,22 @@ ${heading}`);
         if (allSocks.length > 0 && allSocks[0]) {
           this.targetCase = allSocks[0].username;
         }
-        const allRows = await prefetchSockRows({
-          likelySocks: allSocks,
-          possibleSocks: [],
-          allUsernames,
-          userBlocks: this.blockData.userBlocks,
-          userLocks: this.blockData.userLocks,
-          userGlobalBlocks: this.blockData.userGlobalBlocks,
-          userTags: this.blockData.userTags,
-          state: this.state
-        });
-        this.massAddUserRows(allRows);
+        this.accountsLoading = true;
+        try {
+          const allRows = await prefetchSockRows({
+            likelySocks: allSocks,
+            possibleSocks: [],
+            allUsernames,
+            userBlocks: this.blockData.userBlocks,
+            userLocks: this.blockData.userLocks,
+            userGlobalBlocks: this.blockData.userGlobalBlocks,
+            fetchedUsers: this.blockData.fetchedUsers,
+            state: this.state
+          });
+          this.massAddUserRows(allRows);
+        } finally {
+          this.accountsLoading = false;
+        }
       },
       launchFeedback() {
         const viewPretty = this.view.charAt(0).toUpperCase() + this.view.slice(1);
@@ -8550,7 +8887,8 @@ ${heading}`);
                      placeholder="Case" label="Case title" description="Optional but recommended" />
         <div style="display: flex; gap: 10px;">
           <cdx-button weight="primary" action="progressive" @click="loadCase(true)">Load</cdx-button>
-          <cdx-progress-indicator v-show="caseLoading">Loading case</cdx-progress-indicator>
+          <cdx-progress-indicator v-if="caseLoading">Loading case</cdx-progress-indicator>
+          <cdx-progress-indicator v-else-if="accountsLoading">Loading accounts</cdx-progress-indicator>
         </div>
       </div>
       <div id="spiHelper-alternateView-Content" v-if="caseLoaded">
@@ -8582,8 +8920,8 @@ ${heading}`);
       </div>
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
       <div id="messageRow">
-        <cdx-message v-for="(message, index) in messages" :key="index" :type="message.type" :fade-in="true"
-                     :allow-user-dismiss="true">
+        <cdx-message v-for="message in messages" :key="message.id" :type="message.type" :fade-in="true"
+                     :allow-user-dismiss="true" @user-dismissed="dismissMessage(message.id)">
           <span v-if="message.isHtml" v-html="message.content" />
           <span v-else>
             {{ message.content }}
@@ -8697,17 +9035,16 @@ ${heading}`);
     bootstrap("category");
   }
   function bootstrap(pageType) {
-    mw.loader.using(["vue", "@wikimedia/codex", "mediawiki.api", "mediawiki.util", "mediawiki.user", "mediawiki.feedback"], (require2) => {
+    mw.loader.using(["vue", "@wikimedia/codex", "mediawiki.api", "mediawiki.ForeignApi", "mediawiki.util", "mediawiki.user"], (require2) => {
       const Vue = require2("vue");
       const Codex = require2("@wikimedia/codex");
       setToRaw(Vue.toRaw);
-      const feedbackDialog = new mw.Feedback(FeedbackConfig);
-      if (MODE === "live") {
-        mw.loader.load("http://localhost:8080/spihelper.css", "text/css");
-      } else if (MODE === "dev") {
+      setMarkRaw(Vue.markRaw);
+      setMessagesReactive(Vue.reactive);
+      setTableRowIdentifier(Codex.TableRowIdentifier);
+      const feedbackDialog = createLazyFeedbackDialog();
+      if (false) {} else if (true) {
         importStylesheet("User:DatGuy/spihelper.dev.css");
-      } else {
-        importStylesheet("User:DatGuy/spihelper.css");
       }
       let targetSock;
       const caseState = Vue.reactive(new CaseState);
@@ -8791,6 +9128,25 @@ ${heading}`);
         }
       });
     });
+  }
+  function createLazyFeedbackDialog() {
+    let dialog = null;
+    return {
+      launch(contents) {
+        (async () => {
+          try {
+            if (!dialog) {
+              await mw.loader.using(["mediawiki.feedback"]);
+              dialog = new mw.Feedback(getFeedbackConfig());
+            }
+            dialog.launch(contents);
+          } catch (error) {
+            mw.notify("Could not load the feedback dialog", { type: "error" });
+            console.error("Error loading mediawiki.feedback:", error);
+          }
+        })();
+      }
+    };
   }
   function createSettingsLink(Vue, Codex, feedbackDialog) {
     const settingsLink = mw.util.addPortletLink("p-cactions", "#", MODE === "production" ? "SPI-Options" : "SPI-Beta-Options", "ca-spiHelperOpts", "Modify spiHelper settings");
