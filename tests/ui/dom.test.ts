@@ -298,7 +298,7 @@ describe('scrollToSection', () => {
 
     scrollToSection(4);
 
-    expect(spy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' });
+    expect(spy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
   });
 
   test('does nothing for an unknown section id', () => {
