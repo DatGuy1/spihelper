@@ -464,7 +464,8 @@ export const AlternateViewComponent = defineComponent({
                      :namespace="4" prefix="Sockpuppet investigations/"
                      placeholder="Case" label="Case title" description="Optional but recommended" />
         <div style="display: flex; gap: 10px;">
-          <cdx-button weight="primary" action="progressive" @click="loadCase(true)">Load</cdx-button>
+          <cdx-button weight="primary" action="progressive" :disabled="caseLoading"
+                      @click="loadCase(true)">Load</cdx-button>
           <cdx-progress-indicator v-if="caseLoading">Loading case</cdx-progress-indicator>
           <cdx-progress-indicator v-else-if="accountsLoading">Loading accounts</cdx-progress-indicator>
         </div>
