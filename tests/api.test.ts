@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
+import { silenceConsoleError } from './fixtures/console.ts';
 import {
   chunkArray,
   spiHelperGetBulkGlobalBlocks,
   spiHelperGetBulkGlobalUsers,
   spiHelperGetBulkPageRestrictions,
   spiHelperGetBulkPageText,
+  spiHelperGetPages,
   spiHelperGetUsers,
 } from '../src/api.ts';
 import type {
@@ -541,9 +543,47 @@ describe('lookup requests', () => {
   });
 
   test('spiHelperGetUsers treats a failed lookup as no matches', async () => {
+    const errorSpy = silenceConsoleError();
     get.mockImplementation((() =>
       Promise.reject(new Error('network'))) as unknown as typeof mw.Api.prototype.get);
 
     expect(await spiHelperGetUsers({ from: 'Foo', limit: 10 })).toEqual([]);
+    errorSpy.mockRestore();
+  });
+
+  test('spiHelperGetPages forwards the abort signal to the request', async () => {
+    get.mockImplementation((() =>
+      Promise.resolve({ query: { allpages: [] } })) as unknown as typeof mw.Api.prototype.get);
+    const controller = new AbortController();
+
+    await spiHelperGetPages({ from: 'Foo', namespace: 4, limit: 10, signal: controller.signal });
+
+    expect(get.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
+  });
+
+  test('spiHelperGetPages logs a failed lookup', async () => {
+    const errorSpy = silenceConsoleError();
+    get.mockImplementation((() =>
+      Promise.reject(new Error('network'))) as unknown as typeof mw.Api.prototype.get);
+
+    expect(await spiHelperGetPages({ from: 'Foo', namespace: 4, limit: 10 })).toBeNull();
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  test('spiHelperGetPages stays quiet when the lookup was aborted', async () => {
+    const errorSpy = silenceConsoleError();
+    const controller = new AbortController();
+    // Aborting is what makes the request reject, so it happens in that order
+    get.mockImplementation((() => {
+      controller.abort();
+      return Promise.reject(new Error('aborted'));
+    }) as unknown as typeof mw.Api.prototype.get);
+
+    expect(await spiHelperGetPages({
+      from: 'Foo', namespace: 4, limit: 10, signal: controller.signal,
+    })).toBeNull();
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 });

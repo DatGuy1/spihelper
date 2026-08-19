@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { computed, createApp, defineComponent, ref } from 'vue';
+import { computed, createApp, defineComponent, nextTick, ref } from 'vue';
 import * as Codex from '@wikimedia/codex';
 import { SectionActionComponent } from '../../../../../src/ui/views/top';
 import { SectionEntry } from '../../../../../src/state.ts';
@@ -89,7 +89,7 @@ describe('SectionActionComponent multi-select selection', () => {
     const { vm, getUpdateCount } = mountHarness();
 
     vm.$refs.sectionAction.multiSelectSelected = [2];
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await nextTick();
 
     expect(vm.selectedSections.map(s => s.id)).toEqual([2]);
     expect(getUpdateCount()).toBeLessThanOrEqual(2);
@@ -99,7 +99,7 @@ describe('SectionActionComponent multi-select selection', () => {
     const { vm, getUpdateCount } = mountHarness([2]);
 
     vm.$refs.sectionAction.multiSelectSelected = [2, 3];
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await nextTick();
 
     expect(vm.selectedSections.map(s => s.id).sort()).toEqual([2, 3]);
     expect(getUpdateCount()).toBeLessThanOrEqual(2);
@@ -109,7 +109,7 @@ describe('SectionActionComponent multi-select selection', () => {
     const { vm, getUpdateCount } = mountHarness([2, 3]);
 
     vm.$refs.sectionAction.multiSelectChips = [{ value: 3, label: '22 September 2020' }];
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await nextTick();
 
     expect(vm.selectedSections.map(s => s.id)).toEqual([3]);
     expect(getUpdateCount()).toBeLessThanOrEqual(2);
@@ -119,7 +119,7 @@ describe('SectionActionComponent multi-select selection', () => {
     const { vm, getUpdateCount } = mountHarness([2]);
 
     vm.$refs.sectionAction.multiSelectSelected = [2];
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await nextTick();
 
     expect(getUpdateCount()).toBe(0);
   });

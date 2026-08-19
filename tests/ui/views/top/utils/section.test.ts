@@ -8,6 +8,7 @@ import type {
 } from '../../../../../src/types';
 import { isSockpuppetTag } from '../../../../../src/utils.ts';
 import { makeBlockEntry, makeUserRow } from '../../../../fixtures/spi.ts';
+import { stubApi } from '../../../../fixtures/api.ts';
 
 const mockGetBulkUserBlockSettings = mock((_usernames: Set<string>) =>
   Promise.resolve(new Map<string, BlockEntry>()));
@@ -18,12 +19,12 @@ const mockGetBulkGlobalUsers = mock((_usernames: Set<string>) =>
 const mockGetBulkGlobalBlocks = mock((_targets: Set<string>) =>
   Promise.resolve(new Map<string, GlobalBlockEntry>()));
 
-void mock.module('../../../../../src/api.ts', () => ({
+await stubApi({
   spiHelperGetBulkUserBlockSettings: mockGetBulkUserBlockSettings,
   spiHelperGetBulkPageText: mockGetBulkPageText,
   spiHelperGetBulkGlobalUsers: mockGetBulkGlobalUsers,
   spiHelperGetBulkGlobalBlocks: mockGetBulkGlobalBlocks,
-}));
+});
 
 const { prefetchSockRows } = await import('../../../../../src/ui/views/top/utils/section.ts');
 const { CaseState } = await import('../../../../../src/state.ts');

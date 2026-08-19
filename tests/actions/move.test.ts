@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { SectionEntry } from '../../src/state.ts';
 import { buildArchiveText } from '../fixtures/archive.ts';
-import { type EditPageOpts } from '../fixtures/api.ts';
+import { type EditPageOpts, stubApi } from '../fixtures/api.ts';
 
 // Mock api.ts before importing move.ts so both move.ts and the archive.ts it imports from
 // (module identity is shared) pick up the stubs.
@@ -13,7 +13,7 @@ const mockEditPage = mock((_opts: EditPageOpts) => Promise.resolve(null));
 const mockMovePage = mock((_opts: { sourcePage: string; destPage: string }) => Promise.resolve());
 const mockGetPostExpandSizeFromText = mock((_text: string) => Promise.resolve(0));
 
-void mock.module('../../src/api.ts', () => ({
+await stubApi({
   spiHelperConfigurePendingChanges: mock(() => Promise.resolve()),
   spiHelperDeletePage: mock(() => Promise.resolve()),
   spiHelperEditPage: mockEditPage,
@@ -25,11 +25,13 @@ void mock.module('../../src/api.ts', () => ({
   spiHelperGetBulkPageText: mock(() => Promise.resolve(new Map())),
   spiHelperGetPages: mock(() => Promise.resolve([])),
   spiHelperGetSPIBacklinks: mock(() => Promise.resolve([])),
-  spiHelperGetSiteRestrictionInformation: mock(() => Promise.resolve({ types: [], levels: [] })),
+  spiHelperGetSiteRestrictionInformation: mock(() => Promise.resolve({
+    types: [], levels: [], cascadinglevels: [], semiprotectedlevels: [],
+  })),
   spiHelperMovePage: mockMovePage,
   spiHelperProtectPage: mock(() => Promise.resolve()),
   spiHelperUndeletePage: mock(() => Promise.resolve()),
-}));
+});
 
 const {
   addNoteToCaseSections,

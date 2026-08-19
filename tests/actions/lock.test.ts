@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { type EditPageOpts } from '../fixtures/api.ts';
+import { type EditPageOpts, stubApi } from '../fixtures/api.ts';
 
 const mockGetPageText = mock((_title: string, _cache: boolean) => Promise.resolve(''));
 const mockEditPage = mock((_opts: EditPageOpts) => Promise.resolve<number | null>(1234));
 
-void mock.module('../../src/api.ts', () => ({
+await stubApi({
   spiHelperGetPageText: mockGetPageText,
   spiHelperEditPage: mockEditPage,
   spiHelperGetPageRev: mock(() => Promise.resolve(0)),
-}));
+});
 
 const {
   buildGlobalBlockRequest,

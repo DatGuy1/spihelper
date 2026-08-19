@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import { type BlockOptions, SockpuppetTag, type UserRow } from '../../src/types';
-import type { EditPageOpts } from '../fixtures/api.ts';
+import { type EditPageOpts, stubApi } from '../fixtures/api.ts';
 import { makeUserRow as makeBaseUserRow } from '../fixtures/spi.ts';
 
 interface BlockUserOpts {
@@ -12,10 +12,10 @@ interface BlockUserOpts {
 const mockBlockUser = mock((_opts: BlockUserOpts) => Promise.resolve(true));
 const mockEditPage = mock((_opts: EditPageOpts) => Promise.resolve<number | null>(null));
 
-void mock.module('../../src/api.ts', () => ({
+await stubApi({
   spiHelperBlockUser: mockBlockUser,
   spiHelperEditPage: mockEditPage,
-}));
+});
 
 const {
   buildBlockSummary,

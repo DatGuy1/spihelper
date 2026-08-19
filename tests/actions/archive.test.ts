@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
-import type { ArchiveSection } from '../../src/types';
+import type { AllPage, ArchiveSection } from '../../src/types';
 import { SectionEntry } from '../../src/state.ts';
 import { buildArchiveText } from '../fixtures/archive.ts';
-import { type EditPageOpts } from '../fixtures/api.ts';
+import { type EditPageOpts, stubApi } from '../fixtures/api.ts';
 
 // Mock api.ts before importing archive.ts so the module under test picks up the stubs.
 const mockGetPostExpandSize = mock((_title: string) => Promise.resolve(0));
@@ -16,10 +16,10 @@ const mockGetInvestigationSections = mock(
 const mockGetPages = mock(
   (_opts: {
     from: string; namespace: number; limit: number | 'max';
-  }): Promise<{ title: string }[] | null> => Promise.resolve([]),
+  }): Promise<AllPage[] | null> => Promise.resolve([]),
 );
 
-void mock.module('../../src/api.ts', () => ({
+await stubApi({
   spiHelperEditPage: mockEditPage,
   spiHelperGetInvestigationSections: mockGetInvestigationSections,
   spiHelperGetPageText: mockGetPageText,
@@ -27,11 +27,13 @@ void mock.module('../../src/api.ts', () => ({
   spiHelperGetPostExpandSize: mockGetPostExpandSize,
   spiHelperGetPostExpandSizeFromText: mockGetPostExpandSizeFromText,
   spiHelperMovePage: mockMovePage,
-}));
+});
 
 /** The sub-archives of Foo that the allpages listing should report as existing */
-const existingSubArchives = (...ids: number[]) => ids.map(id => ({
+const existingSubArchives = (...ids: number[]): AllPage[] => ids.map(id => ({
   title: `Wikipedia:Sockpuppet investigations/Foo/Archive/${id}`,
+  pageid: id,
+  ns: 4,
 }));
 
 const {
