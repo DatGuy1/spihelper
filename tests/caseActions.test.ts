@@ -32,14 +32,6 @@ const makeRow = (username: string, block: Partial<BlockRowData> = {}): UserRow =
   makeUserRow(username, { block: true, duration: '1 week', ...block })
 );
 
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((r) => {
-    resolve = r;
-  });
-  return { promise, resolve };
-}
-
 /**
  * Stubs the role checks and API calls the block/tag/lock pipeline reaches for
  * but only work as a userscript, and hands back the spies tests assert against
@@ -84,7 +76,7 @@ describe('spiHelperHandleBlocks', () => {
     // promises were racing against an array that was still empty at that point.
     stubUserActions();
 
-    const blockGate = deferred<boolean>();
+    const blockGate = Promise.withResolvers<boolean>();
     spyOn(blockModule, 'spiHelperProcessBlockRow').mockReturnValue(blockGate.promise);
 
     const row = makeRow('Vandal', {

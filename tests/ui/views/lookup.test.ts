@@ -25,13 +25,10 @@ function respond(lookup: { envelope(labels: string[]): unknown }, labels: string
 
 /** Leave the next request in flight; the returned function answers it. */
 function respondLater(lookup: { envelope(labels: string[]): unknown }) {
-  let settle: (response: unknown) => void = () => { /* replaced below */ };
-  const inFlight = new Promise<unknown>((resolve) => {
-    settle = resolve;
-  });
-  apiGet.mockImplementationOnce(() => inFlight);
+  const { promise, resolve } = Promise.withResolvers<unknown>();
+  apiGet.mockImplementationOnce(() => promise);
   return (labels: string[]) => {
-    settle(lookup.envelope(labels));
+    resolve(lookup.envelope(labels));
   };
 }
 
