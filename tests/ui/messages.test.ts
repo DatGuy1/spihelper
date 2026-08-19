@@ -1,6 +1,14 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, jest, test } from 'bun:test';
 import { watchEffect } from 'vue';
 import { VueMessage, dismissMessage, messages } from '../../src/ui/messages.ts';
+
+beforeEach(() => {
+  jest.useFakeTimers();
+});
+
+afterEach(() => {
+  jest.useRealTimers();
+});
 
 describe('show', () => {
   test('appends the message and marks it shown', () => {
@@ -50,10 +58,10 @@ describe('showOnce', () => {
     expect(messages).toHaveLength(2);
   });
 
-  test('shows again once the duplicate has been dismissed', async () => {
+  test('shows again once the duplicate has been dismissed', () => {
     const first = new VueMessage({ type: 'warning', content: 'Unreadable tag' }).showOnce();
     dismissMessage(first.id);
-    await new Promise(resolve => setTimeout(resolve, 300));
+    jest.advanceTimersByTime(300);
 
     new VueMessage({ type: 'warning', content: 'Unreadable tag' }).showOnce();
 
@@ -62,7 +70,7 @@ describe('showOnce', () => {
 });
 
 describe('dismissMessage', () => {
-  test('removes the dismissed message once the fade has run', async () => {
+  test('removes the dismissed message once the fade has run', () => {
     const first = new VueMessage({ type: 'notice', content: 'first' }).show();
     const second = new VueMessage({ type: 'notice', content: 'second' }).show();
 
@@ -70,17 +78,17 @@ describe('dismissMessage', () => {
     // Removal is deferred so Codex's fade-out isn't cut short
     expect(messages).toHaveLength(2);
 
-    await new Promise(resolve => setTimeout(resolve, 300));
+    jest.advanceTimersByTime(300);
     expect(messages).toHaveLength(1);
     expect(messages[0]).toEqual(second);
   });
 
-  test('still updates the right message after an earlier one is removed', async () => {
+  test('still updates the right message after an earlier one is removed', () => {
     const first = new VueMessage({ type: 'notice', content: 'first' }).show();
     const second = new VueMessage({ type: 'notice', content: 'Editing X' }).show();
 
     dismissMessage(first.id);
-    await new Promise(resolve => setTimeout(resolve, 300));
+    jest.advanceTimersByTime(300);
 
     // An index stored at show() time would now point past the end of the array
     second.update({ type: 'success', content: 'Saved X' });
@@ -88,11 +96,11 @@ describe('dismissMessage', () => {
     expect(messages[0]).toMatchObject({ type: 'success', content: 'Saved X' });
   });
 
-  test('ignores an id that is no longer present', async () => {
+  test('ignores an id that is no longer present', () => {
     const msg = new VueMessage({ type: 'notice', content: 'only' }).show();
     dismissMessage(msg.id);
     dismissMessage(msg.id);
-    await new Promise(resolve => setTimeout(resolve, 300));
+    jest.advanceTimersByTime(300);
     expect(messages).toHaveLength(0);
   });
 });
