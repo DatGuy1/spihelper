@@ -256,6 +256,39 @@ export function isInputDisabled(
   return !blockOptions.override && userBlocks.get(row.username) !== undefined;
 }
 
+/**
+ * A setTimeout that a signal can cut short.
+ *
+ * Always resolves, never rejects: callers check `signal.aborted` after awaiting anyway,
+ * and rejecting would need a catch around every step of a search flow.
+ */
+export function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    // An aborted signal never emits the event, so it would otherwise wait it out
+    if (signal.aborted) {
+      resolve();
+      return;
+    }
+
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      resolve();
+    }, { once: true });
+  });
+}
+
+/**
+ * Whether a search has been superseded since it started.
+ *
+ * Reading `aborted` through a call is deliberate: it's a readonly property, so checking
+ * it inline narrows it to false for the rest of the function, and TypeScript flags the
+ * next check as dead even though awaiting in between is exactly when it changes.
+ */
+export function isAborted(signal: AbortSignal): boolean {
+  return signal.aborted;
+}
+
 export let toRaw: (<T>(observed: T) => T) | null = null;
 export function setToRaw(toRawArg: <T>(observed: T) => T) {
   toRaw = toRawArg;

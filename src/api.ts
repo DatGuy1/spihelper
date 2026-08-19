@@ -318,7 +318,12 @@ export async function spiHelperGetBulkGlobalBlocks(
   return resultMap;
 }
 
-export async function spiHelperGetUsers(from: string, limit: number): Promise<AllUser[]> {
+export async function spiHelperGetUsers(opts: {
+  from: string;
+  limit: number;
+  signal?: AbortSignal;
+}): Promise<AllUser[]> {
+  const { from, limit, signal } = opts;
   const api = spiHelperGetAPI();
   const request: ApiQueryAllUsersParams = {
     action: 'query',
@@ -329,10 +334,14 @@ export async function spiHelperGetUsers(from: string, limit: number): Promise<Al
     formatversion: '2',
   };
   try {
-    const response = await api.get(request) as AllUsersResponse;
+    const response = await api.get(request, { signal }) as AllUsersResponse;
     return response.query.allusers;
   }
-  catch {
+  catch (error) {
+    if (signal?.aborted) {
+      return [];
+    }
+    console.error('spiHelperGetUsers fetch error:', error);
     return [];
   }
 }
@@ -342,9 +351,13 @@ export async function spiHelperGetUsers(from: string, limit: number): Promise<Al
  *
  * @return The matching pages, or null if the request failed
  */
-export async function spiHelperGetPages(
-  from: string, namespace: number, limit: number | 'max',
-): Promise<AllPage[] | null> {
+export async function spiHelperGetPages(opts: {
+  from: string;
+  namespace: number;
+  limit: number | 'max';
+  signal?: AbortSignal;
+}): Promise<AllPage[] | null> {
+  const { from, namespace, limit, signal } = opts;
   const api = spiHelperGetAPI();
   const request: ApiQueryAllPagesParams = {
     action: 'query',
@@ -355,10 +368,13 @@ export async function spiHelperGetPages(
     formatversion: '2',
   };
   try {
-    const response = await api.get(request) as AllPagesResponse;
+    const response = await api.get(request, { signal }) as AllPagesResponse;
     return response.query.allpages;
   }
   catch (error) {
+    if (signal?.aborted) {
+      return null;
+    }
     console.error('spiHelperGetPages fetch error:', error);
     return null;
   }

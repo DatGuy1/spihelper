@@ -14,8 +14,9 @@ const mockGetInvestigationSections = mock(
   (_opts: { pageName?: string; content?: string }): Promise<SectionEntry[]> => Promise.resolve([]),
 );
 const mockGetPages = mock(
-  (_from: string, _namespace: number, _limit: number | 'max'): Promise<{ title: string }[] | null> =>
-    Promise.resolve([]),
+  (_opts: {
+    from: string; namespace: number; limit: number | 'max';
+  }): Promise<{ title: string }[] | null> => Promise.resolve([]),
 );
 
 void mock.module('../../src/api.ts', () => ({
@@ -124,9 +125,9 @@ describe('spiHelperMoveArchiveIfOverflowing', () => {
       'Wikipedia:Sockpuppet investigations/Foo', 'Wikipedia:Sockpuppet investigations/Foo/Archive',
     );
     // apprefix is namespace-relative, so it carries no "Wikipedia:"
-    expect(mockGetPages).toHaveBeenCalledWith(
-      'Sockpuppet investigations/Foo/Archive/', 4, 'max',
-    );
+    expect(mockGetPages).toHaveBeenCalledWith({
+      from: 'Sockpuppet investigations/Foo/Archive/', namespace: 4, limit: 'max',
+    });
   });
 });
 

@@ -5,6 +5,7 @@ import {
   spiHelperGetBulkGlobalUsers,
   spiHelperGetBulkPageRestrictions,
   spiHelperGetBulkPageText,
+  spiHelperGetUsers,
 } from '../src/api.ts';
 import type {
   GlobalBlocksResponse,
@@ -515,5 +516,34 @@ describe('fetchInChunks chunk sizing', () => {
     await spiHelperGetBulkGlobalUsers(names(51));
 
     expect(post).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('lookup requests', () => {
+  let get: ReturnType<typeof spyOn<typeof mw.Api.prototype, 'get'>>;
+
+  beforeEach(() => {
+    get = spyOn(mw.Api.prototype, 'get');
+  });
+
+  afterEach(() => {
+    get.mockRestore();
+  });
+
+  test('spiHelperGetUsers forwards the abort signal to the request', async () => {
+    get.mockImplementation((() =>
+      Promise.resolve({ query: { allusers: [] } })) as unknown as typeof mw.Api.prototype.get);
+    const controller = new AbortController();
+
+    await spiHelperGetUsers({ from: 'Foo', limit: 10, signal: controller.signal });
+
+    expect(get.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
+  });
+
+  test('spiHelperGetUsers treats a failed lookup as no matches', async () => {
+    get.mockImplementation((() =>
+      Promise.reject(new Error('network'))) as unknown as typeof mw.Api.prototype.get);
+
+    expect(await spiHelperGetUsers({ from: 'Foo', limit: 10 })).toEqual([]);
   });
 });

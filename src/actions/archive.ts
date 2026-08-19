@@ -265,11 +265,11 @@ export async function spiHelperMoveArchiveIfOverflowing(
  * Returns the slot number, or null if the 30-slot limit is reached.
  */
 export async function findFirstEmptySubArchive(archiveName: string): Promise<number | null> {
-  const subArchives = await spiHelperGetPages(
-    `${archiveName.replace(/^Wikipedia:/, '')}/`,
-    4,
-    'max',
-  );
+  const subArchives = await spiHelperGetPages({
+    from: `${archiveName.replace(/^Wikipedia:/, '')}/`,
+    namespace: 4,
+    limit: 'max',
+  });
   if (subArchives === null) {
     // Treating a failed listing as "nothing exists" would pick a slot that is already
     // taken, and the caller overwrites whatever is in it

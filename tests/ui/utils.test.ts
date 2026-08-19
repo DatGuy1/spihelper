@@ -5,9 +5,11 @@ import { spiHelperSettings } from '../../src/options';
 import { CaseState } from '../../src/state.ts';
 import { ParsedArchiveNotice, SockpuppetTag } from '../../src/types';
 import {
+  abortableDelay,
   generateUserRow,
   getDefaultUserRow,
   getSockEntries,
+  isAborted,
   isMenuGroupData,
   pruneMenuData,
   setUserRowBlockData,
@@ -408,5 +410,43 @@ describe('getSockEntries', () => {
       const allNames = [...likely, ...possible].map(r => r.username);
       expect(allNames.filter(n => n === 'SockA')).toHaveLength(1);
     });
+  });
+});
+
+describe('abortableDelay', () => {
+  test('resolves once the delay elapses', async () => {
+    const controller = new AbortController();
+    let elapsed = false;
+    const delay = abortableDelay(5, controller.signal).then(() => {
+      elapsed = true;
+    });
+    expect(elapsed).toBe(false);
+    await delay;
+    expect(elapsed).toBe(true);
+    expect(isAborted(controller.signal)).toBe(false);
+  });
+
+  test('resolves early, rather than rejecting, when the signal aborts', async () => {
+    const controller = new AbortController();
+    const delay = abortableDelay(100_000, controller.signal);
+    controller.abort();
+    await delay;
+    expect(isAborted(controller.signal)).toBe(true);
+  });
+
+  test('clears the timer it queued when aborted', async () => {
+    const clearSpy = spyOn(globalThis, 'clearTimeout');
+    const controller = new AbortController();
+    const delay = abortableDelay(100_000, controller.signal);
+    controller.abort();
+    await delay;
+    expect(clearSpy).toHaveBeenCalled();
+    clearSpy.mockRestore();
+  });
+
+  test('resolves immediately for a signal that has already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await abortableDelay(100_000, controller.signal);
   });
 });

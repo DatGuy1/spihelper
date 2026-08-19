@@ -1,6 +1,8 @@
 import { defineComponent } from 'vue';
 import { spiHelperGetPages } from '../../api.ts';
 import { type MenuItemData, type ValidationStatusType } from '@wikimedia/codex';
+import type { AllPage } from '../../types';
+import { abortableDelay, isAborted } from '../utils.ts';
 import { spiHelperSettings } from '../../options';
 
 const ITEM_LIMIT = 10;
@@ -13,7 +15,7 @@ interface Data {
   pageSuggestions: MenuItemData[];
   menuConfig: { visibleItemLimit: number; searchQuery: string };
   useLookup: boolean;
-  searchTimer: ReturnType<typeof setTimeout> | null;
+  searchController: AbortController | null;
 }
 
 export const PageLookupComponent = defineComponent({
@@ -42,7 +44,7 @@ export const PageLookupComponent = defineComponent({
       messages: messages,
       pageSuggestions: [],
       useLookup: spiHelperSettings.useLookup,
-      searchTimer: null,
+      searchController: null,
       selection: null,
       menuConfig,
     };
@@ -65,78 +67,67 @@ export const PageLookupComponent = defineComponent({
   },
   methods: {
     cancelPendingSearch() {
-      if (this.searchTimer !== null) {
-        clearTimeout(this.searchTimer);
-        this.searchTimer = null;
-      }
+      this.searchController?.abort();
+      this.searchController = null;
     },
-    onUpdateInputValue(value: string) {
-      this.menuConfig.searchQuery = value;
+    startSearch(): AbortSignal {
       this.cancelPendingSearch();
+      const controller = new AbortController();
+      this.searchController = controller;
+      return controller.signal;
+    },
+    async onUpdateInputValue(value: string) {
+      this.menuConfig.searchQuery = value;
+      const signal = this.startSearch();
       // Clear menu items if there is no input.
       if (!value) {
         this.pageSuggestions = [];
         return;
       }
 
-      this.searchTimer = setTimeout(() => {
-        this.searchTimer = null;
-        void this.fetchSuggestions(value);
-      }, SEARCH_DEBOUNCE_MS);
-    },
-    async fetchSuggestions(value: string) {
-      await this.$nextTick();
-      spiHelperGetPages(this.fullPagename, this.namespace, ITEM_LIMIT)
-        .then((pages) => {
-          // Make sure this data is still relevant first.
-          if (this.pagename !== value) {
-            return;
-          }
+      // Built from the typed value rather than fullPagename: the prop behind that only
+      // catches up once the parent has emitted it back, and nothing here needs to wait
+      const query = `${this.prefix}${value}`;
+      await abortableDelay(SEARCH_DEBOUNCE_MS, signal);
+      if (isAborted(signal)) {
+        return;
+      }
 
-          // Reset the menu items if there are no results.
-          if (!pages?.length) {
-            this.pageSuggestions = [];
-            return;
-          }
+      const pages = await spiHelperGetPages({
+        from: query,
+        namespace: this.namespace,
+        limit: ITEM_LIMIT,
+        signal,
+      });
+      // An aborted request resolves to null too, so check before clearing
+      if (isAborted(signal)) {
+        return;
+      }
 
-          // Update the suggestions
-          this.pageSuggestions = pages
-            .filter(page => !page.title.includes('/Archive'))
-            .map(page => ({
-              label: this.stripTitle(page.title),
-              value: page.pageid.toString(),
-            }));
-        })
-        .catch(() => {
-          // On error, set results to empty.
-          this.pageSuggestions = [];
-        });
+      this.pageSuggestions = this.toMenuItems(pages ?? []);
     },
     onFocus() {
       if (this.pageSuggestions.length === 0) {
-        this.onLoadMore();
+        void this.onLoadMore();
       }
     },
-    onLoadMore() {
+    async onLoadMore() {
       if (!this.pagename) {
         return;
       }
 
-      spiHelperGetPages(this.fullPagename, this.namespace, this.pageSuggestions.length + ITEM_LIMIT)
-        .then((pages) => {
-          if (!pages?.length) {
-            return;
-          }
+      const signal = this.startSearch();
+      const pages = await spiHelperGetPages({
+        from: this.fullPagename,
+        namespace: this.namespace,
+        limit: this.pageSuggestions.length + ITEM_LIMIT,
+        signal,
+      });
+      if (isAborted(signal) || !pages?.length) {
+        return;
+      }
 
-          this.pageSuggestions = pages
-            .filter(page => !page.title.includes('/Archive'))
-            .map(page => ({
-              label: this.stripTitle(page.title),
-              value: page.pageid.toString(),
-            }));
-        },
-        () => { /* empty */ },
-        );
+      this.pageSuggestions = this.toMenuItems(pages);
     },
     async validateInstantly() {
       await this.$nextTick();
@@ -154,6 +145,14 @@ export const PageLookupComponent = defineComponent({
       if (newSelection !== null) {
         this.lookupStatus = 'success';
       }
+    },
+    toMenuItems(pages: AllPage[]): MenuItemData[] {
+      return pages
+        .filter(page => !page.title.includes('/Archive'))
+        .map(page => ({
+          label: this.stripTitle(page.title),
+          value: page.pageid.toString(),
+        }));
     },
     stripTitle(fullTitle: string): string {
       if (this.prefix) {

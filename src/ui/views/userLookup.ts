@@ -2,12 +2,21 @@ import { defineComponent } from 'vue';
 import { spiHelperGetUsers } from '../../api.ts';
 import type { MenuItemData, ValidationStatusType } from '@wikimedia/codex';
 import type { AllUser, UserRow } from '../../types';
+import { abortableDelay, isAborted } from '../utils.ts';
 import { spiHelperSettings } from '../../options';
 
+type UserMenuItem = MenuItemData & { customData: AllUser };
+
 const ITEM_LIMIT = 10;
-// Typing a name would otherwise fire one list=allusers request per keystroke, and a table
-// of socks has one of these per row
 const SEARCH_DEBOUNCE_MS = 250;
+
+function toMenuItem(user: AllUser): UserMenuItem {
+  return {
+    label: user.name,
+    value: user.userid.toString(),
+    customData: user,
+  };
+}
 
 export function UpdateUserAllUserData(data: AllUser, row: UserRow) {
   if (data.blockid !== undefined) {
@@ -41,10 +50,10 @@ interface Data {
   lookupStatus: ValidationStatusType;
   messages: { success: string; warning: string };
   selection: string | number | null;
-  userSuggestions: (MenuItemData & { customData: AllUser })[];
+  userSuggestions: UserMenuItem[];
   menuConfig: { visibleItemLimit: number; searchQuery: string };
   useLookup: boolean;
-  searchTimer: ReturnType<typeof setTimeout> | null;
+  searchController: AbortController | null;
 }
 
 export const UserLookupComponent = defineComponent({
@@ -72,7 +81,7 @@ export const UserLookupComponent = defineComponent({
       userSuggestions: [],
       menuConfig,
       useLookup: spiHelperSettings.useLookup,
-      searchTimer: null,
+      searchController: null,
     };
   },
   computed: {
@@ -90,78 +99,60 @@ export const UserLookupComponent = defineComponent({
   },
   methods: {
     cancelPendingSearch() {
-      if (this.searchTimer !== null) {
-        clearTimeout(this.searchTimer);
-        this.searchTimer = null;
-      }
+      this.searchController?.abort();
+      this.searchController = null;
     },
-    onUpdateInputValue(value: string) {
+    startSearch(): AbortSignal {
+      this.cancelPendingSearch();
+      const controller = new AbortController();
+      this.searchController = controller;
+      return controller.signal;
+    },
+    async onUpdateInputValue(value: string) {
       const trimmedValue = value.trim();
       this.menuConfig.searchQuery = trimmedValue;
-      // Supersede whatever the previous keystroke queued up
-      this.cancelPendingSearch();
+      const signal = this.startSearch();
       // Clear menu items if there is no input.
       if (!trimmedValue) {
         this.userSuggestions = [];
         return;
       }
 
-      this.searchTimer = setTimeout(() => {
-        this.searchTimer = null;
-        this.fetchSuggestions(value, trimmedValue);
-      }, SEARCH_DEBOUNCE_MS);
-    },
-    fetchSuggestions(value: string, trimmedValue: string) {
-      spiHelperGetUsers(trimmedValue, ITEM_LIMIT)
-        .then((users) => {
-          // Make sure this data is still relevant first.
-          if (this.username !== value && this.username !== trimmedValue) {
-            return;
-          }
+      await abortableDelay(SEARCH_DEBOUNCE_MS, signal);
+      if (isAborted(signal)) {
+        return;
+      }
 
-          // Reset the menu items if there are no results.
-          if (users.length === 0) {
-            this.userSuggestions = [];
-            return;
-          }
+      const users = await spiHelperGetUsers({ from: trimmedValue, limit: ITEM_LIMIT, signal });
+      // An aborted request resolves to an empty list too, so check before clearing
+      if (isAborted(signal)) {
+        return;
+      }
 
-          // Update the suggestions
-          this.userSuggestions = users.map(user => ({
-            label: user.name,
-            value: user.userid.toString(),
-            customData: user,
-          }));
-        })
-        .catch(() => {
-          // On error, set results to empty.
-          this.userSuggestions = [];
-        });
+      this.userSuggestions = users.map(toMenuItem);
     },
     // Focusing a field that already has suggestions doesn't need to re-ask for them
     onFocus() {
       if (this.userSuggestions.length === 0) {
-        this.onLoadMore();
+        void this.onLoadMore();
       }
     },
-    onLoadMore() {
+    async onLoadMore() {
       if (!this.username) {
         return;
       }
 
-      spiHelperGetUsers(this.username, this.userSuggestions.length + ITEM_LIMIT)
-        .then((users) => {
-          if (users.length === 0) {
-            return;
-          }
+      const signal = this.startSearch();
+      const users = await spiHelperGetUsers({
+        from: this.username.trim(),
+        limit: this.userSuggestions.length + ITEM_LIMIT,
+        signal,
+      });
+      if (isAborted(signal) || users.length === 0) {
+        return;
+      }
 
-          this.userSuggestions = users.map(user => ({
-            label: user.name,
-            value: user.userid.toString(),
-            customData: user,
-          }));
-        },
-        () => { /* empty */ },
-        );
+      this.userSuggestions = users.map(toMenuItem);
     },
     async validateInstantly() {
       // Await nextTick in case the user has selected a menu item via the Enter key - this
