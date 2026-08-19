@@ -21,7 +21,7 @@ import { saveOptions, spiHelperSettings } from '../../../options';
 import { UpdateUserAllUserData } from '../userLookup.ts';
 import { spiHelperParseArchiveNotice } from '../../../archivenotice.ts';
 import { context } from '../../../context.ts';
-import { getDefaultUserRow, getSockEntries, updateUserBlockDataSettings } from '../../utils.ts';
+import { getDefaultUserRow, getSockEntries, isAborted, updateUserBlockDataSettings } from '../../utils.ts';
 import {
   type ActionButtons,
   getActionButtons,
@@ -56,6 +56,7 @@ interface Data {
   unpinned: boolean;
   buttonLayout: boolean;
   sectionAccountNames: Set<string>;
+  sectionAccountsController: AbortController | null;
   actionButtons: ActionButtons;
   actionButtonKeys: CaseActionName[];
   caseActions: CaseActions;
@@ -88,6 +89,7 @@ export const TopViewComponent = defineComponent({
       actionButtons,
       actionButtonKeys,
       sectionAccountNames: new Set<string>(),
+      sectionAccountsController: null,
       caseActions: getInitialCaseActions(),
       accounts: [],
       messages,
@@ -467,7 +469,17 @@ export const TopViewComponent = defineComponent({
         }
       }
     },
+    /**
+     * Supersedes whatever section load was still running.
+     */
+    startSectionAccountsLoad(): AbortSignal {
+      this.sectionAccountsController?.abort();
+      const controller = new AbortController();
+      this.sectionAccountsController = controller;
+      return controller.signal;
+    },
     async loadSectionAccounts(selection: SectionSelection) {
+      const signal = this.startSectionAccountsLoad();
       this.accounts = this.accounts.filter(row => !this.sectionAccountNames.has(row.username));
       // Prefill block and link tables. For a multi-section selection, union the text of every
       // selected section so accounts from any of them are picked up in one combined pass.
@@ -483,6 +495,9 @@ export const TopViewComponent = defineComponent({
         }
         return loadSectionText(selection.section);
       })();
+      if (isAborted(signal)) {
+        return;
+      }
 
       const [likelySocks, possibleSocks, allUsernames] = getSockEntries({
         text: searchText,
@@ -499,6 +514,10 @@ export const TopViewComponent = defineComponent({
         fetchedUsers: this.caseActions.block.data.fetchedUsers,
         state: this.state,
       });
+      // A superseded load must not add its rows
+      if (isAborted(signal)) {
+        return;
+      }
       this.sectionAccountNames = new Set(this.massAddUserRows(allRows).map(row => row.username));
     },
     // Changes the case status in the comment box
