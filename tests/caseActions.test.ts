@@ -7,7 +7,7 @@ import * as apiModule from '../src/api.ts';
 import * as roleModule from '../src/role.ts';
 import { spiHelperHandleBlocks, spiHelperPerformActions } from '../src/caseActions.ts';
 import { spiHelperSettings } from '../src/options';
-import { CaseState, SectionEntry } from '../src/state.ts';
+import { CaseState } from '../src/state.ts';
 import { getInitialCaseActions } from '../src/ui/views/top/utils';
 import { setupBlockActionData } from '../src/utils.ts';
 import { makeSockTag, makeUserRow } from './fixtures/spi.ts';
@@ -18,10 +18,10 @@ import {
   type GlobalBlockEntry,
   type GlobalUser,
   ParsedArchiveNotice,
-  SockmasterTag,
-  SockpuppetTag,
+  SectionEntry,
   type UserRow,
 } from '../src/types';
+import { SockmasterTag, SockpuppetTag } from '../src/tags.ts';
 
 const contextModule = await import('../src/context.ts');
 contextModule.setContext('Wikipedia:Sockpuppet investigations/Foo');

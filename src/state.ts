@@ -1,6 +1,6 @@
 import { context } from './context.ts';
 import { spiHelperGetInvestigationSections, spiHelperGetPageText } from './api.ts';
-import { type ParsedArchiveNotice } from './types';
+import { type ParsedArchiveNotice, type SectionEntry } from './types';
 
 export type SectionSelection = | { type: 'all' }
   | { type: 'single'; section: SectionEntry }
@@ -39,19 +39,6 @@ export class CaseState {
       this.selectedSection = null;
     }
     this.archiveNotice = archiveNotice;
-  }
-}
-
-export class SectionEntry {
-  id: number;
-  name: string;
-
-  _text: string | null = null;
-  _loadingPromise: Promise<string> | null = null;
-
-  constructor(id: number, name: string) {
-    this.id = id;
-    this.name = name;
   }
 }
 

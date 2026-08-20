@@ -1,6 +1,6 @@
 import { describe, expect, spyOn, test } from 'bun:test';
-import type { BlockEntry, BlockOptions, BlockRowData, InputColumn, Tag, TagRowPopoverState, TagStatusDisplay, UserRow } from '../../../../../src/types';
-import { SockmasterTag, SockpuppetTag } from '../../../../../src/types';
+import type { BlockEntry, BlockOptions, BlockRowData, InputColumn, TagRowPopoverState, TagStatusDisplay, UserRow } from '../../../../../src/types';
+import { SockmasterTag, SockpuppetTag, type Tag } from '../../../../../src/tags.ts';
 import { BlockActionComponent } from '../../../../../src/ui/views/top';
 import { isInputDisabled } from '../../../../../src/ui/utils.ts';
 import { makeBlockEntry as makeBaseBlockEntry, makeSockTag, makeUserRow } from '../../../../fixtures/spi.ts';

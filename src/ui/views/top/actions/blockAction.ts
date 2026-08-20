@@ -13,14 +13,18 @@ import {
   type BlockRowData,
   type InputColumn,
   SockmasterTagStatuses,
-  SockpuppetTag,
   SockpuppetTagStatuses,
-  type Tag,
   type TagRowPopoverState,
   type TagStatusDisplay,
   type UserRow,
 } from '../../../../types';
-import { isNonRegisteredAccount, isSockmasterTag, isSockpuppetTag } from '../../../../utils.ts';
+import { isNonRegisteredAccount } from '../../../../utils.ts';
+import {
+  SockpuppetTag,
+  type Tag,
+  isSockmasterTag,
+  isSockpuppetTag,
+} from '../../../../tags.ts';
 import { spiHelperPaginationSizeOptions, spiHelperPaginationThreshold } from '../../../../constants';
 import { isInputDisabled } from '../../../utils.ts';
 import type { TagPopoverComponent } from '../../tagPopover.ts';

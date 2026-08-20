@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { computed, createApp, defineComponent, nextTick, ref } from 'vue';
-import * as Codex from '@wikimedia/codex';
+import { CdxButton, CdxMultiselectLookup, CdxSelect, CdxToggleSwitch } from '@wikimedia/codex';
 import { SectionActionComponent } from '../../../../../src/ui/views/top';
-import { SectionEntry } from '../../../../../src/state.ts';
+import { SectionEntry } from '../../../../../src/types';
 
 // Mount the real SectionAction component tree
 function mountHarness(initialMultiSelectIds: number[] = []) {
@@ -58,10 +58,10 @@ function mountHarness(initialMultiSelectIds: number[] = []) {
   document.body.appendChild(el);
   const app = createApp(Harness);
   /* eslint-disable vue/component-definition-name-casing */
-  app.component('cdx-select', Codex.CdxSelect);
-  app.component('cdx-button', Codex.CdxButton);
-  app.component('cdx-toggle-switch', Codex.CdxToggleSwitch);
-  app.component('cdx-multiselect-lookup', Codex.CdxMultiselectLookup);
+  app.component('cdx-select', CdxSelect);
+  app.component('cdx-button', CdxButton);
+  app.component('cdx-toggle-switch', CdxToggleSwitch);
+  app.component('cdx-multiselect-lookup', CdxMultiselectLookup);
   /* eslint-enable vue/component-definition-name-casing */
   interface SectionActionExposed {
     multiSelectSelected: (string | number)[];

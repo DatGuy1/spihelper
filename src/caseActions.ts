@@ -39,10 +39,9 @@ import {
   buildUserActionLogMessage,
   countOf,
   isNonRegisteredAccount,
-  isSockmasterTag,
-  isSockpuppetTag,
   spiHelperNormalizeUsername,
 } from './utils.ts';
+import { isSockmasterTag, isSockpuppetTag } from './tags.ts';
 import {
   type BlockActionData,
   type CaseAction,

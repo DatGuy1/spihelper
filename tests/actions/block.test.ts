@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
-import { type BlockOptions, SockpuppetTag, type UserRow } from '../../src/types';
+import type { BlockOptions, UserRow } from '../../src/types';
+import { SockpuppetTag } from '../../src/tags.ts';
 import { type EditPageOpts, stubApi } from '../fixtures/api.ts';
 import { makeUserRow as makeBaseUserRow } from '../fixtures/spi.ts';
 

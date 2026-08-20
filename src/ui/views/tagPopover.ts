@@ -1,13 +1,11 @@
 import { type ComponentPublicInstance, type PropType, defineComponent } from 'vue';
 import {
   AltmasterTagStatuses,
-  SockmasterTag,
   SockmasterTagStatuses,
-  SockpuppetTag,
   SockpuppetTagStatuses,
-  type Tag,
   type TagStatusDisplay,
 } from '../../types';
+import { SockmasterTag, SockpuppetTag, type Tag, isSockpuppetTag } from '../../tags.ts';
 import {
   type Icon,
   cdxIconAdd,
@@ -17,7 +15,7 @@ import {
   cdxIconUserAvatar,
   cdxIconUserAvatarOutline,
 } from '@wikimedia/codex-icons';
-import { isSockpuppetTag, spiHelperNormalizeUsername } from '../../utils.ts';
+import { spiHelperNormalizeUsername } from '../../utils.ts';
 
 /** Turns a status map into the `buttons` prop of a cdx-toggle-button-group. */
 function toStatusButtons<T extends string>(

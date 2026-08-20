@@ -16,7 +16,6 @@ import { UpdateUserAllUserData } from './userLookup.ts';
 import {
   generateUserRow,
   getDefaultUserRow,
-  getSockEntries,
   setUserRowBlockData,
   updateUserBlockDataSettings,
 } from '../utils.ts';
@@ -26,7 +25,7 @@ import { context, setContext } from '../../context.ts';
 import { buildUserActionLogMessage, setupBlockActionData, spiHelperNormalizeUsername } from '../../utils.ts';
 import { spiHelperParseArchiveNotice } from '../../archivenotice.ts';
 import { spiHelperGetCategoryMembers, spiHelperGetPageText, spiHelperGetUserBlockSettings } from '../../api.ts';
-import { prefetchSockRows } from './top/utils';
+import { getSockEntries, prefetchSockRows } from './top/utils';
 import { MODE, VERSION } from '../../constants';
 
 interface Data {

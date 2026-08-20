@@ -3,7 +3,7 @@
 // used directly - see the local wrappers in the consuming test files.
 
 import type { BlockEntry, BlockRowData, LinkRowData, UserRow } from '../../src/types';
-import { SockpuppetTag } from '../../src/types';
+import { SockpuppetTag } from '../../src/tags.ts';
 
 /**
  * A user row with every checkbox off.

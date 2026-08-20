@@ -1,4 +1,5 @@
-import { type GlobalUser, type MasterNeeds, type Tag, type UserRow } from '../types';
+import { type GlobalUser, type MasterNeeds, type UserRow } from '../types';
+import { type Tag, isSockmasterTag, isSockpuppetTag, parseUserTags } from '../tags.ts';
 import { spiHelperSettings } from '../options';
 import {
   spiHelperEditPage,
@@ -9,9 +10,6 @@ import {
   buildTitleLinkHtml,
   countOf,
   isNonRegisteredAccount,
-  isSockmasterTag,
-  isSockpuppetTag,
-  parseUserTags,
 } from '../utils.ts';
 import { VueMessage } from '../ui/messages.ts';
 

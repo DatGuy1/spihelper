@@ -6,14 +6,13 @@ import {
   cdxIconCheckAll,
   cdxIconHelp,
 } from '@wikimedia/codex-icons';
+import type { CaseActions, LinkRowData } from './spi.ts';
 import type {
   AltmasterTagStatus,
-  CaseActions,
-  LinkRowData,
   SockmasterTagStatus,
   SockpuppetTagStatus,
   Tag,
-} from './spi.ts';
+} from '../tags.ts';
 
 export const WatchOptionsSelect = [
   { label: 'Follow preferences', value: 'preferences' },

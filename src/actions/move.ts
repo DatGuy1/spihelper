@@ -27,9 +27,10 @@ import {
   type PendingChanges,
   type Protection,
   type Restrictions,
+  type SectionEntry,
 } from '../types';
 import { spiHelperParseArchiveNoticeText } from '../archivenotice.ts';
-import { type SectionEntry, loadSectionText } from '../state.ts';
+import { loadSectionText } from '../state.ts';
 import { VueMessage } from '../ui/messages.ts';
 import {
   addAdminSectionNote,

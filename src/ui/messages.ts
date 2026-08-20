@@ -1,5 +1,5 @@
 import type { StatusType } from '@wikimedia/codex';
-import type * as VueType from 'vue';
+import type { reactive as ReactiveFn } from 'vue';
 
 // How long Codex takes to fade a dismissed message out (.cdx-message-leave-active-user)
 const DISMISS_FADE_MS = 250;
@@ -74,6 +74,6 @@ export function dismissMessage(id: number) {
 // api.ts imports this file, so a top-level mw.loader.using(['vue']) would fetch Vue on
 // every page the user visits, including all the ones where spihelper bails out
 export let messages: VueMessage[] = [];
-export function setMessagesReactive(reactive: typeof VueType.reactive) {
+export function setMessagesReactive(reactive: typeof ReactiveFn) {
   messages = reactive(messages);
 }

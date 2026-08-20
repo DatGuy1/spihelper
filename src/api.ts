@@ -53,7 +53,7 @@ import {
 } from './utils.ts';
 import { OpState, finishOp, startOp } from './operations.ts';
 import { VERSION, spiHelperAdvert } from './constants';
-import { SectionEntry } from './state.ts';
+import { SectionEntry } from './types';
 import { VueMessage } from './ui/messages.ts';
 
 /**

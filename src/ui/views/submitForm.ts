@@ -1,6 +1,7 @@
 import { type ComponentPublicInstance, type PropType, defineComponent } from 'vue';
 import type { SubmitFormActions, UserRow } from '../../types';
-import { isNonRegisteredAccount, isSockpuppetTag, parseExpiry } from '../../utils.ts';
+import { isNonRegisteredAccount, parseExpiry } from '../../utils.ts';
+import { isSockpuppetTag } from '../../tags.ts';
 import { isInputDisabled } from '../utils.ts';
 import { isOpRunning } from '../../operations.ts';
 import { spiHelperGetPageRev } from '../../api.ts';

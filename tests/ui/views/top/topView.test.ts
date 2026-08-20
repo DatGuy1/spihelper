@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { CaseActions, UserRow } from '../../../../src/types';
-import { CaseState, SectionEntry, type SectionSelection } from '../../../../src/state.ts';
+import { CaseState, type SectionSelection } from '../../../../src/state.ts';
+import { SectionEntry } from '../../../../src/types';
 import { setContext } from '../../../../src/context.ts';
 import { getInitialCaseActions } from '../../../../src/ui/views/top/utils';
 import { TopViewComponent } from '../../../../src/ui/views/top';

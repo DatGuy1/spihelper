@@ -2,15 +2,13 @@ import { afterEach, describe, expect, mock, test } from 'bun:test';
 import {
   addAdminSectionNote,
   parseArchiveSections,
-  parseUserTags,
   rebuildArchiveText,
   spiHelperGetXWikiPrefix,
   spiHelperStripXWikiPrefix,
 } from '../src/utils.ts';
-import { SectionEntry } from '../src/state.ts';
+import { type ArchiveSection, SectionEntry } from '../src/types';
 import { messages } from '../src/ui/messages.ts';
-import { silenceConsoleWarn } from './fixtures/console.ts';
-import type { ArchiveSection } from '../src/types';
+import { silenceConsoleError } from './fixtures/console.ts';
 
 describe('addAdminSectionNote', () => {
   const note = '* {{clerknote}} a note. ~~~~';
@@ -89,6 +87,32 @@ describe('rebuildArchiveText', () => {
   });
 });
 
+describe('parseArchiveSections', () => {
+  const badArchive = '===Not a date===\nEvidence.\n----';
+  const badEntries = [new SectionEntry(0, 'Not a date')];
+
+  afterEach(() => {
+    mock.restore();
+  });
+
+  test('gives up on a section header whose date it cannot read', () => {
+    const error = silenceConsoleError();
+
+    expect(parseArchiveSections(badArchive, badEntries)).toBeNull();
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('Not a date'));
+  });
+
+  // Every caller shows its own message on the null return, so a message from here too
+  // would stack a second one on the panel for the same failure
+  test('names the bad section on the console rather than in the message panel', () => {
+    silenceConsoleError();
+
+    parseArchiveSections(badArchive, badEntries);
+
+    expect(messages).toHaveLength(0);
+  });
+});
+
 describe('spiHelperGetXWikiPrefix', () => {
   test('returns the prefix of a cross-wiki title', () => {
     expect(spiHelperGetXWikiPrefix('meta:Steward requests/Global')).toBe('meta');
@@ -107,45 +131,5 @@ describe('spiHelperGetXWikiPrefix', () => {
   test('stripping leaves the on-wiki title', () => {
     expect(spiHelperStripXWikiPrefix('meta:Steward requests/Global')).toBe('Steward requests/Global');
     expect(spiHelperStripXWikiPrefix('User:Foo')).toBe('User:Foo');
-  });
-});
-
-describe('parseUserTags', () => {
-  afterEach(() => {
-    mock.restore();
-  });
-
-  test('warns that a status it cannot read will be overwritten', () => {
-    // This path warns by design; silence it so a passing run doesn't look broken
-    const warn = silenceConsoleWarn();
-
-    const tags = parseUserTags('{{sockpuppet|Master|suspected}}', 'SockA');
-
-    expect(tags).toEqual([]);
-    expect(warn).toHaveBeenCalled();
-    expect(messages).toHaveLength(1);
-    expect(messages[0]?.content).toContain('SockA');
-    expect(messages[0]?.content).toContain('suspected');
-  });
-
-  // Every section switch rebuilds the rows and re-parses the same cached user page, so a
-  // warning that stacked per parse would grow the panel for as long as the clerk works
-  test('warns once however many times the same page is re-parsed', () => {
-    silenceConsoleWarn();
-
-    for (let pass = 0; pass < 5; pass++) {
-      parseUserTags('{{sockpuppet|Master|suspected}}', 'SockA');
-    }
-
-    expect(messages).toHaveLength(1);
-  });
-
-  test('still warns separately for each user it cannot read', () => {
-    silenceConsoleWarn();
-
-    parseUserTags('{{sockpuppet|Master|suspected}}', 'SockA');
-    parseUserTags('{{sockpuppet|Master|suspected}}', 'SockB');
-
-    expect(messages).toHaveLength(2);
   });
 });

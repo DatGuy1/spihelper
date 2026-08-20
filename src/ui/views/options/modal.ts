@@ -18,7 +18,8 @@ import { getFullLogPage } from '../../../options/utils.ts';
 import type { ScriptSettings } from '../../../options/types.ts';
 import type { ChipInputItem, MenuItemData, MenuItemValue, useToast } from '@wikimedia/codex';
 import { CASE_ACTION_NAMES, type CaseActionName, type FeedbackDialog } from '../../../types';
-import { isMenuGroupData, toRaw } from '../../utils.ts';
+import { isMenuGroupData } from '../../utils.ts';
+import { toRaw } from '../../runtime.ts';
 import { setGlobalSettings } from '../../../options/options.ts';
 
 type UseToastReturn = ReturnType<typeof useToast>;
@@ -136,13 +137,7 @@ export const OptionsComponent = defineComponent({
         const currentSettingsJson = JSON.stringify(this.instanceSettings);
         const settingsDiffer = JSON.stringify(this.oldSettings) !== currentSettingsJson;
         if (settingsDiffer) {
-          if (toRaw) {
-            setGlobalSettings(toRaw(this.instanceSettings));
-          }
-          else {
-            this.toaster.error(`Failed to save settings`, { autoDismiss: true });
-            return;
-          }
+          setGlobalSettings(toRaw(this.instanceSettings));
           const savingId = this.toaster.info('Saving settings...', { autoDismiss: false });
           saveOptions()
             .then((_) => {

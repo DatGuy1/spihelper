@@ -7,11 +7,11 @@ import {
   type CaseActions,
   type FeedbackDialog,
   ParsedArchiveNotice,
+  type SectionEntry,
   type UserRow,
 } from '../../../types';
 import {
   type CaseState,
-  type SectionEntry,
   type SectionSelection,
   getSelectedSections,
   loadCaseText,
@@ -21,12 +21,13 @@ import { saveOptions, spiHelperSettings } from '../../../options';
 import { UpdateUserAllUserData } from '../userLookup.ts';
 import { spiHelperParseArchiveNotice } from '../../../archivenotice.ts';
 import { context } from '../../../context.ts';
-import { getDefaultUserRow, getSockEntries, isAborted, updateUserBlockDataSettings } from '../../utils.ts';
+import { getDefaultUserRow, isAborted, updateUserBlockDataSettings } from '../../utils.ts';
 import {
   type ActionButtons,
   getActionButtons,
   getInitialCaseActions,
   getManagementFlagsFromArchiveNotice,
+  getSockEntries,
   prefetchSockRows,
   shouldShowAction,
   updateCommentWithStatus,

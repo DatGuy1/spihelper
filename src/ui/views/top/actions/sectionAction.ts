@@ -14,8 +14,7 @@ import type {
   MenuItemValue,
 } from '@wikimedia/codex';
 import { spiHelperSettings } from '../../../../options';
-import type { CaseActionSection } from '../../../../types';
-import type { SectionEntry } from '../../../../state.ts';
+import type { CaseActionSection, SectionEntry } from '../../../../types';
 
 export const SectionActionComponent = defineComponent({
   props: {

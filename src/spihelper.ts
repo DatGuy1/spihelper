@@ -1,10 +1,12 @@
 import { CaseState, refreshSections } from './state.ts';
 import { spiHelperIsClerk } from './role.ts';
-import { OptionsComponent } from './ui/views/options/modal.ts';
 import {
   ExpirySettingComponent,
   LogPageSettingComponent,
+  OptionsComponent,
   WatchSettingComponent,
+} from './ui/views/options';
+import {
   loadOptions,
   migrateOptions,
   saveOptions,
@@ -45,7 +47,7 @@ import type { FeedbackDialog } from './types';
 import { setContext } from './context.ts';
 import { getUnseenChanges } from './changelog.ts';
 import { ToastContainerComponent } from './ui/views/toastView.ts';
-import { setMarkRaw, setTableRowIdentifier, setToRaw } from './ui/utils.ts';
+import { setMarkRaw, setTableRowIdentifier, setToRaw } from './ui/runtime.ts';
 import { setMessagesReactive } from './ui/messages.ts';
 
 // DatGuy's rewrite of GeneralNotability's rewrite of Tim's SPI helper script

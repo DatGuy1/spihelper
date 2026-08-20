@@ -1,14 +1,13 @@
-import { afterEach, beforeAll, describe, expect, mock, spyOn, test } from 'bun:test';
+import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import type { MenuGroupData, MenuItemData } from '@wikimedia/codex';
-import { setContext } from '../../src/context.ts';
 import { spiHelperSettings } from '../../src/options';
 import { CaseState } from '../../src/state.ts';
-import { ParsedArchiveNotice, SockpuppetTag } from '../../src/types';
+import { ParsedArchiveNotice } from '../../src/types';
+import { SockpuppetTag } from '../../src/tags.ts';
 import {
   abortableDelay,
   generateUserRow,
   getDefaultUserRow,
-  getSockEntries,
   isAborted,
   isMenuGroupData,
   pruneMenuData,
@@ -16,52 +15,12 @@ import {
   updateUserBlockDataSettings,
 } from '../../src/ui/utils.ts';
 
-function textNode(content: string): Text {
-  return document.createTextNode(content);
-}
-
-function elementNode(content = ''): HTMLSpanElement {
-  const span = document.createElement('span');
-  span.textContent = content;
-  return span;
-}
-
-function makeAnchor(...children: Node[]): HTMLAnchorElement {
-  const a = document.createElement('a');
-  for (const child of children) a.appendChild(child);
-  return a;
-}
-
-/**
- * Put the given username anchors on the page in the markup an SPI case actually uses,
- * and let the real jQuery from setup.ts query it
- */
-function renderCuEntries(anchors: Element[]): void {
-  const list = document.createElement('ul');
-  for (const anchor of anchors) {
-    const item = document.createElement('li');
-    const entry = document.createElement('span');
-    entry.className = 'plainlinks cuEntry';
-    const inner = document.createElement('span');
-    inner.className = 'plainlinks';
-    inner.appendChild(anchor);
-    const talkLink = document.createElement('a');
-    talkLink.appendChild(document.createTextNode('talk'));
-    entry.append(inner, talkLink);
-    item.appendChild(entry);
-    list.appendChild(item);
-  }
-  document.body.appendChild(list);
-}
-
 function makeState(archiveNotice: ParsedArchiveNotice | null = null): CaseState {
   return new CaseState([], null, archiveNotice);
 }
 
 afterEach(() => {
   mock.restore();
-  // renderCuEntries appends to the real document, so each test starts from a clean page
-  document.body.innerHTML = '';
 });
 
 describe('menu data', () => {
@@ -299,116 +258,6 @@ describe('user rows', () => {
       spyOn(mw.util, 'isIPv6Address').mockReturnValue(true);
       spiHelperSettings.interface.displayIPv6As64 = false;
       expect(generateUserRow('2001:db8:0:1:2:3:4:5', makeState()).username).toBe('2001:db8:0:1:2:3:4:5');
-    });
-  });
-});
-
-describe('getSockEntries', () => {
-  describe('fullSearch: false', () => {
-    const state = makeState();
-
-    test('empty text produces empty lists', () => {
-      const [likely, possible, all] = getSockEntries({ text: '', fullSearch: false, state });
-      expect(likely).toEqual([]);
-      expect(possible).toEqual([]);
-      expect(all.size).toBe(0);
-    });
-
-    test('{{user|...}} adds username to possibleSocks', () => {
-      const [, possible] = getSockEntries({ text: '{{user|Sock}}', fullSearch: false, state });
-      expect(possible.map(r => r.username)).toContain('Sock');
-    });
-
-    test('{{vandal|...}} adds username to possibleSocks', () => {
-      const [, possible] = getSockEntries({ text: '{{vandal|Vandal}}', fullSearch: false, state });
-      expect(possible.map(r => r.username)).toContain('Vandal');
-    });
-
-    test('{{sock list|...}} expands multiple usernames', () => {
-      const [, possible] = getSockEntries({
-        text: '{{sock list|1=Foo|2=Bar}}',
-        fullSearch: false,
-        state,
-      });
-      const names = possible.map(r => r.username);
-      expect(names).toContain('Foo');
-      expect(names).toContain('Bar');
-    });
-
-    test('duplicate username across templates appears only once', () => {
-      const [, possible, all] = getSockEntries({
-        text: '{{user|SockA}}\n{{vandal|SockA}}',
-        fullSearch: false,
-        state,
-      });
-      expect(possible.filter(r => r.username === 'SockA')).toHaveLength(1);
-      expect(all.size).toBe(1);
-    });
-
-    test('irrelevant templates are ignored', () => {
-      const [, possible] = getSockEntries({
-        text: '{{cite web|url=https://example.com}}',
-        fullSearch: false,
-        state,
-      });
-      expect(possible).toEqual([]);
-    });
-  });
-
-  describe('fullSearch: true', () => {
-    beforeAll(() => {
-      setContext('Wikipedia:Sockpuppet investigations/Master');
-    });
-
-    test('anchor with a plain text node is included as a sock entry', () => {
-      renderCuEntries([makeAnchor(textNode('SockA'))]);
-      const [likely] = getSockEntries({ text: '', fullSearch: true, state: makeState() });
-      expect(likely.map(r => r.username)).toContain('SockA');
-    });
-
-    test('leading/trailing whitespace in the text node is trimmed', () => {
-      renderCuEntries([makeAnchor(textNode(' SockA '))]);
-      const [likely] = getSockEntries({ text: '', fullSearch: true, state: makeState() });
-      expect(likely.map(r => r.username)).toContain('SockA');
-    });
-
-    test('only the text node is used when a sibling element node is present', () => {
-      renderCuEntries([makeAnchor(textNode('RealSock'), elementNode('UserHighlightType'))]);
-      const [likely] = getSockEntries({ text: '', fullSearch: true, state: makeState() });
-      const names = likely.map(r => r.username);
-      expect(names).toContain('RealSock');
-      expect(names).not.toContain('UserHighlightType');
-    });
-
-    test('anchor with only an element node (no text node) is skipped entirely', () => {
-      renderCuEntries([makeAnchor(elementNode('IgnoredUser'))]);
-      const [likely] = getSockEntries({ text: '', fullSearch: true, state: makeState() });
-      const names = likely.map(r => r.username);
-      expect(names).not.toContain('IgnoredUser');
-      expect(likely).toHaveLength(1); // only the case master
-    });
-
-    test('anchor with an empty text node is skipped', () => {
-      renderCuEntries([makeAnchor(textNode(''))]);
-      const [likely] = getSockEntries({ text: '', fullSearch: true, state: makeState() });
-      expect(likely).toHaveLength(1); // only the case master
-    });
-
-    test('duplicate usernames from the DOM are deduplicated', () => {
-      renderCuEntries([makeAnchor(textNode('SockA')), makeAnchor(textNode('SockA'))]);
-      const [likely] = getSockEntries({ text: '', fullSearch: true, state: makeState() });
-      expect(likely.filter(r => r.username === 'SockA')).toHaveLength(1);
-    });
-
-    test('username already in allUsernames (from template text) is not added from DOM', () => {
-      renderCuEntries([makeAnchor(textNode('SockA'))]);
-      const [likely, possible] = getSockEntries({
-        text: '{{user|SockA}}',
-        fullSearch: true,
-        state: makeState(),
-      });
-      const allNames = [...likely, ...possible].map(r => r.username);
-      expect(allNames.filter(n => n === 'SockA')).toHaveLength(1);
     });
   });
 });

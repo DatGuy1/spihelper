@@ -33,6 +33,19 @@ export default defineConfig([
     jsx: true,
   }),
   {
+    files: ['src/types/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': ['error', {
+        patterns: [{
+          group: ['../api.ts', '../context.ts', '../state.ts', '../options', '../options/*'],
+          allowTypeImports: true,
+          message: 'src/types must not import runtime state (api/context/state/options). '
+            + 'Take the value as a parameter instead, or use `import type`.',
+        }],
+      }],
+    },
+  },
+  {
     rules: {
       'block-scoped-var': 'error',
       'camelcase': ['error', { properties: 'always' }],

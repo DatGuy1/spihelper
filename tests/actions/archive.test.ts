@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { AllPage, ArchiveSection } from '../../src/types';
-import { SectionEntry } from '../../src/state.ts';
+import { SectionEntry } from '../../src/types';
 import { buildArchiveText } from '../fixtures/archive.ts';
 import { type EditPageOpts, stubApi } from '../fixtures/api.ts';
 

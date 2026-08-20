@@ -1,6 +1,8 @@
-import { describe, expect, test } from 'bun:test';
-import { SockmasterTag } from '../../src/types';
-import { makeSockTag } from '../fixtures/spi.ts';
+import { afterEach, describe, expect, mock, test } from 'bun:test';
+import { SockmasterTag, parseUserTags } from '../src/tags.ts';
+import { messages } from '../src/ui/messages.ts';
+import { makeSockTag } from './fixtures/spi.ts';
+import { silenceConsoleWarn } from './fixtures/console.ts';
 
 describe('SockpuppetTag', () => {
   describe('altmasterStatus', () => {
@@ -92,5 +94,45 @@ describe('SockmasterTag', () => {
     test('writes banned rather than blocked for a 3X banned master', () => {
       expect(new SockmasterTag({ status: 'banned' }).generateWikitext()).toContain('| 1 = banned');
     });
+  });
+});
+
+describe('parseUserTags', () => {
+  afterEach(() => {
+    mock.restore();
+  });
+
+  test('warns that a status it cannot read will be overwritten', () => {
+    // This path warns by design; silence it so a passing run doesn't look broken
+    const warn = silenceConsoleWarn();
+
+    const tags = parseUserTags('{{sockpuppet|Master|suspected}}', 'SockA');
+
+    expect(tags).toEqual([]);
+    expect(warn).toHaveBeenCalled();
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.content).toContain('SockA');
+    expect(messages[0]?.content).toContain('suspected');
+  });
+
+  // Every section switch rebuilds the rows and re-parses the same cached user page, so a
+  // warning that stacked per parse would grow the panel for as long as the clerk works
+  test('warns once however many times the same page is re-parsed', () => {
+    silenceConsoleWarn();
+
+    for (let pass = 0; pass < 5; pass++) {
+      parseUserTags('{{sockpuppet|Master|suspected}}', 'SockA');
+    }
+
+    expect(messages).toHaveLength(1);
+  });
+
+  test('still warns separately for each user it cannot read', () => {
+    silenceConsoleWarn();
+
+    parseUserTags('{{sockpuppet|Master|suspected}}', 'SockA');
+    parseUserTags('{{sockpuppet|Master|suspected}}', 'SockB');
+
+    expect(messages).toHaveLength(2);
   });
 });

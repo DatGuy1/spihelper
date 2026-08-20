@@ -1,6 +1,5 @@
 import { type PropType, defineComponent } from 'vue';
-import type { CaseActions } from '../../../../../types';
-import type { SectionEntry } from '../../../../../state.ts';
+import type { CaseActions, SectionEntry } from '../../../../../types';
 
 type StatusBySection = CaseActions['status']['data']['bySection'];
 

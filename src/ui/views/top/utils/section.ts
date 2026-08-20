@@ -1,5 +1,8 @@
 import type { CaseState } from '../../../../state.ts';
-import { markRaw, setUserRowBlockData } from '../../../utils.ts';
+import { generateUserRow, setUserRowBlockData } from '../../../utils.ts';
+import { markRaw } from '../../../runtime.ts';
+import { context } from '../../../../context.ts';
+import { fetchTemplateArguments, parseTemplates } from '../../../../template.ts';
 import {
   spiHelperGetBulkGlobalBlocks,
   spiHelperGetBulkGlobalUsers,
@@ -7,8 +10,66 @@ import {
   spiHelperGetBulkUserBlockSettings,
 } from '../../../../api.ts';
 import type { BlockEntry, PrefetchedUser, UserRow } from '../../../../types';
-import { isNonRegisteredAccount } from '../../../../utils.ts';
+import { isNonRegisteredAccount, spiHelperNormalizeUsername } from '../../../../utils.ts';
 import { VueMessage } from '../../../messages.ts';
+
+const SockListTemplateRegex = /sock ?list/;
+const UserTemplateNameParts = ['ip', 'vandal', 'user', 'noping'];
+
+function isRelevantTemplate(templateName: string): boolean {
+  return SockListTemplateRegex.test(templateName)
+    || UserTemplateNameParts.some(part => templateName.includes(part));
+}
+
+export function getSockEntries(opts: {
+  text: string;
+  fullSearch: boolean;
+  state: CaseState;
+}): [UserRow[], UserRow[], Set<string>] {
+  const { text, fullSearch, state } = opts;
+  const likelySocks: UserRow[] = fullSearch ? [generateUserRow(context.userName, state)] : [];
+  const possibleSocks: UserRow[] = [];
+  const allUsernames: Set<string> = fullSearch ? new Set([context.userName]) : new Set();
+
+  if (fullSearch) {
+    let $searchOrigin: JQuery<Element> | JQuery<Document> = $(document);
+    if (state.selectedSection?.type === 'single') {
+      $searchOrigin = $(`a[href$="section=${state.selectedSection.section.id}"]`).parentsUntil(':has(hr)').last().nextUntil('hr');
+    }
+    const sockList = $searchOrigin.find('.cuEntry').toArray()
+      .map(entry => entry.querySelector('a'))
+      .filter(link => link !== null);
+
+    for (const entryElement of sockList) {
+      const filteredUsername = Array.from(entryElement.childNodes).find(n => n.nodeType === Node.TEXT_NODE)?.textContent ?? '';
+      if (!filteredUsername) {
+        continue;
+      }
+      const username = spiHelperNormalizeUsername(filteredUsername);
+      if (allUsernames.has(username)) {
+        continue;
+      }
+      likelySocks.push(generateUserRow(username, state));
+      allUsernames.add(username);
+    }
+  }
+
+  const allTemplates = parseTemplates(text);
+  for (const template of allTemplates) {
+    if (isRelevantTemplate(template.name)) {
+      const templateUsernames = fetchTemplateArguments(template);
+      for (const templateUsername of templateUsernames) {
+        const username = spiHelperNormalizeUsername(templateUsername);
+        if (!allUsernames.has(username)) {
+          possibleSocks.push(generateUserRow(username, state));
+          allUsernames.add(username);
+        }
+      }
+    }
+  }
+
+  return [likelySocks, possibleSocks, allUsernames];
+}
 
 export async function prefetchSockRows(opts: {
   likelySocks: UserRow[];
@@ -63,7 +124,7 @@ export async function prefetchSockRows(opts: {
         globalUser: globalUsers.get(name),
         globalBlock: globalBlocks.get(name),
       };
-      fetchedUsers.set(name, markRaw ? markRaw(fetched) : fetched);
+      fetchedUsers.set(name, markRaw(fetched));
     }
   }
 

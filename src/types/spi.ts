@@ -1,5 +1,4 @@
-import { context } from '../context.ts';
-import { spiHelperNormalizeUsername } from '../utils.ts';
+import type { Tag } from '../tags.ts';
 import type { BlockEntry, GlobalBlockEntry } from './api.ts';
 
 export class ParsedArchiveNotice {
@@ -9,18 +8,18 @@ export class ParsedArchiveNotice {
   notalk: boolean;
   moot: boolean;
 
-  constructor(opts?: {
+  constructor(opts: {
     username: string;
     crosswiki?: boolean;
     deny?: boolean;
     notalk?: boolean;
     moot?: boolean;
   }) {
-    this.username = opts?.username ?? context.caseName;
-    this.crosswiki = opts?.crosswiki ?? false;
-    this.deny = opts?.deny ?? false;
-    this.notalk = opts?.notalk ?? false;
-    this.moot = opts?.moot ?? false;
+    this.username = opts.username;
+    this.crosswiki = opts.crosswiki ?? false;
+    this.deny = opts.deny ?? false;
+    this.notalk = opts.notalk ?? false;
+    this.moot = opts.moot ?? false;
   }
 
   generateWikitext() {
@@ -43,158 +42,18 @@ export class ParsedArchiveNotice {
   }
 }
 
-export class SockpuppetTag {
-  master: string;
-  status: SockpuppetTagStatus;
-  locked: boolean;
-  evidence: string;
-  altmaster: string;
-  /**
-   * Defaults to suspected but only meaningful when altmaster is also truthy
-   */
-  altmasterStatus: AltmasterTagStatus;
+export class SectionEntry {
+  id: number;
+  name: string;
 
-  constructor(opts: {
-    master: string;
-    status: SockpuppetTagStatus;
-    locked?: boolean;
-    evidence?: string;
-    altmaster?: string;
-    altmasterStatus?: AltmasterTagStatus;
-  }) {
-    this.master = spiHelperNormalizeUsername(opts.master);
-    this.status = opts.status;
-    this.locked = opts.locked ?? false;
-    this.evidence = opts.evidence ?? '';
-    this.altmaster = spiHelperNormalizeUsername(opts.altmaster ?? '');
-    this.altmasterStatus = opts.altmasterStatus ?? 'suspected';
-  }
+  _text: string | null = null;
+  _loadingPromise: Promise<string> | null = null;
 
-  generateWikitext(blocked?: boolean): string {
-    let tag = '{{sockpuppet';
-    tag += `\n| 1 = ${this.master}`;
-    tag += `\n| 2 = ${this.status}`;
-    if (this.locked) {
-      tag += '\n| locked = yes';
-    }
-    // Explicit comparison to not match undefined
-    if (blocked === false) {
-      tag += '\n| notblocked = yes';
-    }
-    if (this.evidence) {
-      tag += `\n| evidence = ${this.evidence}`;
-    }
-    if (this.altmaster) {
-      tag += `\n| altmaster = ${this.altmaster}`;
-      tag += `\n| altmaster-status = ${this.altmasterStatus}`;
-    }
-    tag += '\n}}';
-    return tag;
-  }
-
-  clone(): SockpuppetTag {
-    // Intentionally don't clone this.locked
-    return new SockpuppetTag({
-      master: this.master,
-      status: this.status,
-      evidence: this.evidence,
-      altmaster: this.altmaster,
-      altmasterStatus: this.altmasterStatus,
-    });
-  };
-
-  equals(other: Tag): boolean {
-    if (!(other instanceof SockpuppetTag)) return false;
-    return this.master === other.master
-      && this.status === other.status
-      && this.locked === other.locked
-      && this.evidence === other.evidence
-      && this.altmaster === other.altmaster
-      // Without an altmaster the status writes nothing,
-      // so a stale value shouldn't count as a being unequal
-      && (!this.altmaster || this.altmasterStatus === other.altmasterStatus);
+  constructor(id: number, name: string) {
+    this.id = id;
+    this.name = name;
   }
 }
-
-export class SockmasterTag {
-  status: SockmasterTagStatus;
-  checked: boolean;
-  locked: boolean;
-  ltapage: string;
-  spipage: string;
-  evidence: string;
-
-  constructor(opts: {
-    status: SockmasterTagStatus;
-    checked?: boolean;
-    locked?: boolean;
-    ltapage?: string;
-    spipage?: string;
-    evidence?: string;
-  }) {
-    this.status = opts.status;
-    this.checked = opts.checked ?? false;
-    this.locked = opts.locked ?? false;
-    this.ltapage = opts.ltapage ?? '';
-    this.spipage = opts.spipage ?? '';
-    this.evidence = opts.evidence ?? '';
-  }
-
-  generateWikitext(): string {
-    let tag = '{{sockpuppeteer';
-
-    // The template is very weird. 'Confirmed' is a sort of fake option
-    const outputStatus = this.status === 'banned' ? 'banned' : 'blocked';
-    // 'Confirmed' or 'banned' neccesitate use of the CU tool, so mark as checked
-    // Deliberately ignores the old this.checked since we're presumably intentionally overriding it
-    const isChecked = this.status !== 'blocked';
-
-    tag += `\n| 1 = ${outputStatus}`;
-    if (isChecked) {
-      tag += '\n| checked = yes';
-    }
-    if (this.locked) {
-      tag += `\n| locked = yes`;
-    }
-    if (this.ltapage) {
-      tag += `\n| ltapage = ${this.ltapage}`;
-    }
-    if (this.spipage) {
-      tag += `\n| spipage = ${this.spipage}`;
-    }
-    if (this.evidence) {
-      tag += `\n| evidence = ${this.evidence}`;
-    }
-    tag += '\n}}';
-    return tag;
-  }
-
-  clone(): SockmasterTag {
-    // Intentionally don't clone this.locked
-    return new SockmasterTag({
-      status: this.status,
-      checked: this.checked,
-      ltapage: this.ltapage,
-      spipage: this.spipage,
-      evidence: this.evidence,
-    });
-  }
-
-  equals(other: Tag): boolean {
-    if (!(other instanceof SockmasterTag)) return false;
-    return this.status === other.status
-      && this.checked === other.checked
-      && this.locked === other.locked
-      && this.ltapage === other.ltapage
-      && this.spipage === other.spipage
-      && this.evidence === other.evidence;
-  }
-}
-
-export type SockpuppetTagStatus = 'blocked' | 'proven' | 'confirmed';
-export type SockmasterTagStatus = 'blocked' | 'confirmed' | 'banned';
-export type AltmasterTagStatus = 'suspected' | 'proven';
-export type Tag = SockmasterTag | SockpuppetTag;
 
 export interface GlobalUser {
   name: string;

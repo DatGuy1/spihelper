@@ -5,24 +5,16 @@ import {
   spiHelperSectionRegex,
   spiHelperSignatureRegex,
 } from './constants';
-import {
-  type AbsoluteExpiry,
-  type AltmasterTagStatus,
-  type ArchiveSection,
-  type BlockActionData,
-  type BlockRowData,
-  type Expiry,
-  type NoExpiry,
-  type RelativeExpiry,
-  SockmasterTag,
-  type SockmasterTagStatus,
-  SockpuppetTag,
-  type SockpuppetTagStatus,
-  type Tag,
+import type {
+  AbsoluteExpiry,
+  ArchiveSection,
+  BlockActionData,
+  BlockRowData,
+  Expiry,
+  NoExpiry,
+  RelativeExpiry,
+  SectionEntry,
 } from './types';
-import type { SectionEntry } from './state.ts';
-import { VueMessage } from './ui/messages.ts';
-import { parseTemplates } from './template.ts';
 
 const spiHelperXWikiPrefixes = ['m', 'meta'];
 
@@ -370,11 +362,7 @@ export function parseArchiveSections(
     if (fullText) {
       const sectionDate = parseSectionDate(sectionName);
       if (sectionDate === null) {
-        // I would like to move this out of utils
-        new VueMessage({
-          type: 'error',
-          content: `Failed to parse date from section header "${sectionName}" in archive`,
-        }).show();
+        console.error(`Failed to parse date from section header "${sectionName}" in archive`);
         return null;
       }
       sectionsResult.push({ header: sectionDate, fullText });
@@ -436,139 +424,4 @@ export function setupBlockActionData(masterName = ''): BlockActionData {
     lockcomment: '',
     skipCUVerifyUsers: new Set<string>(),
   };
-}
-
-/**
- * @param userPage Wikitext of the user page to read tags from
- * @param username Whose page it is, used only to identify the page in warnings
- */
-export function parseUserTags(userPage: string, username?: string): Tag[] {
-  const on = username ? ` on ${username}` : '';
-  const tags: Tag[] = [];
-  const templates = parseTemplates(userPage);
-  for (const template of templates) {
-    if (['sockpuppeteer', 'sockmaster'].includes(template.name)) {
-      const firstParam = (template.params['1'] ?? template.positional[0])?.toString();
-      const paramConfirmed = firstParam === 'cu' || (firstParam?.includes('confirmed') ?? false);
-      const sockChecked = template.params.checked === true || paramConfirmed;
-
-      let tagStatus: SockmasterTagStatus | undefined;
-      if (paramConfirmed) {
-        tagStatus = 'confirmed';
-      }
-      else if (firstParam === 'banned') {
-        tagStatus = 'banned';
-      }
-      else if (firstParam?.includes('blocked')) {
-        tagStatus = sockChecked ? 'confirmed' : 'blocked';
-      }
-      else {
-        console.warn('Unrecognised master status', firstParam);
-        // A tag we can't read isn't shown in the table and is overwritten by retagging,
-        // so warn rather than let it silently look like the user is untagged
-        new VueMessage({
-          type: 'warning',
-          content: `Ignoring {{${template.name}}} tag${on} with unrecognised status `
-            + `"${firstParam ?? ''}". Tagging will overwrite it`,
-        }).showOnce();
-        continue;
-      }
-
-      const newTag = new SockmasterTag({ status: tagStatus, checked: sockChecked });
-      // Only set these parameters if they exist to avoid adding too many needless parameters
-      if (template.params.locked === true) {
-        newTag.locked = true;
-      }
-      if (template.params.ltapage) {
-        newTag.ltapage = template.params.ltapage as string;
-      }
-      if (template.params.spipage) {
-        newTag.spipage = template.params.spipage as string;
-      }
-      if (template.params.evidence) {
-        newTag.evidence = template.params.evidence as string;
-      }
-      tags.push(newTag);
-    }
-    else if (['sockpuppet', 'sock'].includes(template.name)) {
-      const masterParam = template.params['1'] ?? template.positional[0];
-      if (!masterParam) {
-        console.warn('Master parameter not found');
-        continue;
-      }
-      const statusParam = template.params['2'] ?? template.positional[1];
-      let tagStatus: SockpuppetTagStatus | undefined;
-      switch (statusParam) {
-        case 'blocked':
-          tagStatus = 'blocked';
-          break;
-        case 'proven':
-          tagStatus = 'proven';
-          break;
-        case 'confirmed':
-        case 'nbconfirmed':
-        case 'cuconfirmed':
-          tagStatus = 'confirmed';
-          break;
-        default:
-          console.warn('Unrecognised sock status', statusParam);
-          new VueMessage({
-            type: 'warning',
-            content: `Ignoring {{${template.name}}} tag${on} with unrecognised status `
-              + `"${statusParam?.toString() ?? ''}". Tagging will overwrite it`,
-          }).showOnce();
-          continue;
-      }
-
-      const newTag = new SockpuppetTag({
-        master: masterParam as string,
-        status: tagStatus,
-      });
-      const altmaster = template.params.altmaster;
-      if (altmaster) {
-        const altmasterStatusParam = template.params['altmaster-status'];
-        let altmasterStatus: AltmasterTagStatus | undefined;
-        switch (altmasterStatusParam) {
-          case 'suspect':
-          case 'suspected':
-            altmasterStatus = 'suspected';
-            break;
-          case 'proven':
-            altmasterStatus = 'proven';
-            break;
-          default:
-            console.warn('Unrecognised altmaster status', altmasterStatusParam);
-            // Unlike the cases above the tag itself is kept, just without its altmaster
-            new VueMessage({
-              type: 'warning',
-              content: `Dropping altmaster "${altmaster.toString()}"${on}: unrecognised `
-                + `altmaster-status "${altmasterStatusParam?.toString() ?? ''}"`,
-            }).showOnce();
-            break;
-        }
-
-        if (altmasterStatus) {
-          newTag.altmaster = altmaster as string;
-          newTag.altmasterStatus = altmasterStatus;
-        }
-      }
-
-      if (template.params.evidence) {
-        newTag.evidence = template.params.evidence as string;
-      }
-      if (template.params.locked) {
-        newTag.locked = true;
-      }
-      tags.push(newTag);
-    }
-  }
-  return tags;
-}
-
-export function isSockpuppetTag(tag: Tag): tag is SockpuppetTag {
-  return tag instanceof SockpuppetTag;
-}
-
-export function isSockmasterTag(tag: Tag): tag is SockmasterTag {
-  return tag instanceof SockmasterTag;
 }

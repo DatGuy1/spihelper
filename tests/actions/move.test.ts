@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { SectionEntry } from '../../src/state.ts';
+import { SectionEntry } from '../../src/types';
 import { buildArchiveText } from '../fixtures/archive.ts';
 import { type EditPageOpts, stubApi } from '../fixtures/api.ts';
 

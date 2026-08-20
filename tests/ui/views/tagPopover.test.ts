@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { SockmasterTag, SockpuppetTag, type Tag } from '../../../src/types';
+import { SockmasterTag, SockpuppetTag, type Tag } from '../../../src/tags.ts';
 import { TagPopoverComponent } from '../../../src/ui/views';
 import { silenceConsoleError } from '../../fixtures/console.ts';
 import { makeSockTag } from '../../fixtures/spi.ts';

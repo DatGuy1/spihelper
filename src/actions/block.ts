@@ -2,7 +2,8 @@ import { spiHelperBlockUser, spiHelperEditPage } from '../api.ts';
 import { spiHelperSettings } from '../options';
 import type { BlockOptions, UserRow } from '../types';
 import { spiHelperIsCheckuser } from '../role.ts';
-import { isNoExpiry, isSockpuppetTag } from '../utils.ts';
+import { isNoExpiry } from '../utils.ts';
+import { isSockpuppetTag } from '../tags.ts';
 import { buildContextSummary, context } from '../context.ts';
 
 export function buildTalkNotice(opts: {

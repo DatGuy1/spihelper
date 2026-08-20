@@ -1,4 +1,4 @@
-import { type CaseState, type SectionEntry, loadCaseText, loadSectionText } from '../state.ts';
+import { type CaseState, loadCaseText, loadSectionText } from '../state.ts';
 import { context } from '../context.ts';
 import {
   countOf,
@@ -20,7 +20,7 @@ import {
 } from '../api.ts';
 import { spiHelperSettings } from '../options';
 import { VueMessage } from '../ui/messages.ts';
-import type { ArchiveSection } from '../types';
+import type { ArchiveSection, SectionEntry } from '../types';
 
 const MAX_SUB_ARCHIVES = 30;
 
