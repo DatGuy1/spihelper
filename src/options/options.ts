@@ -33,7 +33,7 @@ export async function migrateOptions() {
   try {
     await mw.loader.getScript('/w/index.php?title=Special:MyPage/spihelper-options.js&action=raw&ctype=text/javascript');
     if (spiHelperCustomOpts !== undefined) {
-      await migrateSettings(spiHelperCustomOpts);
+      await migrateSettings(spiHelperCustomOpts, spiHelperSettings);
     }
   }
   catch (error) {

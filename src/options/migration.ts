@@ -1,5 +1,5 @@
 import { spiHelperValidateDate } from './utils.ts';
-import { spiHelperSettings } from './options.ts';
+import type { ScriptSettings } from './types.ts';
 
 interface MigrationRule {
   oldPath: string;
@@ -53,7 +53,15 @@ function setNestedValue(obj: object, path: string[], value: unknown) {
   (current as Record<string, unknown>)[lastKey] = value;
 }
 
-export async function migrateSettings(oldSettings: Record<string, unknown>) {
+/**
+ * Copies the settings of the old spihelper-options.js format onto their new homes.
+ *
+ * @param oldSettings The user's spihelper-options.js, read as a flat object
+ * @param target Mutated in place to receive the migrated settings
+ */
+export async function migrateSettings(
+  oldSettings: Record<string, unknown>, target: ScriptSettings,
+) {
   const tasks = migrationMap.map(async ({ oldPath, newPath, type }) => {
     const value = oldSettings[oldPath];
     if (value === undefined) {
@@ -61,7 +69,7 @@ export async function migrateSettings(oldSettings: Record<string, unknown>) {
     }
     const isValid = await validateSetting(value, type);
     if (isValid) {
-      setNestedValue(spiHelperSettings, newPath, value);
+      setNestedValue(target, newPath, value);
     }
   });
 
