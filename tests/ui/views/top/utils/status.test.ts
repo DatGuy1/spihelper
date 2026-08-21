@@ -1,0 +1,67 @@
+import { describe, expect, test } from 'bun:test';
+import { normalizeCaseStatus } from '../../../../../src/ui/views/top/utils/status.ts';
+
+describe('normalizeCaseStatus', () => {
+  describe('values in Template:SPI case status', () => {
+    // See https://en.wikipedia.org/wiki/Template:SPI_case_status/doc
+    // Every parameter and alias the template accepts mapped to the status spihelper works in
+    const documented: [string, string][] = [
+      ['new', 'new'],
+      ['open', 'open'],
+      ['CU', 'CUrequest'], ['checkuser', 'CUrequest'],
+      ['CUrequest', 'CUrequest'], ['request', 'CUrequest'],
+      ['clerk', 'clerk'],
+      ['admin', 'admin'], ['administrator', 'admin'],
+      ['decline', 'decline'], ['declined', 'decline'],
+      ['CUdecline', 'cudecline'], ['CUdeclined', 'cudecline'],
+      ['hold', 'hold'],
+      ['cuhold', 'cuhold'],
+      ['moreinfo', 'moreinfo'],
+      ['cumoreinfo', 'cumoreinfo'],
+      ['endorse', 'endorse'], ['endorsed', 'endorse'],
+      ['cuendorse', 'cuendorse'], ['cuendorsed', 'cuendorse'],
+      ['inprogress', 'inprogress'], ['checking', 'inprogress'],
+      ['checked', 'checked'], ['completed', 'checked'],
+      ['relist', 'relist'], ['relisted', 'relist'],
+      ['close', 'closed'], ['closed', 'closed'],
+    ];
+
+    for (const [raw, expected] of documented) {
+      test(`maps ${raw} to ${expected}`, () => {
+        expect(normalizeCaseStatus(raw)).toBe(expected);
+      });
+    }
+
+    test('is case-insensitive', () => {
+      expect(normalizeCaseStatus('CUDECLINE')).toBe('cudecline');
+      expect(normalizeCaseStatus('InProgress')).toBe('inprogress');
+    });
+  });
+
+  describe('statuses spihelper writes back', () => {
+    test('round-trips cudecline', () => {
+      expect(normalizeCaseStatus('cudecline')).toBe('cudecline');
+    });
+
+    test('round-trips the other statuses the dropdown can write', () => {
+      // reopen and selfendorse are rewritten to open/endorse before they reach the page
+      for (const status of ['open', 'CUrequest', 'admin', 'clerk', 'endorse', 'cuendorse',
+        'checked', 'inprogress', 'decline', 'moreinfo', 'cumoreinfo', 'relist', 'hold',
+        'cuhold', 'closed']) {
+        expect(normalizeCaseStatus(status)).toBe(status);
+      }
+    });
+  });
+
+  describe('anything else', () => {
+    test('falls back to new', () => {
+      expect(normalizeCaseStatus('')).toBe('new');
+      expect(normalizeCaseStatus('nonsense')).toBe('new');
+    });
+
+    test('does not match a documented value embedded in a longer string', () => {
+      expect(normalizeCaseStatus('checkedfoo')).toBe('new');
+      expect(normalizeCaseStatus('xxcompleted')).toBe('new');
+    });
+  });
+});

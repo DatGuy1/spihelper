@@ -68,16 +68,18 @@ export function normalizeCaseStatus(caseStatus: string) {
   if (/^open$/i.test(caseStatus)) return 'open';
   if (/^(?:inprogress|checking)$/i.test(caseStatus)) return 'inprogress';
   if (/^relist(ed)?$/i.test(caseStatus)) return 'relist';
-  if (/^checked|completed$/i.test(caseStatus)) return 'checked';
+  if (/^(?:checked|completed)$/i.test(caseStatus)) return 'checked';
   if (/^declined?$/i.test(caseStatus)) return 'decline';
-  if (/^cudeclin(ed)?$/i.test(caseStatus)) return 'cudecline';
+  if (/^cudeclined?$/i.test(caseStatus)) return 'cudecline';
   if (/^endorsed?$/i.test(caseStatus)) return 'endorse';
+  if (/^cuendorsed?$/i.test(caseStatus)) return 'cuendorse';
   if (/^(?:CU|checkuser|CUrequest|request)$/i.test(caseStatus)) return 'CUrequest';
   if (/^cumoreinfo$/i.test(caseStatus)) return 'cumoreinfo';
+  if (/^moreinfo$/i.test(caseStatus)) return 'moreinfo';
   if (/^hold$/i.test(caseStatus)) return 'hold';
   if (/^cuhold$/i.test(caseStatus)) return 'cuhold';
   if (/^clerk$/i.test(caseStatus)) return 'clerk';
-  if (/^admin$/i.test(caseStatus)) return 'admin';
+  if (/^admin(?:istrator)?$/i.test(caseStatus)) return 'admin';
 
   return 'new';
 }
