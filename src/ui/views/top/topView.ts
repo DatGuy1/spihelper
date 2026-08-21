@@ -375,6 +375,7 @@ export const TopViewComponent = defineComponent({
     },
     async toggleMultiSelectMode(newValue: boolean) {
       this.multiSelectMode = newValue;
+      mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'multi', enabled: newValue });
       if (!newValue) {
         // Grab the first section from the multiple selected sections array
         const current = this.selectedSections;
@@ -540,7 +541,11 @@ export const TopViewComponent = defineComponent({
       if (isOpRunning('mainActions')) {
         return;
       }
-      mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'submit', type: 'top' });
+      mw.track('stats.mediawiki_gadget_spihelper_total', 1, {
+        action: 'submit',
+        type: 'top',
+        mode: this.state.selectedSection?.type ?? 'none',
+      });
       startOp('mainActions');
       // I would have liked to use isOpRunning in the v-if, but it's messed up with Vue's reactivity
       this.actionsRunning = true;
