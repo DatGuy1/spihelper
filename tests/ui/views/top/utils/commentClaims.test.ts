@@ -67,6 +67,24 @@ describe('findCommentClaims', () => {
         .toBe('{{moreinfo}}');
     });
 
+    test('accepts the pseudo-status templates against the status they resolve to', () => {
+      // The submission reports the resolved status, so keying these on 'selfendorse'
+      // and 'reopen' would flag the template spihelper itself just inserted
+      expect(findCommentClaims('{{Requestandendorse}}', facts({ effectiveStatus: 'endorse' })))
+        .toEqual([]);
+      expect(findCommentClaims('{{reopen}}', facts({ effectiveStatus: 'open' }))).toEqual([]);
+    });
+
+    test('still flags a pseudo-status template against an unrelated status', () => {
+      expect(findCommentClaims('{{Requestandendorse}}', facts({ effectiveStatus: 'decline' })))
+        .toEqual([
+          { quoted: '{{Requestandendorse}}', reason: 'the case status is set to decline' },
+        ]);
+      expect(findCommentClaims('{{reopen}}', facts({ effectiveStatus: 'closed' }))).toEqual([
+        { quoted: '{{reopen}}', reason: 'the case status is set to closed' },
+      ]);
+    });
+
     test('is case-insensitive on the template name, and quotes it back as declared', () => {
       expect(findCommentClaims('{{DECLINE}}', facts({ effectiveStatus: 'decline' }))).toEqual([]);
       expect(findCommentClaims('{{clerk request}}', facts())[0]?.quoted).toBe('{{Clerk Request}}');

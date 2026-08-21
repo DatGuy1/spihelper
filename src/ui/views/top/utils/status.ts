@@ -1,21 +1,24 @@
 import { spiHelperCaseClosedRegex, spiHelperClerkStatusRegex } from '../../../../constants';
 import type { CaseStatus, CaseStatusChoice, SectionStatusChange } from '../../../../types';
 
-/** Resolve to the status a section will actually be left at */
-export function resolveEffectiveStatus(change: SectionStatusChange): CaseStatus {
-  if (!change.enabled) {
-    return change.old;
-  }
-  switch (change.new) {
-    case 'nochange':
-      return change.old;
+/** Resolve the two pseudo-statuses the dropdown offers to the status they're written as */
+export function resolveStatusChoice(choice: Exclude<CaseStatusChoice, 'nochange'>): CaseStatus {
+  switch (choice) {
     case 'reopen':
       return 'open';
     case 'selfendorse':
       return 'endorse';
     default:
-      return change.new;
+      return choice;
   }
+}
+
+/** Resolve to the status a section will actually be left at */
+export function resolveEffectiveStatus(change: SectionStatusChange): CaseStatus {
+  if (!change.enabled || change.new === 'nochange') {
+    return change.old;
+  }
+  return resolveStatusChoice(change.new);
 }
 
 export function getStatusTemplate(status: CaseStatusChoice): string | null {

@@ -1,6 +1,6 @@
 import { parseTemplates } from '../../../../template.ts';
 import type { CaseStatusChoice } from '../../../../types';
-import { getStatusTemplate } from './status.ts';
+import { getStatusTemplate, resolveStatusChoice } from './status.ts';
 
 type ClaimMatcher = (comment: ParsedComment) => string | null;
 
@@ -54,19 +54,20 @@ function textMatcher(word: string): ClaimMatcher {
   };
 }
 
-// Statuses that getStatusTemplate has a template for. Aliases that share a template
+// Status choices that getStatusTemplate has a template for. Aliases that share a template
 // (moreinfo/cumoreinfo, hold/cuhold) are grouped by the inversion below, so a comment
 // carrying the shared template is fulfilled by either of them.
-const statusesWithTemplates: CaseStatusChoice[] = [
+const choicesWithTemplates = [
   'CUrequest', 'admin', 'clerk', 'selfendorse', 'inprogress', 'decline', 'cudecline',
   'endorse', 'cuendorse', 'moreinfo', 'cumoreinfo', 'relist', 'hold', 'cuhold', 'reopen',
-];
+] as const satisfies Exclude<CaseStatusChoice, 'nochange'>[];
 
 /** Template name (without braces) to the statuses it can stand for */
-const statusesByTemplate = statusesWithTemplates.reduce((byTemplate, status) => {
-  const template = getStatusTemplate(status);
+const statusesByTemplate = choicesWithTemplates.reduce((byTemplate, choice) => {
+  const template = getStatusTemplate(choice);
   if (template) {
     const name = template.slice('{{'.length, -'}}'.length);
+    const status = resolveStatusChoice(choice);
     byTemplate.set(name, (byTemplate.get(name) ?? new Set()).add(status));
   }
   return byTemplate;
