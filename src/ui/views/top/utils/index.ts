@@ -4,4 +4,4 @@ export { expiryToTimestamp, findBlockLeniency } from './block';
 export { findCommentClaims, type SubmissionFacts, type UnfulfilledClaim } from './commentClaims';
 export { getSockEntries, prefetchSockRows } from './section';
 export { getActionButtons, getInitialCaseActions, type ActionButtons } from './setup';
-export { updateCommentWithStatus } from './status';
+export { resolveEffectiveStatus, updateCommentWithStatus } from './status';

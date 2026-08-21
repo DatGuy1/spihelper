@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import type { CaseStatus } from '../../../../../src/types';
-import { normalizeCaseStatus } from '../../../../../src/ui/views/top/utils/status.ts';
+import type { CaseStatus, SectionStatusChange } from '../../../../../src/types';
+import {
+  normalizeCaseStatus,
+  resolveEffectiveStatus,
+} from '../../../../../src/ui/views/top/utils/status.ts';
 
 describe('normalizeCaseStatus', () => {
   describe('values in Template:SPI case status', () => {
@@ -64,6 +67,42 @@ describe('normalizeCaseStatus', () => {
     test('does not match a documented value embedded in a longer string', () => {
       expect(normalizeCaseStatus('checkedfoo')).toBe('new');
       expect(normalizeCaseStatus('xxcompleted')).toBe('new');
+    });
+  });
+});
+
+describe('resolveEffectiveStatus', () => {
+  const change = (overrides: Partial<SectionStatusChange> = {}): SectionStatusChange => ({
+    old: 'inprogress',
+    new: 'nochange',
+    enabled: true,
+    ...overrides,
+  });
+
+  test('is the chosen status when the change will be made', () => {
+    expect(resolveEffectiveStatus(change({ new: 'closed' }))).toBe('closed');
+  });
+
+  test('is the current status when nothing is being changed', () => {
+    expect(resolveEffectiveStatus(change({ new: 'nochange' }))).toBe('inprogress');
+  });
+
+  test('is the current status when the change is switched off', () => {
+    expect(resolveEffectiveStatus(change({ new: 'closed', enabled: false }))).toBe('inprogress');
+  });
+
+  describe('pseudo-statuses', () => {
+    // spiHelperHandleStatus rewrites these before saving
+    test('resolves reopen to open', () => {
+      expect(resolveEffectiveStatus(change({ new: 'reopen' }))).toBe('open');
+    });
+
+    test('resolves selfendorse to endorse', () => {
+      expect(resolveEffectiveStatus(change({ new: 'selfendorse' }))).toBe('endorse');
+    });
+
+    test('leaves them alone when the change is switched off', () => {
+      expect(resolveEffectiveStatus(change({ new: 'reopen', enabled: false }))).toBe('inprogress');
     });
   });
 });

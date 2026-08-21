@@ -1,14 +1,13 @@
 import { type PropType, defineComponent } from 'vue';
 import type { SectionSelection } from '../../../../state.ts';
-import type { CaseActions } from '../../../../types';
-
-type StatusData = CaseActions['status']['data'];
+import type { CaseActions, CaseStatus } from '../../../../types';
+import { resolveEffectiveStatus } from '../utils';
 
 export const ArchiveActionComponent = defineComponent({
   props: {
     enabled: { type: Boolean, required: true },
     selection: { type: [Object, null] as PropType<SectionSelection | null>, required: true },
-    statusData: { type: Object as PropType<StatusData>, required: true },
+    statusAction: { type: Object as PropType<CaseActions['status']>, required: true },
   },
   emits: ['update:enabled'],
   computed: {
@@ -23,7 +22,7 @@ export const ArchiveActionComponent = defineComponent({
       }
       return this.selection.sections
         .map(section => ({ name: section.name, status: this.effectiveSectionStatus(section.id) }))
-        .filter((entry): entry is { name: string; status: string } => entry.status !== 'closed');
+        .filter(entry => entry.status !== 'closed');
     },
     badStatus(): boolean {
       if (!this.selection || this.selection.type === 'all') {
@@ -34,27 +33,16 @@ export const ArchiveActionComponent = defineComponent({
       }
       return this.status !== 'closed';
     },
-    status(): string {
-      return this.effectiveStatus(this.statusData.old, this.statusData.new);
+    status(): CaseStatus {
+      const { enabled, data } = this.statusAction;
+      return resolveEffectiveStatus({ enabled, old: data.old, new: data.new });
     },
   },
   methods: {
-    effectiveStatus(oldStatus: string, newStatus: string): string {
-      switch (newStatus) {
-        case 'nochange':
-          return oldStatus;
-        case 'selfendorse':
-          return 'endorse';
-        default:
-          return newStatus;
-      }
-    },
-    effectiveSectionStatus(sectionId: number): string {
-      const entry = this.statusData.bySection.get(sectionId);
-      if (!entry) {
-        return '';
-      }
-      return this.effectiveStatus(entry.old, entry.new);
+    // Each section in a multi-select carries its own toggle, so the entry is the whole change
+    effectiveSectionStatus(sectionId: number): CaseStatus | '' {
+      const entry = this.statusAction.data.bySection.get(sectionId);
+      return entry ? resolveEffectiveStatus(entry) : '';
     },
   },
   template: `

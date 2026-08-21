@@ -101,7 +101,7 @@ export const ActionContentComponent = defineComponent({
                  @move-entire-case="handleMoveEntireCase" />
     <archive-action v-else-if="name === 'archive'" v-model:enabled="caseActions.archive.enabled"
                     :selection="state.selectedSection"
-                    :status-data="caseActions.status.data" />
+                    :status-action="caseActions.status" />
     <management-action v-else-if="name === 'management'" v-model:enabled="caseActions.management.enabled"
                        v-model:flags="caseActions.management.data.flags" />
   `,

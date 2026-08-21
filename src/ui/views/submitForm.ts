@@ -1,5 +1,5 @@
 import { type ComponentPublicInstance, type PropType, defineComponent } from 'vue';
-import type { SubmitFormActions, UserRow } from '../../types';
+import type { CaseStatus, SubmitFormActions, UserRow } from '../../types';
 import { isNonRegisteredAccount, parseExpiry } from '../../utils.ts';
 import { isSockpuppetTag } from '../../tags.ts';
 import { isInputDisabled } from '../utils.ts';
@@ -11,7 +11,12 @@ import type { ModalAction, PrimaryModalAction } from '@wikimedia/codex';
 import { type CaseState, loadCaseText, loadSectionText } from '../../state.ts';
 import { spiHelperIsCheckuser } from '../../role.ts';
 import { spiHelperCUBlockRegex } from '../../constants';
-import { type UnfulfilledClaim, findBlockLeniency, findCommentClaims } from './top/utils';
+import {
+  type UnfulfilledClaim,
+  findBlockLeniency,
+  findCommentClaims,
+  resolveEffectiveStatus,
+} from './top/utils';
 
 interface Data {
   popover: {
@@ -53,14 +58,14 @@ export const SubmitFormComponent = defineComponent({
     };
   },
   computed: {
-    effectiveStatus() {
+    effectiveStatus(): CaseStatus | '' {
       const status = this.caseActions.status;
       if (!status) {
+        // When there's no status action at all, such as in the alternate view
         return '';
       }
-      return status.enabled && status.data.new !== 'nochange'
-        ? status.data.new
-        : status.data.old;
+      const { enabled, data } = status;
+      return resolveEffectiveStatus({ enabled, old: data.old, new: data.new });
     },
     /** Rows that will produce an SRG request, whether that's a lock or a global block */
     globalRequestTargets(): UserRow[] {
