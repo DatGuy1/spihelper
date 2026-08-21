@@ -11,32 +11,7 @@ import type { ModalAction, PrimaryModalAction } from '@wikimedia/codex';
 import { type CaseState, loadCaseText, loadSectionText } from '../../state.ts';
 import { spiHelperIsCheckuser } from '../../role.ts';
 import { spiHelperCUBlockRegex } from '../../constants';
-import { parseTemplates } from '../../template.ts';
-import { findBlockLeniency, findStatusTemplateMismatch } from './top/utils';
-
-/**
- * Looks for a claim in the comment. Returns the wording for the warning to quote back
- */
-type ClaimMatcher = (commentText: string) => string | null;
-
-/** Matches a comment that transcludes any of `names`, reporting it as '{{name}}' */
-function templateMatcher(...names: string[]): ClaimMatcher {
-  return (commentText) => {
-    const templateNames = new Set(parseTemplates(commentText).map(t => t.name));
-    const claimed = names.find(name => templateNames.has(name.toLowerCase()));
-    return claimed ? `{{${claimed}}}` : null;
-  };
-}
-
-/** An action the comment can claim was carried out, and how to tell whether it actually was */
-interface ActionClaim {
-  /** Ways the comment can claim the action happened */
-  matchers: ClaimMatcher[];
-  /** Whether spihelper is actually set to carry the action out */
-  fulfilled: boolean;
-  /** Reads as 'The comment includes <name>, but <missing>.' */
-  missing: string;
-}
+import { type UnfulfilledClaim, findBlockLeniency, findCommentClaims } from './top/utils';
 
 interface Data {
   popover: {
@@ -128,45 +103,17 @@ export const SubmitFormComponent = defineComponent({
         && parseExpiry(user.block.duration) === null,
       );
     },
-    // The comment mentions a clerk template whose implied
-    // status doesn't match what's actually being submitted
-    statusTemplateMismatch(): string | null {
-      const comment = this.caseActions.comment;
-      if (!comment?.enabled) {
-        return null;
-      }
-      const mismatch = findStatusTemplateMismatch(comment.data.text, this.effectiveStatus);
-      if (!mismatch) {
-        return null;
-      }
-      return mismatch.kind === 'template' ? `{{${mismatch.match}}}` : `the word "${mismatch.match}"`;
-    },
-    // Text in the comment claiming an action that the submission won't actually carry out
-    unfulfilledClaims(): { text: string; missing: string }[] {
+    // Claims the comment makes that the submission won't actually carry out
+    commentClaims(): UnfulfilledClaim[] {
       const comment = this.caseActions.comment;
       if (!comment?.enabled) {
         return [];
       }
-      const commentText = comment.data.text;
       const blockAction = this.caseActions.block;
-      const claims: ActionClaim[] = [
-        {
-          matchers: [templateMatcher('bnt', 'btc', 'bwt', 'sblock', 'IPblock')],
-          fulfilled: blockAction.enabled && this.accounts.some(user => user.block.block),
-          missing: 'no block is set to be applied',
-        },
-        {
-          matchers: [templateMatcher('GlobalLocksRequested', 'glr')],
-          fulfilled: this.globalRequestTargets.length > 0,
-          missing: 'no lock or global block is set to be requested',
-        },
-      ];
-      return claims.flatMap(({ matchers, fulfilled, missing }) => {
-        if (fulfilled) {
-          return [];
-        }
-        const claimed = matchers.map(match => match(commentText)).find(text => text !== null);
-        return claimed ? [{ text: claimed, missing }] : [];
+      return findCommentClaims(comment.data.text, {
+        effectiveStatus: this.effectiveStatus,
+        blockPlanned: blockAction.enabled && this.accounts.some(user => user.block.block),
+        globalRequestPlanned: this.globalRequestTargets.length > 0,
       });
     },
     // Blocks we're set to override with settings that are less restrictive
@@ -292,17 +239,14 @@ export const SubmitFormComponent = defineComponent({
         <cdx-message v-if="hasInvalidTag" type="error" :inline="true">A user has an invalid tag</cdx-message>
         <cdx-message v-if="hasInvalidMove" type="error" :inline="true"><b>Move</b> is enabled but has no target</cdx-message>
         <cdx-message v-if="hasInvalidDuration" type="error" :inline="true">A user has an invalid block duration</cdx-message>
-        <cdx-message v-if="statusTemplateMismatch" type="warning" :inline="true">
-          The comment includes {{ statusTemplateMismatch }}, but the case status is set to {{ effectiveStatus }}.
-        </cdx-message>
-        <cdx-message v-for="claim in unfulfilledClaims" :key="claim.text"
+        <cdx-message v-for="claim in commentClaims" :key="claim.quoted + claim.reason"
                      type="warning" :inline="true">
-          The comment includes {{ claim.text }}, but {{ claim.missing }}.
+          The comment includes {{ claim.quoted }}, but {{ claim.reason }}
         </cdx-message>
         <cdx-message v-for="override in lenientOverrides" :key="override.username"
                      type="warning" :inline="true">
           Overriding <b>{{ override.username }}</b>'s existing block with a more lenient one:
-          {{ override.reasons.join(', ') }}.
+          {{ override.reasons.join(', ') }}
         </cdx-message>
         <cdx-button ref="submitElement" action="progressive" weight="primary" @click="onSubmit"
                     :disabled="disableButton">

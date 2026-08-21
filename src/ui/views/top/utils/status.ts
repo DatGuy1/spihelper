@@ -1,5 +1,4 @@
 import { spiHelperCaseClosedRegex, spiHelperClerkStatusRegex } from '../../../../constants';
-import { parseTemplates } from '../../../../template.ts';
 
 export function getStatusTemplate(status: string): string | null {
   switch (status) {
@@ -81,72 +80,4 @@ export function normalizeCaseStatus(caseStatus: string) {
   if (/^admin$/i.test(caseStatus)) return 'admin';
 
   return 'new';
-}
-
-function templateName(template: string): string | null {
-  return parseTemplates(template)[0]?.name ?? null;
-}
-
-// Multiple templates that all imply closed
-const closingTemplateNames = new Set(
-  ['{{btc}}', '{{Action and close}}', '{{Closing without action}}']
-    .map(templateName)
-    .filter((name): name is string => name !== null),
-);
-
-// Statuses whose expected comment template (per getStatusTemplate)
-// we can compare against what's actually in the comment
-const statusesWithTemplates = [
-  'CUrequest', 'admin', 'clerk', 'selfendorse', 'inprogress', 'decline', 'cudecline',
-  'endorse', 'cuendorse', 'moreinfo', 'relist', 'hold', 'reopen',
-] as const;
-
-const knownStatusTemplateNames = new Set(
-  statusesWithTemplates
-    .map(status => getStatusTemplate(status))
-    .filter((template): template is string => template !== null)
-    .map(templateName),
-);
-
-export interface StatusTemplateMismatch {
-  // 'template': a known clerk template implies a status that doesn't match newStatus.
-  // 'text': no such template was found, but the keyword appears in free text.
-  // A weaker signal due to lack of context, so only used
-  // as a fallback when no template evidence is available.
-  kind: 'template' | 'text';
-  match: string;
-}
-
-/**
- * Finds a clerk template in the comment whose implied status doesn't match newStatus: either
- * a "closing" template (btc/Action and close/Closing without action) while the case isn't being
- * closed, or one of getStatusTemplate()'s status templates while a different status is set.
- * Falls back to a free-text match if no template evidence is found either way.
- * Callers should resolve 'nochange' to the current status before calling this.
- */
-export function findStatusTemplateMismatch(
-  commentText: string, newStatus: string,
-): StatusTemplateMismatch | null {
-  const commentTemplateNames = new Set(parseTemplates(commentText).map(t => t.name));
-
-  if (newStatus !== 'closed') {
-    const closingTemplate = [...closingTemplateNames].find(name => commentTemplateNames.has(name));
-    if (closingTemplate) {
-      return { kind: 'template', match: closingTemplate };
-    }
-  }
-
-  const expectedTemplate = getStatusTemplate(newStatus);
-  const expectedName = expectedTemplate ? templateName(expectedTemplate) : null;
-  for (const name of commentTemplateNames) {
-    if (knownStatusTemplateNames.has(name) && name !== expectedName) {
-      return { kind: 'template', match: name };
-    }
-  }
-
-  if (newStatus !== 'closed' && /\bclosing\b/i.test(commentText)) {
-    return { kind: 'text', match: 'closing' };
-  }
-
-  return null;
 }

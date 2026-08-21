@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import type { BlockEntry, BlockRowData, SubmitFormActions, UserRow } from '../../../src/types';
 import { SubmitFormComponent } from '../../../src/ui/views';
-import { getInitialCaseActions } from '../../../src/ui/views/top/utils';
+import { type UnfulfilledClaim, getInitialCaseActions } from '../../../src/ui/views/top/utils';
 import { setContext } from '../../../src/context.ts';
 import { makeBlockEntry, makeUserRow } from '../../fixtures/spi.ts';
 
@@ -14,16 +14,14 @@ interface TestCtx {
 
 interface ClaimCtx extends TestCtx {
   globalRequestTargets: UserRow[];
+  effectiveStatus: string;
 }
-
-interface UnfulfilledClaim { text: string; missing: string }
 
 const computed = SubmitFormComponent.computed as unknown as {
   lenientOverrides(this: TestCtx): LenientOverride[];
   globalRequestTargets(this: TestCtx): UserRow[];
-  unfulfilledClaims(this: ClaimCtx): UnfulfilledClaim[];
+  commentClaims(this: ClaimCtx): UnfulfilledClaim[];
   effectiveStatus(this: TestCtx): string;
-  statusTemplateMismatch(this: TestCtx): string | null;
   hasInvalidMove(this: TestCtx): boolean;
 };
 
@@ -53,15 +51,18 @@ function makeCtx(opts: {
   return { caseActions, accounts: opts.accounts };
 }
 
-describe('unfulfilledClaims', () => {
+describe('commentClaims', () => {
   function makeClaimCtx(opts: {
     comment: string;
     accounts?: UserRow[];
     commentEnabled?: boolean;
     blockEnabled?: boolean;
+    status?: string;
     userLocks?: Map<string, boolean>;
   }): ClaimCtx {
     const caseActions = getInitialCaseActions();
+    caseActions.status.enabled = opts.status !== undefined;
+    caseActions.status.data.new = opts.status ?? 'nochange';
     caseActions.comment.enabled = opts.commentEnabled ?? true;
     caseActions.comment.data.text = opts.comment;
     caseActions.block.enabled = opts.blockEnabled ?? true;
@@ -72,11 +73,14 @@ describe('unfulfilledClaims', () => {
       get globalRequestTargets() {
         return computed.globalRequestTargets.call(ctx);
       },
+      get effectiveStatus() {
+        return computed.effectiveStatus.call(ctx);
+      },
     };
   }
 
   const claimsFor = (opts: Parameters<typeof makeClaimCtx>[0]) =>
-    computed.unfulfilledClaims.call(makeClaimCtx(opts)).map(claim => claim.text);
+    computed.commentClaims.call(makeClaimCtx(opts)).map(claim => claim.quoted);
 
   // makeRow is set to be blocked but not locked unless the test says otherwise
   const lockedRow = makeRow('Sock', { lock: true });
@@ -100,7 +104,24 @@ describe('unfulfilledClaims', () => {
         comment: '* {{btc}}',
         accounts: [makeRow('Sock')],
         blockEnabled: false,
+        // The case is closing, so only the block half of {{btc}} goes unfulfilled
+        status: 'closed',
       })).toEqual(['{{btc}}']);
+    });
+  });
+
+  describe('status claims', () => {
+    test('flags a comment implying a status other than the one being set', () => {
+      expect(claimsFor({
+        comment: '* {{Decline}} – not enough evidence',
+        accounts: [makeRow('Sock')],
+        status: 'endorse',
+      })).toEqual(['{{Decline}}']);
+    });
+
+    test('reports both halves of {{btc}} when neither the block nor the close happens', () => {
+      expect(claimsFor({ comment: '* {{btc}}', status: 'inprogress' }))
+        .toEqual(['{{btc}}', '{{btc}}']);
     });
   });
 
@@ -141,10 +162,10 @@ describe('unfulfilledClaims', () => {
   });
 
   test('carries the reason the claim went unfulfilled', () => {
-    expect(computed.unfulfilledClaims.call(makeClaimCtx({ comment: '* {{glr}}' })))
+    expect(computed.commentClaims.call(makeClaimCtx({ comment: '* {{glr}}' })))
       .toEqual([{
-        text: '{{glr}}',
-        missing: 'no lock or global block is set to be requested',
+        quoted: '{{glr}}',
+        reason: 'no lock or global block is set to be requested',
       }]);
   });
 });
@@ -217,13 +238,12 @@ describe('with block-only case actions', () => {
     expect(computed.effectiveStatus.call(makeBlockOnlyCtx())).toBe('');
   });
 
-  test('reports no status template mismatch', () => {
-    expect(computed.statusTemplateMismatch.call(makeBlockOnlyCtx())).toBeNull();
-  });
-
-  test('reports no unfulfilled claims', () => {
-    expect(computed.unfulfilledClaims.call({ ...makeBlockOnlyCtx(), globalRequestTargets: [] }))
-      .toEqual([]);
+  test('reports no comment claims', () => {
+    expect(computed.commentClaims.call({
+      ...makeBlockOnlyCtx(),
+      globalRequestTargets: [],
+      effectiveStatus: '',
+    })).toEqual([]);
   });
 
   test('reports no invalid move', () => {
