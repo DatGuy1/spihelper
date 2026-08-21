@@ -3,6 +3,8 @@ import type { BlockEntry, BlockRowData, SubmitFormActions, UserRow } from '../..
 import { SubmitFormComponent } from '../../../src/ui/views';
 import { type UnfulfilledClaim, getInitialCaseActions } from '../../../src/ui/views/top/utils';
 import { setContext } from '../../../src/context.ts';
+import { CaseState } from '../../../src/state.ts';
+import { SectionEntry } from '../../../src/types';
 import { makeBlockEntry, makeUserRow } from '../../fixtures/spi.ts';
 
 interface LenientOverride { username: string; reasons: string[] }
@@ -15,6 +17,7 @@ interface TestCtx {
 interface ClaimCtx extends TestCtx {
   globalRequestTargets: UserRow[];
   effectiveStatus: string;
+  state: CaseState;
 }
 
 const computed = SubmitFormComponent.computed as unknown as {
@@ -67,9 +70,17 @@ describe('commentClaims', () => {
     caseActions.comment.data.text = opts.comment;
     caseActions.block.enabled = opts.blockEnabled ?? true;
     caseActions.block.data.userLocks = opts.userLocks ?? new Map<string, boolean>();
-    const ctx: TestCtx = { caseActions, accounts: opts.accounts ?? [] };
+    const section = new SectionEntry(1, '09 July 2020');
+    return makeCtxWithGetters(caseActions, opts.accounts ?? [], new CaseState([section], section));
+  }
+
+  function makeCtxWithGetters(
+    caseActions: SubmitFormActions, accounts: UserRow[], state: CaseState,
+  ): ClaimCtx {
+    const ctx: TestCtx = { caseActions, accounts };
     return {
       ...ctx,
+      state,
       get globalRequestTargets() {
         return computed.globalRequestTargets.call(ctx);
       },
@@ -161,6 +172,23 @@ describe('commentClaims', () => {
     expect(claimsFor({ comment: '* {{bnt}} and {{glr}}', commentEnabled: false })).toEqual([]);
   });
 
+  describe('multi-section selection', () => {
+    test('checks nothing, since each section submits its own comment and status', () => {
+      const caseActions = getInitialCaseActions();
+      caseActions.block.enabled = true;
+      caseActions.comment.enabled = true;
+      // The top-level box isn't what gets submitted in this mode
+      caseActions.comment.data.text = '* {{bnt}} and {{glr}}';
+      const sections = [new SectionEntry(1, '09 July 2020'), new SectionEntry(2, '15 August 2020')];
+      for (const section of sections) {
+        caseActions.comment.data.bySection.set(section.id, { text: '* {{bnt}}', enabled: true });
+      }
+      const state = new CaseState(sections);
+      state.selectedSection = { type: 'multiple', sections };
+      expect(computed.commentClaims.call(makeCtxWithGetters(caseActions, [], state))).toEqual([]);
+    });
+  });
+
   test('carries the reason the claim went unfulfilled', () => {
     expect(computed.commentClaims.call(makeClaimCtx({ comment: '* {{glr}}' })))
       .toEqual([{
@@ -243,6 +271,7 @@ describe('with block-only case actions', () => {
       ...makeBlockOnlyCtx(),
       globalRequestTargets: [],
       effectiveStatus: '',
+      state: new CaseState(),
     })).toEqual([]);
   });
 

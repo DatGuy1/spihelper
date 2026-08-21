@@ -106,7 +106,7 @@ export const SubmitFormComponent = defineComponent({
     // Claims the comment makes that the submission won't actually carry out
     commentClaims(): UnfulfilledClaim[] {
       const comment = this.caseActions.comment;
-      if (!comment?.enabled) {
+      if (!comment?.enabled || this.state.selectedSection?.type !== 'single') {
         return [];
       }
       const blockAction = this.caseActions.block;
