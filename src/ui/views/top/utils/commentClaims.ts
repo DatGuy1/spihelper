@@ -1,4 +1,5 @@
 import { parseTemplates } from '../../../../template.ts';
+import type { CaseStatusChoice } from '../../../../types';
 import { getStatusTemplate } from './status.ts';
 
 type ClaimMatcher = (comment: ParsedComment) => string | null;
@@ -56,7 +57,7 @@ function textMatcher(word: string): ClaimMatcher {
 // Statuses that getStatusTemplate has a template for. Aliases that share a template
 // (moreinfo/cumoreinfo, hold/cuhold) are grouped by the inversion below, so a comment
 // carrying the shared template is fulfilled by either of them.
-const statusesWithTemplates = [
+const statusesWithTemplates: CaseStatusChoice[] = [
   'CUrequest', 'admin', 'clerk', 'selfendorse', 'inprogress', 'decline', 'cudecline',
   'endorse', 'cuendorse', 'moreinfo', 'cumoreinfo', 'relist', 'hold', 'cuhold', 'reopen',
 ];

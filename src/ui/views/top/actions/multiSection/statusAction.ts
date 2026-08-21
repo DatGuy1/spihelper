@@ -1,9 +1,9 @@
 import { type PropType, defineComponent } from 'vue';
-import type { CaseActions, SectionEntry } from '../../../../../types';
+import type { CaseActions, CaseStatusChoice, SectionEntry, SectionStatusChange } from '../../../../../types';
 
 type StatusBySection = CaseActions['status']['data']['bySection'];
 
-const defaultEntry = { old: '', new: 'nochange', enabled: false };
+const defaultEntry: SectionStatusChange = { old: 'new', new: 'nochange', enabled: false };
 
 // One independent change-status-action per section selected in multi-select mode. Each
 // section gets its own enabled flag - they must not share caseActions.status.enabled, or
@@ -26,7 +26,7 @@ export const MultiSectionStatusActionComponent = defineComponent({
         existing.enabled = enabled;
       }
     },
-    onUpdateNewStatus(sectionId: number, newStatus: string) {
+    onUpdateNewStatus(sectionId: number, newStatus: CaseStatusChoice) {
       const existing = this.bySection.get(sectionId);
       if (existing) {
         existing.new = newStatus;

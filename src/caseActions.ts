@@ -46,6 +46,7 @@ import {
   type BlockActionData,
   type CaseAction,
   type CaseActions,
+  type CaseStatusChoice,
   type GlobalRequestResults,
   ParsedArchiveNotice,
   type UserRow,
@@ -415,7 +416,7 @@ function spiHelperHandleComment(targetText: string, comment: string) {
   }
 }
 
-function spiHelperHandleStatus(newStatus: string, targetText: string) {
+function spiHelperHandleStatus(newStatus: CaseStatusChoice, targetText: string) {
   // Should I really be calculating and returning summaryItem here?
   let summaryItem = '';
   switch (newStatus) {
@@ -473,11 +474,15 @@ function spiHelperHandleStatus(newStatus: string, targetText: string) {
     case 'closed':
       summaryItem = 'closing';
       break;
+    // Neither is offered by the dropdown, and callers skip 'nochange' before getting here
+    case 'new':
     case 'nochange':
       // Do nothing
       break;
-    default:
+    default: {
+      // Should be unreachable
       console.error('Unexpected case status value', newStatus);
+    }
   }
   const caseStatusResult = spiHelperCaseStatusRegex.exec(targetText);
   if (caseStatusResult?.[0]) {

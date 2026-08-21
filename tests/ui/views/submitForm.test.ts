@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import type { BlockEntry, BlockRowData, SubmitFormActions, UserRow } from '../../../src/types';
+import type {
+  BlockEntry,
+  BlockRowData,
+  CaseStatusChoice,
+  SubmitFormActions,
+  UserRow,
+} from '../../../src/types';
 import { SubmitFormComponent } from '../../../src/ui/views';
 import { type UnfulfilledClaim, getInitialCaseActions } from '../../../src/ui/views/top/utils';
 import { setContext } from '../../../src/context.ts';
@@ -60,7 +66,7 @@ describe('commentClaims', () => {
     accounts?: UserRow[];
     commentEnabled?: boolean;
     blockEnabled?: boolean;
-    status?: string;
+    status?: CaseStatusChoice;
     userLocks?: Map<string, boolean>;
   }): ClaimCtx {
     const caseActions = getInitialCaseActions();

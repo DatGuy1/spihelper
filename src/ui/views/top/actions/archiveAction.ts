@@ -1,16 +1,14 @@
 import { type PropType, defineComponent } from 'vue';
 import type { SectionSelection } from '../../../../state.ts';
+import type { CaseActions } from '../../../../types';
+
+type StatusData = CaseActions['status']['data'];
 
 export const ArchiveActionComponent = defineComponent({
   props: {
     enabled: { type: Boolean, required: true },
     selection: { type: [Object, null] as PropType<SectionSelection | null>, required: true },
-    statusData: {
-      type: Object as PropType<{
-        old: string; new: string; bySection: Map<number, { old: string; new: string }>;
-      }>,
-      required: true,
-    },
+    statusData: { type: Object as PropType<StatusData>, required: true },
   },
   emits: ['update:enabled'],
   computed: {

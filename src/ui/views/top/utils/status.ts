@@ -1,6 +1,7 @@
 import { spiHelperCaseClosedRegex, spiHelperClerkStatusRegex } from '../../../../constants';
+import type { CaseStatus, CaseStatusChoice } from '../../../../types';
 
-export function getStatusTemplate(status: string): string | null {
+export function getStatusTemplate(status: CaseStatusChoice): string | null {
   switch (status) {
     case 'CUrequest':
       return '{{CURequest}}';
@@ -30,18 +31,21 @@ export function getStatusTemplate(status: string): string | null {
       return '{{onhold}}';
     case 'reopen':
       return '{{reopen}}';
+    // Statuses with no template of their own
     case 'checked':
     case 'closed':
     case 'new':
-    case '':
+    case 'open':
+    case 'nochange':
       return null;
-    default:
+    default: {
       console.warn('New case status', status, 'is unexpected');
       return null;
+    }
   }
 }
 
-export function updateCommentWithStatus(commentText: string, newStatus: string): string {
+export function updateCommentWithStatus(commentText: string, newStatus: CaseStatusChoice): string {
   const newTemplate = getStatusTemplate(newStatus);
   if (newTemplate === null) {
     return commentText;
@@ -63,7 +67,7 @@ export function updateCommentWithStatus(commentText: string, newStatus: string):
   return commentText;
 }
 
-export function normalizeCaseStatus(caseStatus: string) {
+export function normalizeCaseStatus(caseStatus: string): CaseStatus {
   if (spiHelperCaseClosedRegex.test(caseStatus)) return 'closed';
   if (/^open$/i.test(caseStatus)) return 'open';
   if (/^(?:inprogress|checking)$/i.test(caseStatus)) return 'inprogress';

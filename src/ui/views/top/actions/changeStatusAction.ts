@@ -1,14 +1,15 @@
-import { defineComponent } from 'vue';
-import { spiHelperCaseClosedRegex } from '../../../../constants/regex.ts';
+import { type PropType, defineComponent } from 'vue';
+import { spiHelperCaseClosedRegex } from '../../../../constants';
 import { spiHelperIsAdmin, spiHelperIsCheckuser, spiHelperIsClerk } from '../../../../role.ts';
 import type { MenuGroupData, MenuItemData, MenuItemValue } from '@wikimedia/codex';
+import type { CaseStatus, CaseStatusChoice } from '../../../../types';
 import { isMenuGroupData } from '../../../utils.ts';
 
 export const ChangeStatusActionComponent = defineComponent({
   props: {
     enabled: { type: Boolean, required: true },
-    oldStatus: { type: String, required: true },
-    newStatus: { type: String, required: true },
+    oldStatus: { type: String as PropType<CaseStatus>, required: true },
+    newStatus: { type: String as PropType<CaseStatusChoice>, required: true },
   },
   emits: ['update:enabled', 'update:newStatus'],
   computed: {

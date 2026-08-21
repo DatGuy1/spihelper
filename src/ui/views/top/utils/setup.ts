@@ -70,7 +70,7 @@ export function getInitialCaseActions(): CaseActions {
     status: {
       enabled: false,
       data: {
-        old: '',
+        old: 'new',
         new: 'nochange',
         bySection: new Map(),
       },

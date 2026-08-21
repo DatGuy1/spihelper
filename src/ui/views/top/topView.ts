@@ -5,6 +5,7 @@ import {
   type CaseActionName,
   type CaseActionSection,
   type CaseActions,
+  type CaseStatusChoice,
   type FeedbackDialog,
   ParsedArchiveNotice,
   type SectionEntry,
@@ -523,7 +524,7 @@ export const TopViewComponent = defineComponent({
       this.sectionAccountNames = new Set(this.massAddUserRows(allRows).map(row => row.username));
     },
     // Changes the case status in the comment box
-    onUpdateNewStatus(newStatus: string) {
+    onUpdateNewStatus(newStatus: CaseStatusChoice) {
       this.caseActions.comment.data.text = updateCommentWithStatus(
         this.caseActions.comment.data.text,
         newStatus,
@@ -531,7 +532,7 @@ export const TopViewComponent = defineComponent({
     },
     // Same as onUpdateNewStatus, but for one section's
     // own comment box in the multi-select selection
-    onUpdateSectionStatus(sectionId: number, newStatus: string) {
+    onUpdateSectionStatus(sectionId: number, newStatus: CaseStatusChoice) {
       const entry = this.caseActions.comment.data.bySection.get(sectionId);
       if (entry) {
         entry.text = updateCommentWithStatus(entry.text, newStatus);

@@ -88,6 +88,26 @@ export interface UserRow {
   block: BlockRowData;
 }
 
+/**
+ * A status a section can actually be in: what normalizeCaseStatus resolves the
+ * {{SPI case status}} parameter to, and what spihelper writes back
+ */
+export type CaseStatus
+  = | 'new' | 'open' | 'closed'
+    | 'CUrequest' | 'clerk' | 'admin'
+    | 'inprogress' | 'checked' | 'relist'
+    | 'decline' | 'cudecline'
+    | 'endorse' | 'cuendorse'
+    | 'moreinfo' | 'cumoreinfo'
+    | 'hold' | 'cuhold';
+
+/**
+ * What the status dropdown can be set to: any real status, the two pseudo-statuses
+ * spiHelperHandleStatus rewrites before writing (reopen -> open, selfendorse -> endorse),
+ * and the sentinel for leaving the status alone
+ */
+export type CaseStatusChoice = CaseStatus | 'reopen' | 'selfendorse' | 'nochange';
+
 export interface CaseAction<T> {
   enabled: boolean;
   data: T;
@@ -98,15 +118,25 @@ export interface CaseActions {
   comment: CaseAction<{
     text: string; bySection: Map<number, { text: string; enabled: boolean }>;
   }>;
-  status: CaseAction<{
-    old: string; new: string;
-    bySection: Map<number, { old: string; new: string; enabled: boolean }>;
+  status: CaseAction<StatusChange & {
+    bySection: Map<number, SectionStatusChange>;
   }>;
   block: CaseAction<BlockActionData>;
   link: { enabled: boolean };
   management: CaseAction<{ flags: Set<ManagementFlag> }>;
   move: CaseAction<{ target: string; suppress: boolean; addNote: boolean }>;
   archive: { enabled: boolean };
+}
+
+/** The status a section is at, and the status it's being set to */
+export interface StatusChange {
+  old: CaseStatus;
+  new: CaseStatusChoice;
+}
+
+/** One section's status change in a multi-section selection, which carries its own toggle */
+export interface SectionStatusChange extends StatusChange {
+  enabled: boolean;
 }
 
 /**
