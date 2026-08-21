@@ -43,8 +43,8 @@ export const ChangeStatusActionComponent = defineComponent({
       const isClerk = spiHelperIsClerk();
 
       const cuRequested = /^(?:CU|checkuser|CUrequest|request|cumoreinfo)$/i.test(this.oldStatus);
-      const cuEndorsed = /^endorsed?$/i.test(this.oldStatus);
-      const cuCompleted = /^(?:inprogress|checking|relist(ed)?|checked|completed|declined?|cudeclin(ed)?)$/i.test(this.oldStatus);
+      const cuEndorsed = /^(?:cu)?endorsed?$/i.test(this.oldStatus);
+      const cuCompleted = /^(?:inprogress|checking|relist(ed)?|checked|completed|declined?|cudeclined?)$/i.test(this.oldStatus);
 
       const noChangeLabel = `No change (${this.oldStatus})`;
       mainItems.push({ label: noChangeLabel, value: 'nochange' });
@@ -95,7 +95,9 @@ export const ChangeStatusActionComponent = defineComponent({
           clerkItems.push({ label: 'Request more information for CheckUser', value: 'cumoreinfo' });
         }
       }
-      clerkItems.push({ label: 'Place case on CU hold', value: 'cuhold' });
+      if (isCheckuser) {
+        clerkItems.push({ label: 'Place case on CU hold', value: 'cuhold' });
+      }
       clerkItems.push({ label: 'Place case on hold', value: 'hold' });
       deferItems.push({ label: 'Request clerk action', value: 'clerk' });
       if (spiHelperIsAdmin() || isClerk) {
