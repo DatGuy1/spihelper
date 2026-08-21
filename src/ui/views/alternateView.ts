@@ -228,60 +228,64 @@ export const AlternateViewComponent = defineComponent({
     async loadCase(addRow: boolean) {
       this.caseLoading = true;
 
-      // Set context
-      setContext(this.pageName, 'alternate');
-      if (this.targetCase) {
-        // Load archivenotice params
-        const archiveNoticeResult = await spiHelperParseArchiveNotice({
-          page: this.pageName,
-          state: this.state,
-        });
-        context.valid = archiveNoticeResult !== null;
-        if (archiveNoticeResult === null) {
-          // No archive notice was found, initialise default
-          this.state.archiveNotice = new ParsedArchiveNotice({ username: this.targetCase });
-        }
-        else {
-          this.state.archiveNotice = archiveNoticeResult;
-        }
-
-        if (addRow) {
-          const [userBlock, userPageText] = await Promise.all([
-            spiHelperGetUserBlockSettings(this.targetCase),
-            spiHelperGetPageText(`User:${this.targetCase}`, false),
-          ]);
-          if (userBlock !== null) {
-            this.blockData.userBlocks.set(this.targetCase, userBlock);
-          }
-          const { userRow, isLocked } = setUserRowBlockData({
-            userRow: generateUserRow(this.targetCase, this.state),
-            block: userBlock ?? undefined,
-            userPage: userPageText,
-            defaultBlock: true,
-            globalUser: undefined,
-            globalBlock: undefined,
+      try {
+        // Set context
+        setContext(this.pageName, 'alternate');
+        if (this.targetCase) {
+          // Load archivenotice params
+          const archiveNoticeResult = await spiHelperParseArchiveNotice({
+            page: this.pageName,
             state: this.state,
           });
-          if (isLocked !== null) {
-            this.blockData.userLocks.set(this.targetCase, isLocked);
-          }
-          // Add or replace
-          const oldIndex = this.accounts.findIndex(user => user.username === userRow.username);
-          if (oldIndex === -1) {
-            this.accounts.splice(0, 0, userRow);
+          context.valid = archiveNoticeResult !== null;
+          if (archiveNoticeResult === null) {
+            // No archive notice was found, initialise default
+            this.state.archiveNotice = new ParsedArchiveNotice({ username: this.targetCase });
           }
           else {
-            this.accounts.splice(oldIndex, 1, userRow);
+            this.state.archiveNotice = archiveNoticeResult;
+          }
+
+          if (addRow) {
+            const [userBlock, userPageText] = await Promise.all([
+              spiHelperGetUserBlockSettings(this.targetCase),
+              spiHelperGetPageText(`User:${this.targetCase}`, false),
+            ]);
+            if (userBlock !== null) {
+              this.blockData.userBlocks.set(this.targetCase, userBlock);
+            }
+            const { userRow, isLocked } = setUserRowBlockData({
+              userRow: generateUserRow(this.targetCase, this.state),
+              block: userBlock ?? undefined,
+              userPage: userPageText,
+              defaultBlock: true,
+              globalUser: undefined,
+              globalBlock: undefined,
+              state: this.state,
+            });
+            if (isLocked !== null) {
+              this.blockData.userLocks.set(this.targetCase, isLocked);
+            }
+            // Add or replace
+            const oldIndex = this.accounts.findIndex(user => user.username === userRow.username);
+            if (oldIndex === -1) {
+              this.accounts.splice(0, 0, userRow);
+            }
+            else {
+              this.accounts.splice(oldIndex, 1, userRow);
+            }
           }
         }
-      }
-      else {
-        context.valid = false;
-      }
-      this.blockData.master = spiHelperNormalizeUsername(this.targetCase);
+        else {
+          context.valid = false;
+        }
+        this.blockData.master = spiHelperNormalizeUsername(this.targetCase);
 
-      this.caseLoading = false;
-      this.caseLoaded = true;
+        this.caseLoaded = true;
+      }
+      finally {
+        this.caseLoading = false;
+      }
     },
     async onSubmitActions() {
       if (isOpRunning('alternateActions')) {
