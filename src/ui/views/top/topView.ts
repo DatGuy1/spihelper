@@ -58,7 +58,7 @@ interface Data {
   unpinned: boolean;
   buttonLayout: boolean;
   sectionAccountNames: Set<string>;
-  sectionAccountsController: AbortController | null;
+  sectionSelectionController: AbortController | null;
   actionButtons: ActionButtons;
   actionButtonKeys: CaseActionName[];
   caseActions: CaseActions;
@@ -91,7 +91,7 @@ export const TopViewComponent = defineComponent({
       actionButtons,
       actionButtonKeys,
       sectionAccountNames: new Set<string>(),
-      sectionAccountsController: null,
+      sectionSelectionController: null,
       caseActions: getInitialCaseActions(),
       accounts: [],
       messages,
@@ -349,7 +349,7 @@ export const TopViewComponent = defineComponent({
 
       if (newSelection === 'all') {
         this.state.selectedSection = { type: 'all' };
-        void this.loadSectionAccounts(this.state.selectedSection);
+        void this.loadSectionAccounts(this.state.selectedSection, this.startSelectionLoad());
         this.syncSelectedSectionOverlay();
         return;
       }
@@ -361,9 +361,14 @@ export const TopViewComponent = defineComponent({
       await this.loadNewSection(targetSection);
     },
     async loadNewSection(targetSection: SectionEntry) {
-      this.state.selectedSection = { type: 'single', section: targetSection };
+      const selection: SectionSelection = { type: 'single', section: targetSection };
+      const signal = this.startSelectionLoad();
+      this.state.selectedSection = selection;
 
       const newText = await loadSectionText(targetSection);
+      if (isAborted(signal)) {
+        return;
+      }
       const result = spiHelperCaseStatusRegex.exec(newText);
       const normalisedStatus = normalizeCaseStatus(result?.[1] ?? '');
       this.caseActions.status.data.old = normalisedStatus;
@@ -372,7 +377,7 @@ export const TopViewComponent = defineComponent({
         this.caseActions.archive.enabled = true;
       }
       this.syncSelectedSectionOverlay();
-      void this.loadSectionAccounts(this.state.selectedSection);
+      void this.loadSectionAccounts(selection, signal);
     },
     async toggleMultiSelectMode(newValue: boolean) {
       this.multiSelectMode = newValue;
@@ -434,11 +439,16 @@ export const TopViewComponent = defineComponent({
         await this.loadNewSection(only);
         return;
       }
+      const signal = this.startSelectionLoad();
       this.caseActions.sections.data.section = sections.map(s => s.id);
-      this.state.selectedSection = { type: 'multiple', sections };
+      const selection: SectionSelection = { type: 'multiple', sections };
+      this.state.selectedSection = selection;
       await Promise.all(sections.map(section => this.ensureBySectionEntry(section)));
+      if (isAborted(signal)) {
+        return;
+      }
       this.syncSelectedSectionOverlay();
-      void this.loadSectionAccounts(this.state.selectedSection);
+      void this.loadSectionAccounts(selection, signal);
     },
     // Seed per-section comment/status data the first time a section joins the
     // multi-select selection
@@ -473,16 +483,15 @@ export const TopViewComponent = defineComponent({
       }
     },
     /**
-     * Supersedes whatever section load was still running.
+     * Supersedes whatever selection change was still running
      */
-    startSectionAccountsLoad(): AbortSignal {
-      this.sectionAccountsController?.abort();
+    startSelectionLoad(): AbortSignal {
+      this.sectionSelectionController?.abort();
       const controller = new AbortController();
-      this.sectionAccountsController = controller;
+      this.sectionSelectionController = controller;
       return controller.signal;
     },
-    async loadSectionAccounts(selection: SectionSelection) {
-      const signal = this.startSectionAccountsLoad();
+    async loadSectionAccounts(selection: SectionSelection, signal: AbortSignal) {
       this.accounts = this.accounts.filter(row => !this.sectionAccountNames.has(row.username));
       // Prefill block and link tables. For a multi-section selection, union the text of every
       // selected section so accounts from any of them are picked up in one combined pass.

@@ -95,17 +95,19 @@ describe('loadSectionAccounts', () => {
   interface LoadCtx {
     accounts: UserRow[];
     sectionAccountNames: Set<string>;
-    sectionAccountsController: AbortController | null;
+    sectionSelectionController: AbortController | null;
     caseActions: CaseActions;
     state: CaseState;
-    startSectionAccountsLoad(): AbortSignal;
+    startSelectionLoad(): AbortSignal;
     massAddUserRows(rows: UserRow[]): UserRow[];
     loadSectionAccounts(selection: SectionSelection): Promise<void>;
   }
 
   const methods = TopViewComponent.methods as unknown as {
-    loadSectionAccounts(this: LoadCtx, selection: SectionSelection): Promise<void>;
-    startSectionAccountsLoad(this: LoadCtx): AbortSignal;
+    loadSectionAccounts(
+      this: LoadCtx, selection: SectionSelection, signal: AbortSignal,
+    ): Promise<void>;
+    startSelectionLoad(this: LoadCtx): AbortSignal;
     massAddUserRows(this: LoadCtx, rows: UserRow[]): UserRow[];
   };
 
@@ -122,12 +124,15 @@ describe('loadSectionAccounts', () => {
     const ctx: LoadCtx = {
       accounts: [],
       sectionAccountNames: new Set<string>(),
-      sectionAccountsController: null,
+      sectionSelectionController: null,
       caseActions,
       state: new CaseState(sections),
-      startSectionAccountsLoad: () => methods.startSectionAccountsLoad.call(ctx),
+      startSelectionLoad: () => methods.startSelectionLoad.call(ctx),
       massAddUserRows: rows => methods.massAddUserRows.call(ctx, rows),
-      loadSectionAccounts: selection => methods.loadSectionAccounts.call(ctx, selection),
+      // Mirrors the real callers, which start the selection load and thread its signal down
+      loadSectionAccounts: selection => methods.loadSectionAccounts.call(
+        ctx, selection, methods.startSelectionLoad.call(ctx),
+      ),
     };
     return ctx;
   }
@@ -208,5 +213,105 @@ describe('loadSectionAccounts', () => {
     await ctx.loadSectionAccounts({ type: 'single', section: sectionB });
 
     expect(ctx.accounts.map(row => row.username)).toEqual(['SockB']);
+  });
+});
+
+describe('loadNewSection', () => {
+  interface NewSectionCtx {
+    caseActions: CaseActions;
+    state: CaseState;
+    sectionSelectionController: AbortController | null;
+    accountLoads: SectionSelection[];
+    loadNewSection(section: SectionEntry): Promise<void>;
+    startSelectionLoad(): AbortSignal;
+    loadSectionAccounts(selection: SectionSelection, signal: AbortSignal): void;
+    syncSelectedSectionOverlay(): void;
+  }
+
+  const methods = TopViewComponent.methods as unknown as {
+    loadNewSection(this: NewSectionCtx, section: SectionEntry): Promise<void>;
+    startSelectionLoad(this: NewSectionCtx): AbortSignal;
+  };
+
+  /** A section whose text is already cached */
+  function cachedSection(id: number, name: string, status: string): SectionEntry {
+    const section = new SectionEntry(id, name);
+    section._text = `{{SPI case status|${status}}}`;
+    return section;
+  }
+
+  /**
+   * A section still in flight, standing in for one being fetched over the network.
+   * loadSectionText hands back _loadingPromise, so the test decides when it lands
+   */
+  function pendingSection(id: number, name: string) {
+    const section = new SectionEntry(id, name);
+    const deferred = Promise.withResolvers<string>();
+    section._loadingPromise = deferred.promise;
+    return {
+      section,
+      arrive: (status: string) => {
+        deferred.resolve(`{{SPI case status|${status}}}`);
+      },
+    };
+  }
+
+  function makeCtx(sections: SectionEntry[]): NewSectionCtx {
+    const ctx: NewSectionCtx = {
+      caseActions: getInitialCaseActions(),
+      state: new CaseState(sections),
+      sectionSelectionController: null,
+      accountLoads: [],
+      loadNewSection: section => methods.loadNewSection.call(ctx, section),
+      startSelectionLoad: () => methods.startSelectionLoad.call(ctx),
+      loadSectionAccounts: (selection) => {
+        ctx.accountLoads.push(selection);
+      },
+      syncSelectedSectionOverlay: () => undefined,
+    };
+    return ctx;
+  }
+
+  test('takes the status of the section it loaded', async () => {
+    const section = cachedSection(1, '09 July 2020', 'cudecline');
+    const ctx = makeCtx([section]);
+
+    await ctx.loadNewSection(section);
+
+    expect(ctx.caseActions.status.data.old).toBe('cudecline');
+    expect(ctx.caseActions.status.data.new).toBe('cudecline');
+    expect(ctx.accountLoads).toEqual([{ type: 'single', section }]);
+  });
+
+  test('ignores a section whose text arrives after a later section was picked', async () => {
+    // The slow section is clicked first but answers last, so without a staleness check it
+    // would write its own status against the section now on screen
+    const { section: slow, arrive } = pendingSection(1, '09 July 2020');
+    const quick = cachedSection(2, '10 August 2021', 'endorse');
+    const ctx = makeCtx([slow, quick]);
+
+    const loadSlow = ctx.loadNewSection(slow);
+    const loadQuick = ctx.loadNewSection(quick);
+    await loadQuick;
+    arrive('closed');
+    await loadSlow;
+
+    expect(ctx.state.selectedSection).toEqual({ type: 'single', section: quick });
+    expect(ctx.caseActions.status.data.old).toBe('endorse');
+    expect(ctx.caseActions.status.data.new).toBe('endorse');
+  });
+
+  test('does not restart the account load of the section that superseded it', async () => {
+    const { section: slow, arrive } = pendingSection(1, '09 July 2020');
+    const quick = cachedSection(2, '10 August 2021', 'endorse');
+    const ctx = makeCtx([slow, quick]);
+
+    const loadSlow = ctx.loadNewSection(slow);
+    const loadQuick = ctx.loadNewSection(quick);
+    await loadQuick;
+    arrive('closed');
+    await loadSlow;
+
+    expect(ctx.accountLoads).toEqual([{ type: 'single', section: quick }]);
   });
 });
