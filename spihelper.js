@@ -228,443 +228,6 @@
   ];
   var spiHelperPaginationThreshold = 25;
   var spiHelperPaginationSizeOptions = [{ value: 25 }, { value: 50 }, { value: 100 }];
-  // src/types/spi.ts
-  class ParsedArchiveNotice {
-    username;
-    crosswiki;
-    deny;
-    notalk;
-    moot;
-    constructor(opts) {
-      this.username = opts?.username ?? context.caseName;
-      this.crosswiki = opts?.crosswiki ?? false;
-      this.deny = opts?.deny ?? false;
-      this.notalk = opts?.notalk ?? false;
-      this.moot = opts?.moot ?? false;
-    }
-    generateWikitext() {
-      let notice = "{{SPI archive notice|1=" + this.username;
-      if (this.crosswiki) {
-        notice += "|crosswiki=yes";
-      }
-      if (this.deny) {
-        notice += "|deny=yes";
-      }
-      if (this.notalk) {
-        notice += "|notalk=yes";
-      }
-      if (this.moot) {
-        notice += "|moot=yes";
-      }
-      notice += "}}";
-      return notice;
-    }
-  }
-
-  class SockpuppetTag {
-    master;
-    status;
-    locked;
-    evidence;
-    altmaster;
-    altmasterStatus;
-    constructor(opts) {
-      this.master = spiHelperNormalizeUsername(opts.master);
-      this.status = opts.status;
-      this.locked = opts.locked ?? false;
-      this.evidence = opts.evidence ?? "";
-      this.altmaster = spiHelperNormalizeUsername(opts.altmaster ?? "");
-      this.altmasterStatus = opts.altmasterStatus ?? "suspected";
-    }
-    generateWikitext(blocked) {
-      let tag = "{{sockpuppet";
-      tag += `
-| 1 = ${this.master}`;
-      tag += `
-| 2 = ${this.status}`;
-      if (this.locked) {
-        tag += `
-| locked = yes`;
-      }
-      if (blocked === false) {
-        tag += `
-| notblocked = yes`;
-      }
-      if (this.evidence) {
-        tag += `
-| evidence = ${this.evidence}`;
-      }
-      if (this.altmaster) {
-        tag += `
-| altmaster = ${this.altmaster}`;
-        tag += `
-| altmaster-status = ${this.altmasterStatus}`;
-      }
-      tag += `
-}}`;
-      return tag;
-    }
-    clone() {
-      return new SockpuppetTag({
-        master: this.master,
-        status: this.status,
-        evidence: this.evidence,
-        altmaster: this.altmaster,
-        altmasterStatus: this.altmasterStatus
-      });
-    }
-    equals(other) {
-      if (!(other instanceof SockpuppetTag))
-        return false;
-      return this.master === other.master && this.status === other.status && this.locked === other.locked && this.evidence === other.evidence && this.altmaster === other.altmaster && (!this.altmaster || this.altmasterStatus === other.altmasterStatus);
-    }
-  }
-
-  class SockmasterTag {
-    status;
-    checked;
-    locked;
-    ltapage;
-    spipage;
-    evidence;
-    constructor(opts) {
-      this.status = opts.status;
-      this.checked = opts.checked ?? false;
-      this.locked = opts.locked ?? false;
-      this.ltapage = opts.ltapage ?? "";
-      this.spipage = opts.spipage ?? "";
-      this.evidence = opts.evidence ?? "";
-    }
-    generateWikitext() {
-      let tag = "{{sockpuppeteer";
-      const outputStatus = this.status === "banned" ? "banned" : "blocked";
-      const isChecked = this.status !== "blocked";
-      tag += `
-| 1 = ${outputStatus}`;
-      if (isChecked) {
-        tag += `
-| checked = yes`;
-      }
-      if (this.locked) {
-        tag += `
-| locked = yes`;
-      }
-      if (this.ltapage) {
-        tag += `
-| ltapage = ${this.ltapage}`;
-      }
-      if (this.spipage) {
-        tag += `
-| spipage = ${this.spipage}`;
-      }
-      if (this.evidence) {
-        tag += `
-| evidence = ${this.evidence}`;
-      }
-      tag += `
-}}`;
-      return tag;
-    }
-    clone() {
-      return new SockmasterTag({
-        status: this.status,
-        checked: this.checked,
-        ltapage: this.ltapage,
-        spipage: this.spipage,
-        evidence: this.evidence
-      });
-    }
-    equals(other) {
-      if (!(other instanceof SockmasterTag))
-        return false;
-      return this.status === other.status && this.checked === other.checked && this.locked === other.locked && this.ltapage === other.ltapage && this.spipage === other.spipage && this.evidence === other.evidence;
-    }
-  }
-  var CASE_ACTION_NAMES = [
-    "sections",
-    "management",
-    "block",
-    "status",
-    "link",
-    "comment",
-    "move",
-    "archive"
-  ];
-  // node_modules/@wikimedia/codex-icons/dist/codex-icons.js
-  var p = '<path d="M11 9h7v2h-7v7H9v-7H2V9h7V2h2z"/>';
-  var u = '<path d="M11 1v13.876l4-4 1.414 1.414-5.707 5.707H9.293L3.586 12.29 5 10.876l4 4V1z"/>';
-  var P = '<path d="M10 1a9 9 0 110 18 9 9 0 010-18M5 9v2h10V9z"/>';
-  var v1 = '<path d="M10 1a9 9 0 110 18 9 9 0 010-18M4.394 5.806A6.97 6.97 0 003 10a7 7 0 0011.193 5.605l-9.8-9.8ZM10 3a6.97 6.97 0 00-4.191 1.392l9.797 9.798A7 7 0 0010 3"/>';
-  var V1 = '<path d="M18.154 3.837 8 16.8H6.65l-4.8-3.6 1.2-1.6 4.02 3.015 9.517-12.02z"/>';
-  var M1 = '<path d="M14 17h-4v-2h4zm2.404-13.163L6.22 16.8H4.9L.1 13.2l1.2-1.6 4.02 3.015 9.517-12.02zM17 13h-4v-2h4zm3-4h-4V7h4z"/>';
-  var i1 = '<path d="M10 1a9 9 0 110 18 9 9 0 010-18m0 2a7 7 0 100 14 7 7 0 000-14m1 7h3v2H9V5h2z"/>';
-  var m1 = '<path d="M16.707 4.707 11.414 10l5.293 5.293-1.414 1.414L10 11.414l-5.293 5.293-1.414-1.414L8.586 10 3.293 4.707l1.414-1.414L10 8.586l5.293-5.293z"/>';
-  var g1 = '<path d="M8.5 3H6a1 1 0 00-1 1v2.488c0 1.19-.525 2.273-1.371 3.012A4 4 0 015 12.512V16a1 1 0 001 1h2.5v2H6a3 3 0 01-3-3v-3.488a2 2 0 00-1.648-1.969L1 10.484V8.516l.352-.059A2 2 0 003 6.488V4a3 3 0 013-3h2.5zM14 1a3 3 0 013 3v2.488a2 2 0 001.648 1.969l.352.059v1.968l-.352.059A2 2 0 0017 12.512V16a3 3 0 01-3 3h-2.5v-2H14a1 1 0 001-1v-3.488c0-1.19.525-2.273 1.371-3.012A4 4 0 0115 6.488V4a1 1 0 00-1-1h-2.5V1z"/>';
-  var L1 = '<path d="m10 8.1-5.3 5.3L3.3 12l6-6h1.4l6 6-1.4 1.4z"/>';
-  var u1 = '<path d="M13 19H1V7h6V1h12v12h-6zm-6-6V9H3v8h8v-4zm2-2h8V3H9z"/>';
-  var S1 = '<path d="M19 19H1v-2h18zm-8-7.104 3.5-3.5 1.414 1.414-5.207 5.208H9.293L4.086 9.81 5.5 8.396l3.5 3.5V1h2z"/>';
-  var O1 = '<path d="m16.7 8-6 6H9.3l-6-6 1.4-1.4 5.3 5.3 5.3-5.3z"/>';
-  var Q1 = '<path d="M17 1v6.174c1.165.412 2 1.52 2 2.826a3 3 0 01-2 2.825V19h-2.563l-4.8-4H8v4H6v-4H3v-2H1V7h2V5h6.637l4.8-4zm-6.36 5.769L10.363 7H7v6h3.362l.279.231L15 16.864V3.136z"/>';
-  var n0 = '<path d="M11 18H9v-2h2zM10 2c1.497 0 2.76.433 3.66 1.268.905.84 1.34 1.994 1.34 3.232 0 1.182-.443 2.007-1.094 2.638a6.7 6.7 0 01-.95.742c-.363.241-.587.373-.923.602C11.351 10.948 11 11.86 11 13v1H9v-1c0-1.455.443-3.17 1.905-4.169.3-.204.71-.461.94-.615.281-.187.498-.349.67-.515.297-.287.485-.607.485-1.201 0-.762-.258-1.357-.7-1.768C11.853 4.317 11.117 4 10 4 7.98 4 7 5.636 7 6.5v1H5v-1C5 4.614 6.794 2 10 2"/>';
-  var P0 = '<path d="M12 10H9V8h3zm2-4H9V4h5z"/><path d="M18 20H2V0h16zM7 18h9V2H7z"/>';
-  var K0 = '<path d="M9 18H2V2h7zm-5-2h3V4H4zm14 2h-7v-7h7zm-5-2h3v-3h-3zm5-7h-7V2h7zm-5-2h3V4h-3z"/>';
-  var l4 = '<path d="M1.456 7.172a9 9 0 0117.259 5.079l-.968.75L11.75 13a.75.75 0 00-.75.75v4.21l-1.06 1c-.648-.04-1.938-.142-2.768-.416A9 9 0 011.456 7.172M12.2 3.354a7 7 0 00-4.4 13.291c.3.1.745.17 1.2.224v-3.12A2.75 2.75 0 0111.75 11h5.178A7 7 0 0012.2 3.355Z"/><circle cx="6.5" cy="10.5" r="1.5"/><circle cx="9.5" cy="6.5" r="1.5"/><circle cx="13.5" cy="8.5" r="1.5"/>';
-  var s4 = '<path d="M11 3H9v8h8V9h2v4h-6v6H1V7h6V1h4zM3 17h8v-4H7V9H3z"/><path d="M16.5 3.5H19v2h-2.5V8h-2V5.5H12v-2h2.5V1h2z"/>';
-  var H4 = '<path d="M16 2h-2v4.764l3 5.936V14h-6v6H9v-6H3v-1.3l3-5.936V2H4V0h12zM8 7.236 5.618 12h8.764L12 7.236V2H8z"/>';
-  var I4 = '<path d="M10 1a8.98 8.98 0 016.999 3.343L17 2h2v5l-1 1h-5l-.001-2h2.746a7 7 0 101.184 5h2.016A9 9 0 1110 1"/>';
-  var I3 = '<path d="M10 0a3 3 0 013 3v1h5v2h-2v14H4V6H2V4h5V3a3 3 0 013-3M6 18h8V6H6zm4-16a1 1 0 00-1 1v1h2V3a1 1 0 00-1-1"/>';
-  var T3 = '<path d="m12.009 13.695.002 1.388-4.694 4.88-1.441-1.385 3.065-3.188H0v-2h8.933l-3.057-3.164 1.438-1.39zm2.115-12.219L11.067 4.64H20v2h-8.941l3.065 3.188-1.441 1.386-4.694-4.881.002-1.388 4.694-4.86 1.439 1.39Z"/>';
-  var R3 = '<path d="M12 11a6 6 0 016 6v2H2v-2a6 6 0 016-6z"/><circle cx="10" cy="5" r="4"/>';
-  var P3 = '<path d="M12 11a6 6 0 016 6v2H2v-2a6 6 0 016-6zm-4 2a4 4 0 00-4 4h12a4 4 0 00-4-4zm2-12a4 4 0 110 8 4 4 0 010-8m0 2a2 2 0 100 4 2 2 0 000-4"/>';
-  var l5 = '<path d="M1 3h18v2H1zm0 6h7v2H1zm0 6h8v2H1zm15-4.75h3v1l-2.2 1.5L18 16.5h-1.2l-2.3-1.9-2.3 1.9H11l1.2-3.75-2.2-1.5v-1h3L14 7h1z"/>';
-  var z5 = p;
-  var i5 = u;
-  var U5 = P;
-  var Q5 = v1;
-  var _5 = V1;
-  var $5 = M1;
-  var h6 = i1;
-  var t6 = m1;
-  var a6 = g1;
-  var o6 = L1;
-  var s6 = {
-    ltr: u1,
-    shouldFlip: true
-  };
-  var V6 = S1;
-  var y6 = O1;
-  var k6 = {
-    ltr: Q1,
-    shouldFlip: true
-  };
-  var O6 = {
-    ltr: n0,
-    shouldFlip: true,
-    shouldFlipExceptions: ["he", "yi"]
-  };
-  var H7 = {
-    ltr: P0,
-    shouldFlip: true
-  };
-  var g7 = {
-    ltr: K0,
-    shouldFlip: true
-  };
-  var f8 = {
-    ltr: l4,
-    shouldFlip: true
-  };
-  var S8 = {
-    ltr: s4,
-    shouldFlip: true
-  };
-  var W8 = H4;
-  var K8 = I4;
-  var Q9 = I3;
-  var tc = {
-    ltr: T3,
-    shouldFlip: true
-  };
-  var vc = R3;
-  var dc = P3;
-  var Cc = {
-    ltr: l5,
-    shouldFlip: true
-  };
-
-  // src/types/vue.ts
-  var WatchOptionsSelect = [
-    { label: "Follow preferences", value: "preferences" },
-    { label: "No change", value: "nochange" },
-    { label: "Watch", value: "watch" },
-    { label: "Unwatch", value: "unwatch" }
-  ];
-  var WatchOptions = ["preferences", "watch", "nochange", "unwatch"];
-  var DefaultLinkRowData = {
-    analyser: false,
-    timeline: false,
-    timecard: false,
-    pages: false,
-    summary: false,
-    cuwiki: false,
-    interleaved: false
-  };
-  var SockpuppetTagStatuses = {
-    blocked: { label: "Suspected", icon: O6 },
-    proven: { label: "Proven", icon: _5 },
-    confirmed: { label: "Confirmed", icon: $5 }
-  };
-  var SockmasterTagStatuses = {
-    blocked: { label: "Blocked", icon: U5 },
-    confirmed: { label: "Confirmed", icon: $5 },
-    banned: { label: "3X Banned", icon: Q5 }
-  };
-  var AltmasterTagStatuses = {
-    suspected: { label: "Suspected", icon: O6 },
-    proven: { label: "Proven", icon: _5 }
-  };
-  // src/ui/messages.ts
-  var DISMISS_FADE_MS = 250;
-  var nextMessageId = 0;
-
-  class VueMessage {
-    type;
-    content;
-    isHtml;
-    id = nextMessageId++;
-    _shown = false;
-    constructor(opts) {
-      this.type = opts.type;
-      this.content = opts.content;
-      this.isHtml = opts.isHtml;
-    }
-    show() {
-      this._shown = true;
-      messages.push(this);
-      return this;
-    }
-    showOnce() {
-      const alreadyShown = messages.some((message) => message.type === this.type && message.content === this.content && message.isHtml === this.isHtml);
-      return alreadyShown ? this : this.show();
-    }
-    update(opts) {
-      if (!this._shown) {
-        Object.assign(this, opts);
-        this.show();
-        return this;
-      }
-      const current = messages.find((message) => message.id === this.id);
-      if (current) {
-        Object.assign(current, opts);
-      }
-      Object.assign(this, opts);
-      return this;
-    }
-  }
-  function dismissMessage(id) {
-    setTimeout(() => {
-      const index = messages.findIndex((message) => message.id === id);
-      if (index !== -1) {
-        messages.splice(index, 1);
-      }
-    }, DISMISS_FADE_MS);
-  }
-  var messages = [];
-  function setMessagesReactive(reactive) {
-    messages = reactive(messages);
-  }
-
-  // src/template.ts
-  function findTemplateSpans(templateName, text) {
-    const namePattern = templateName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/[\s_]+/g, "[\\s_]+");
-    const spans = [];
-    for (const match of text.matchAll(new RegExp(`\\{\\{\\s*${namePattern}\\s*(?=[|}])`, "gi"))) {
-      if (spans.some((span) => match.index < span.end)) {
-        continue;
-      }
-      let depth = 0;
-      for (let i = match.index;i < text.length - 1; i++) {
-        if (text.startsWith("{{", i)) {
-          depth++;
-          i++;
-        } else if (text.startsWith("}}", i)) {
-          depth--;
-          i++;
-          if (depth === 0) {
-            spans.push({ text: text.slice(match.index, i + 1), start: match.index, end: i + 1 });
-            break;
-          }
-        }
-      }
-    }
-    return spans;
-  }
-  function parseTemplates(wikitext) {
-    const templates = [];
-    const matches = wikitext.trim().matchAll(/\{\{([\s\S]+?)}}/g);
-    for (const match of matches) {
-      if (!match[1]) {
-        continue;
-      }
-      templates.push(parseTemplate(match[1]));
-    }
-    return templates;
-  }
-  function splitTemplateParts(text) {
-    const parts = [];
-    let depth = 0;
-    let segmentStart = 0;
-    for (let i = 0;i < text.length; i++) {
-      if (text.startsWith("[[", i) || text.startsWith("{{", i)) {
-        depth++;
-        i++;
-      } else if (text.startsWith("]]", i) || text.startsWith("}}", i)) {
-        depth--;
-        i++;
-      } else if (text[i] === "|" && depth === 0) {
-        parts.push(text.slice(segmentStart, i));
-        segmentStart = i + 1;
-      }
-    }
-    parts.push(text.slice(segmentStart));
-    return parts;
-  }
-  function parseTemplate(templateText) {
-    const parts = splitTemplateParts(templateText).map((p2) => p2.trim());
-    const name = parts.shift()?.toLowerCase() ?? "unknown";
-    const params = {};
-    const positional = [];
-    for (const part of parts) {
-      const eq = part.indexOf("=");
-      if (eq !== -1) {
-        const key = part.slice(0, eq).trim().toLowerCase();
-        const value = part.slice(eq + 1).trim();
-        if (value === "") {
-          params[key] = value;
-          continue;
-        }
-        const numberValue = Number(value);
-        if (!Number.isNaN(numberValue)) {
-          params[key] = numberValue;
-          continue;
-        }
-        const boolResult = convertParamToBoolean(value);
-        if (boolResult === null) {
-          params[key] = value;
-          continue;
-        }
-        params[key] = boolResult;
-      } else if (part) {
-        positional.push(part);
-      }
-    }
-    return { name, params, positional };
-  }
-  var TRUTHY_PARAM_VALUES = new Set(["y", "yes", "true", "on"]);
-  var FALSY_PARAM_VALUES = new Set(["n", "no", "false", "off"]);
-  function convertParamToBoolean(value) {
-    const normalised = value.toLowerCase();
-    if (TRUTHY_PARAM_VALUES.has(normalised)) {
-      return true;
-    }
-    if (FALSY_PARAM_VALUES.has(normalised)) {
-      return false;
-    }
-    return null;
-  }
-  function fetchTemplateArguments(template) {
-    const result = [];
-    for (const positional of template.positional) {
-      result.push(positional);
-    }
-    for (const [key, value] of Object.entries(template.params)) {
-      if (!Number.isNaN(Number(key))) {
-        result.push(value.toString());
-      }
-    }
-    return result;
-  }
-
   // src/utils.ts
   var spiHelperXWikiPrefixes = ["m", "meta"];
   function spiHelperGetXWikiPrefix(title) {
@@ -924,10 +487,7 @@ ${body}` : body;
       if (fullText) {
         const sectionDate = parseSectionDate(sectionName);
         if (sectionDate === null) {
-          new VueMessage({
-            type: "error",
-            content: `Failed to parse date from section header "${sectionName}" in archive`
-          }).show();
+          console.error(`Failed to parse date from section header "${sectionName}" in archive`);
           return null;
         }
         sectionsResult.push({ header: sectionDate, fullText });
@@ -977,118 +537,6 @@ ${body}` : body;
       skipCUVerifyUsers: new Set
     };
   }
-  function parseUserTags(userPage, username) {
-    const on = username ? ` on ${username}` : "";
-    const tags = [];
-    const templates = parseTemplates(userPage);
-    for (const template of templates) {
-      if (["sockpuppeteer", "sockmaster"].includes(template.name)) {
-        const firstParam = (template.params["1"] ?? template.positional[0])?.toString();
-        const paramConfirmed = firstParam === "cu" || (firstParam?.includes("confirmed") ?? false);
-        const sockChecked = template.params.checked === true || paramConfirmed;
-        let tagStatus;
-        if (paramConfirmed) {
-          tagStatus = "confirmed";
-        } else if (firstParam === "banned") {
-          tagStatus = "banned";
-        } else if (firstParam?.includes("blocked")) {
-          tagStatus = sockChecked ? "confirmed" : "blocked";
-        } else {
-          console.warn("Unrecognised master status", firstParam);
-          new VueMessage({
-            type: "warning",
-            content: `Ignoring {{${template.name}}} tag${on} with unrecognised status ` + `"${firstParam ?? ""}". Tagging will overwrite it`
-          }).showOnce();
-          continue;
-        }
-        const newTag = new SockmasterTag({ status: tagStatus, checked: sockChecked });
-        if (template.params.locked === true) {
-          newTag.locked = true;
-        }
-        if (template.params.ltapage) {
-          newTag.ltapage = template.params.ltapage;
-        }
-        if (template.params.spipage) {
-          newTag.spipage = template.params.spipage;
-        }
-        if (template.params.evidence) {
-          newTag.evidence = template.params.evidence;
-        }
-        tags.push(newTag);
-      } else if (["sockpuppet", "sock"].includes(template.name)) {
-        const masterParam = template.params["1"] ?? template.positional[0];
-        if (!masterParam) {
-          console.warn("Master parameter not found");
-          continue;
-        }
-        const statusParam = template.params["2"] ?? template.positional[1];
-        let tagStatus;
-        switch (statusParam) {
-          case "blocked":
-            tagStatus = "blocked";
-            break;
-          case "proven":
-            tagStatus = "proven";
-            break;
-          case "confirmed":
-          case "nbconfirmed":
-          case "cuconfirmed":
-            tagStatus = "confirmed";
-            break;
-          default:
-            console.warn("Unrecognised sock status", statusParam);
-            new VueMessage({
-              type: "warning",
-              content: `Ignoring {{${template.name}}} tag${on} with unrecognised status ` + `"${statusParam?.toString() ?? ""}". Tagging will overwrite it`
-            }).showOnce();
-            continue;
-        }
-        const newTag = new SockpuppetTag({
-          master: masterParam,
-          status: tagStatus
-        });
-        const altmaster = template.params.altmaster;
-        if (altmaster) {
-          const altmasterStatusParam = template.params["altmaster-status"];
-          let altmasterStatus;
-          switch (altmasterStatusParam) {
-            case "suspect":
-            case "suspected":
-              altmasterStatus = "suspected";
-              break;
-            case "proven":
-              altmasterStatus = "proven";
-              break;
-            default:
-              console.warn("Unrecognised altmaster status", altmasterStatusParam);
-              new VueMessage({
-                type: "warning",
-                content: `Dropping altmaster "${altmaster.toString()}"${on}: unrecognised ` + `altmaster-status "${altmasterStatusParam?.toString() ?? ""}"`
-              }).showOnce();
-              break;
-          }
-          if (altmasterStatus) {
-            newTag.altmaster = altmaster;
-            newTag.altmasterStatus = altmasterStatus;
-          }
-        }
-        if (template.params.evidence) {
-          newTag.evidence = template.params.evidence;
-        }
-        if (template.params.locked) {
-          newTag.locked = true;
-        }
-        tags.push(newTag);
-      }
-    }
-    return tags;
-  }
-  function isSockpuppetTag(tag) {
-    return tag instanceof SockpuppetTag;
-  }
-  function isSockmasterTag(tag) {
-    return tag instanceof SockmasterTag;
-  }
 
   // src/operations.ts
   var activeOperations = new Map;
@@ -1110,6 +558,222 @@ ${body}` : body;
   }
   function getOpState(name) {
     return activeOperations.get(name);
+  }
+  // src/types/spi.ts
+  class ParsedArchiveNotice {
+    username;
+    crosswiki;
+    deny;
+    notalk;
+    moot;
+    constructor(opts) {
+      this.username = opts.username;
+      this.crosswiki = opts.crosswiki ?? false;
+      this.deny = opts.deny ?? false;
+      this.notalk = opts.notalk ?? false;
+      this.moot = opts.moot ?? false;
+    }
+    generateWikitext() {
+      let notice = "{{SPI archive notice|1=" + this.username;
+      if (this.crosswiki) {
+        notice += "|crosswiki=yes";
+      }
+      if (this.deny) {
+        notice += "|deny=yes";
+      }
+      if (this.notalk) {
+        notice += "|notalk=yes";
+      }
+      if (this.moot) {
+        notice += "|moot=yes";
+      }
+      notice += "}}";
+      return notice;
+    }
+  }
+
+  class SectionEntry {
+    id;
+    name;
+    _text = null;
+    _loadingPromise = null;
+    constructor(id, name) {
+      this.id = id;
+      this.name = name;
+    }
+  }
+  var CASE_ACTION_NAMES = [
+    "sections",
+    "management",
+    "block",
+    "status",
+    "link",
+    "comment",
+    "move",
+    "archive"
+  ];
+  // node_modules/@wikimedia/codex-icons/dist/codex-icons.js
+  var p = '<path d="M11 9h7v2h-7v7H9v-7H2V9h7V2h2z"/>';
+  var u = '<path d="M11 1v13.876l4-4 1.414 1.414-5.707 5.707H9.293L3.586 12.29 5 10.876l4 4V1z"/>';
+  var P = '<path d="M10 1a9 9 0 110 18 9 9 0 010-18M5 9v2h10V9z"/>';
+  var v1 = '<path d="M10 1a9 9 0 110 18 9 9 0 010-18M4.394 5.806A6.97 6.97 0 003 10a7 7 0 0011.193 5.605l-9.8-9.8ZM10 3a6.97 6.97 0 00-4.191 1.392l9.797 9.798A7 7 0 0010 3"/>';
+  var V1 = '<path d="M18.154 3.837 8 16.8H6.65l-4.8-3.6 1.2-1.6 4.02 3.015 9.517-12.02z"/>';
+  var M1 = '<path d="M14 17h-4v-2h4zm2.404-13.163L6.22 16.8H4.9L.1 13.2l1.2-1.6 4.02 3.015 9.517-12.02zM17 13h-4v-2h4zm3-4h-4V7h4z"/>';
+  var i1 = '<path d="M10 1a9 9 0 110 18 9 9 0 010-18m0 2a7 7 0 100 14 7 7 0 000-14m1 7h3v2H9V5h2z"/>';
+  var m1 = '<path d="M16.707 4.707 11.414 10l5.293 5.293-1.414 1.414L10 11.414l-5.293 5.293-1.414-1.414L8.586 10 3.293 4.707l1.414-1.414L10 8.586l5.293-5.293z"/>';
+  var g1 = '<path d="M8.5 3H6a1 1 0 00-1 1v2.488c0 1.19-.525 2.273-1.371 3.012A4 4 0 015 12.512V16a1 1 0 001 1h2.5v2H6a3 3 0 01-3-3v-3.488a2 2 0 00-1.648-1.969L1 10.484V8.516l.352-.059A2 2 0 003 6.488V4a3 3 0 013-3h2.5zM14 1a3 3 0 013 3v2.488a2 2 0 001.648 1.969l.352.059v1.968l-.352.059A2 2 0 0017 12.512V16a3 3 0 01-3 3h-2.5v-2H14a1 1 0 001-1v-3.488c0-1.19.525-2.273 1.371-3.012A4 4 0 0115 6.488V4a1 1 0 00-1-1h-2.5V1z"/>';
+  var L1 = '<path d="m10 8.1-5.3 5.3L3.3 12l6-6h1.4l6 6-1.4 1.4z"/>';
+  var u1 = '<path d="M13 19H1V7h6V1h12v12h-6zm-6-6V9H3v8h8v-4zm2-2h8V3H9z"/>';
+  var S1 = '<path d="M19 19H1v-2h18zm-8-7.104 3.5-3.5 1.414 1.414-5.207 5.208H9.293L4.086 9.81 5.5 8.396l3.5 3.5V1h2z"/>';
+  var O1 = '<path d="m16.7 8-6 6H9.3l-6-6 1.4-1.4 5.3 5.3 5.3-5.3z"/>';
+  var Q1 = '<path d="M17 1v6.174c1.165.412 2 1.52 2 2.826a3 3 0 01-2 2.825V19h-2.563l-4.8-4H8v4H6v-4H3v-2H1V7h2V5h6.637l4.8-4zm-6.36 5.769L10.363 7H7v6h3.362l.279.231L15 16.864V3.136z"/>';
+  var n0 = '<path d="M11 18H9v-2h2zM10 2c1.497 0 2.76.433 3.66 1.268.905.84 1.34 1.994 1.34 3.232 0 1.182-.443 2.007-1.094 2.638a6.7 6.7 0 01-.95.742c-.363.241-.587.373-.923.602C11.351 10.948 11 11.86 11 13v1H9v-1c0-1.455.443-3.17 1.905-4.169.3-.204.71-.461.94-.615.281-.187.498-.349.67-.515.297-.287.485-.607.485-1.201 0-.762-.258-1.357-.7-1.768C11.853 4.317 11.117 4 10 4 7.98 4 7 5.636 7 6.5v1H5v-1C5 4.614 6.794 2 10 2"/>';
+  var P0 = '<path d="M12 10H9V8h3zm2-4H9V4h5z"/><path d="M18 20H2V0h16zM7 18h9V2H7z"/>';
+  var K0 = '<path d="M9 18H2V2h7zm-5-2h3V4H4zm14 2h-7v-7h7zm-5-2h3v-3h-3zm5-7h-7V2h7zm-5-2h3V4h-3z"/>';
+  var l4 = '<path d="M1.456 7.172a9 9 0 0117.259 5.079l-.968.75L11.75 13a.75.75 0 00-.75.75v4.21l-1.06 1c-.648-.04-1.938-.142-2.768-.416A9 9 0 011.456 7.172M12.2 3.354a7 7 0 00-4.4 13.291c.3.1.745.17 1.2.224v-3.12A2.75 2.75 0 0111.75 11h5.178A7 7 0 0012.2 3.355Z"/><circle cx="6.5" cy="10.5" r="1.5"/><circle cx="9.5" cy="6.5" r="1.5"/><circle cx="13.5" cy="8.5" r="1.5"/>';
+  var s4 = '<path d="M11 3H9v8h8V9h2v4h-6v6H1V7h6V1h4zM3 17h8v-4H7V9H3z"/><path d="M16.5 3.5H19v2h-2.5V8h-2V5.5H12v-2h2.5V1h2z"/>';
+  var H4 = '<path d="M16 2h-2v4.764l3 5.936V14h-6v6H9v-6H3v-1.3l3-5.936V2H4V0h12zM8 7.236 5.618 12h8.764L12 7.236V2H8z"/>';
+  var I4 = '<path d="M10 1a8.98 8.98 0 016.999 3.343L17 2h2v5l-1 1h-5l-.001-2h2.746a7 7 0 101.184 5h2.016A9 9 0 1110 1"/>';
+  var I3 = '<path d="M10 0a3 3 0 013 3v1h5v2h-2v14H4V6H2V4h5V3a3 3 0 013-3M6 18h8V6H6zm4-16a1 1 0 00-1 1v1h2V3a1 1 0 00-1-1"/>';
+  var T3 = '<path d="m12.009 13.695.002 1.388-4.694 4.88-1.441-1.385 3.065-3.188H0v-2h8.933l-3.057-3.164 1.438-1.39zm2.115-12.219L11.067 4.64H20v2h-8.941l3.065 3.188-1.441 1.386-4.694-4.881.002-1.388 4.694-4.86 1.439 1.39Z"/>';
+  var R3 = '<path d="M12 11a6 6 0 016 6v2H2v-2a6 6 0 016-6z"/><circle cx="10" cy="5" r="4"/>';
+  var P3 = '<path d="M12 11a6 6 0 016 6v2H2v-2a6 6 0 016-6zm-4 2a4 4 0 00-4 4h12a4 4 0 00-4-4zm2-12a4 4 0 110 8 4 4 0 010-8m0 2a2 2 0 100 4 2 2 0 000-4"/>';
+  var l5 = '<path d="M1 3h18v2H1zm0 6h7v2H1zm0 6h8v2H1zm15-4.75h3v1l-2.2 1.5L18 16.5h-1.2l-2.3-1.9-2.3 1.9H11l1.2-3.75-2.2-1.5v-1h3L14 7h1z"/>';
+  var z5 = p;
+  var i5 = u;
+  var U5 = P;
+  var Q5 = v1;
+  var _5 = V1;
+  var $5 = M1;
+  var h6 = i1;
+  var t6 = m1;
+  var a6 = g1;
+  var o6 = L1;
+  var s6 = {
+    ltr: u1,
+    shouldFlip: true
+  };
+  var V6 = S1;
+  var y6 = O1;
+  var k6 = {
+    ltr: Q1,
+    shouldFlip: true
+  };
+  var O6 = {
+    ltr: n0,
+    shouldFlip: true,
+    shouldFlipExceptions: ["he", "yi"]
+  };
+  var H7 = {
+    ltr: P0,
+    shouldFlip: true
+  };
+  var g7 = {
+    ltr: K0,
+    shouldFlip: true
+  };
+  var f8 = {
+    ltr: l4,
+    shouldFlip: true
+  };
+  var S8 = {
+    ltr: s4,
+    shouldFlip: true
+  };
+  var W8 = H4;
+  var K8 = I4;
+  var Q9 = I3;
+  var tc = {
+    ltr: T3,
+    shouldFlip: true
+  };
+  var vc = R3;
+  var dc = P3;
+  var Cc = {
+    ltr: l5,
+    shouldFlip: true
+  };
+
+  // src/types/vue.ts
+  var WatchOptionsSelect = [
+    { label: "Follow preferences", value: "preferences" },
+    { label: "No change", value: "nochange" },
+    { label: "Watch", value: "watch" },
+    { label: "Unwatch", value: "unwatch" }
+  ];
+  var WatchOptions = ["preferences", "watch", "nochange", "unwatch"];
+  var DefaultLinkRowData = {
+    analyser: false,
+    timeline: false,
+    timecard: false,
+    pages: false,
+    summary: false,
+    cuwiki: false,
+    interleaved: false
+  };
+  var SockpuppetTagStatuses = {
+    blocked: { label: "Suspected", icon: O6 },
+    proven: { label: "Proven", icon: _5 },
+    confirmed: { label: "Confirmed", icon: $5 }
+  };
+  var SockmasterTagStatuses = {
+    blocked: { label: "Blocked", icon: U5 },
+    confirmed: { label: "Confirmed", icon: $5 },
+    banned: { label: "3X Banned", icon: Q5 }
+  };
+  var AltmasterTagStatuses = {
+    suspected: { label: "Suspected", icon: O6 },
+    proven: { label: "Proven", icon: _5 }
+  };
+  // src/ui/messages.ts
+  var DISMISS_FADE_MS = 250;
+  var nextMessageId = 0;
+
+  class VueMessage {
+    type;
+    content;
+    isHtml;
+    id = nextMessageId++;
+    _shown = false;
+    constructor(opts) {
+      this.type = opts.type;
+      this.content = opts.content;
+      this.isHtml = opts.isHtml;
+    }
+    show() {
+      this._shown = true;
+      messages.push(this);
+      return this;
+    }
+    showOnce() {
+      const alreadyShown = messages.some((message) => message.type === this.type && message.content === this.content && message.isHtml === this.isHtml);
+      return alreadyShown ? this : this.show();
+    }
+    update(opts) {
+      if (!this._shown) {
+        Object.assign(this, opts);
+        this.show();
+        return this;
+      }
+      const current = messages.find((message) => message.id === this.id);
+      if (current) {
+        Object.assign(current, opts);
+      }
+      Object.assign(this, opts);
+      return this;
+    }
+  }
+  function dismissMessage(id) {
+    setTimeout(() => {
+      const index = messages.findIndex((message) => message.id === id);
+      if (index !== -1) {
+        messages.splice(index, 1);
+      }
+    }, DISMISS_FADE_MS);
+  }
+  var messages = [];
+  function setMessagesReactive(reactive) {
+    messages = reactive(messages);
   }
 
   // src/api.ts
@@ -1268,7 +932,8 @@ ${body}` : body;
     });
     return resultMap;
   }
-  async function spiHelperGetUsers(from, limit) {
+  async function spiHelperGetUsers(opts) {
+    const { from, limit, signal } = opts;
     const api2 = spiHelperGetAPI();
     const request = {
       action: "query",
@@ -1279,13 +944,18 @@ ${body}` : body;
       formatversion: "2"
     };
     try {
-      const response = await api2.get(request);
+      const response = await api2.get(request, { signal });
       return response.query.allusers;
-    } catch {
+    } catch (error) {
+      if (signal?.aborted) {
+        return [];
+      }
+      console.error("spiHelperGetUsers fetch error:", error);
       return [];
     }
   }
-  async function spiHelperGetPages(from, namespace, limit) {
+  async function spiHelperGetPages(opts) {
+    const { from, namespace, limit, signal } = opts;
     const api2 = spiHelperGetAPI();
     const request = {
       action: "query",
@@ -1296,9 +966,12 @@ ${body}` : body;
       formatversion: "2"
     };
     try {
-      const response = await api2.get(request);
+      const response = await api2.get(request, { signal });
       return response.query.allpages;
     } catch (error) {
+      if (signal?.aborted) {
+        return null;
+      }
       console.error("spiHelperGetPages fetch error:", error);
       return null;
     }
@@ -2010,17 +1683,6 @@ ${body}` : body;
       this.archiveNotice = archiveNotice;
     }
   }
-
-  class SectionEntry {
-    id;
-    name;
-    _text = null;
-    _loadingPromise = null;
-    constructor(id, name) {
-      this.id = id;
-      this.name = name;
-    }
-  }
   async function loadCaseText(state, opts = {}) {
     const { purge = false, show = false } = opts;
     if (state._loadingPromise) {
@@ -2051,46 +1713,129 @@ ${body}` : body;
     return section._text;
   }
 
+  // src/options/utils.ts
+  async function spiHelperValidateDate(dateInStringFormat) {
+    const response = await spiHelperParseWikitext("{{#time:r|" + dateInStringFormat + "}}");
+    return !response.includes("Error: Invalid time.");
+  }
+  function getFullLogPage(logPage) {
+    return `User:${mw.config.get("wgUserName")}/${logPage}`;
+  }
+
+  // src/options/migration.ts
+  var migrationMap = [
+    { oldPath: "watchCase", newPath: ["watch", "case"], type: "WatchOption" },
+    { oldPath: "watchArchive", newPath: ["watch", "archive"], type: "WatchOption" },
+    { oldPath: "watchTaggedUser", newPath: ["watch", "tagged"], type: "WatchOption" },
+    { oldPath: "watchNewCats", newPath: ["watch", "categories"], type: "WatchOption" },
+    { oldPath: "watchBlockedUser", newPath: ["watch", "blocked"], type: "boolean" },
+    { oldPath: "watchCaseExpiry", newPath: ["expiry", "case"], type: "expiry" },
+    { oldPath: "watchArchiveExpiry", newPath: ["expiry", "archive"], type: "expiry" },
+    { oldPath: "watchTaggedUserExpiry", newPath: ["expiry", "tagged"], type: "expiry" },
+    { oldPath: "watchNewCatsExpiry", newPath: ["expiry", "categories"], type: "expiry" },
+    { oldPath: "watchBlockedUserExpiry", newPath: ["expiry", "blocked"], type: "expiry" },
+    { oldPath: "clerk", newPath: ["clerk"], type: "boolean" },
+    { oldPath: "log", newPath: ["log", "enabled"], type: "boolean" },
+    { oldPath: "reversed_log", newPath: ["log", "reversed"], type: "boolean" },
+    { oldPath: "tickArchiveWhenCaseClosed", newPath: ["tickArchiveWhenCaseClosed"], type: "boolean" },
+    { oldPath: "useCheckuserblockAccount", newPath: ["useCheckuserblockAccount"], type: "boolean" },
+    { oldPath: "displayIPv6As64", newPath: ["interface", "displayIPv6As64"], type: "boolean" },
+    { oldPath: "debugForceCheckuserState", newPath: ["debug", "forceCheckuser"], type: "boolean" },
+    { oldPath: "debugForceAdminState", newPath: ["debug", "forceAdmin"], type: "boolean" }
+  ];
+  function setNestedValue(obj, path, value) {
+    let current = obj;
+    for (let i = 0;i < path.length - 1; i++) {
+      if (!path[i]) {
+        throw new Error(`Path segment "${path.join(".")}" is invalid`);
+      }
+      const key = path[i];
+      const next = current[key];
+      if (next === null || typeof next !== "object") {
+        throw new Error(`Path segment "${path[i]}" is not an object`);
+      }
+      current = next;
+    }
+    const lastKey = path[path.length - 1];
+    current[lastKey] = value;
+  }
+  async function migrateSettings(oldSettings, target) {
+    const tasks = migrationMap.map(async ({ oldPath, newPath, type }) => {
+      const value = oldSettings[oldPath];
+      if (value === undefined) {
+        return;
+      }
+      const isValid = await validateSetting(value, type);
+      if (isValid) {
+        setNestedValue(target, newPath, value);
+      }
+    });
+    await Promise.all(tasks);
+  }
+  async function validateSetting(value, type) {
+    switch (type) {
+      case "boolean":
+        return typeof value === "boolean";
+      case "WatchOption":
+        return typeof value === "string" && ["preferences", "watch", "nochange", "unwatch"].includes(value);
+      case "expiry":
+        return typeof value === "string" && spiHelperValidateDate(value);
+    }
+  }
+
+  // src/options/options.ts
+  var spiHelperSettings = structuredClone(spiHelperDefaultSettings);
+  function setGlobalSettings(settings2) {
+    spiHelperSettings = structuredClone(settings2);
+  }
+  var saveKey = "userjs-spihelper";
+  function saveOptions() {
+    return spiHelperGetAPI().saveOption(saveKey, JSON.stringify(spiHelperSettings));
+  }
+  function loadOptions() {
+    const rawData = String(mw.user.options.get(saveKey));
+    try {
+      return rawData ? JSON.parse(rawData) : null;
+    } catch (e) {
+      console.warn("Failed to parse saved options", e);
+      return null;
+    }
+  }
+  async function migrateOptions() {
+    mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "migrate" });
+    try {
+      await mw.loader.getScript("/w/index.php?title=Special:MyPage/spihelper-options.js&action=raw&ctype=text/javascript");
+      if (spiHelperCustomOpts !== undefined) {
+        await migrateSettings(spiHelperCustomOpts, spiHelperSettings);
+      }
+    } catch (error) {
+      mw.notify("Error retrieving your spihelper-options.js", { type: "error" });
+      console.error("Error getting local spihelper-options.js: ", error);
+    }
+  }
+  // src/role.ts
+  function spiHelperIsCheckuser(allowDebug = true) {
+    if (allowDebug && spiHelperSettings.debug.enabled) {
+      return spiHelperSettings.debug.forceCheckuser;
+    }
+    return mw.config.get("wgUserGroups")?.includes("checkuser") ?? false;
+  }
+  function spiHelperIsClerk() {
+    return spiHelperSettings.clerk || spiHelperIsCheckuser();
+  }
+  function spiHelperIsAdmin() {
+    if (spiHelperSettings.debug.enabled) {
+      return spiHelperSettings.debug.forceAdmin;
+    }
+    return mw.config.get("wgUserGroups")?.includes("sysop") ?? false;
+  }
+  function spiHelperCanSuppressRedirect() {
+    return spiHelperIsAdmin() || (mw.config.get("wgUserGroups")?.includes("extendedmover") ?? false);
+  }
+
   // node_modules/vue/dist/vue.runtime.esm-bundler.js
   var defineComponent = (c) => c;
 
-  // src/ui/views/options/watchSetting.ts
-  var WatchSettingComponent = defineComponent({
-    props: {
-      modelValue: { type: String, required: true },
-      label: { type: String, required: true },
-      resetTrigger: { type: Number, default: 0 }
-    },
-    data() {
-      return {
-        internalValue: this.modelValue,
-        watchOptions: WatchOptionsSelect,
-        messages: { error: "Watch option is invalid" }
-      };
-    },
-    computed: {
-      status() {
-        return WatchOptions.includes(this.internalValue) ? "default" : "error";
-      }
-    },
-    watch: {
-      resetTrigger() {
-        this.internalValue = this.modelValue;
-      },
-      internalValue(newValue) {
-        this.$emit("update:modelValue", newValue);
-      }
-    },
-    template: `
-    <cdx-field :status="status" :messages="messages">
-      <template #label>{{ this.label }}</template>
-      <cdx-select
-          :menu-items="watchOptions"
-          v-model:selected="internalValue"
-      />
-    </cdx-field>
-  `
-  });
   // src/ui/views/options/expirySetting.ts
   var ExpirySettingComponent = defineComponent({
     props: {
@@ -2174,171 +1919,371 @@ ${body}` : body;
     </cdx-field>
   `
   });
-  // src/options/utils.ts
-  async function spiHelperValidateDate(dateInStringFormat) {
-    const response = await spiHelperParseWikitext("{{#time:r|" + dateInStringFormat + "}}");
-    return !response.includes("Error: Invalid time.");
-  }
-  function getFullLogPage(logPage) {
-    return `User:${mw.config.get("wgUserName")}/${logPage}`;
-  }
-
-  // src/options/migration.ts
-  var migrationMap = [
-    { oldPath: "watchCase", newPath: ["watch", "case"], type: "WatchOption" },
-    { oldPath: "watchArchive", newPath: ["watch", "archive"], type: "WatchOption" },
-    { oldPath: "watchTaggedUser", newPath: ["watch", "tagged"], type: "WatchOption" },
-    { oldPath: "watchNewCats", newPath: ["watch", "categories"], type: "WatchOption" },
-    { oldPath: "watchBlockedUser", newPath: ["watch", "blocked"], type: "boolean" },
-    { oldPath: "watchCaseExpiry", newPath: ["expiry", "case"], type: "expiry" },
-    { oldPath: "watchArchiveExpiry", newPath: ["expiry", "archive"], type: "expiry" },
-    { oldPath: "watchTaggedUserExpiry", newPath: ["expiry", "tagged"], type: "expiry" },
-    { oldPath: "watchNewCatsExpiry", newPath: ["expiry", "categories"], type: "expiry" },
-    { oldPath: "watchBlockedUserExpiry", newPath: ["expiry", "blocked"], type: "expiry" },
-    { oldPath: "clerk", newPath: ["clerk"], type: "boolean" },
-    { oldPath: "log", newPath: ["log", "enabled"], type: "boolean" },
-    { oldPath: "reversed_log", newPath: ["log", "reversed"], type: "boolean" },
-    { oldPath: "tickArchiveWhenCaseClosed", newPath: ["tickArchiveWhenCaseClosed"], type: "boolean" },
-    { oldPath: "useCheckuserblockAccount", newPath: ["useCheckuserblockAccount"], type: "boolean" },
-    { oldPath: "displayIPv6As64", newPath: ["interface", "displayIPv6As64"], type: "boolean" },
-    { oldPath: "debugForceCheckuserState", newPath: ["debug", "forceCheckuser"], type: "boolean" },
-    { oldPath: "debugForceAdminState", newPath: ["debug", "forceAdmin"], type: "boolean" }
-  ];
-  function setNestedValue(obj, path, value) {
-    let current = obj;
-    for (let i = 0;i < path.length - 1; i++) {
-      if (!path[i]) {
-        throw new Error(`Path segment "${path.join(".")}" is invalid`);
+  // src/template.ts
+  function findTemplateSpans(templateName, text) {
+    const namePattern = templateName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/[\s_]+/g, "[\\s_]+");
+    const spans = [];
+    for (const match of text.matchAll(new RegExp(`\\{\\{\\s*${namePattern}\\s*(?=[|}])`, "gi"))) {
+      if (spans.some((span) => match.index < span.end)) {
+        continue;
       }
-      const key = path[i];
-      const next = current[key];
-      if (next === null || typeof next !== "object") {
-        throw new Error(`Path segment "${path[i]}" is not an object`);
-      }
-      current = next;
-    }
-    const lastKey = path[path.length - 1];
-    current[lastKey] = value;
-  }
-  async function migrateSettings(oldSettings) {
-    const tasks = migrationMap.map(async ({ oldPath, newPath, type }) => {
-      const value = oldSettings[oldPath];
-      if (value === undefined) {
-        return;
-      }
-      const isValid = await validateSetting(value, type);
-      if (isValid) {
-        setNestedValue(spiHelperSettings, newPath, value);
-      }
-    });
-    await Promise.all(tasks);
-  }
-  async function validateSetting(value, type) {
-    switch (type) {
-      case "boolean":
-        return typeof value === "boolean";
-      case "WatchOption":
-        return typeof value === "string" && ["preferences", "watch", "nochange", "unwatch"].includes(value);
-      case "expiry":
-        return typeof value === "string" && spiHelperValidateDate(value);
-    }
-  }
-
-  // src/options/options.ts
-  var spiHelperSettings = structuredClone(spiHelperDefaultSettings);
-  function setGlobalSettings(settings2) {
-    spiHelperSettings = structuredClone(settings2);
-  }
-  var saveKey = "userjs-spihelper";
-  function saveOptions() {
-    return spiHelperGetAPI().saveOption(saveKey, JSON.stringify(spiHelperSettings));
-  }
-  function loadOptions() {
-    const rawData = String(mw.user.options.get(saveKey));
-    try {
-      return rawData ? JSON.parse(rawData) : null;
-    } catch (e) {
-      console.warn("Failed to parse saved options", e);
-      return null;
-    }
-  }
-  async function migrateOptions() {
-    mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "migrate" });
-    try {
-      await mw.loader.getScript("/w/index.php?title=Special:MyPage/spihelper-options.js&action=raw&ctype=text/javascript");
-      if (spiHelperCustomOpts !== undefined) {
-        await migrateSettings(spiHelperCustomOpts);
-      }
-    } catch (error) {
-      mw.notify("Error retrieving your spihelper-options.js", { type: "error" });
-      console.error("Error getting local spihelper-options.js: ", error);
-    }
-  }
-  // src/role.ts
-  function spiHelperIsCheckuser(allowDebug = true) {
-    if (allowDebug && spiHelperSettings.debug.enabled) {
-      return spiHelperSettings.debug.forceCheckuser;
-    }
-    return mw.config.get("wgUserGroups")?.includes("checkuser") ?? false;
-  }
-  function spiHelperIsClerk() {
-    return spiHelperSettings.clerk || spiHelperIsCheckuser();
-  }
-  function spiHelperIsAdmin() {
-    if (spiHelperSettings.debug.enabled) {
-      return spiHelperSettings.debug.forceAdmin;
-    }
-    return mw.config.get("wgUserGroups")?.includes("sysop") ?? false;
-  }
-  function spiHelperCanSuppressRedirect() {
-    return spiHelperIsAdmin() || (mw.config.get("wgUserGroups")?.includes("extendedmover") ?? false);
-  }
-
-  // src/ui/utils.ts
-  var SockListTemplateRegex = /sock ?list/;
-  var UserTemplateNameParts = ["ip", "vandal", "user", "noping"];
-  function isRelevantTemplate(templateName) {
-    return SockListTemplateRegex.test(templateName) || UserTemplateNameParts.some((part) => templateName.includes(part));
-  }
-  function getSockEntries(opts) {
-    const { text, fullSearch, state } = opts;
-    const likelySocks = fullSearch ? [generateUserRow(context.userName, state)] : [];
-    const possibleSocks = [];
-    const allUsernames = fullSearch ? new Set([context.userName]) : new Set;
-    if (fullSearch) {
-      let $searchOrigin = $(document);
-      if (state.selectedSection?.type === "single") {
-        $searchOrigin = $(`a[href$="section=${state.selectedSection.section.id}"]`).parentsUntil(":has(hr)").last().nextUntil("hr");
-      }
-      const sockList = $searchOrigin.find(".cuEntry").toArray().map((entry) => entry.querySelector("a")).filter((link) => link !== null);
-      for (const entryElement of sockList) {
-        const filteredUsername = Array.from(entryElement.childNodes).find((n) => n.nodeType === Node.TEXT_NODE)?.textContent ?? "";
-        if (!filteredUsername) {
-          continue;
-        }
-        const username = spiHelperNormalizeUsername(filteredUsername);
-        if (allUsernames.has(username)) {
-          continue;
-        }
-        likelySocks.push(generateUserRow(username, state));
-        allUsernames.add(username);
-      }
-    }
-    const allTemplates = parseTemplates(text);
-    for (const template of allTemplates) {
-      if (isRelevantTemplate(template.name)) {
-        const templateUsernames = fetchTemplateArguments(template);
-        for (const templateUsername of templateUsernames) {
-          const username = spiHelperNormalizeUsername(templateUsername);
-          if (!allUsernames.has(username)) {
-            possibleSocks.push(generateUserRow(username, state));
-            allUsernames.add(username);
+      let depth = 0;
+      for (let i = match.index;i < text.length - 1; i++) {
+        if (text.startsWith("{{", i)) {
+          depth++;
+          i++;
+        } else if (text.startsWith("}}", i)) {
+          depth--;
+          i++;
+          if (depth === 0) {
+            spans.push({ text: text.slice(match.index, i + 1), start: match.index, end: i + 1 });
+            break;
           }
         }
       }
     }
-    return [likelySocks, possibleSocks, allUsernames];
+    return spans;
   }
+  function parseTemplates(wikitext) {
+    const templates = [];
+    const matches = wikitext.trim().matchAll(/\{\{([\s\S]+?)}}/g);
+    for (const match of matches) {
+      if (!match[1]) {
+        continue;
+      }
+      templates.push(parseTemplate(match[1]));
+    }
+    return templates;
+  }
+  function splitTemplateParts(text) {
+    const parts = [];
+    let depth = 0;
+    let segmentStart = 0;
+    for (let i = 0;i < text.length; i++) {
+      if (text.startsWith("[[", i) || text.startsWith("{{", i)) {
+        depth++;
+        i++;
+      } else if (text.startsWith("]]", i) || text.startsWith("}}", i)) {
+        depth--;
+        i++;
+      } else if (text[i] === "|" && depth === 0) {
+        parts.push(text.slice(segmentStart, i));
+        segmentStart = i + 1;
+      }
+    }
+    parts.push(text.slice(segmentStart));
+    return parts;
+  }
+  function parseTemplate(templateText) {
+    const parts = splitTemplateParts(templateText).map((p2) => p2.trim());
+    const name = parts.shift()?.toLowerCase() ?? "unknown";
+    const params = {};
+    const positional = [];
+    for (const part of parts) {
+      const eq = part.indexOf("=");
+      if (eq !== -1) {
+        const key = part.slice(0, eq).trim().toLowerCase();
+        const value = part.slice(eq + 1).trim();
+        if (value === "") {
+          params[key] = value;
+          continue;
+        }
+        const numberValue = Number(value);
+        if (!Number.isNaN(numberValue)) {
+          params[key] = numberValue;
+          continue;
+        }
+        const boolResult = convertParamToBoolean(value);
+        if (boolResult === null) {
+          params[key] = value;
+          continue;
+        }
+        params[key] = boolResult;
+      } else if (part) {
+        positional.push(part);
+      }
+    }
+    return { name, params, positional };
+  }
+  var TRUTHY_PARAM_VALUES = new Set(["y", "yes", "true", "on"]);
+  var FALSY_PARAM_VALUES = new Set(["n", "no", "false", "off"]);
+  function convertParamToBoolean(value) {
+    const normalised = value.toLowerCase();
+    if (TRUTHY_PARAM_VALUES.has(normalised)) {
+      return true;
+    }
+    if (FALSY_PARAM_VALUES.has(normalised)) {
+      return false;
+    }
+    return null;
+  }
+  function fetchTemplateArguments(template) {
+    const result = [];
+    for (const positional of template.positional) {
+      result.push(positional);
+    }
+    for (const [key, value] of Object.entries(template.params)) {
+      if (!Number.isNaN(Number(key))) {
+        result.push(value.toString());
+      }
+    }
+    return result;
+  }
+
+  // src/tags.ts
+  class SockpuppetTag {
+    master;
+    status;
+    locked;
+    evidence;
+    altmaster;
+    altmasterStatus;
+    constructor(opts) {
+      this.master = spiHelperNormalizeUsername(opts.master);
+      this.status = opts.status;
+      this.locked = opts.locked ?? false;
+      this.evidence = opts.evidence ?? "";
+      this.altmaster = spiHelperNormalizeUsername(opts.altmaster ?? "");
+      this.altmasterStatus = opts.altmasterStatus ?? "suspected";
+    }
+    generateWikitext(blocked) {
+      let tag = "{{sockpuppet";
+      tag += `
+| 1 = ${this.master}`;
+      tag += `
+| 2 = ${this.status}`;
+      if (this.locked) {
+        tag += `
+| locked = yes`;
+      }
+      if (blocked === false) {
+        tag += `
+| notblocked = yes`;
+      }
+      if (this.evidence) {
+        tag += `
+| evidence = ${this.evidence}`;
+      }
+      if (this.altmaster) {
+        tag += `
+| altmaster = ${this.altmaster}`;
+        tag += `
+| altmaster-status = ${this.altmasterStatus}`;
+      }
+      tag += `
+}}`;
+      return tag;
+    }
+    clone() {
+      return new SockpuppetTag({
+        master: this.master,
+        status: this.status,
+        evidence: this.evidence,
+        altmaster: this.altmaster,
+        altmasterStatus: this.altmasterStatus
+      });
+    }
+    equals(other) {
+      if (!(other instanceof SockpuppetTag))
+        return false;
+      return this.master === other.master && this.status === other.status && this.locked === other.locked && this.evidence === other.evidence && this.altmaster === other.altmaster && (!this.altmaster || this.altmasterStatus === other.altmasterStatus);
+    }
+  }
+
+  class SockmasterTag {
+    status;
+    checked;
+    locked;
+    ltapage;
+    spipage;
+    evidence;
+    constructor(opts) {
+      this.status = opts.status;
+      this.checked = opts.checked ?? false;
+      this.locked = opts.locked ?? false;
+      this.ltapage = opts.ltapage ?? "";
+      this.spipage = opts.spipage ?? "";
+      this.evidence = opts.evidence ?? "";
+    }
+    generateWikitext() {
+      let tag = "{{sockpuppeteer";
+      const outputStatus = this.status === "banned" ? "banned" : "blocked";
+      const isChecked = this.status !== "blocked";
+      tag += `
+| 1 = ${outputStatus}`;
+      if (isChecked) {
+        tag += `
+| checked = yes`;
+      }
+      if (this.locked) {
+        tag += `
+| locked = yes`;
+      }
+      if (this.ltapage) {
+        tag += `
+| ltapage = ${this.ltapage}`;
+      }
+      if (this.spipage) {
+        tag += `
+| spipage = ${this.spipage}`;
+      }
+      if (this.evidence) {
+        tag += `
+| evidence = ${this.evidence}`;
+      }
+      tag += `
+}}`;
+      return tag;
+    }
+    clone() {
+      return new SockmasterTag({
+        status: this.status,
+        checked: this.checked,
+        ltapage: this.ltapage,
+        spipage: this.spipage,
+        evidence: this.evidence
+      });
+    }
+    equals(other) {
+      if (!(other instanceof SockmasterTag))
+        return false;
+      return this.status === other.status && this.checked === other.checked && this.locked === other.locked && this.ltapage === other.ltapage && this.spipage === other.spipage && this.evidence === other.evidence;
+    }
+  }
+  function parseUserTags(userPage, username) {
+    const on = username ? ` on ${username}` : "";
+    const tags = [];
+    const templates = parseTemplates(userPage);
+    for (const template of templates) {
+      if (["sockpuppeteer", "sockmaster"].includes(template.name)) {
+        const firstParam = (template.params["1"] ?? template.positional[0])?.toString();
+        const paramConfirmed = firstParam === "cu" || (firstParam?.includes("confirmed") ?? false);
+        const sockChecked = template.params.checked === true || paramConfirmed;
+        let tagStatus;
+        if (paramConfirmed) {
+          tagStatus = "confirmed";
+        } else if (firstParam === "banned") {
+          tagStatus = "banned";
+        } else if (firstParam?.includes("blocked")) {
+          tagStatus = sockChecked ? "confirmed" : "blocked";
+        } else {
+          console.warn("Unrecognised master status", firstParam);
+          new VueMessage({
+            type: "warning",
+            content: `Ignoring {{${template.name}}} tag${on} with unrecognised status ` + `"${firstParam ?? ""}". Tagging will overwrite it`
+          }).showOnce();
+          continue;
+        }
+        const newTag = new SockmasterTag({ status: tagStatus, checked: sockChecked });
+        if (template.params.locked === true) {
+          newTag.locked = true;
+        }
+        if (template.params.ltapage) {
+          newTag.ltapage = template.params.ltapage;
+        }
+        if (template.params.spipage) {
+          newTag.spipage = template.params.spipage;
+        }
+        if (template.params.evidence) {
+          newTag.evidence = template.params.evidence;
+        }
+        tags.push(newTag);
+      } else if (["sockpuppet", "sock"].includes(template.name)) {
+        const masterParam = template.params["1"] ?? template.positional[0];
+        if (!masterParam) {
+          console.warn("Master parameter not found");
+          continue;
+        }
+        const statusParam = template.params["2"] ?? template.positional[1];
+        let tagStatus;
+        switch (statusParam) {
+          case "blocked":
+            tagStatus = "blocked";
+            break;
+          case "proven":
+            tagStatus = "proven";
+            break;
+          case "confirmed":
+          case "nbconfirmed":
+          case "cuconfirmed":
+            tagStatus = "confirmed";
+            break;
+          default:
+            console.warn("Unrecognised sock status", statusParam);
+            new VueMessage({
+              type: "warning",
+              content: `Ignoring {{${template.name}}} tag${on} with unrecognised status ` + `"${statusParam?.toString() ?? ""}". Tagging will overwrite it`
+            }).showOnce();
+            continue;
+        }
+        const newTag = new SockpuppetTag({
+          master: masterParam,
+          status: tagStatus
+        });
+        const altmaster = template.params.altmaster;
+        if (altmaster) {
+          const altmasterStatusParam = template.params["altmaster-status"];
+          let altmasterStatus;
+          switch (altmasterStatusParam) {
+            case "suspect":
+            case "suspected":
+              altmasterStatus = "suspected";
+              break;
+            case "proven":
+              altmasterStatus = "proven";
+              break;
+            default:
+              console.warn("Unrecognised altmaster status", altmasterStatusParam);
+              new VueMessage({
+                type: "warning",
+                content: `Dropping altmaster "${altmaster.toString()}"${on}: unrecognised ` + `altmaster-status "${altmasterStatusParam?.toString() ?? ""}"`
+              }).showOnce();
+              break;
+          }
+          if (altmasterStatus) {
+            newTag.altmaster = altmaster;
+            newTag.altmasterStatus = altmasterStatus;
+          }
+        }
+        if (template.params.evidence) {
+          newTag.evidence = template.params.evidence;
+        }
+        if (template.params.locked) {
+          newTag.locked = true;
+        }
+        tags.push(newTag);
+      }
+    }
+    return tags;
+  }
+  function isSockpuppetTag(tag) {
+    return tag instanceof SockpuppetTag;
+  }
+  function isSockmasterTag(tag) {
+    return tag instanceof SockmasterTag;
+  }
+
+  // src/ui/runtime.ts
+  var tableRowIdentifier = null;
+  function setTableRowIdentifier(identifier) {
+    tableRowIdentifier = identifier;
+  }
+  var vueToRaw = null;
+  function setToRaw(toRawArg) {
+    vueToRaw = toRawArg;
+  }
+  function toRaw(observed) {
+    return vueToRaw ? vueToRaw(observed) : observed;
+  }
+  var vueMarkRaw = null;
+  function setMarkRaw(markRawArg) {
+    vueMarkRaw = markRawArg;
+  }
+  function markRaw(value) {
+    return vueMarkRaw ? vueMarkRaw(value) : value;
+  }
+
+  // src/ui/utils.ts
   function generateUserRow(username, state) {
     if (mw.util.isIPAddress(username, true)) {
       if (spiHelperSettings.interface.displayIPv6As64 && mw.util.isIPv6Address(username, false)) {
@@ -2358,10 +2303,6 @@ ${body}` : body;
       return fullIP;
     }
     return fullIP.split(":").slice(0, 4).concat("0", "0", "0", "0").join(":") + "/64";
-  }
-  var tableRowIdentifier = null;
-  function setTableRowIdentifier(identifier) {
-    tableRowIdentifier = identifier;
   }
   function getDefaultUserRow(archiveNotice) {
     const id = crypto.randomUUID();
@@ -2463,13 +2404,21 @@ ${body}` : body;
       return true;
     return !blockOptions.override && userBlocks.get(row.username) !== undefined;
   }
-  var toRaw = null;
-  function setToRaw(toRawArg) {
-    toRaw = toRawArg;
+  function abortableDelay(ms, signal) {
+    return new Promise((resolve) => {
+      if (signal.aborted) {
+        resolve();
+        return;
+      }
+      const timer = setTimeout(resolve, ms);
+      signal.addEventListener("abort", () => {
+        clearTimeout(timer);
+        resolve();
+      }, { once: true });
+    });
   }
-  var markRaw = null;
-  function setMarkRaw(markRawArg) {
-    markRaw = markRawArg;
+  function isAborted(signal) {
+    return signal.aborted;
   }
 
   // src/ui/views/options/modal.ts
@@ -2550,12 +2499,7 @@ ${body}` : body;
           const currentSettingsJson = JSON.stringify(this.instanceSettings);
           const settingsDiffer = JSON.stringify(this.oldSettings) !== currentSettingsJson;
           if (settingsDiffer) {
-            if (toRaw) {
-              setGlobalSettings(toRaw(this.instanceSettings));
-            } else {
-              this.toaster.error(`Failed to save settings`, { autoDismiss: true });
-              return;
-            }
+            setGlobalSettings(toRaw(this.instanceSettings));
             const savingId = this.toaster.info("Saving settings...", { autoDismiss: false });
             saveOptions().then((_) => {
               this.toaster.success("Settings saved! Reload to apply them", { autoDismiss: true });
@@ -2852,7 +2796,43 @@ ${body}` : body;
     </cdx-dialog>
   `
   });
-
+  // src/ui/views/options/watchSetting.ts
+  var WatchSettingComponent = defineComponent({
+    props: {
+      modelValue: { type: String, required: true },
+      label: { type: String, required: true },
+      resetTrigger: { type: Number, default: 0 }
+    },
+    data() {
+      return {
+        internalValue: this.modelValue,
+        watchOptions: WatchOptionsSelect,
+        messages: { error: "Watch option is invalid" }
+      };
+    },
+    computed: {
+      status() {
+        return WatchOptions.includes(this.internalValue) ? "default" : "error";
+      }
+    },
+    watch: {
+      resetTrigger() {
+        this.internalValue = this.modelValue;
+      },
+      internalValue(newValue) {
+        this.$emit("update:modelValue", newValue);
+      }
+    },
+    template: `
+    <cdx-field :status="status" :messages="messages">
+      <template #label>{{ this.label }}</template>
+      <cdx-select
+          :menu-items="watchOptions"
+          v-model:selected="internalValue"
+      />
+    </cdx-field>
+  `
+  });
   // src/ui/views/top/utils/setup.ts
   function getActionButtons() {
     return {
@@ -2914,7 +2894,7 @@ ${body}` : body;
       status: {
         enabled: false,
         data: {
-          old: "",
+          old: "new",
           new: "nochange",
           bySection: new Map
         }
@@ -3066,7 +3046,248 @@ ${body}` : body;
     }
     return reasons;
   }
+  // src/ui/views/top/utils/status.ts
+  function resolveStatusChoice(choice) {
+    switch (choice) {
+      case "reopen":
+        return "open";
+      case "selfendorse":
+        return "endorse";
+      default:
+        return choice;
+    }
+  }
+  function resolveEffectiveStatus(change) {
+    if (!change.enabled || change.new === "nochange") {
+      return change.old;
+    }
+    return resolveStatusChoice(change.new);
+  }
+  function getStatusTemplate(status) {
+    switch (status) {
+      case "CUrequest":
+        return "{{CURequest}}";
+      case "admin":
+        return "{{awaitingadmin}}";
+      case "clerk":
+        return "{{Clerk Request}}";
+      case "selfendorse":
+        return "{{Requestandendorse}}";
+      case "inprogress":
+        return "{{Inprogress}}";
+      case "decline":
+        return "{{Decline}}";
+      case "cudecline":
+        return "{{Cudecline}}";
+      case "endorse":
+        return "{{Endorse}}";
+      case "cuendorse":
+        return "{{cu-endorsed}}";
+      case "moreinfo":
+      case "cumoreinfo":
+        return "{{moreinfo}}";
+      case "relist":
+        return "{{relisted}}";
+      case "hold":
+      case "cuhold":
+        return "{{onhold}}";
+      case "reopen":
+        return "{{reopen}}";
+      case "checked":
+      case "closed":
+      case "new":
+      case "open":
+      case "nochange":
+        return null;
+      default: {
+        console.warn("New case status", status, "is unexpected");
+        return null;
+      }
+    }
+  }
+  function updateCommentWithStatus(commentText, newStatus) {
+    const newTemplate = getStatusTemplate(newStatus);
+    if (newTemplate === null) {
+      return commentText;
+    }
+    if (spiHelperClerkStatusRegex.test(commentText)) {
+      let updatedText = commentText.replace(spiHelperClerkStatusRegex, newTemplate);
+      if (!newTemplate) {
+        updatedText = updatedText.replace(/^(\s*\*\s*)? [-–] /, "$1");
+      }
+      return updatedText;
+    } else if (newTemplate) {
+      return "* " + newTemplate + " – " + commentText.replace(/^\s*\*\s*/, "");
+    }
+    return commentText;
+  }
+  function normalizeCaseStatus(caseStatus) {
+    if (spiHelperCaseClosedRegex.test(caseStatus))
+      return "closed";
+    if (/^open$/i.test(caseStatus))
+      return "open";
+    if (/^(?:inprogress|checking)$/i.test(caseStatus))
+      return "inprogress";
+    if (/^relist(ed)?$/i.test(caseStatus))
+      return "relist";
+    if (/^(?:checked|completed)$/i.test(caseStatus))
+      return "checked";
+    if (/^declined?$/i.test(caseStatus))
+      return "decline";
+    if (/^cudeclined?$/i.test(caseStatus))
+      return "cudecline";
+    if (/^endorsed?$/i.test(caseStatus))
+      return "endorse";
+    if (/^cuendorsed?$/i.test(caseStatus))
+      return "cuendorse";
+    if (/^(?:CU|checkuser|CUrequest|request)$/i.test(caseStatus))
+      return "CUrequest";
+    if (/^cumoreinfo$/i.test(caseStatus))
+      return "cumoreinfo";
+    if (/^moreinfo$/i.test(caseStatus))
+      return "moreinfo";
+    if (/^hold$/i.test(caseStatus))
+      return "hold";
+    if (/^cuhold$/i.test(caseStatus))
+      return "cuhold";
+    if (/^clerk$/i.test(caseStatus))
+      return "clerk";
+    if (/^admin(?:istrator)?$/i.test(caseStatus))
+      return "admin";
+    return "new";
+  }
+
+  // src/ui/views/top/utils/commentClaims.ts
+  function templateMatcher(...names) {
+    return ({ templateNames }) => {
+      const claimed = names.find((name) => templateNames.has(name.toLowerCase()));
+      return claimed ? `{{${claimed}}}` : null;
+    };
+  }
+  function textMatcher(word) {
+    const pattern = new RegExp(String.raw`\b${word}\b`, "i");
+    return ({ wikitext }) => {
+      const match = pattern.exec(wikitext);
+      return match ? `the word "${match[0]}"` : null;
+    };
+  }
+  var choicesWithTemplates = [
+    "CUrequest",
+    "admin",
+    "clerk",
+    "selfendorse",
+    "inprogress",
+    "decline",
+    "cudecline",
+    "endorse",
+    "cuendorse",
+    "moreinfo",
+    "cumoreinfo",
+    "relist",
+    "hold",
+    "cuhold",
+    "reopen"
+  ];
+  var statusesByTemplate = choicesWithTemplates.reduce((byTemplate, choice) => {
+    const template = getStatusTemplate(choice);
+    if (template) {
+      const name = template.slice("{{".length, -"}}".length);
+      const status = resolveStatusChoice(choice);
+      byTemplate.set(name, (byTemplate.get(name) ?? new Set).add(status));
+    }
+    return byTemplate;
+  }, new Map);
+  function statusChecks(effectiveStatus) {
+    const unfulfilledText = `the case status is set to ${effectiveStatus}`;
+    return [
+      {
+        matchers: [
+          templateMatcher("btc", "Action and close", "Closing without action", "cwa"),
+          textMatcher("closing")
+        ],
+        fulfilled: effectiveStatus === "closed",
+        unfulfilledText
+      },
+      ...[...statusesByTemplate].map(([name, statuses]) => ({
+        matchers: [templateMatcher(name)],
+        fulfilled: statuses.has(effectiveStatus),
+        unfulfilledText
+      }))
+    ];
+  }
+  function actionChecks(facts) {
+    return [
+      {
+        matchers: [templateMatcher("bnt", "btc", "bwt", "sblock", "IPblock")],
+        fulfilled: facts.blockPlanned,
+        unfulfilledText: "no block is set to be applied"
+      },
+      {
+        matchers: [templateMatcher("GlobalLocksRequested", "glr")],
+        fulfilled: facts.globalRequestPlanned,
+        unfulfilledText: "no lock or global block is set to be requested"
+      }
+    ];
+  }
+  function findCommentClaims(commentText, facts) {
+    const comment = {
+      wikitext: commentText,
+      templateNames: new Set(parseTemplates(commentText).map((t) => t.name))
+    };
+    const checks = [...statusChecks(facts.effectiveStatus), ...actionChecks(facts)];
+    return checks.flatMap(({ matchers, fulfilled, unfulfilledText }) => {
+      if (fulfilled) {
+        return [];
+      }
+      const quoted = matchers.map((match) => match(comment)).find((result) => result !== null);
+      return quoted ? [{ quoted, reason: unfulfilledText }] : [];
+    });
+  }
   // src/ui/views/top/utils/section.ts
+  var SockListTemplateRegex = /sock ?list/;
+  var UserTemplateNameParts = ["ip", "vandal", "user", "noping"];
+  function isRelevantTemplate(templateName) {
+    return SockListTemplateRegex.test(templateName) || UserTemplateNameParts.some((part) => templateName.includes(part));
+  }
+  function getSockEntries(opts) {
+    const { text, fullSearch, state } = opts;
+    const likelySocks = fullSearch ? [generateUserRow(context.userName, state)] : [];
+    const possibleSocks = [];
+    const allUsernames = fullSearch ? new Set([context.userName]) : new Set;
+    if (fullSearch) {
+      let $searchOrigin = $(document);
+      if (state.selectedSection?.type === "single") {
+        $searchOrigin = $(`a[href$="section=${state.selectedSection.section.id}"]`).parentsUntil(":has(hr)").last().nextUntil("hr");
+      }
+      const sockList = $searchOrigin.find(".cuEntry").toArray().map((entry) => entry.querySelector("a")).filter((link) => link !== null);
+      for (const entryElement of sockList) {
+        const filteredUsername = Array.from(entryElement.childNodes).find((n) => n.nodeType === Node.TEXT_NODE)?.textContent ?? "";
+        if (!filteredUsername) {
+          continue;
+        }
+        const username = spiHelperNormalizeUsername(filteredUsername);
+        if (allUsernames.has(username)) {
+          continue;
+        }
+        likelySocks.push(generateUserRow(username, state));
+        allUsernames.add(username);
+      }
+    }
+    const allTemplates = parseTemplates(text);
+    for (const template of allTemplates) {
+      if (isRelevantTemplate(template.name)) {
+        const templateUsernames = fetchTemplateArguments(template);
+        for (const templateUsername of templateUsernames) {
+          const username = spiHelperNormalizeUsername(templateUsername);
+          if (!allUsernames.has(username)) {
+            possibleSocks.push(generateUserRow(username, state));
+            allUsernames.add(username);
+          }
+        }
+      }
+    }
+    return [likelySocks, possibleSocks, allUsernames];
+  }
   async function prefetchSockRows(opts) {
     const {
       likelySocks,
@@ -3108,7 +3329,7 @@ ${body}` : body;
           globalUser: globalUsers.get(name),
           globalBlock: globalBlocks.get(name)
         };
-        fetchedUsers.set(name, markRaw ? markRaw(fetched) : fetched);
+        fetchedUsers.set(name, markRaw(fetched));
       }
     }
     return [...likelySocks, ...possibleSocks].map((userRow) => {
@@ -3135,134 +3356,6 @@ ${body}` : body;
       }
       return newRow;
     });
-  }
-  // src/ui/views/top/utils/status.ts
-  function getStatusTemplate(status) {
-    switch (status) {
-      case "CUrequest":
-        return "{{CURequest}}";
-      case "admin":
-        return "{{awaitingadmin}}";
-      case "clerk":
-        return "{{Clerk Request}}";
-      case "selfendorse":
-        return "{{Requestandendorse}}";
-      case "inprogress":
-        return "{{Inprogress}}";
-      case "decline":
-        return "{{Decline}}";
-      case "cudecline":
-        return "{{Cudecline}}";
-      case "endorse":
-        return "{{Endorse}}";
-      case "cuendorse":
-        return "{{cu-endorsed}}";
-      case "moreinfo":
-      case "cumoreinfo":
-        return "{{moreinfo}}";
-      case "relist":
-        return "{{relisted}}";
-      case "hold":
-      case "cuhold":
-        return "{{onhold}}";
-      case "reopen":
-        return "{{reopen}}";
-      case "checked":
-      case "closed":
-      case "new":
-      case "":
-        return null;
-      default:
-        console.warn("New case status", status, "is unexpected");
-        return null;
-    }
-  }
-  function updateCommentWithStatus(commentText, newStatus) {
-    const newTemplate = getStatusTemplate(newStatus);
-    if (newTemplate === null) {
-      return commentText;
-    }
-    if (spiHelperClerkStatusRegex.test(commentText)) {
-      let updatedText = commentText.replace(spiHelperClerkStatusRegex, newTemplate);
-      if (!newTemplate) {
-        updatedText = updatedText.replace(/^(\s*\*\s*)? [-–] /, "$1");
-      }
-      return updatedText;
-    } else if (newTemplate) {
-      return "* " + newTemplate + " – " + commentText.replace(/^\s*\*\s*/, "");
-    }
-    return commentText;
-  }
-  function normalizeCaseStatus(caseStatus) {
-    if (spiHelperCaseClosedRegex.test(caseStatus))
-      return "closed";
-    if (/^open$/i.test(caseStatus))
-      return "open";
-    if (/^(?:inprogress|checking)$/i.test(caseStatus))
-      return "inprogress";
-    if (/^relist(ed)?$/i.test(caseStatus))
-      return "relist";
-    if (/^checked|completed$/i.test(caseStatus))
-      return "checked";
-    if (/^declined?$/i.test(caseStatus))
-      return "decline";
-    if (/^cudeclin(ed)?$/i.test(caseStatus))
-      return "cudecline";
-    if (/^endorsed?$/i.test(caseStatus))
-      return "endorse";
-    if (/^(?:CU|checkuser|CUrequest|request)$/i.test(caseStatus))
-      return "CUrequest";
-    if (/^cumoreinfo$/i.test(caseStatus))
-      return "cumoreinfo";
-    if (/^hold$/i.test(caseStatus))
-      return "hold";
-    if (/^cuhold$/i.test(caseStatus))
-      return "cuhold";
-    if (/^clerk$/i.test(caseStatus))
-      return "clerk";
-    if (/^admin$/i.test(caseStatus))
-      return "admin";
-    return "new";
-  }
-  function templateName(template) {
-    return parseTemplates(template)[0]?.name ?? null;
-  }
-  var closingTemplateNames = new Set(["{{btc}}", "{{Action and close}}", "{{Closing without action}}"].map(templateName).filter((name) => name !== null));
-  var statusesWithTemplates = [
-    "CUrequest",
-    "admin",
-    "clerk",
-    "selfendorse",
-    "inprogress",
-    "decline",
-    "cudecline",
-    "endorse",
-    "cuendorse",
-    "moreinfo",
-    "relist",
-    "hold",
-    "reopen"
-  ];
-  var knownStatusTemplateNames = new Set(statusesWithTemplates.map((status) => getStatusTemplate(status)).filter((template) => template !== null).map(templateName));
-  function findStatusTemplateMismatch(commentText, newStatus) {
-    const commentTemplateNames = new Set(parseTemplates(commentText).map((t) => t.name));
-    if (newStatus !== "closed") {
-      const closingTemplate = [...closingTemplateNames].find((name) => commentTemplateNames.has(name));
-      if (closingTemplate) {
-        return { kind: "template", match: closingTemplate };
-      }
-    }
-    const expectedTemplate = getStatusTemplate(newStatus);
-    const expectedName = expectedTemplate ? templateName(expectedTemplate) : null;
-    for (const name of commentTemplateNames) {
-      if (knownStatusTemplateNames.has(name) && name !== expectedName) {
-        return { kind: "template", match: name };
-      }
-    }
-    if (newStatus !== "closed" && /\bclosing\b/i.test(commentText)) {
-      return { kind: "text", match: "closing" };
-    }
-    return null;
   }
   // src/ui/views/top/actionAccordion.ts
   var ActionAccordionComponent = defineComponent({
@@ -3498,7 +3591,7 @@ ${body}` : body;
                  @move-entire-case="handleMoveEntireCase" />
     <archive-action v-else-if="name === 'archive'" v-model:enabled="caseActions.archive.enabled"
                     :selection="state.selectedSection"
-                    :status-data="caseActions.status.data" />
+                    :status-action="caseActions.status" />
     <management-action v-else-if="name === 'management'" v-model:enabled="caseActions.management.enabled"
                        v-model:flags="caseActions.management.data.flags" />
   `
@@ -3506,6 +3599,13 @@ ${body}` : body;
   // src/ui/views/userLookup.ts
   var ITEM_LIMIT = 10;
   var SEARCH_DEBOUNCE_MS = 250;
+  function toMenuItem(user) {
+    return {
+      label: user.name,
+      value: user.userid.toString(),
+      customData: user
+    };
+  }
   function UpdateUserAllUserData(data, row) {
     if (data.blockid !== undefined) {
       row.block.block = true;
@@ -3556,7 +3656,7 @@ ${body}` : body;
         userSuggestions: [],
         menuConfig,
         useLookup: spiHelperSettings.useLookup,
-        searchTimer: null
+        searchController: null
       };
     },
     computed: {
@@ -3574,61 +3674,52 @@ ${body}` : body;
     },
     methods: {
       cancelPendingSearch() {
-        if (this.searchTimer !== null) {
-          clearTimeout(this.searchTimer);
-          this.searchTimer = null;
-        }
+        this.searchController?.abort();
+        this.searchController = null;
       },
-      onUpdateInputValue(value) {
+      startSearch() {
+        this.cancelPendingSearch();
+        const controller = new AbortController;
+        this.searchController = controller;
+        return controller.signal;
+      },
+      async onUpdateInputValue(value) {
         const trimmedValue = value.trim();
         this.menuConfig.searchQuery = trimmedValue;
-        this.cancelPendingSearch();
+        const signal = this.startSearch();
         if (!trimmedValue) {
           this.userSuggestions = [];
           return;
         }
-        this.searchTimer = setTimeout(() => {
-          this.searchTimer = null;
-          this.fetchSuggestions(value, trimmedValue);
-        }, SEARCH_DEBOUNCE_MS);
-      },
-      fetchSuggestions(value, trimmedValue) {
-        spiHelperGetUsers(trimmedValue, ITEM_LIMIT).then((users) => {
-          if (this.username !== value && this.username !== trimmedValue) {
-            return;
-          }
-          if (users.length === 0) {
-            this.userSuggestions = [];
-            return;
-          }
-          this.userSuggestions = users.map((user) => ({
-            label: user.name,
-            value: user.userid.toString(),
-            customData: user
-          }));
-        }).catch(() => {
-          this.userSuggestions = [];
-        });
+        await abortableDelay(SEARCH_DEBOUNCE_MS, signal);
+        if (isAborted(signal)) {
+          return;
+        }
+        const users = await spiHelperGetUsers({ from: trimmedValue, limit: ITEM_LIMIT, signal });
+        if (isAborted(signal)) {
+          return;
+        }
+        this.userSuggestions = users.map(toMenuItem);
       },
       onFocus() {
         if (this.userSuggestions.length === 0) {
           this.onLoadMore();
         }
       },
-      onLoadMore() {
+      async onLoadMore() {
         if (!this.username) {
           return;
         }
-        spiHelperGetUsers(this.username, this.userSuggestions.length + ITEM_LIMIT).then((users) => {
-          if (users.length === 0) {
-            return;
-          }
-          this.userSuggestions = users.map((user) => ({
-            label: user.name,
-            value: user.userid.toString(),
-            customData: user
-          }));
-        }, () => {});
+        const signal = this.startSearch();
+        const users = await spiHelperGetUsers({
+          from: this.username.trim(),
+          limit: this.userSuggestions.length + ITEM_LIMIT,
+          signal
+        });
+        if (isAborted(signal) || users.length === 0) {
+          return;
+        }
+        this.userSuggestions = users.map(toMenuItem);
       },
       async validateInstantly() {
         await this.$nextTick();
@@ -3914,7 +4005,11 @@ ${body}` : body;
     return "moved";
   }
   async function findFirstEmptySubArchive(archiveName) {
-    const subArchives = await spiHelperGetPages(`${archiveName.replace(/^Wikipedia:/, "")}/`, 4, "max");
+    const subArchives = await spiHelperGetPages({
+      from: `${archiveName.replace(/^Wikipedia:/, "")}/`,
+      namespace: 4,
+      limit: "max"
+    });
     if (subArchives === null) {
       new VueMessage({
         type: "error",
@@ -5337,10 +5432,12 @@ ${heading}`);
       case "closed":
         summaryItem = "closing";
         break;
+      case "new":
       case "nochange":
         break;
-      default:
+      default: {
         console.error("Unexpected case status value", newStatus);
+      }
     }
     const caseStatusResult = spiHelperCaseStatusRegex.exec(targetText);
     if (caseStatusResult?.[0]) {
@@ -5715,6 +5812,7 @@ ${heading}`);
         actionButtons,
         actionButtonKeys,
         sectionAccountNames: new Set,
+        sectionSelectionController: null,
         caseActions: getInitialCaseActions(),
         accounts: [],
         messages,
@@ -5941,7 +6039,7 @@ ${heading}`);
         }
         if (newSelection === "all") {
           this.state.selectedSection = { type: "all" };
-          this.loadSectionAccounts(this.state.selectedSection);
+          this.loadSectionAccounts(this.state.selectedSection, this.startSelectionLoad());
           this.syncSelectedSectionOverlay();
           return;
         }
@@ -5953,8 +6051,13 @@ ${heading}`);
         await this.loadNewSection(targetSection);
       },
       async loadNewSection(targetSection) {
-        this.state.selectedSection = { type: "single", section: targetSection };
+        const selection = { type: "single", section: targetSection };
+        const signal = this.startSelectionLoad();
+        this.state.selectedSection = selection;
         const newText = await loadSectionText(targetSection);
+        if (isAborted(signal)) {
+          return;
+        }
         const result = spiHelperCaseStatusRegex.exec(newText);
         const normalisedStatus = normalizeCaseStatus(result?.[1] ?? "");
         this.caseActions.status.data.old = normalisedStatus;
@@ -5963,10 +6066,11 @@ ${heading}`);
           this.caseActions.archive.enabled = true;
         }
         this.syncSelectedSectionOverlay();
-        this.loadSectionAccounts(this.state.selectedSection);
+        this.loadSectionAccounts(selection, signal);
       },
       async toggleMultiSelectMode(newValue) {
         this.multiSelectMode = newValue;
+        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "multi", enabled: newValue });
         if (!newValue) {
           const current = this.selectedSections;
           if (current.length > 1) {
@@ -6017,11 +6121,16 @@ ${heading}`);
           await this.loadNewSection(only);
           return;
         }
+        const signal = this.startSelectionLoad();
         this.caseActions.sections.data.section = sections.map((s) => s.id);
-        this.state.selectedSection = { type: "multiple", sections };
+        const selection = { type: "multiple", sections };
+        this.state.selectedSection = selection;
         await Promise.all(sections.map((section) => this.ensureBySectionEntry(section)));
+        if (isAborted(signal)) {
+          return;
+        }
         this.syncSelectedSectionOverlay();
-        this.loadSectionAccounts(this.state.selectedSection);
+        this.loadSectionAccounts(selection, signal);
       },
       async ensureBySectionEntry(section) {
         if (!this.caseActions.comment.data.bySection.has(section.id)) {
@@ -6053,7 +6162,13 @@ ${heading}`);
           }
         }
       },
-      async loadSectionAccounts(selection) {
+      startSelectionLoad() {
+        this.sectionSelectionController?.abort();
+        const controller = new AbortController;
+        this.sectionSelectionController = controller;
+        return controller.signal;
+      },
+      async loadSectionAccounts(selection, signal) {
         this.accounts = this.accounts.filter((row) => !this.sectionAccountNames.has(row.username));
         const searchText = await (async () => {
           if (selection.type === "all") {
@@ -6066,6 +6181,9 @@ ${heading}`);
           }
           return loadSectionText(selection.section);
         })();
+        if (isAborted(signal)) {
+          return;
+        }
         const [likelySocks, possibleSocks, allUsernames] = getSockEntries({
           text: searchText,
           fullSearch: true,
@@ -6081,6 +6199,9 @@ ${heading}`);
           fetchedUsers: this.caseActions.block.data.fetchedUsers,
           state: this.state
         });
+        if (isAborted(signal)) {
+          return;
+        }
         this.sectionAccountNames = new Set(this.massAddUserRows(allRows).map((row) => row.username));
       },
       onUpdateNewStatus(newStatus) {
@@ -6096,7 +6217,11 @@ ${heading}`);
         if (isOpRunning("mainActions")) {
           return;
         }
-        mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "submit", type: "top" });
+        mw.track("stats.mediawiki_gadget_spihelper_total", 1, {
+          action: "submit",
+          type: "top",
+          mode: this.state.selectedSection?.type ?? "none"
+        });
         startOp("mainActions");
         this.actionsRunning = true;
         try {
@@ -6312,10 +6437,7 @@ ${heading}`);
     props: {
       enabled: { type: Boolean, required: true },
       selection: { type: [Object, null], required: true },
-      statusData: {
-        type: Object,
-        required: true
-      }
+      statusAction: { type: Object, required: true }
     },
     emits: ["update:enabled"],
     computed: {
@@ -6338,26 +6460,14 @@ ${heading}`);
         return this.status !== "closed";
       },
       status() {
-        return this.effectiveStatus(this.statusData.old, this.statusData.new);
+        const { enabled, data } = this.statusAction;
+        return resolveEffectiveStatus({ enabled, old: data.old, new: data.new });
       }
     },
     methods: {
-      effectiveStatus(oldStatus, newStatus) {
-        switch (newStatus) {
-          case "nochange":
-            return oldStatus;
-          case "selfendorse":
-            return "endorse";
-          default:
-            return newStatus;
-        }
-      },
       effectiveSectionStatus(sectionId) {
-        const entry = this.statusData.bySection.get(sectionId);
-        if (!entry) {
-          return "";
-        }
-        return this.effectiveStatus(entry.old, entry.new);
+        const entry = this.statusAction.data.bySection.get(sectionId);
+        return entry ? resolveEffectiveStatus(entry) : "";
       }
     },
     template: `
@@ -7061,8 +7171,8 @@ ${heading}`);
         const isCheckuser = spiHelperIsCheckuser();
         const isClerk = spiHelperIsClerk();
         const cuRequested = /^(?:CU|checkuser|CUrequest|request|cumoreinfo)$/i.test(this.oldStatus);
-        const cuEndorsed = /^endorsed?$/i.test(this.oldStatus);
-        const cuCompleted = /^(?:inprogress|checking|relist(ed)?|checked|completed|declined?|cudeclin(ed)?)$/i.test(this.oldStatus);
+        const cuEndorsed = /^(?:cu)?endorsed?$/i.test(this.oldStatus);
+        const cuCompleted = /^(?:inprogress|checking|relist(ed)?|checked|completed|declined?|cudeclined?)$/i.test(this.oldStatus);
         const noChangeLabel = `No change (${this.oldStatus})`;
         mainItems.push({ label: noChangeLabel, value: "nochange" });
         if (spiHelperCaseClosedRegex.test(this.oldStatus)) {
@@ -7104,7 +7214,9 @@ ${heading}`);
             clerkItems.push({ label: "Request more information for CheckUser", value: "cumoreinfo" });
           }
         }
-        clerkItems.push({ label: "Place case on CU hold", value: "cuhold" });
+        if (isCheckuser) {
+          clerkItems.push({ label: "Place case on CU hold", value: "cuhold" });
+        }
         clerkItems.push({ label: "Place case on hold", value: "hold" });
         deferItems.push({ label: "Request clerk action", value: "clerk" });
         if (spiHelperIsAdmin() || isClerk) {
@@ -7560,7 +7672,7 @@ ${heading}`);
   `
   });
   // src/ui/views/top/actions/multiSection/statusAction.ts
-  var defaultEntry2 = { old: "", new: "nochange", enabled: false };
+  var defaultEntry2 = { old: "new", new: "nochange", enabled: false };
   var MultiSectionStatusActionComponent = defineComponent({
     props: {
       sections: { type: Array, required: true },
@@ -7884,7 +7996,7 @@ ${heading}`);
         messages: messages2,
         pageSuggestions: [],
         useLookup: spiHelperSettings.useLookup,
-        searchTimer: null,
+        searchController: null,
         selection: null,
         menuConfig
       };
@@ -7907,59 +8019,58 @@ ${heading}`);
     },
     methods: {
       cancelPendingSearch() {
-        if (this.searchTimer !== null) {
-          clearTimeout(this.searchTimer);
-          this.searchTimer = null;
-        }
+        this.searchController?.abort();
+        this.searchController = null;
       },
-      onUpdateInputValue(value) {
-        this.menuConfig.searchQuery = value;
+      startSearch() {
         this.cancelPendingSearch();
+        const controller = new AbortController;
+        this.searchController = controller;
+        return controller.signal;
+      },
+      async onUpdateInputValue(value) {
+        this.menuConfig.searchQuery = value;
+        const signal = this.startSearch();
         if (!value) {
           this.pageSuggestions = [];
           return;
         }
-        this.searchTimer = setTimeout(() => {
-          this.searchTimer = null;
-          this.fetchSuggestions(value);
-        }, SEARCH_DEBOUNCE_MS2);
-      },
-      async fetchSuggestions(value) {
-        await this.$nextTick();
-        spiHelperGetPages(this.fullPagename, this.namespace, ITEM_LIMIT2).then((pages) => {
-          if (this.pagename !== value) {
-            return;
-          }
-          if (!pages?.length) {
-            this.pageSuggestions = [];
-            return;
-          }
-          this.pageSuggestions = pages.filter((page) => !page.title.includes("/Archive")).map((page) => ({
-            label: this.stripTitle(page.title),
-            value: page.pageid.toString()
-          }));
-        }).catch(() => {
-          this.pageSuggestions = [];
+        const query = `${this.prefix}${value}`;
+        await abortableDelay(SEARCH_DEBOUNCE_MS2, signal);
+        if (isAborted(signal)) {
+          return;
+        }
+        const pages = await spiHelperGetPages({
+          from: query,
+          namespace: this.namespace,
+          limit: ITEM_LIMIT2,
+          signal
         });
+        if (isAborted(signal)) {
+          return;
+        }
+        this.pageSuggestions = this.toMenuItems(pages ?? []);
       },
       onFocus() {
         if (this.pageSuggestions.length === 0) {
           this.onLoadMore();
         }
       },
-      onLoadMore() {
+      async onLoadMore() {
         if (!this.pagename) {
           return;
         }
-        spiHelperGetPages(this.fullPagename, this.namespace, this.pageSuggestions.length + ITEM_LIMIT2).then((pages) => {
-          if (!pages?.length) {
-            return;
-          }
-          this.pageSuggestions = pages.filter((page) => !page.title.includes("/Archive")).map((page) => ({
-            label: this.stripTitle(page.title),
-            value: page.pageid.toString()
-          }));
-        }, () => {});
+        const signal = this.startSearch();
+        const pages = await spiHelperGetPages({
+          from: this.fullPagename,
+          namespace: this.namespace,
+          limit: this.pageSuggestions.length + ITEM_LIMIT2,
+          signal
+        });
+        if (isAborted(signal) || !pages?.length) {
+          return;
+        }
+        this.pageSuggestions = this.toMenuItems(pages);
       },
       async validateInstantly() {
         await this.$nextTick();
@@ -7977,6 +8088,12 @@ ${heading}`);
         if (newSelection !== null) {
           this.lookupStatus = "success";
         }
+      },
+      toMenuItems(pages) {
+        return pages.filter((page) => !page.title.includes("/Archive")).map((page) => ({
+          label: this.stripTitle(page.title),
+          value: page.pageid.toString()
+        }));
       },
       stripTitle(fullTitle) {
         if (this.prefix) {
@@ -8021,13 +8138,6 @@ ${heading}`);
   `
   });
   // src/ui/views/submitForm.ts
-  function templateMatcher(...names) {
-    return (commentText) => {
-      const templateNames = new Set(parseTemplates(commentText).map((t) => t.name));
-      const claimed = names.find((name) => templateNames.has(name.toLowerCase()));
-      return claimed ? `{{${claimed}}}` : null;
-    };
-  }
   var SubmitFormComponent = defineComponent({
     props: {
       lockComment: { type: String, required: true },
@@ -8060,7 +8170,8 @@ ${heading}`);
         if (!status) {
           return "";
         }
-        return status.enabled && status.data.new !== "nochange" ? status.data.new : status.data.old;
+        const { enabled, data } = status;
+        return resolveEffectiveStatus({ enabled, old: data.old, new: data.new });
       },
       globalRequestTargets() {
         const blockAction = this.caseActions.block;
@@ -8090,42 +8201,16 @@ ${heading}`);
         const { options, userBlocks, userLocks, userGlobalBlocks } = blockAction.data;
         return this.accounts.some((user) => !isInputDisabled(user, "duration", options, userBlocks, userLocks, userGlobalBlocks, this.accounts) && parseExpiry(user.block.duration) === null);
       },
-      statusTemplateMismatch() {
+      commentClaims() {
         const comment = this.caseActions.comment;
-        if (!comment?.enabled) {
-          return null;
-        }
-        const mismatch = findStatusTemplateMismatch(comment.data.text, this.effectiveStatus);
-        if (!mismatch) {
-          return null;
-        }
-        return mismatch.kind === "template" ? `{{${mismatch.match}}}` : `the word "${mismatch.match}"`;
-      },
-      unfulfilledClaims() {
-        const comment = this.caseActions.comment;
-        if (!comment?.enabled) {
+        if (!comment?.enabled || this.state.selectedSection?.type !== "single") {
           return [];
         }
-        const commentText = comment.data.text;
         const blockAction = this.caseActions.block;
-        const claims = [
-          {
-            matchers: [templateMatcher("bnt", "btc", "bwt", "sblock", "IPblock")],
-            fulfilled: blockAction.enabled && this.accounts.some((user) => user.block.block),
-            missing: "no block is set to be applied"
-          },
-          {
-            matchers: [templateMatcher("GlobalLocksRequested", "glr")],
-            fulfilled: this.globalRequestTargets.length > 0,
-            missing: "no lock or global block is set to be requested"
-          }
-        ];
-        return claims.flatMap(({ matchers, fulfilled, missing }) => {
-          if (fulfilled) {
-            return [];
-          }
-          const claimed = matchers.map((match) => match(commentText)).find((text) => text !== null);
-          return claimed ? [{ text: claimed, missing }] : [];
+        return findCommentClaims(comment.data.text, {
+          effectiveStatus: this.effectiveStatus,
+          blockPlanned: blockAction.enabled && this.accounts.some((user) => user.block.block),
+          globalRequestPlanned: this.globalRequestTargets.length > 0
         });
       },
       lenientOverrides() {
@@ -8234,17 +8319,14 @@ ${heading}`);
         <cdx-message v-if="hasInvalidTag" type="error" :inline="true">A user has an invalid tag</cdx-message>
         <cdx-message v-if="hasInvalidMove" type="error" :inline="true"><b>Move</b> is enabled but has no target</cdx-message>
         <cdx-message v-if="hasInvalidDuration" type="error" :inline="true">A user has an invalid block duration</cdx-message>
-        <cdx-message v-if="statusTemplateMismatch" type="warning" :inline="true">
-          The comment includes {{ statusTemplateMismatch }}, but the case status is set to {{ effectiveStatus }}.
-        </cdx-message>
-        <cdx-message v-for="claim in unfulfilledClaims" :key="claim.text"
+        <cdx-message v-for="claim in commentClaims" :key="claim.quoted + claim.reason"
                      type="warning" :inline="true">
-          The comment includes {{ claim.text }}, but {{ claim.missing }}.
+          The comment includes {{ claim.quoted }}, but {{ claim.reason }}
         </cdx-message>
         <cdx-message v-for="override in lenientOverrides" :key="override.username"
                      type="warning" :inline="true">
           Overriding <b>{{ override.username }}</b>'s existing block with a more lenient one:
-          {{ override.reasons.join(', ') }}.
+          {{ override.reasons.join(', ') }}
         </cdx-message>
         <cdx-button ref="submitElement" action="progressive" weight="primary" @click="onSubmit"
                     :disabled="disableButton">
@@ -8676,51 +8758,54 @@ ${heading}`);
       },
       async loadCase(addRow) {
         this.caseLoading = true;
-        setContext(this.pageName, "alternate");
-        if (this.targetCase) {
-          const archiveNoticeResult = await spiHelperParseArchiveNotice({
-            page: this.pageName,
-            state: this.state
-          });
-          context.valid = archiveNoticeResult !== null;
-          if (archiveNoticeResult === null) {
-            this.state.archiveNotice = new ParsedArchiveNotice({ username: this.targetCase });
-          } else {
-            this.state.archiveNotice = archiveNoticeResult;
-          }
-          if (addRow) {
-            const [userBlock, userPageText] = await Promise.all([
-              spiHelperGetUserBlockSettings(this.targetCase),
-              spiHelperGetPageText(`User:${this.targetCase}`, false)
-            ]);
-            if (userBlock !== null) {
-              this.blockData.userBlocks.set(this.targetCase, userBlock);
-            }
-            const { userRow, isLocked } = setUserRowBlockData({
-              userRow: generateUserRow(this.targetCase, this.state),
-              block: userBlock ?? undefined,
-              userPage: userPageText,
-              defaultBlock: true,
-              globalUser: undefined,
-              globalBlock: undefined,
+        try {
+          setContext(this.pageName, "alternate");
+          if (this.targetCase) {
+            const archiveNoticeResult = await spiHelperParseArchiveNotice({
+              page: this.pageName,
               state: this.state
             });
-            if (isLocked !== null) {
-              this.blockData.userLocks.set(this.targetCase, isLocked);
-            }
-            const oldIndex = this.accounts.findIndex((user) => user.username === userRow.username);
-            if (oldIndex === -1) {
-              this.accounts.splice(0, 0, userRow);
+            context.valid = archiveNoticeResult !== null;
+            if (archiveNoticeResult === null) {
+              this.state.archiveNotice = new ParsedArchiveNotice({ username: this.targetCase });
             } else {
-              this.accounts.splice(oldIndex, 1, userRow);
+              this.state.archiveNotice = archiveNoticeResult;
             }
+            if (addRow) {
+              const [userBlock, userPageText] = await Promise.all([
+                spiHelperGetUserBlockSettings(this.targetCase),
+                spiHelperGetPageText(`User:${this.targetCase}`, false)
+              ]);
+              if (userBlock !== null) {
+                this.blockData.userBlocks.set(this.targetCase, userBlock);
+              }
+              const { userRow, isLocked } = setUserRowBlockData({
+                userRow: generateUserRow(this.targetCase, this.state),
+                block: userBlock ?? undefined,
+                userPage: userPageText,
+                defaultBlock: true,
+                globalUser: undefined,
+                globalBlock: undefined,
+                state: this.state
+              });
+              if (isLocked !== null) {
+                this.blockData.userLocks.set(this.targetCase, isLocked);
+              }
+              const oldIndex = this.accounts.findIndex((user) => user.username === userRow.username);
+              if (oldIndex === -1) {
+                this.accounts.splice(0, 0, userRow);
+              } else {
+                this.accounts.splice(oldIndex, 1, userRow);
+              }
+            }
+          } else {
+            context.valid = false;
           }
-        } else {
-          context.valid = false;
+          this.blockData.master = spiHelperNormalizeUsername(this.targetCase);
+          this.caseLoaded = true;
+        } finally {
+          this.caseLoading = false;
         }
-        this.blockData.master = spiHelperNormalizeUsername(this.targetCase);
-        this.caseLoading = false;
-        this.caseLoaded = true;
       },
       async onSubmitActions() {
         if (isOpRunning("alternateActions")) {
@@ -8886,7 +8971,8 @@ ${heading}`);
                      :namespace="4" prefix="Sockpuppet investigations/"
                      placeholder="Case" label="Case title" description="Optional but recommended" />
         <div style="display: flex; gap: 10px;">
-          <cdx-button weight="primary" action="progressive" @click="loadCase(true)">Load</cdx-button>
+          <cdx-button weight="primary" action="progressive" :disabled="caseLoading"
+                      @click="loadCase(true)">Load</cdx-button>
           <cdx-progress-indicator v-if="caseLoading">Loading case</cdx-progress-indicator>
           <cdx-progress-indicator v-else-if="accountsLoading">Loading accounts</cdx-progress-indicator>
         </div>
