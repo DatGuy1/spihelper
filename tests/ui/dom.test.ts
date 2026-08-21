@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, spyOn, test } from 'bun:test';
+import { afterEach, beforeAll, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import {
   SECTION_BUTTON_LABEL,
   addSectionButtons,
@@ -52,7 +52,7 @@ function makeHeading(sectionId: number, withEditSection = true): HTMLElement {
 function noop() { /* intentional no-op */ }
 
 describe('addSectionButtons', () => {
-  afterEach(() => {
+  beforeEach(() => {
     document.body.innerHTML = '';
   });
 
@@ -184,13 +184,15 @@ function addOverlaySection(
   return { heading, contents };
 }
 
-// Built in beforeAll (not at module scope) so it's created after addSectionButtons's
-// afterEach hooks above have finished wiping document.body between its own tests
+// Built in beforeAll (not at module scope) so it's created
+// once the describe it belongs to starts
 let overlayRoot: HTMLElement;
 let overlaySections: Record<1 | 2 | 4, { heading: HTMLElement; contents: HTMLElement[] }>;
 
 describe('section overlay', () => {
   beforeAll(() => {
+    // Whatever ran before this left its own headings on the page
+    document.body.innerHTML = '';
     overlayRoot = makeParserOutputRoot();
     overlaySections = {
       1: addOverlaySection(overlayRoot, 1, 2),
@@ -292,9 +294,15 @@ describe('section overlay', () => {
 });
 
 describe('scrollToSection', () => {
+  let sectionHeading: HTMLElement;
+
+  beforeAll(() => {
+    document.body.innerHTML = '';
+    ({ heading: sectionHeading } = addOverlaySection(makeParserOutputRoot(), 4, 1));
+  });
+
   test('scrolls the section heading into view when it exists', () => {
-    const { heading } = overlaySections[4];
-    const spy = spyOn(heading, 'scrollIntoView');
+    const spy = spyOn(sectionHeading, 'scrollIntoView');
 
     scrollToSection(4);
 

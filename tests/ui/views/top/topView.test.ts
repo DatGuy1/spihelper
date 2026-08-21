@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import type { CaseActions, UserRow } from '../../../../src/types';
 import { CaseState, type SectionSelection } from '../../../../src/state.ts';
 import { SectionEntry } from '../../../../src/types';
@@ -7,14 +7,12 @@ import { getInitialCaseActions } from '../../../../src/ui/views/top/utils';
 import { TopViewComponent } from '../../../../src/ui/views/top';
 import { makeUserRow } from '../../../fixtures/spi.ts';
 import { setupBlockActionData } from '../../../../src/utils.ts';
-import type { prefetchSockRows } from '../../../../src/ui/views/top/utils';
+import * as sectionModule from '../../../../src/ui/views/top/utils/section.ts';
 
-const mockPrefetchSockRows = mock(
-  (_opts: Parameters<typeof prefetchSockRows>[0]): Promise<UserRow[]> => Promise.resolve([]),
-);
-void mock.module('../../../../src/ui/views/top/utils/section.ts', () => ({
-  prefetchSockRows: mockPrefetchSockRows,
-}));
+const mockPrefetchSockRows = spyOn(sectionModule, 'prefetchSockRows');
+afterAll(() => {
+  mockPrefetchSockRows.mockRestore();
+});
 
 interface TestCtx {
   caseActions: CaseActions;
