@@ -144,7 +144,7 @@ export const CommentActionComponent = defineComponent({
   },
   template: `
     <action-container v-model:enabled="enabled" @update:enabled="onEnable">
-      <div id="spiHelper-templateRow">
+      <div class="spiHelper-templateRow">
         <cdx-select :menu-items="noteTemplates" default-label="Comment templates" @update:selected="insertNote" />
         <cdx-select v-if="isClerk || isAdmin" :menu-items="clerkTemplates" default-label="Admin/clerk templates" @update:selected="insertText" />
         <cdx-select v-if="isCheckuser" :menu-items="cuTemplates" default-label="CheckUser templates" @update:selected="insertText" />
@@ -153,13 +153,13 @@ export const CommentActionComponent = defineComponent({
       </div>
       <cdx-text-area ref="commentBox" :autosize="true" placeholder="Write your comment" :model-value="text"
                      @update:model-value="onTextUpdate" />
-      <div id="spiHelper-PreviewBox" class="cdx-card" style="min-height:26px">
+      <div class="cdx-card spiHelper-PreviewBox" style="min-height:26px">
         <cdx-button class="spiHelper-preview-reload" aria-label="Load preview" @click="updatePreview"
                     weight="primary" action="progressive" :disabled="loadingPreview">
           <cdx-progress-indicator v-if="loadingPreview">Loading preview</cdx-progress-indicator>
           <cdx-icon v-else :icon="cdxIconReload" />
         </cdx-button>
-        <div v-html="htmlPreview" id="htmlPreview" />
+        <div v-html="htmlPreview" class="spiHelper-htmlPreview" />
       </div>
     </action-container>
   `,

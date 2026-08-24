@@ -83,7 +83,7 @@
     }
 }
 
-#buttonRow {
+.spiHelper-buttonRow {
     display: flex;
     /* border-bottom: 1px solid var(--color-base--subtle); */
     max-width: calc(100% - 102px);
@@ -96,7 +96,7 @@
     }
 }
 
-#messageRow {
+.spiHelper-messageRow {
     width: 100%;
 
     &:has(> *) {
@@ -104,7 +104,7 @@
     }
 }
 
-#contentRow {
+.spiHelper-contentRow {
     margin-top: 1em;
     width: 100%;
     display: flex;
@@ -388,7 +388,7 @@
     }
 }
 
-#spiHelper-PreviewBox {
+.spiHelper-PreviewBox {
     min-height: 26px;
 
     .spiHelper-preview-reload {
@@ -397,7 +397,7 @@
         inset-block-start: 8px;
     }
 
-    #htmlPreview {
+    .spiHelper-htmlPreview {
         overflow-wrap: break-word;
         width: 100%;
         padding-inline-end: 40px;
@@ -457,7 +457,7 @@ div.edit-tag-popover {
     }
 }
 
-#spiHelper-templateRow {
+.spiHelper-templateRow {
     display: flex;
 
     .cdx-select-vue__handle {

@@ -694,7 +694,7 @@ export const TopViewComponent = defineComponent({
         </div>
       </div>
       <div id="spiHelper-topView-Action" v-if="buttonLayout">
-        <div id="buttonRow">
+        <div class="spiHelper-buttonRow">
           <action-button
               v-for="[name, button] of Object.entries(actionButtons)"
               :key="name"
@@ -707,7 +707,7 @@ export const TopViewComponent = defineComponent({
               @click="onActionClick($event, name)"
           />
         </div>
-        <div id="contentRow">
+        <div class="spiHelper-contentRow">
           <div v-for="name of actionButtonKeys"
                :key="name"
                :class="{ 'is-visible': isVisible(name) }">
@@ -771,7 +771,7 @@ export const TopViewComponent = defineComponent({
                    :all-disabled="allDisabled" :action-name="'mainActions'" :check-conflict="true"
                    @on-submit="onSubmitActions" ref="submitForm" />
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
-      <div id="messageRow">
+      <div class="spiHelper-messageRow">
         <cdx-message v-for="message in messages" :key="message.id" :type="message.type" :fade-in="true"
                      :allow-user-dismiss="true" @user-dismissed="dismissMessage(message.id)">
           <span v-if="message.isHtml" v-html="message.content" />

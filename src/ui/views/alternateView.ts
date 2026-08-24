@@ -501,7 +501,7 @@ export const AlternateViewComponent = defineComponent({
                      @on-submit="onSubmitActions" ref="submitForm" />
       </div>
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
-      <div id="messageRow">
+      <div class="spiHelper-messageRow">
         <cdx-message v-for="message in messages" :key="message.id" :type="message.type" :fade-in="true"
                      :allow-user-dismiss="true" @user-dismissed="dismissMessage(message.id)">
           <span v-if="message.isHtml" v-html="message.content" />
