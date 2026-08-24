@@ -31,7 +31,8 @@ declare let spiHelperCustomOpts: Record<string, unknown> | undefined;
 export async function migrateOptions() {
   mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'migrate' });
   try {
-    await mw.loader.getScript('/w/index.php?title=Special:MyPage/spihelper-options.js&action=raw&ctype=text/javascript');
+    const optionsPage = `User:${mw.config.get('wgUserName')}/spihelper-options.js`;
+    await mw.loader.getScript(mw.util.getUrl(optionsPage, { action: 'raw', ctype: 'text/javascript' }));
     if (spiHelperCustomOpts !== undefined) {
       await migrateSettings(spiHelperCustomOpts, spiHelperSettings);
     }
