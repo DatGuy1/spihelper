@@ -154,8 +154,8 @@ export const CommentActionComponent = defineComponent({
       <cdx-text-area ref="commentBox" :autosize="true" placeholder="Write your comment" :model-value="text"
                      @update:model-value="onTextUpdate" />
       <div id="spiHelper-PreviewBox" class="cdx-card" style="min-height:26px">
-        <cdx-button aria-label="Load preview" @click="updatePreview" weight="primary" action="progressive"
-                    :disabled="loadingPreview">
+        <cdx-button class="spiHelper-preview-reload" aria-label="Load preview" @click="updatePreview"
+                    weight="primary" action="progressive" :disabled="loadingPreview">
           <cdx-progress-indicator v-if="loadingPreview">Loading preview</cdx-progress-indicator>
           <cdx-icon v-else :icon="cdxIconReload" />
         </cdx-button>

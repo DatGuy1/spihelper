@@ -391,7 +391,7 @@
 #spiHelper-PreviewBox {
     min-height: 26px;
 
-    .cdx-button {
+    .spiHelper-preview-reload {
         position: absolute;
         inset-inline-end: 8px;
         inset-block-start: 8px;
