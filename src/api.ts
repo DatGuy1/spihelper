@@ -760,7 +760,7 @@ export async function spiHelperBlockUser(opts: {
   try {
     const response = await api.postWithToken('csrf', request) as BlockActionResponse;
     const blockLinkHtml = buildURLLinkHtml(mw.util.getUrl('Special:BlockList', { wpTarget: `#${response.block.id}` }), 'Blocked', 'Special:BlockList');
-    message.update({ type: 'success', content: `${blockLinkHtml} user ${userLinkHtml}` });
+    message.update({ type: 'success', content: `${blockLinkHtml} ${userLinkHtml}` });
     finishOp(activeOpKey, OpState.Success);
     return true;
   }
