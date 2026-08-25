@@ -1804,7 +1804,8 @@ ${body}` : body;
   async function migrateOptions() {
     mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "migrate" });
     try {
-      await mw.loader.getScript("/w/index.php?title=Special:MyPage/spihelper-options.js&action=raw&ctype=text/javascript");
+      const optionsPage = `User:${mw.config.get("wgUserName")}/spihelper-options.js`;
+      await mw.loader.getScript(mw.util.getUrl(optionsPage, { action: "raw", ctype: "text/javascript" }));
       if (spiHelperCustomOpts !== undefined) {
         await migrateSettings(spiHelperCustomOpts, spiHelperSettings);
       }
@@ -6343,7 +6344,7 @@ ${heading}`);
         </div>
       </div>
       <div id="spiHelper-topView-Action" v-if="buttonLayout">
-        <div id="buttonRow">
+        <div class="spiHelper-buttonRow">
           <action-button
               v-for="[name, button] of Object.entries(actionButtons)"
               :key="name"
@@ -6356,7 +6357,7 @@ ${heading}`);
               @click="onActionClick($event, name)"
           />
         </div>
-        <div id="contentRow">
+        <div class="spiHelper-contentRow">
           <div v-for="name of actionButtonKeys"
                :key="name"
                :class="{ 'is-visible': isVisible(name) }">
@@ -6420,7 +6421,7 @@ ${heading}`);
                    :all-disabled="allDisabled" :action-name="'mainActions'" :check-conflict="true"
                    @on-submit="onSubmitActions" ref="submitForm" />
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
-      <div id="messageRow">
+      <div class="spiHelper-messageRow">
         <cdx-message v-for="message in messages" :key="message.id" :type="message.type" :fade-in="true"
                      :allow-user-dismiss="true" @user-dismissed="dismissMessage(message.id)">
           <span v-if="message.isHtml" v-html="message.content" />
@@ -7117,7 +7118,7 @@ ${heading}`);
     },
     template: `
     <action-container v-model:enabled="enabled" @update:enabled="onEnable">
-      <div id="spiHelper-templateRow">
+      <div class="spiHelper-templateRow">
         <cdx-select :menu-items="noteTemplates" default-label="Comment templates" @update:selected="insertNote" />
         <cdx-select v-if="isClerk || isAdmin" :menu-items="clerkTemplates" default-label="Admin/clerk templates" @update:selected="insertText" />
         <cdx-select v-if="isCheckuser" :menu-items="cuTemplates" default-label="CheckUser templates" @update:selected="insertText" />
@@ -7126,13 +7127,13 @@ ${heading}`);
       </div>
       <cdx-text-area ref="commentBox" :autosize="true" placeholder="Write your comment" :model-value="text"
                      @update:model-value="onTextUpdate" />
-      <div id="spiHelper-PreviewBox" class="cdx-card" style="min-height:26px">
+      <div class="cdx-card spiHelper-PreviewBox" style="min-height:26px">
         <cdx-button class="spiHelper-preview-reload" aria-label="Load preview" @click="updatePreview"
                     weight="primary" action="progressive" :disabled="loadingPreview">
           <cdx-progress-indicator v-if="loadingPreview">Loading preview</cdx-progress-indicator>
           <cdx-icon v-else :icon="cdxIconReload" />
         </cdx-button>
-        <div v-html="htmlPreview" id="htmlPreview" />
+        <div v-html="htmlPreview" class="spiHelper-htmlPreview" />
       </div>
     </action-container>
   `
@@ -9005,7 +9006,7 @@ ${heading}`);
                      @on-submit="onSubmitActions" ref="submitForm" />
       </div>
       <cdx-progress-bar v-if="actionsRunning" aria-label="Actions in progress" style="margin-top: 20px;" />
-      <div id="messageRow">
+      <div class="spiHelper-messageRow">
         <cdx-message v-for="message in messages" :key="message.id" :type="message.type" :fade-in="true"
                      :allow-user-dismiss="true" @user-dismissed="dismissMessage(message.id)">
           <span v-if="message.isHtml" v-html="message.content" />

@@ -117,7 +117,7 @@
   margin-bottom: .75em;
 }
 
-#buttonRow {
+.spiHelper-buttonRow {
   display: flex;
   overflow-x: auto;
   flex-wrap: nowrap;
@@ -125,19 +125,19 @@
   padding-bottom: 2px;
 }
 
-#buttonRow > button {
+.spiHelper-buttonRow > button {
   flex-shrink: 0;
 }
 
-#messageRow {
+.spiHelper-messageRow {
   width: 100%;
 }
 
-#messageRow:has( > *) {
+.spiHelper-messageRow:has( > *) {
   padding-top: 20px;
 }
 
-#contentRow {
+.spiHelper-contentRow {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -145,18 +145,18 @@
   margin-top: 1em;
 }
 
-#contentRow > div {
+.spiHelper-contentRow > div {
   display: flex;
   flex-direction: column;
   gap: .75em;
 }
 
-#contentRow > div.is-visible ~ div.is-visible {
+.spiHelper-contentRow > div.is-visible ~ div.is-visible {
   border-top: 1px solid var(--color-base--subtle);
   padding-top: 16px;
 }
 
-#contentRow > div:not(.is-visible) {
+.spiHelper-contentRow > div:not(.is-visible) {
   display: none;
 }
 
@@ -458,40 +458,40 @@
   text-wrap: nowrap;
 }
 
-#spiHelper-PreviewBox {
+.spiHelper-PreviewBox {
   min-height: 26px;
 }
 
-#spiHelper-PreviewBox .spiHelper-preview-reload {
+.spiHelper-PreviewBox .spiHelper-preview-reload {
   position: absolute;
   top: 8px;
 }
 
-#spiHelper-PreviewBox .spiHelper-preview-reload:not(:-webkit-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi))) {
+.spiHelper-PreviewBox .spiHelper-preview-reload:not(:-webkit-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi))) {
   right: 8px;
 }
 
-#spiHelper-PreviewBox .spiHelper-preview-reload:not(:-moz-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi))) {
+.spiHelper-PreviewBox .spiHelper-preview-reload:not(:-moz-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi))) {
   right: 8px;
 }
 
-#spiHelper-PreviewBox .spiHelper-preview-reload:not(:is(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi))) {
+.spiHelper-PreviewBox .spiHelper-preview-reload:not(:is(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi))) {
   right: 8px;
 }
 
-#spiHelper-PreviewBox .spiHelper-preview-reload:-webkit-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi)) {
+.spiHelper-PreviewBox .spiHelper-preview-reload:-webkit-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi)) {
   left: 8px;
 }
 
-#spiHelper-PreviewBox .spiHelper-preview-reload:-moz-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi)) {
+.spiHelper-PreviewBox .spiHelper-preview-reload:-moz-any(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi)) {
   left: 8px;
 }
 
-#spiHelper-PreviewBox .spiHelper-preview-reload:is(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi)) {
+.spiHelper-PreviewBox .spiHelper-preview-reload:is(:lang(ae), :lang(ar), :lang(arc), :lang(bcc), :lang(bqi), :lang(ckb), :lang(dv), :lang(fa), :lang(glk), :lang(he), :lang(ku), :lang(mzn), :lang(nqo), :lang(pnb), :lang(ps), :lang(sd), :lang(ug), :lang(ur), :lang(yi)) {
   left: 8px;
 }
 
-#spiHelper-PreviewBox #htmlPreview {
+.spiHelper-PreviewBox .spiHelper-htmlPreview {
   overflow-wrap: break-word;
   box-sizing: border-box;
   width: 100%;
@@ -549,14 +549,14 @@ div.edit-tag-popover footer .cdx-popover__footer__actions {
   gap: 0;
 }
 
-#spiHelper-templateRow {
+.spiHelper-templateRow {
   display: flex;
 }
 
-#spiHelper-templateRow .cdx-select-vue__handle {
+.spiHelper-templateRow .cdx-select-vue__handle {
   min-width: 0;
 }
 
-#spiHelper-templateRow > .cdx-select-vue {
+.spiHelper-templateRow > .cdx-select-vue {
   flex: 1;
 }
