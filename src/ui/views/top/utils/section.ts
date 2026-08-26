@@ -14,7 +14,7 @@ import { isNonRegisteredAccount, spiHelperNormalizeUsername } from '../../../../
 import { VueMessage } from '../../../messages.ts';
 
 const SockListTemplateRegex = /sock ?list/;
-const UserTemplateNameParts = ['ip', 'vandal', 'user', 'noping'];
+const UserTemplateNameParts = ['ip', 'vandal', 'user', 'noping', 'np'];
 
 function isRelevantTemplate(templateName: string): boolean {
   return SockListTemplateRegex.test(templateName)
