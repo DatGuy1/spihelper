@@ -2,10 +2,9 @@ import {
   type BlockEntry,
   type BlockOptions,
   DefaultLinkRowData,
-  type GlobalBlockEntry,
-  type GlobalUser,
   type InputColumn,
   type ParsedArchiveNotice,
+  type PrefetchedUser,
   type UserRow,
 } from '../types';
 import type { CaseState } from '../state.ts';
@@ -98,34 +97,31 @@ export function updateUserBlockDataSettings(opts: {
 
 export const isMenuGroupData = (item: MenuItemData | MenuGroupData): item is MenuGroupData => 'items' in item;
 
-export function setUserRowBlockData(opts: {
+export function setUserRowData(opts: {
   userRow: UserRow;
-  block: BlockEntry | undefined;
-  userPage?: string;
+  fetchedUser: PrefetchedUser | undefined;
   defaultBlock: boolean;
-  globalUser: GlobalUser | undefined;
-  globalBlock: GlobalBlockEntry | undefined;
   state: CaseState;
 }) {
-  const { block: blockSetting, userPage, defaultBlock, globalUser, globalBlock, state } = opts;
+  const { fetchedUser, defaultBlock, state } = opts;
   const userRow = updateUserBlockDataSettings({
     userRow: opts.userRow,
     defaultBlock,
-    currentBlock: blockSetting,
-    userPage: userPage,
+    currentBlock: fetchedUser?.block,
+    userPage: fetchedUser?.userPage,
   });
 
   const crosswiki = state.archiveNotice?.crosswiki ?? false;
   let isLocked: boolean | null = null;
   let isGloballyBlocked: boolean | null = null;
-  if (globalUser) {
-    isLocked = globalUser.locked;
-    userRow.block.lock = globalUser.locked || crosswiki;
+  if (fetchedUser?.globalUser) {
+    isLocked = fetchedUser.globalUser.locked;
+    userRow.block.lock = fetchedUser.globalUser.locked || crosswiki;
   }
   else if (isNonRegisteredAccount(userRow.username)) {
     // Temporary accounts and IPs can't be locked, so the same checkbox stands for
     // the global block that gets requested for them instead
-    isGloballyBlocked = globalBlock !== undefined;
+    isGloballyBlocked = fetchedUser?.globalBlock !== undefined;
     userRow.block.lock = isGloballyBlocked || crosswiki;
   }
 

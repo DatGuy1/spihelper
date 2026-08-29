@@ -16,7 +16,7 @@ import { UpdateUserAllUserData } from './userLookup.ts';
 import {
   generateUserRow,
   getDefaultUserRow,
-  setUserRowBlockData,
+  setUserRowData,
   updateUserBlockDataSettings,
 } from '../utils.ts';
 import { spiHelperHandleBlocks } from '../../caseActions.ts';
@@ -25,7 +25,7 @@ import { context, setContext } from '../../context.ts';
 import { buildUserActionLogMessage, setupBlockActionData, spiHelperNormalizeUsername } from '../../utils.ts';
 import { spiHelperParseArchiveNotice } from '../../archivenotice.ts';
 import { spiHelperGetCategoryMembers, spiHelperGetPageText, spiHelperGetUserBlockSettings } from '../../api.ts';
-import { getSockEntries, prefetchSockRows } from './top/utils';
+import { applyFetchedUsers, ensureUsersFetched, getSockEntries, prefetchSockRows } from './top/utils';
 import { MODE, VERSION } from '../../constants';
 
 interface Data {
@@ -209,21 +209,28 @@ export const AlternateViewComponent = defineComponent({
         fullSearch: false,
         state: this.state,
       });
-      const likelySet = new Set(likelySocks);
-
-      const allRows = [...likelySocks, ...possibleSocks].map(sock => updateUserBlockDataSettings({
+      const likelyUsers = new Set(likelySocks.map(sock => sock.username));
+      const newRows = [...likelySocks, ...possibleSocks].map(sock => updateUserBlockDataSettings({
         userRow: sock,
-        defaultBlock: likelySet.has(sock),
+        defaultBlock: likelyUsers.has(sock.username),
       }));
-      this.massAddUserRows(allRows);
+      const added = new Set(this.massAddUserRows(newRows).map(row => row.username));
+
+      await ensureUsersFetched(added, this.blockData.fetchedUsers);
+      applyFetchedUsers({
+        accounts: this.accounts,
+        usernames: added,
+        blockData: this.blockData,
+        state: this.state,
+      });
     },
     massAddUserRows(newRows: UserRow[]) {
       const existingUsernames = new Set(this.accounts.map(s => s.username));
-      newRows.forEach((newRow) => {
-        if (!existingUsernames.has(newRow.username)) {
-          this.handleAddRow(newRow);
-        }
+      const filteredRows = newRows.filter(newRow => !existingUsernames.has(newRow.username));
+      filteredRows.forEach((newRow) => {
+        this.handleAddRow(newRow);
       });
+      return filteredRows;
     },
     async loadCase(addRow: boolean) {
       this.caseLoading = true;
@@ -254,13 +261,15 @@ export const AlternateViewComponent = defineComponent({
             if (userBlock !== null) {
               this.blockData.userBlocks.set(this.targetCase, userBlock);
             }
-            const { userRow, isLocked } = setUserRowBlockData({
+            const { userRow, isLocked } = setUserRowData({
               userRow: generateUserRow(this.targetCase, this.state),
-              block: userBlock ?? undefined,
-              userPage: userPageText,
+              fetchedUser: {
+                block: userBlock ?? undefined,
+                userPage: userPageText,
+                globalUser: undefined,
+                globalBlock: undefined,
+              },
               defaultBlock: true,
-              globalUser: undefined,
-              globalBlock: undefined,
               state: this.state,
             });
             if (isLocked !== null) {
@@ -358,7 +367,6 @@ export const AlternateViewComponent = defineComponent({
       const possibleSocks = suspectedMembers.map(
         member => BuildUserRow(member, false),
       );
-      const allUsernames = new Set([...likelySocks, ...possibleSocks].map(sock => sock.username));
       // loadCase has already cleared caseLoading, so without this the form sits there
       // looking finished while the account lookups are still in flight
       this.accountsLoading = true;
@@ -366,11 +374,7 @@ export const AlternateViewComponent = defineComponent({
         const allRows = await prefetchSockRows({
           likelySocks,
           possibleSocks,
-          allUsernames,
-          userBlocks: this.blockData.userBlocks,
-          userLocks: this.blockData.userLocks,
-          userGlobalBlocks: this.blockData.userGlobalBlocks,
-          fetchedUsers: this.blockData.fetchedUsers,
+          blockData: this.blockData,
           state: this.state,
         });
         this.massAddUserRows(allRows);
@@ -428,11 +432,7 @@ export const AlternateViewComponent = defineComponent({
         const allRows = await prefetchSockRows({
           likelySocks: allSocks,
           possibleSocks: [],
-          allUsernames,
-          userBlocks: this.blockData.userBlocks,
-          userLocks: this.blockData.userLocks,
-          userGlobalBlocks: this.blockData.userGlobalBlocks,
-          fetchedUsers: this.blockData.fetchedUsers,
+          blockData: this.blockData,
           state: this.state,
         });
         this.massAddUserRows(allRows);

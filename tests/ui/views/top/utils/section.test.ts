@@ -26,7 +26,13 @@ await stubApi({
   spiHelperGetBulkGlobalBlocks: mockGetBulkGlobalBlocks,
 });
 
-const { getSockEntries, prefetchSockRows } = await import('../../../../../src/ui/views/top/utils/section.ts');
+const {
+  applyFetchedUsers,
+  ensureUsersFetched,
+  getSockEntries,
+  prefetchSockRows,
+} = await import('../../../../../src/ui/views/top/utils/section.ts');
+const { setupBlockActionData } = await import('../../../../../src/utils.ts');
 const { CaseState } = await import('../../../../../src/state.ts');
 const contextModule = await import('../../../../../src/context.ts');
 
@@ -89,15 +95,10 @@ function makeState(): InstanceType<typeof CaseState> {
 describe('prefetchSockRows', () => {
   /** Loads one section's worth of accounts against a cache shared with earlier calls */
   function loadSection(usernames: string[], fetchedUsers: Map<string, PrefetchedUser>) {
-    const likelySocks: UserRow[] = usernames.map(name => makeUserRow(name));
     return prefetchSockRows({
-      likelySocks,
+      likelySocks: usernames.map(name => makeUserRow(name)),
       possibleSocks: [],
-      allUsernames: new Set(usernames),
-      userBlocks: new Map<string, BlockEntry>(),
-      userLocks: new Map<string, boolean>(),
-      userGlobalBlocks: new Map<string, boolean>(),
-      fetchedUsers,
+      blockData: { ...setupBlockActionData(), fetchedUsers },
       state: new CaseState(),
     });
   }
@@ -166,10 +167,9 @@ describe('getSockEntries', () => {
     const state = makeState();
 
     test('empty text produces empty lists', () => {
-      const [likely, possible, all] = getSockEntries({ text: '', fullSearch: false, state });
+      const [likely, possible] = getSockEntries({ text: '', fullSearch: false, state });
       expect(likely).toEqual([]);
       expect(possible).toEqual([]);
-      expect(all.size).toBe(0);
     });
 
     test('{{user|...}} adds username to possibleSocks', () => {
@@ -194,13 +194,12 @@ describe('getSockEntries', () => {
     });
 
     test('duplicate username across templates appears only once', () => {
-      const [, possible, all] = getSockEntries({
+      const [, possible] = getSockEntries({
         text: '{{user|SockA}}\n{{vandal|SockA}}',
         fullSearch: false,
         state,
       });
-      expect(possible.filter(r => r.username === 'SockA')).toHaveLength(1);
-      expect(all.size).toBe(1);
+      expect(possible).toHaveLength(1);
     });
 
     test('irrelevant templates are ignored', () => {
@@ -264,5 +263,77 @@ describe('getSockEntries', () => {
       const allNames = [...likely, ...possible].map(r => r.username);
       expect(allNames.filter(n => n === 'SockA')).toHaveLength(1);
     });
+  });
+});
+
+describe('applyFetchedUsers', () => {
+  /** A table holding one row per name, as the views leave it after adding them */
+  function makeAccounts(usernames: string[]): UserRow[] {
+    return usernames.map(name => makeUserRow(name));
+  }
+
+  test('seeds rows from the cache the lookups filled', async () => {
+    mockGetBulkUserBlockSettings.mockResolvedValue(
+      new Map([['SockA', makeBlockEntry('SockA', { duration: 'infinity' })]]),
+    );
+    mockGetBulkPageText.mockResolvedValue(
+      new Map([['User:SockA', '{{sockpuppet|Master|confirmed}}']]),
+    );
+    const accounts = makeAccounts(['SockA']);
+    const blockData = setupBlockActionData();
+
+    await ensureUsersFetched(new Set(['SockA']), blockData.fetchedUsers);
+    applyFetchedUsers({
+      accounts,
+      usernames: new Set(['SockA']),
+      blockData,
+      state: makeState(),
+    });
+
+    const [row] = accounts;
+    expect(row?.block.block).toBe(true);
+    expect(row?.block.duration).toBe('infinity');
+    expect(row?.block.tags.filter(isSockpuppetTag).map(tag => tag.master)).toEqual(['Master']);
+    expect(blockData.userBlocks.has('SockA')).toBe(true);
+  });
+
+  test('keeps the block state the row already carries', async () => {
+    // The row went up with the default its import gave it, and the user may have changed
+    // it while the lookups were in flight. Neither is ours to reset for an unblocked account
+    const accounts = makeAccounts(['SockA', 'SockB']);
+    const [likelyRow, possibleRow] = accounts;
+    if (likelyRow) {
+      likelyRow.block.block = true;
+    }
+    const blockData = setupBlockActionData();
+
+    await ensureUsersFetched(new Set(['SockA', 'SockB']), blockData.fetchedUsers);
+    applyFetchedUsers({
+      accounts,
+      usernames: new Set(['SockA', 'SockB']),
+      blockData,
+      state: makeState(),
+    });
+
+    expect(likelyRow?.block.block).toBe(true);
+    expect(possibleRow?.block.block).toBe(false);
+  });
+
+  test('leaves rows it was not asked about alone', () => {
+    const accounts = makeAccounts(['SockA', 'SockB']);
+    const editedRow = accounts[1];
+    if (editedRow) {
+      editedRow.block.duration = '1 week';
+    }
+
+    applyFetchedUsers({
+      accounts,
+      usernames: new Set(['SockA']),
+      blockData: setupBlockActionData(),
+      state: makeState(),
+    });
+
+    expect(editedRow?.block.duration).toBe('1 week');
+    expect(editedRow?.block.block).toBe(false);
   });
 });

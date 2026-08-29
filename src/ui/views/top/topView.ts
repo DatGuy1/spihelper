@@ -25,6 +25,8 @@ import { context } from '../../../context.ts';
 import { getDefaultUserRow, isAborted, updateUserBlockDataSettings } from '../../utils.ts';
 import {
   type ActionButtons,
+  applyFetchedUsers,
+  ensureUsersFetched,
   getActionButtons,
   getInitialCaseActions,
   getManagementFlagsFromArchiveNotice,
@@ -511,7 +513,7 @@ export const TopViewComponent = defineComponent({
         return;
       }
 
-      const [likelySocks, possibleSocks, allUsernames] = getSockEntries({
+      const [likelySocks, possibleSocks] = getSockEntries({
         text: searchText,
         fullSearch: true,
         state: this.state,
@@ -519,11 +521,7 @@ export const TopViewComponent = defineComponent({
       const allRows = await prefetchSockRows({
         likelySocks,
         possibleSocks,
-        allUsernames,
-        userBlocks: this.caseActions.block.data.userBlocks,
-        userLocks: this.caseActions.block.data.userLocks,
-        userGlobalBlocks: this.caseActions.block.data.userGlobalBlocks,
-        fetchedUsers: this.caseActions.block.data.fetchedUsers,
+        blockData: this.caseActions.block.data,
         state: this.state,
       });
       // A superseded load must not add its rows
@@ -582,19 +580,27 @@ export const TopViewComponent = defineComponent({
         this.actionsRunning = false;
       }
     },
-    handleFetchRows() {
+    async handleFetchRows() {
       const [likelySocks, possibleSocks] = getSockEntries({
         text: this.caseActions.comment.data.text,
         fullSearch: false,
         state: this.state,
       });
-      const likelySet = new Set(likelySocks);
-
-      const allRows = [...likelySocks, ...possibleSocks].map(sock => updateUserBlockDataSettings({
+      const likelyUsers = new Set(likelySocks.map(sock => sock.username));
+      const newRows = [...likelySocks, ...possibleSocks].map(sock => updateUserBlockDataSettings({
         userRow: sock,
-        defaultBlock: likelySet.has(sock),
+        defaultBlock: likelyUsers.has(sock.username),
       }));
-      this.massAddUserRows(allRows);
+      // The rows go up with their defaults rather than waiting on the lookups behind them
+      const added = new Set(this.massAddUserRows(newRows).map(row => row.username));
+
+      await ensureUsersFetched(added, this.caseActions.block.data.fetchedUsers);
+      applyFetchedUsers({
+        accounts: this.accounts,
+        usernames: added,
+        blockData: this.caseActions.block.data,
+        state: this.state,
+      });
     },
     handleUserSelected(data: AllUser, rowId: string) {
       const userRow = this.accounts.find(r => r.id === rowId);

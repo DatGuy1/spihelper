@@ -11,7 +11,7 @@ import {
   isAborted,
   isMenuGroupData,
   pruneMenuData,
-  setUserRowBlockData,
+  setUserRowData,
   updateUserBlockDataSettings,
 } from '../../src/ui/utils.ts';
 
@@ -176,7 +176,7 @@ describe('user rows', () => {
     });
   });
 
-  describe('setUserRowBlockData', () => {
+  describe('setUserRowData', () => {
     function setRowData(username: string, opts: {
       globalUser?: { name: string; locked: boolean; existsLocally: boolean };
       globalBlock?: { target: string; expiry: string; by: string; reason: string };
@@ -185,12 +185,15 @@ describe('user rows', () => {
       const archiveNotice = opts.crosswiki
         ? new ParsedArchiveNotice({ username: 'Master', crosswiki: true })
         : null;
-      return setUserRowBlockData({
+      return setUserRowData({
         userRow: generateUserRow(username, makeState(archiveNotice)),
-        block: undefined,
+        fetchedUser: {
+          block: undefined,
+          userPage: undefined,
+          globalUser: opts.globalUser,
+          globalBlock: opts.globalBlock,
+        },
         defaultBlock: false,
-        globalUser: opts.globalUser,
-        globalBlock: opts.globalBlock,
         state: makeState(archiveNotice),
       });
     }

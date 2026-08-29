@@ -1,5 +1,5 @@
 import type { CaseState } from '../../../../state.ts';
-import { generateUserRow, setUserRowBlockData } from '../../../utils.ts';
+import { generateUserRow, setUserRowData } from '../../../utils.ts';
 import { markRaw } from '../../../runtime.ts';
 import { context } from '../../../../context.ts';
 import { fetchTemplateArguments, parseTemplates } from '../../../../template.ts';
@@ -9,7 +9,7 @@ import {
   spiHelperGetBulkPageText,
   spiHelperGetBulkUserBlockSettings,
 } from '../../../../api.ts';
-import type { BlockEntry, PrefetchedUser, UserRow } from '../../../../types';
+import type { BlockActionData, PrefetchedUser, UserRow } from '../../../../types';
 import { isNonRegisteredAccount, spiHelperNormalizeUsername } from '../../../../utils.ts';
 import { VueMessage } from '../../../messages.ts';
 
@@ -25,7 +25,7 @@ export function getSockEntries(opts: {
   text: string;
   fullSearch: boolean;
   state: CaseState;
-}): [UserRow[], UserRow[], Set<string>] {
+}): [UserRow[], UserRow[]] {
   const { text, fullSearch, state } = opts;
   const likelySocks: UserRow[] = fullSearch ? [generateUserRow(context.userName, state)] : [];
   const possibleSocks: UserRow[] = [];
@@ -68,30 +68,17 @@ export function getSockEntries(opts: {
     }
   }
 
-  return [likelySocks, possibleSocks, allUsernames];
+  return [likelySocks, possibleSocks];
 }
 
-export async function prefetchSockRows(opts: {
-  likelySocks: UserRow[];
-  possibleSocks: UserRow[];
-  allUsernames: Set<string>;
-  userBlocks: Map<string, BlockEntry>;
-  userLocks: Map<string, boolean>;
-  userGlobalBlocks: Map<string, boolean>;
-  fetchedUsers: Map<string, PrefetchedUser>;
-  state: CaseState;
-}): Promise<UserRow[]> {
-  const {
-    likelySocks, possibleSocks, allUsernames,
-    userBlocks, userLocks, userGlobalBlocks, fetchedUsers,
-    state,
-  } = opts;
-  // For the minute time complexity gains
-  const likelySet = new Set(likelySocks.map(sock => sock.id));
-
+/** Fills the fetchedUsers cache with everyone in usernames we haven't loaded */
+export async function ensureUsersFetched(
+  usernames: Set<string>,
+  fetchedUsers: Map<string, PrefetchedUser>,
+): Promise<void> {
   // Changing sections re-runs this over users we have usually already looked up,
   // so only the ones we have never seen go out to the API
-  const newUsernames = new Set([...allUsernames].filter(name => !fetchedUsers.has(name)));
+  const newUsernames = new Set([...usernames].filter(name => !fetchedUsers.has(name)));
   const registeredUsernames = new Set<string>();
   const unregisteredUsernames = new Set<string>();
   for (const name of newUsernames) {
@@ -114,43 +101,89 @@ export async function prefetchSockRows(opts: {
     }).show();
     return null;
   });
-  if (lookups) {
-    const [blockSettings, userPages, globalUsers, globalBlocks] = lookups;
-    for (const name of newUsernames) {
-      // Nothing renders these entries so keep Vue from proxying
-      const fetched: PrefetchedUser = {
-        block: blockSettings.get(name),
-        userPage: userPages.get(`User:${name}`),
-        globalUser: globalUsers.get(name),
-        globalBlock: globalBlocks.get(name),
-      };
-      fetchedUsers.set(name, markRaw(fetched));
-    }
+  if (!lookups) {
+    return;
   }
 
-  return [...likelySocks, ...possibleSocks].map((userRow) => {
-    const fetched = fetchedUsers.get(userRow.username);
-    const blockSetting = fetched?.block;
-    if (blockSetting) {
-      userBlocks.set(userRow.username, blockSetting);
-    }
+  const [blockSettings, userPages, globalUsers, globalBlocks] = lookups;
+  for (const name of newUsernames) {
+    // Nothing renders these entries so keep Vue from proxying
+    const fetched: PrefetchedUser = {
+      block: blockSettings.get(name),
+      userPage: userPages.get(`User:${name}`),
+      globalUser: globalUsers.get(name),
+      globalBlock: globalBlocks.get(name),
+    };
+    fetchedUsers.set(name, markRaw(fetched));
+  }
+}
 
-    const defaultBlock = likelySet.has(userRow.id);
-    const { userRow: newRow, isLocked, isGloballyBlocked } = setUserRowBlockData({
+/** Seeds a row's block, lock, and tag states from the cache */
+function applyFetchedUser(opts: {
+  userRow: UserRow;
+  defaultBlock: boolean;
+  blockData: BlockActionData;
+  state: CaseState;
+}): UserRow {
+  const { userRow, defaultBlock, blockData, state } = opts;
+  const fetched = blockData.fetchedUsers.get(userRow.username);
+  if (fetched?.block) {
+    blockData.userBlocks.set(userRow.username, fetched.block);
+  }
+
+  const { userRow: newRow, isLocked, isGloballyBlocked } = setUserRowData({
+    userRow,
+    fetchedUser: fetched,
+    defaultBlock,
+    state,
+  });
+  if (isLocked !== null) {
+    blockData.userLocks.set(userRow.username, isLocked);
+  }
+  if (isGloballyBlocked !== null) {
+    blockData.userGlobalBlocks.set(userRow.username, isGloballyBlocked);
+  }
+  return newRow;
+}
+
+export function applyFetchedUsers(opts: {
+  accounts: UserRow[];
+  usernames: Set<string>;
+  blockData: BlockActionData;
+  state: CaseState;
+}): void {
+  const { accounts, usernames, blockData, state } = opts;
+  for (const userRow of accounts) {
+    if (!usernames.has(userRow.username)) {
+      continue;
+    }
+    applyFetchedUser({
       userRow,
-      block: blockSetting,
-      defaultBlock,
-      userPage: fetched?.userPage,
-      globalUser: fetched?.globalUser,
-      globalBlock: fetched?.globalBlock,
+      defaultBlock: userRow.block.block,
+      blockData,
       state,
     });
-    if (isLocked !== null) {
-      userLocks.set(userRow.username, isLocked);
-    }
-    if (isGloballyBlocked !== null) {
-      userGlobalBlocks.set(userRow.username, isGloballyBlocked);
-    }
-    return newRow;
-  });
+  }
+}
+
+/** Looks up a fresh set of rows and seeds them */
+export async function prefetchSockRows(opts: {
+  likelySocks: UserRow[];
+  possibleSocks: UserRow[];
+  blockData: BlockActionData;
+  state: CaseState;
+}): Promise<UserRow[]> {
+  const { likelySocks, possibleSocks, blockData, state } = opts;
+  const allRows = [...likelySocks, ...possibleSocks];
+  // For the minute time complexity gains
+  const likelyIds = new Set(likelySocks.map(sock => sock.id));
+
+  await ensureUsersFetched(new Set(allRows.map(row => row.username)), blockData.fetchedUsers);
+
+  return allRows.map(userRow => applyFetchedUser({
+    userRow,
+    defaultBlock: likelyIds.has(userRow.id),
+    blockData,
+    state,
+  }));
 }
