@@ -438,7 +438,7 @@ function spiHelperHandleStatus(newStatus: CaseStatusChoice, targetText: string) 
       break;
     case 'selfendorse':
       newStatus = 'endorse';
-      summaryItem = 'adding checkuser request (self-endorsed for checkuser attention)';
+      summaryItem = 'adding self-endorsed checkuser request';
       break;
     case 'checked':
       summaryItem = 'marking request as checked';
