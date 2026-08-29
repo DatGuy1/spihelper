@@ -58,7 +58,7 @@ export function buildBlockSummary(
 ) {
   let blockSummary = 'Abusing [[WP:SOCK|multiple accounts]]';
   if (context.source === 'spi' && context.valid) {
-    blockSummary += `: Please see: [[${context.prefixedName}]]`;
+    blockSummary += `: Please see: [[${context.pageName}]]`;
   }
   if (spiHelperIsCheckuser() && blockOptions.cuBlock) {
     const cuBlockTemplate = isIP ? '{{checkuserblock}}' : '{{checkuserblock-account}}';

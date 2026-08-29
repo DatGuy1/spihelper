@@ -5,7 +5,6 @@ import {
   parseArchiveSections,
   parseSectionDate,
   rebuildArchiveText,
-  spiHelperGetInterwikiPrefix,
   spiHelperGetMaxPostExpandSize,
 } from '../utils.ts';
 import { spiHelperCaseClosedRegex, spiHelperCaseStatusRegex, spiHelperSectionRegex } from '../constants';
@@ -126,7 +125,7 @@ export async function spiHelperArchiveCase(
   const archiveSuccess = await spiHelperEditPage({
     title: context.archiveName,
     newText: newArchiveText,
-    summary: `${summaryPrefix} from [[${context.prefixedName}]]`,
+    summary: `${summaryPrefix} from [[${context.pageName}]]`,
     watch: spiHelperSettings.watch.archive,
     watchExpiry: spiHelperSettings.expiry.archive,
   }) !== null;
@@ -139,7 +138,7 @@ export async function spiHelperArchiveCase(
   // Update case page to blank the sections we archived
   await context.edit({
     newText: newText,
-    summary: `${summaryPrefix} to [[${spiHelperGetInterwikiPrefix()}${context.archiveName}]]`,
+    summary: `${summaryPrefix} to [[${context.archiveName}]]`,
     watch: spiHelperSettings.watch.case,
     watchExpiry: spiHelperSettings.expiry.case,
     baseRevId: context.startingRevId,
@@ -205,7 +204,7 @@ export async function spiHelperArchiveCaseSection(section: SectionEntry): Promis
   const archiveSuccess = await spiHelperEditPage({
     title: context.archiveName,
     newText: archiveText,
-    summary: `Archiving case section from [[${context.prefixedName}]]`,
+    summary: `Archiving case section from [[${context.pageName}]]`,
     createonly: false,
     watch: spiHelperSettings.watch.archive,
     watchExpiry: spiHelperSettings.expiry.archive,
@@ -220,7 +219,7 @@ export async function spiHelperArchiveCaseSection(section: SectionEntry): Promis
   // Blank the section we archived
   await context.edit({
     newText: '',
-    summary: `Archiving case section to [[${spiHelperGetInterwikiPrefix()}${context.archiveName}]]`,
+    summary: `Archiving case section to [[${context.archiveName}]]`,
     watch: spiHelperSettings.watch.case,
     watchExpiry: spiHelperSettings.expiry.case,
     baseRevId: context.startingRevId,

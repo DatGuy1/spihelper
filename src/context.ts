@@ -81,5 +81,5 @@ export function setContext(pageName: string, source: 'spi' | 'alternate' = 'spi'
 }
 
 export function buildContextSummary(baseText: string) {
-  return context.source === 'spi' && context.valid ? baseText + ` per [[${context.prefixedName}]]` : baseText;
+  return context.source === 'spi' && context.valid ? baseText + ` per [[${context.pageName}]]` : baseText;
 }

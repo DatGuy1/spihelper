@@ -228,7 +228,7 @@ export async function mergeArchives(
   await spiHelperEditPage({
     title: newContext.archiveName,
     newText: targetArchiveText,
-    summary: `Merging archives from [[${oldContext.prefixedName}]], see page history for attribution`,
+    summary: `Merging archives from [[${oldContext.pageName}]], see page history for attribution`,
     createonly: false,
     watch: spiHelperSettings.watch.archive,
     watchExpiry: spiHelperSettings.expiry.archive,
@@ -305,7 +305,7 @@ export async function spiHelperMoveCase(opts: {
     await spiHelperMovePage({
       sourcePage: oldContext.pageName,
       destPage: newContext.pageName,
-      summary: `Merging case to [[${newContext.prefixedName}]]`,
+      summary: `Merging case to [[${newContext.pageName}]]`,
       ignoreWarnings: true,
       suppressRedirect: suppress,
     });
@@ -347,7 +347,7 @@ export async function spiHelperMoveCase(opts: {
     await spiHelperMovePage({
       sourcePage: oldContext.pageName,
       destPage: newContext.pageName,
-      summary: `Moving case to [[${newContext.prefixedName}]]`,
+      summary: `Moving case to [[${newContext.pageName}]]`,
       suppressRedirect: suppress && spiHelperCanSuppressRedirect(),
       ignoreWarnings: false,
     });
@@ -384,7 +384,7 @@ export async function spiHelperMoveCaseSection(mergeTarget: string, section: Sec
   // Intentionally not async - doesn't matter when this edit finishes
   void newContext.edit({
     newText: targetPageText,
-    summary: `Moving case section from [[${context.prefixedName}]], see page history for attribution`,
+    summary: `Moving case section from [[${context.pageName}]], see page history for attribution`,
     createonly: false,
     watch: spiHelperSettings.watch.case,
     watchExpiry: spiHelperSettings.expiry.case,
@@ -392,7 +392,7 @@ export async function spiHelperMoveCaseSection(mergeTarget: string, section: Sec
   // Blank the section we moved
   await context.edit({
     newText: '',
-    summary: `Moving case section to [[${newContext.prefixedName}]]`,
+    summary: `Moving case section to [[${newContext.pageName}]]`,
     createonly: false,
     watch: spiHelperSettings.watch.case,
     watchExpiry: spiHelperSettings.expiry.case,

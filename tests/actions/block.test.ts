@@ -214,7 +214,7 @@ describe('buildBlockSummary', () => {
     spyOn(roleModule, 'spiHelperIsCheckuser').mockReturnValue(false);
     const summary = buildBlockSummary(defaultBlockOptions, false, false, false);
     expect(summary).toBe(
-      `Abusing [[WP:SOCK|multiple accounts]]: Please see: [[${contextModule.context.prefixedName}]]`,
+      `Abusing [[WP:SOCK|multiple accounts]]: Please see: [[${contextModule.context.pageName}]]`,
     );
   });
 
@@ -258,7 +258,7 @@ describe('buildBlockSummary', () => {
     spyOn(roleModule, 'spiHelperIsCheckuser').mockReturnValue(false);
     const summary = buildBlockSummary(defaultBlockOptions, true, true, false);
     expect(summary).toBe(
-      `{{rangeblock|1=Abusing [[WP:SOCK|multiple accounts]]: Please see: [[${contextModule.context.prefixedName}]]|create=yes}}`,
+      `{{rangeblock|1=Abusing [[WP:SOCK|multiple accounts]]: Please see: [[${contextModule.context.pageName}]]|create=yes}}`,
     );
   });
 
