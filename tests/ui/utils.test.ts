@@ -198,14 +198,13 @@ describe('user rows', () => {
       });
     }
 
-    test('a registered account reports its lock state and no global block state', () => {
+    test('a registered account reports its lock state rather than a global block', () => {
       const result = setRowData('Sock', {
         globalUser: { name: 'Sock', locked: true, existsLocally: true },
       });
 
-      expect(result.isLocked).toBe(true);
       // Registered accounts are locked rather than globally blocked
-      expect(result.isGloballyBlocked).toBeNull();
+      expect(result.globalStatus).toEqual({ kind: 'locked', locked: true });
       expect(result.userRow.block.lock).toBe(true);
     });
 
@@ -216,22 +215,21 @@ describe('user rows', () => {
         },
       });
 
-      expect(result.isGloballyBlocked).toBe(true);
-      expect(result.isLocked).toBeNull();
+      expect(result.globalStatus).toEqual({ kind: 'gblocked', blocked: true });
       expect(result.userRow.block.lock).toBe(true);
     });
 
     test('an unblocked temporary account is reported unblocked rather than unknown', () => {
       const result = setRowData('~2026-00000-01');
 
-      expect(result.isGloballyBlocked).toBe(false);
+      expect(result.globalStatus).toEqual({ kind: 'gblocked', blocked: false });
       expect(result.userRow.block.lock).toBe(false);
     });
 
     test('an unblocked temporary account is still pre-checked on a crosswiki case', () => {
       const result = setRowData('~2026-00000-01', { crosswiki: true });
 
-      expect(result.isGloballyBlocked).toBe(false);
+      expect(result.globalStatus).toEqual({ kind: 'gblocked', blocked: false });
       expect(result.userRow.block.lock).toBe(true);
     });
   });

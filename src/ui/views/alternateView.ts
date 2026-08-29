@@ -16,7 +16,6 @@ import { UpdateUserAllUserData } from './userLookup.ts';
 import {
   generateUserRow,
   getDefaultUserRow,
-  setUserRowData,
   updateUserBlockDataSettings,
 } from '../utils.ts';
 import { spiHelperHandleBlocks } from '../../caseActions.ts';
@@ -24,7 +23,7 @@ import { spiHelperLog } from '../../actions';
 import { context, setContext } from '../../context.ts';
 import { buildUserActionLogMessage, setupBlockActionData, spiHelperNormalizeUsername } from '../../utils.ts';
 import { spiHelperParseArchiveNotice } from '../../archivenotice.ts';
-import { spiHelperGetCategoryMembers, spiHelperGetPageText, spiHelperGetUserBlockSettings } from '../../api.ts';
+import { spiHelperGetCategoryMembers } from '../../api.ts';
 import { applyFetchedUsers, ensureUsersFetched, getSockEntries, prefetchSockRows } from './top/utils';
 import { MODE, VERSION } from '../../constants';
 
@@ -239,11 +238,15 @@ export const AlternateViewComponent = defineComponent({
         // Set context
         setContext(this.pageName, 'alternate');
         if (this.targetCase) {
-          // Load archivenotice params
-          const archiveNoticeResult = await spiHelperParseArchiveNotice({
-            page: this.pageName,
-            state: this.state,
-          });
+          // The lookups need only the username, so they run alongside the archive notice
+          // rather than behind it, even though the row's defaults come from that notice
+          const [archiveNoticeResult] = await Promise.all([
+            spiHelperParseArchiveNotice({ page: this.pageName, state: this.state }),
+            ensureUsersFetched(
+              addRow ? new Set([this.targetCase]) : new Set<string>(),
+              this.blockData.fetchedUsers,
+            ),
+          ]);
           context.valid = archiveNoticeResult !== null;
           if (archiveNoticeResult === null) {
             // No archive notice was found, initialise default
@@ -254,34 +257,21 @@ export const AlternateViewComponent = defineComponent({
           }
 
           if (addRow) {
-            const [userBlock, userPageText] = await Promise.all([
-              spiHelperGetUserBlockSettings(this.targetCase),
-              spiHelperGetPageText(`User:${this.targetCase}`, false),
-            ]);
-            if (userBlock !== null) {
-              this.blockData.userBlocks.set(this.targetCase, userBlock);
-            }
-            const { userRow, isLocked } = setUserRowData({
-              userRow: generateUserRow(this.targetCase, this.state),
-              fetchedUser: {
-                block: userBlock ?? undefined,
-                userPage: userPageText,
-                globalUser: undefined,
-                globalBlock: undefined,
-              },
-              defaultBlock: true,
+            const [userRow] = await prefetchSockRows({
+              likelySocks: [generateUserRow(this.targetCase, this.state)],
+              possibleSocks: [],
+              blockData: this.blockData,
               state: this.state,
             });
-            if (isLocked !== null) {
-              this.blockData.userLocks.set(this.targetCase, isLocked);
-            }
-            // Add or replace
-            const oldIndex = this.accounts.findIndex(user => user.username === userRow.username);
-            if (oldIndex === -1) {
-              this.accounts.splice(0, 0, userRow);
-            }
-            else {
-              this.accounts.splice(oldIndex, 1, userRow);
+            if (userRow) {
+              // Add or replace, since the case target belongs at the top
+              const oldIndex = this.accounts.findIndex(user => user.username === userRow.username);
+              if (oldIndex === -1) {
+                this.accounts.splice(0, 0, userRow);
+              }
+              else {
+                this.accounts.splice(oldIndex, 1, userRow);
+              }
             }
           }
         }

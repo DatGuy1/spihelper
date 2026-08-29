@@ -118,7 +118,7 @@ export async function ensureUsersFetched(
   }
 }
 
-/** Seeds a row's block, lock, and tag states from the cache */
+/** Seeds a row's block, lock, and tag states from the cache, and files what it found */
 function applyFetchedUser(opts: {
   userRow: UserRow;
   defaultBlock: boolean;
@@ -127,21 +127,25 @@ function applyFetchedUser(opts: {
 }): UserRow {
   const { userRow, defaultBlock, blockData, state } = opts;
   const fetched = blockData.fetchedUsers.get(userRow.username);
-  if (fetched?.block) {
-    blockData.userBlocks.set(userRow.username, fetched.block);
-  }
-
-  const { userRow: newRow, isLocked, isGloballyBlocked } = setUserRowData({
+  const { userRow: newRow, globalStatus } = setUserRowData({
     userRow,
     fetchedUser: fetched,
     defaultBlock,
     state,
   });
-  if (isLocked !== null) {
-    blockData.userLocks.set(userRow.username, isLocked);
+
+  if (fetched?.block) {
+    blockData.userBlocks.set(newRow.username, fetched.block);
   }
-  if (isGloballyBlocked !== null) {
-    blockData.userGlobalBlocks.set(userRow.username, isGloballyBlocked);
+  switch (globalStatus.kind) {
+    case 'locked':
+      blockData.userLocks.set(newRow.username, globalStatus.locked);
+      break;
+    case 'gblocked':
+      blockData.userGlobalBlocks.set(newRow.username, globalStatus.blocked);
+      break;
+    case 'none':
+      break;
   }
   return newRow;
 }
