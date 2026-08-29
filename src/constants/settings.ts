@@ -1,7 +1,13 @@
 import type { ScriptSettings } from '../options/types.ts';
 
-// Advert to append to the edit summary of edits
-export const spiHelperAdvert = ' (using [[:w:en:WP:SPIH-D|SPIH-D]])';
+/**
+ * Advert to append to the edit summary of edits.
+ * The link only carries the interwiki prefix when
+ * the edit is landing on another wiki
+ */
+export function spiHelperAdvert(interwiki: boolean): string {
+  return ` (using [[${interwiki ? ':w:en:' : ''}WP:SPIH-D|SPIH-D]])`;
+}
 
 // mw.Title isn't guaranteed to exist, so load it lazily
 export function getFeedbackConfig() {

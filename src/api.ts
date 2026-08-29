@@ -848,7 +848,7 @@ export async function spiHelperMovePage(opts: {
     action: 'move',
     from: sourcePage,
     to: destPage,
-    reason: summary + spiHelperAdvert,
+    reason: summary + spiHelperAdvert(false),
     noredirect: suppressRedirect,
     movesubpages: moveSubpages,
     ignoreWarnings: ignoreWarnings,
@@ -920,7 +920,7 @@ export async function spiHelperEditPage(opts: {
   const request: ApiEditPageParams = {
     action: 'edit',
     watchlist: watch,
-    summary: summary + spiHelperAdvert,
+    summary: summary + spiHelperAdvert(xwikiPrefix !== null),
     text: newText,
     title: finalTitle,
     createonly: createonly,
