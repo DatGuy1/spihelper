@@ -105,7 +105,9 @@
   var spiHelperHiddenCharNormRegex = /\u200E/g;
   var spiHelperSignatureRegex = /(?<!~)~~~~(?!~)/;
   // src/constants/settings.ts
-  var spiHelperAdvert = " (using [[:w:en:WP:SPIH-D|SPIH-D]])";
+  function spiHelperAdvert(interwiki) {
+    return ` (using [[${interwiki ? ":w:en:" : ""}WP:SPIH-D|SPIH-D]])`;
+  }
   function getFeedbackConfig() {
     return {
       title: new mw.Title("User talk:DatGuy/spihelper"),
@@ -777,35 +779,6 @@ ${body}` : body;
   }
 
   // src/api.ts
-  async function spiHelperGetUserBlockSettings(user) {
-    const api2 = spiHelperGetAPI();
-    const request = {
-      action: "query",
-      list: "blocks",
-      bklimit: 1,
-      bkusers: user,
-      bkprop: ["user", "reason", "flags", "expiry"],
-      formatversion: "2"
-    };
-    try {
-      const response = await api2.get(request);
-      const [firstBlock] = response.query.blocks;
-      if (!firstBlock) {
-        return null;
-      }
-      return {
-        username: user,
-        duration: firstBlock.expiry,
-        acb: firstBlock.nocreate,
-        abao: firstBlock.autoblock || firstBlock.anononly,
-        ntp: !firstBlock.allowusertalk,
-        nem: firstBlock.noemail,
-        reason: firstBlock.reason
-      };
-    } catch {
-      return null;
-    }
-  }
   async function spiHelperGetBulkPageText(titles) {
     if (titles.length === 0) {
       return new Map;
@@ -1249,7 +1222,7 @@ ${body}` : body;
     try {
       const response = await api2.postWithToken("csrf", request);
       const blockLinkHtml = buildURLLinkHtml(mw.util.getUrl("Special:BlockList", { wpTarget: `#${response.block.id}` }), "Blocked", "Special:BlockList");
-      message.update({ type: "success", content: `${blockLinkHtml} user ${userLinkHtml}` });
+      message.update({ type: "success", content: `${blockLinkHtml} ${userLinkHtml}` });
       finishOp(activeOpKey, "success" /* Success */);
       return true;
     } catch (error) {
@@ -1284,7 +1257,7 @@ ${body}` : body;
       action: "move",
       from: sourcePage,
       to: destPage,
-      reason: summary + spiHelperAdvert,
+      reason: summary + spiHelperAdvert(false),
       noredirect: suppressRedirect,
       movesubpages: moveSubpages,
       ignoreWarnings
@@ -1332,7 +1305,7 @@ ${body}` : body;
     const request = {
       action: "edit",
       watchlist: watch,
-      summary: summary + spiHelperAdvert,
+      summary: summary + spiHelperAdvert(xwikiPrefix !== null),
       text: newText,
       title: finalTitle,
       createonly,
@@ -1653,7 +1626,7 @@ ${body}` : body;
     context = new SpiPageContext(cleanPageName(pageName), pageName === mw.config.get("wgPageName"), source);
   }
   function buildContextSummary(baseText) {
-    return context.source === "spi" && context.valid ? baseText + ` per [[${context.prefixedName}]]` : baseText;
+    return context.source === "spi" && context.valid ? baseText + ` per [[${context.pageName}]]` : baseText;
   }
 
   // src/state.ts
@@ -2349,25 +2322,25 @@ ${body}` : body;
     return userRow;
   }
   var isMenuGroupData = (item) => ("items" in item);
-  function setUserRowBlockData(opts) {
-    const { block: blockSetting, userPage, defaultBlock, globalUser, globalBlock, state } = opts;
+  function setUserRowData(opts) {
+    const { fetchedUser, defaultBlock, state } = opts;
     const userRow = updateUserBlockDataSettings({
       userRow: opts.userRow,
       defaultBlock,
-      currentBlock: blockSetting,
-      userPage
+      currentBlock: fetchedUser?.block,
+      userPage: fetchedUser?.userPage
     });
     const crosswiki = state.archiveNotice?.crosswiki ?? false;
-    let isLocked = null;
-    let isGloballyBlocked = null;
-    if (globalUser) {
-      isLocked = globalUser.locked;
-      userRow.block.lock = globalUser.locked || crosswiki;
-    } else if (isNonRegisteredAccount(userRow.username)) {
-      isGloballyBlocked = globalBlock !== undefined;
-      userRow.block.lock = isGloballyBlocked || crosswiki;
+    if (fetchedUser?.globalUser) {
+      userRow.block.lock = fetchedUser.globalUser.locked || crosswiki;
+      return { userRow, globalStatus: { kind: "locked", locked: fetchedUser.globalUser.locked } };
     }
-    return { userRow, isLocked, isGloballyBlocked };
+    if (isNonRegisteredAccount(userRow.username)) {
+      const globallyBlocked = fetchedUser?.globalBlock !== undefined;
+      userRow.block.lock = globallyBlocked || crosswiki;
+      return { userRow, globalStatus: { kind: "gblocked", blocked: globallyBlocked } };
+    }
+    return { userRow, globalStatus: { kind: "none" } };
   }
   function pruneMenuData(nodes) {
     return nodes.map((node) => {
@@ -3246,7 +3219,7 @@ ${body}` : body;
   }
   // src/ui/views/top/utils/section.ts
   var SockListTemplateRegex = /sock ?list/;
-  var UserTemplateNameParts = ["ip", "vandal", "user", "noping"];
+  var UserTemplateNameParts = ["ip", "vandal", "user", "noping", "np"];
   function isRelevantTemplate(templateName) {
     return SockListTemplateRegex.test(templateName) || UserTemplateNameParts.some((part) => templateName.includes(part));
   }
@@ -3287,21 +3260,10 @@ ${body}` : body;
         }
       }
     }
-    return [likelySocks, possibleSocks, allUsernames];
+    return [likelySocks, possibleSocks];
   }
-  async function prefetchSockRows(opts) {
-    const {
-      likelySocks,
-      possibleSocks,
-      allUsernames,
-      userBlocks,
-      userLocks,
-      userGlobalBlocks,
-      fetchedUsers,
-      state
-    } = opts;
-    const likelySet = new Set(likelySocks.map((sock) => sock.id));
-    const newUsernames = new Set([...allUsernames].filter((name) => !fetchedUsers.has(name)));
+  async function ensureUsersFetched(usernames, fetchedUsers) {
+    const newUsernames = new Set([...usernames].filter((name) => !fetchedUsers.has(name)));
     const registeredUsernames = new Set;
     const unregisteredUsernames = new Set;
     for (const name of newUsernames) {
@@ -3321,42 +3283,69 @@ ${body}` : body;
       }).show();
       return null;
     });
-    if (lookups) {
-      const [blockSettings, userPages, globalUsers, globalBlocks] = lookups;
-      for (const name of newUsernames) {
-        const fetched = {
-          block: blockSettings.get(name),
-          userPage: userPages.get(`User:${name}`),
-          globalUser: globalUsers.get(name),
-          globalBlock: globalBlocks.get(name)
-        };
-        fetchedUsers.set(name, markRaw(fetched));
-      }
+    if (!lookups) {
+      return;
     }
-    return [...likelySocks, ...possibleSocks].map((userRow) => {
-      const fetched = fetchedUsers.get(userRow.username);
-      const blockSetting = fetched?.block;
-      if (blockSetting) {
-        userBlocks.set(userRow.username, blockSetting);
+    const [blockSettings, userPages, globalUsers, globalBlocks] = lookups;
+    for (const name of newUsernames) {
+      const fetched = {
+        block: blockSettings.get(name),
+        userPage: userPages.get(`User:${name}`),
+        globalUser: globalUsers.get(name),
+        globalBlock: globalBlocks.get(name)
+      };
+      fetchedUsers.set(name, markRaw(fetched));
+    }
+  }
+  function applyFetchedUser(opts) {
+    const { userRow, defaultBlock, blockData, state } = opts;
+    const fetched = blockData.fetchedUsers.get(userRow.username);
+    const { userRow: newRow, globalStatus } = setUserRowData({
+      userRow,
+      fetchedUser: fetched,
+      defaultBlock,
+      state
+    });
+    if (fetched?.block) {
+      blockData.userBlocks.set(newRow.username, fetched.block);
+    }
+    switch (globalStatus.kind) {
+      case "locked":
+        blockData.userLocks.set(newRow.username, globalStatus.locked);
+        break;
+      case "gblocked":
+        blockData.userGlobalBlocks.set(newRow.username, globalStatus.blocked);
+        break;
+      case "none":
+        break;
+    }
+    return newRow;
+  }
+  function applyFetchedUsers(opts) {
+    const { accounts, usernames, blockData, state } = opts;
+    for (const userRow of accounts) {
+      if (!usernames.has(userRow.username)) {
+        continue;
       }
-      const defaultBlock = likelySet.has(userRow.id);
-      const { userRow: newRow, isLocked, isGloballyBlocked } = setUserRowBlockData({
+      applyFetchedUser({
         userRow,
-        block: blockSetting,
-        defaultBlock,
-        userPage: fetched?.userPage,
-        globalUser: fetched?.globalUser,
-        globalBlock: fetched?.globalBlock,
+        defaultBlock: userRow.block.block,
+        blockData,
         state
       });
-      if (isLocked !== null) {
-        userLocks.set(userRow.username, isLocked);
-      }
-      if (isGloballyBlocked !== null) {
-        userGlobalBlocks.set(userRow.username, isGloballyBlocked);
-      }
-      return newRow;
-    });
+    }
+  }
+  async function prefetchSockRows(opts) {
+    const { likelySocks, possibleSocks, blockData, state } = opts;
+    const allRows = [...likelySocks, ...possibleSocks];
+    const likelyIds = new Set(likelySocks.map((sock) => sock.id));
+    await ensureUsersFetched(new Set(allRows.map((row) => row.username)), blockData.fetchedUsers);
+    return allRows.map((userRow) => applyFetchedUser({
+      userRow,
+      defaultBlock: likelyIds.has(userRow.id),
+      blockData,
+      state
+    }));
   }
   // src/ui/views/top/actionAccordion.ts
   var ActionAccordionComponent = defineComponent({
@@ -3904,7 +3893,7 @@ ${body}` : body;
     const archiveSuccess = await spiHelperEditPage({
       title: context.archiveName,
       newText: newArchiveText,
-      summary: `${summaryPrefix} from [[${context.prefixedName}]]`,
+      summary: `${summaryPrefix} from [[${context.pageName}]]`,
       watch: spiHelperSettings.watch.archive,
       watchExpiry: spiHelperSettings.expiry.archive
     }) !== null;
@@ -3914,7 +3903,7 @@ ${body}` : body;
     }
     await context.edit({
       newText,
-      summary: `${summaryPrefix} to [[${spiHelperGetInterwikiPrefix()}${context.archiveName}]]`,
+      summary: `${summaryPrefix} to [[${context.archiveName}]]`,
       watch: spiHelperSettings.watch.case,
       watchExpiry: spiHelperSettings.expiry.case,
       baseRevId: context.startingRevId
@@ -3964,7 +3953,7 @@ ${body}` : body;
     const archiveSuccess = await spiHelperEditPage({
       title: context.archiveName,
       newText: archiveText,
-      summary: `Archiving case section from [[${context.prefixedName}]]`,
+      summary: `Archiving case section from [[${context.pageName}]]`,
       createonly: false,
       watch: spiHelperSettings.watch.archive,
       watchExpiry: spiHelperSettings.expiry.archive
@@ -3976,7 +3965,7 @@ ${body}` : body;
     }
     await context.edit({
       newText: "",
-      summary: `Archiving case section to [[${spiHelperGetInterwikiPrefix()}${context.archiveName}]]`,
+      summary: `Archiving case section to [[${context.archiveName}]]`,
       watch: spiHelperSettings.watch.case,
       watchExpiry: spiHelperSettings.expiry.case,
       baseRevId: context.startingRevId,
@@ -4088,7 +4077,7 @@ ${body}` : body;
   function buildBlockSummary(blockOptions, isIP, isIPRange, acb) {
     let blockSummary = "Abusing [[WP:SOCK|multiple accounts]]";
     if (context.source === "spi" && context.valid) {
-      blockSummary += `: Please see: [[${context.prefixedName}]]`;
+      blockSummary += `: Please see: [[${context.pageName}]]`;
     }
     if (spiHelperIsCheckuser() && blockOptions.cuBlock) {
       const cuBlockTemplate = isIP ? "{{checkuserblock}}" : "{{checkuserblock-account}}";
@@ -4483,7 +4472,7 @@ ${heading}`);
     await spiHelperEditPage({
       title: newContext.archiveName,
       newText: targetArchiveText,
-      summary: `Merging archives from [[${oldContext.prefixedName}]], see page history for attribution`,
+      summary: `Merging archives from [[${oldContext.pageName}]], see page history for attribution`,
       createonly: false,
       watch: spiHelperSettings.watch.archive,
       watchExpiry: spiHelperSettings.expiry.archive
@@ -4530,7 +4519,7 @@ ${heading}`);
       await spiHelperMovePage({
         sourcePage: oldContext.pageName,
         destPage: newContext.pageName,
-        summary: `Merging case to [[${newContext.prefixedName}]]`,
+        summary: `Merging case to [[${newContext.pageName}]]`,
         ignoreWarnings: true,
         suppressRedirect: suppress
       });
@@ -4565,7 +4554,7 @@ ${heading}`);
       await spiHelperMovePage({
         sourcePage: oldContext.pageName,
         destPage: newContext.pageName,
-        summary: `Moving case to [[${newContext.prefixedName}]]`,
+        summary: `Moving case to [[${newContext.pageName}]]`,
         suppressRedirect: suppress && spiHelperCanSuppressRedirect(),
         ignoreWarnings: false
       });
@@ -4592,14 +4581,14 @@ ${heading}`);
 ` + sectionText;
     newContext.edit({
       newText: targetPageText,
-      summary: `Moving case section from [[${context.prefixedName}]], see page history for attribution`,
+      summary: `Moving case section from [[${context.pageName}]], see page history for attribution`,
       createonly: false,
       watch: spiHelperSettings.watch.case,
       watchExpiry: spiHelperSettings.expiry.case
     });
     await context.edit({
       newText: "",
-      summary: `Moving case section to [[${newContext.prefixedName}]]`,
+      summary: `Moving case section to [[${newContext.pageName}]]`,
       createonly: false,
       watch: spiHelperSettings.watch.case,
       watchExpiry: spiHelperSettings.expiry.case,
@@ -5397,7 +5386,7 @@ ${heading}`);
         break;
       case "selfendorse":
         newStatus = "endorse";
-        summaryItem = "adding checkuser request (self-endorsed for checkuser attention)";
+        summaryItem = "adding self-endorsed checkuser request";
         break;
       case "checked":
         summaryItem = "marking request as checked";
@@ -6185,7 +6174,7 @@ ${heading}`);
         if (isAborted(signal)) {
           return;
         }
-        const [likelySocks, possibleSocks, allUsernames] = getSockEntries({
+        const [likelySocks, possibleSocks] = getSockEntries({
           text: searchText,
           fullSearch: true,
           state: this.state
@@ -6193,11 +6182,7 @@ ${heading}`);
         const allRows = await prefetchSockRows({
           likelySocks,
           possibleSocks,
-          allUsernames,
-          userBlocks: this.caseActions.block.data.userBlocks,
-          userLocks: this.caseActions.block.data.userLocks,
-          userGlobalBlocks: this.caseActions.block.data.userGlobalBlocks,
-          fetchedUsers: this.caseActions.block.data.fetchedUsers,
+          blockData: this.caseActions.block.data,
           state: this.state
         });
         if (isAborted(signal)) {
@@ -6244,18 +6229,25 @@ ${heading}`);
           this.actionsRunning = false;
         }
       },
-      handleFetchRows() {
+      async handleFetchRows() {
         const [likelySocks, possibleSocks] = getSockEntries({
           text: this.caseActions.comment.data.text,
           fullSearch: false,
           state: this.state
         });
-        const likelySet = new Set(likelySocks);
-        const allRows = [...likelySocks, ...possibleSocks].map((sock) => updateUserBlockDataSettings({
+        const likelyUsers = new Set(likelySocks.map((sock) => sock.username));
+        const newRows = [...likelySocks, ...possibleSocks].map((sock) => updateUserBlockDataSettings({
           userRow: sock,
-          defaultBlock: likelySet.has(sock)
+          defaultBlock: likelyUsers.has(sock.username)
         }));
-        this.massAddUserRows(allRows);
+        const added = new Set(this.massAddUserRows(newRows).map((row) => row.username));
+        await ensureUsersFetched(added, this.caseActions.block.data.fetchedUsers);
+        applyFetchedUsers({
+          accounts: this.accounts,
+          usernames: added,
+          blockData: this.caseActions.block.data,
+          state: this.state
+        });
       },
       handleUserSelected(data, rowId) {
         const userRow = this.accounts.find((r) => r.id === rowId);
@@ -8742,30 +8734,37 @@ ${heading}`);
           fullSearch: false,
           state: this.state
         });
-        const likelySet = new Set(likelySocks);
-        const allRows = [...likelySocks, ...possibleSocks].map((sock) => updateUserBlockDataSettings({
+        const likelyUsers = new Set(likelySocks.map((sock) => sock.username));
+        const newRows = [...likelySocks, ...possibleSocks].map((sock) => updateUserBlockDataSettings({
           userRow: sock,
-          defaultBlock: likelySet.has(sock)
+          defaultBlock: likelyUsers.has(sock.username)
         }));
-        this.massAddUserRows(allRows);
+        const added = new Set(this.massAddUserRows(newRows).map((row) => row.username));
+        await ensureUsersFetched(added, this.blockData.fetchedUsers);
+        applyFetchedUsers({
+          accounts: this.accounts,
+          usernames: added,
+          blockData: this.blockData,
+          state: this.state
+        });
       },
       massAddUserRows(newRows) {
         const existingUsernames = new Set(this.accounts.map((s) => s.username));
-        newRows.forEach((newRow) => {
-          if (!existingUsernames.has(newRow.username)) {
-            this.handleAddRow(newRow);
-          }
+        const filteredRows = newRows.filter((newRow) => !existingUsernames.has(newRow.username));
+        filteredRows.forEach((newRow) => {
+          this.handleAddRow(newRow);
         });
+        return filteredRows;
       },
       async loadCase(addRow) {
         this.caseLoading = true;
         try {
           setContext(this.pageName, "alternate");
           if (this.targetCase) {
-            const archiveNoticeResult = await spiHelperParseArchiveNotice({
-              page: this.pageName,
-              state: this.state
-            });
+            const [archiveNoticeResult] = await Promise.all([
+              spiHelperParseArchiveNotice({ page: this.pageName, state: this.state }),
+              ensureUsersFetched(addRow ? new Set([this.targetCase]) : new Set, this.blockData.fetchedUsers)
+            ]);
             context.valid = archiveNoticeResult !== null;
             if (archiveNoticeResult === null) {
               this.state.archiveNotice = new ParsedArchiveNotice({ username: this.targetCase });
@@ -8773,30 +8772,19 @@ ${heading}`);
               this.state.archiveNotice = archiveNoticeResult;
             }
             if (addRow) {
-              const [userBlock, userPageText] = await Promise.all([
-                spiHelperGetUserBlockSettings(this.targetCase),
-                spiHelperGetPageText(`User:${this.targetCase}`, false)
-              ]);
-              if (userBlock !== null) {
-                this.blockData.userBlocks.set(this.targetCase, userBlock);
-              }
-              const { userRow, isLocked } = setUserRowBlockData({
-                userRow: generateUserRow(this.targetCase, this.state),
-                block: userBlock ?? undefined,
-                userPage: userPageText,
-                defaultBlock: true,
-                globalUser: undefined,
-                globalBlock: undefined,
+              const [userRow] = await prefetchSockRows({
+                likelySocks: [generateUserRow(this.targetCase, this.state)],
+                possibleSocks: [],
+                blockData: this.blockData,
                 state: this.state
               });
-              if (isLocked !== null) {
-                this.blockData.userLocks.set(this.targetCase, isLocked);
-              }
-              const oldIndex = this.accounts.findIndex((user) => user.username === userRow.username);
-              if (oldIndex === -1) {
-                this.accounts.splice(0, 0, userRow);
-              } else {
-                this.accounts.splice(oldIndex, 1, userRow);
+              if (userRow) {
+                const oldIndex = this.accounts.findIndex((user) => user.username === userRow.username);
+                if (oldIndex === -1) {
+                  this.accounts.splice(0, 0, userRow);
+                } else {
+                  this.accounts.splice(oldIndex, 1, userRow);
+                }
               }
             }
           } else {
@@ -8872,17 +8860,12 @@ ${heading}`);
         };
         const likelySocks = [...confirmedMembers, `User:${this.targetCase}`].map((member) => BuildUserRow(member, true));
         const possibleSocks = suspectedMembers.map((member) => BuildUserRow(member, false));
-        const allUsernames = new Set([...likelySocks, ...possibleSocks].map((sock) => sock.username));
         this.accountsLoading = true;
         try {
           const allRows = await prefetchSockRows({
             likelySocks,
             possibleSocks,
-            allUsernames,
-            userBlocks: this.blockData.userBlocks,
-            userLocks: this.blockData.userLocks,
-            userGlobalBlocks: this.blockData.userGlobalBlocks,
-            fetchedUsers: this.blockData.fetchedUsers,
+            blockData: this.blockData,
             state: this.state
           });
           this.massAddUserRows(allRows);
@@ -8934,11 +8917,7 @@ ${heading}`);
           const allRows = await prefetchSockRows({
             likelySocks: allSocks,
             possibleSocks: [],
-            allUsernames,
-            userBlocks: this.blockData.userBlocks,
-            userLocks: this.blockData.userLocks,
-            userGlobalBlocks: this.blockData.userGlobalBlocks,
-            fetchedUsers: this.blockData.fetchedUsers,
+            blockData: this.blockData,
             state: this.state
           });
           this.massAddUserRows(allRows);
