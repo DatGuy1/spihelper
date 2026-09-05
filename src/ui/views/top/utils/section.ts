@@ -60,7 +60,7 @@ export function getSockEntries(opts: {
       const templateUsernames = fetchTemplateArguments(template);
       for (const templateUsername of templateUsernames) {
         const username = spiHelperNormalizeUsername(templateUsername);
-        if (!allUsernames.has(username)) {
+        if (username && !allUsernames.has(username)) {
           possibleSocks.push(generateUserRow(username, state));
           allUsernames.add(username);
         }
