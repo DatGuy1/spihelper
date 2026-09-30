@@ -395,12 +395,12 @@ export const AlternateViewComponent = defineComponent({
       }
 
       const $userSearchOrigin: JQuery<Element> | JQuery<Document> = $('table.mw-checkuser-helper-table', document);
-      const sockList = $userSearchOrigin.find('td > a.mw-userlink > bdi');
+      const sockList = $userSearchOrigin.find('td a.mw-userlink > bdi');
       await this.populateUserRows(sockList);
     },
     async initialiseSIView() {
       const $searchOrigin: JQuery<Element> | JQuery<Document> = $('ul.mw-checkuser-suggestedinvestigations-users', document);
-      const sockList = $searchOrigin.find('li > a.mw-userlink > bdi');
+      const sockList = $searchOrigin.find('li a.mw-userlink > bdi');
       await this.populateUserRows(sockList);
     },
     async populateUserRows(sockElementList: JQuery<Element>) {
