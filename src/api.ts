@@ -471,7 +471,7 @@ export async function spiHelperRenderText(title: string, text: string): Promise<
   };
 
   try {
-    const response = await spiHelperGetAPI(title).post(request) as ParseResponse<'text'>;
+    const response = await postReadOnly(spiHelperGetAPI(title), request) as ParseResponse<'text'>;
     return response.parse?.text['*'] ?? '';
   }
   catch (error) {
@@ -509,7 +509,10 @@ export async function spiHelperGetInvestigationSections(opts: {
   }
   const api = spiHelperGetAPI();
   try {
-    const response = await api.post(request) as ParseResponse<'toc'>;
+    // Only unsaved text is long enough to need a POST; a page name should fit in a GET
+    const response = await (request.text === undefined
+      ? api.get(request)
+      : postReadOnly(api, request)) as ParseResponse<'toc'>;
     if (!response.parse) {
       console.error('spiHelperGetInvestigationSections: Could not parse sections');
       return [];
@@ -1112,7 +1115,7 @@ export async function spiHelperGetPostExpandSizeFromText(text: string): Promise<
     contentmodel: 'wikitext',
   };
   try {
-    const response = await api.post(request) as ParseResponse<'limit'>;
+    const response = await postReadOnly(api, request) as ParseResponse<'limit'>;
     return Number(response.parse?.limitreportdata.find(
       item => item.name === 'limitreport-postexpandincludesize',
     )?.['0'] ?? 0);
@@ -1140,7 +1143,7 @@ export async function spiHelperParseWikitext(wikitext: string) {
     contentmodel: 'wikitext',
   };
   try {
-    const response = await api.post(request) as ParseResponse<'text'>;
+    const response = await postReadOnly(api, request) as ParseResponse<'text'>;
     return response.parse?.text['*'] ?? '';
   }
   catch {
@@ -1173,6 +1176,17 @@ export async function spiHelperGetCategoryMembers(category: string): Promise<str
 }
 
 type ApiRequestParams = Parameters<mw.Api['post']>[0];
+
+/**
+ * POST a request that only reads, for when its parameters are too long to fit in a GET URL.
+ *
+ * A bare POST is routed to the primary data center in case it writes. The header promises it
+ * doesn't, so the nearest one can serve it (https://www.mediawiki.org/wiki/API:Etiquette).
+ * TODO: Use https://phabricator.wikimedia.org/T410883 when that's implemented
+ */
+function postReadOnly(api: mw.Api, request: ApiRequestParams): ReturnType<mw.Api['post']> {
+  return api.post(request, { headers: { 'Promise-Non-Write-API-Action': 'true' } });
+}
 
 /**
  * Continuation rounds to follow before treating the query as broken
@@ -1249,7 +1263,8 @@ async function* queryWithContinuation<TResponse>(
   for (let round = 0; round < MAX_CONTINUATION_ROUNDS; round++) {
     let response: TResponse;
     try {
-      response = await api[method]({ ...request, ...continuation }) as TResponse;
+      const params = { ...request, ...continuation };
+      response = await (method === 'post' ? postReadOnly(api, params) : api.get(params)) as TResponse;
     }
     catch (error) {
       throw bulkFetchError(fetchName, targets, error);

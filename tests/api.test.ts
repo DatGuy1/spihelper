@@ -117,6 +117,14 @@ describe('spiHelperGetBulkGlobalUsers', () => {
     expect(result.size).toBe(120);
   });
 
+  test('marks the POST as read-only so the nearest data center can serve it', async () => {
+    respondWith([]);
+
+    await spiHelperGetBulkGlobalUsers(new Set(['Anyone']));
+
+    expect(post.mock.calls[0]?.[1]?.headers).toEqual({ 'Promise-Non-Write-API-Action': 'true' });
+  });
+
   test('makes no request at all for an empty set', async () => {
     const result = await spiHelperGetBulkGlobalUsers(new Set());
 
