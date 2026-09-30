@@ -907,7 +907,7 @@ ${body}` : body;
   }
   async function spiHelperGetUsers(opts) {
     const { from, limit, signal } = opts;
-    const api2 = spiHelperGetAPI();
+    const api = spiHelperGetAPI();
     const request = {
       action: "query",
       list: "allusers",
@@ -917,7 +917,7 @@ ${body}` : body;
       formatversion: "2"
     };
     try {
-      const response = await api2.get(request, { signal });
+      const response = await api.get(request, { signal });
       return response.query.allusers;
     } catch (error) {
       if (signal?.aborted) {
@@ -929,7 +929,7 @@ ${body}` : body;
   }
   async function spiHelperGetPages(opts) {
     const { from, namespace, limit, signal } = opts;
-    const api2 = spiHelperGetAPI();
+    const api = spiHelperGetAPI();
     const request = {
       action: "query",
       list: "allpages",
@@ -939,7 +939,7 @@ ${body}` : body;
       formatversion: "2"
     };
     try {
-      const response = await api2.get(request, { signal });
+      const response = await api.get(request, { signal });
       return response.query.allpages;
     } catch (error) {
       if (signal?.aborted) {
@@ -958,14 +958,14 @@ ${body}` : body;
       content: `Deleting ${linkHtml}`,
       isHtml: true
     }).show();
-    const api2 = spiHelperGetAPI(title);
+    const api = spiHelperGetAPI(title);
     const request = {
       action: "delete",
       title,
       reason
     };
     try {
-      await api2.postWithToken("csrf", request);
+      await api.postWithToken("csrf", request);
       message.update({ type: "success", content: `Deleted ${linkHtml}` });
       finishOp(activeOpKey, "success" /* Success */);
     } catch (error) {
@@ -985,14 +985,14 @@ ${body}` : body;
       content: `Undeleting ${linkHtml}`,
       isHtml: true
     }).show();
-    const api2 = spiHelperGetAPI(title);
+    const api = spiHelperGetAPI(title);
     const request = {
       action: "undelete",
       title,
       reason
     };
     try {
-      await api2.postWithToken("csrf", request);
+      await api.postWithToken("csrf", request);
       message.update({ type: "success", content: `Undeleted ${linkHtml}` });
       finishOp(activeOpKey, "success" /* Success */);
     } catch (error) {
@@ -1012,7 +1012,7 @@ ${body}` : body;
       title
     };
     try {
-      const response = await spiHelperGetAPI(title).post(request);
+      const response = await postReadOnly(spiHelperGetAPI(title), request);
       return response.parse?.text["*"] ?? "";
     } catch (error) {
       console.error("Error rendering text:", error);
@@ -1035,9 +1035,9 @@ ${body}` : body;
       console.error("spiHelperGetInvestigationSections: No page name or content provided");
       return [];
     }
-    const api2 = spiHelperGetAPI();
+    const api = spiHelperGetAPI();
     try {
-      const response = await api2.post(request);
+      const response = await (request.text === undefined ? api.get(request) : postReadOnly(api, request));
       if (!response.parse) {
         console.error("spiHelperGetInvestigationSections: Could not parse sections");
         return [];
@@ -1055,7 +1055,7 @@ ${body}` : body;
     }
   }
   async function spiHelperGetSPIBacklinks(casePageName) {
-    const api2 = spiHelperGetAPI();
+    const api = spiHelperGetAPI();
     const request = {
       action: "query",
       format: "json",
@@ -1067,7 +1067,7 @@ ${body}` : body;
       bllimit: "max"
     };
     try {
-      const response = await api2.get(request);
+      const response = await api.get(request);
       return response.query.backlinks.filter((dictEntry) => {
         return dictEntry.title.startsWith("Wikipedia:Sockpuppet investigations/") && !dictEntry.title.startsWith("Wikipedia:Sockpuppet investigations/SPI/") && !/Wikipedia:Sockpuppet investigations\/.*\/Archive.*/.exec(dictEntry.title);
       });
@@ -1107,7 +1107,7 @@ ${body}` : body;
     startOp(activeOpKey);
     const linkHtml = buildTitleLinkHtml(pageName);
     const message = new VueMessage({ type: "notice", content: `Protecting ${linkHtml}`, isHtml: true });
-    const api2 = spiHelperGetAPI();
+    const api = spiHelperGetAPI();
     try {
       let protectLevel = "";
       let expiryInfo = "";
@@ -1127,7 +1127,7 @@ ${body}` : body;
         expiry: expiryInfo,
         reason: "Restoring protection after history merge"
       };
-      await api2.postWithToken("csrf", request);
+      await api.postWithToken("csrf", request);
       message.update({ type: "success", content: `Protected ${linkHtml}` });
       finishOp(activeOpKey, "success" /* Success */);
     } catch (error) {
@@ -1144,7 +1144,7 @@ ${body}` : body;
     }
     const activeOpKey = "stabilize_" + casePageName;
     startOp(activeOpKey);
-    const api2 = spiHelperGetAPI();
+    const api = spiHelperGetAPI();
     const request = {
       action: "stabilize",
       format: "json",
@@ -1154,14 +1154,14 @@ ${body}` : body;
       reason: "Restoring pending changes protection after history merge"
     };
     try {
-      await api2.postWithToken("csrf", request);
+      await api.postWithToken("csrf", request);
       finishOp(activeOpKey, "success" /* Success */);
     } catch {
       finishOp(activeOpKey, "failed" /* Failed */);
     }
   }
   async function spiHelperGetSiteRestrictionInformation() {
-    const api2 = spiHelperGetAPI();
+    const api = spiHelperGetAPI();
     const request = {
       action: "query",
       format: "json",
@@ -1169,7 +1169,7 @@ ${body}` : body;
       siprop: "restrictions"
     };
     try {
-      const response = await api2.get(request);
+      const response = await api.get(request);
       return response.query.restrictions;
     } catch {
       return {
@@ -1203,7 +1203,7 @@ ${body}` : body;
       content: `Blocking ${userLinkHtml}`,
       isHtml: true
     }).show();
-    const api2 = spiHelperGetAPI();
+    const api = spiHelperGetAPI();
     const request = {
       action: "block",
       expiry: duration,
@@ -1220,7 +1220,7 @@ ${body}` : body;
       formatversion: "2"
     };
     try {
-      const response = await api2.postWithToken("csrf", request);
+      const response = await api.postWithToken("csrf", request);
       const blockLinkHtml = buildURLLinkHtml(mw.util.getUrl("Special:BlockList", { wpTarget: `#${response.block.id}` }), "Blocked", "Special:BlockList");
       message.update({ type: "success", content: `${blockLinkHtml} ${userLinkHtml}` });
       finishOp(activeOpKey, "success" /* Success */);
@@ -1245,7 +1245,7 @@ ${body}` : body;
     } = opts;
     const activeOpKey = "move_" + sourcePage + "_" + destPage;
     startOp(activeOpKey);
-    const api2 = spiHelperGetAPI();
+    const api = spiHelperGetAPI();
     const sourceLinkHtml = buildTitleLinkHtml(sourcePage);
     const destLinkHtml = buildTitleLinkHtml(destPage);
     const message = new VueMessage({
@@ -1263,7 +1263,7 @@ ${body}` : body;
       ignoreWarnings
     };
     try {
-      await api2.postWithToken("csrf", request);
+      await api.postWithToken("csrf", request);
       message.update({
         type: "success",
         content: `Moved ${sourceLinkHtml} to ${destLinkHtml}`
@@ -1299,7 +1299,7 @@ ${body}` : body;
       content: "Editing " + pageLinkHtml,
       isHtml: true
     }).show();
-    const api2 = spiHelperGetAPI(title);
+    const api = spiHelperGetAPI(title);
     const xwikiPrefix = spiHelperGetXWikiPrefix(title);
     const finalTitle = spiHelperStripXWikiPrefix(title);
     const request = {
@@ -1321,7 +1321,7 @@ ${body}` : body;
       request.baserevid = baseRevId;
     }
     try {
-      const response = await api2.postWithToken("csrf", request);
+      const response = await api.postWithToken("csrf", request);
       const diffId = response.edit.newrevid;
       if (!diffId) {
         message.update({
@@ -1429,15 +1429,15 @@ ${body}` : body;
     if (sectionId) {
       request.section = sectionId.toString();
     }
-    const api2 = spiHelperGetAPI(title);
+    const api = spiHelperGetAPI(title);
     try {
-      const response = await api2.get(request);
+      const response = await api.get(request);
       return Number(response.parse?.limitreportdata.find((item) => item.name === "limitreport-postexpandincludesize")?.["0"] ?? 0);
     } catch {}
     return 0;
   }
   async function spiHelperGetPostExpandSizeFromText(text) {
-    const api2 = spiHelperGetAPI();
+    const api = spiHelperGetAPI();
     const request = {
       action: "parse",
       prop: "limitreportdata",
@@ -1445,13 +1445,13 @@ ${body}` : body;
       contentmodel: "wikitext"
     };
     try {
-      const response = await api2.post(request);
+      const response = await postReadOnly(api, request);
       return Number(response.parse?.limitreportdata.find((item) => item.name === "limitreport-postexpandincludesize")?.["0"] ?? 0);
     } catch {}
     return 0;
   }
   async function spiHelperParseWikitext(wikitext) {
-    const api2 = spiHelperGetAPI();
+    const api = spiHelperGetAPI();
     const request = {
       action: "parse",
       prop: "text",
@@ -1462,14 +1462,14 @@ ${body}` : body;
       contentmodel: "wikitext"
     };
     try {
-      const response = await api2.post(request);
+      const response = await postReadOnly(api, request);
       return response.parse?.text["*"] ?? "";
     } catch {
       return "";
     }
   }
   async function spiHelperGetCategoryMembers(category) {
-    const api2 = spiHelperGetAPI();
+    const api = spiHelperGetAPI();
     const request = {
       action: "query",
       list: "categorymembers",
@@ -1480,13 +1480,16 @@ ${body}` : body;
     };
     const members = [];
     try {
-      for await (const response of queryWithContinuation(api2, request, "spiHelperGetCategoryMembers", [category], "get")) {
+      for await (const response of queryWithContinuation(api, request, "spiHelperGetCategoryMembers", [category], "get")) {
         members.push(...response.query.categorymembers.map((member) => member.title));
       }
     } catch {
       return [];
     }
     return members;
+  }
+  function postReadOnly(api, request) {
+    return api.post(request, { headers: { "Promise-Non-Write-API-Action": "true" } });
   }
   var MAX_CONTINUATION_ROUNDS = 10;
   function keyByRequestedTitle(resultMap, normalized) {
@@ -1502,12 +1505,13 @@ ${body}` : body;
   function bulkFetchError(fetchName, targets, cause) {
     return new Error(`${fetchName} failed fetching ${targets.length} item(s), ` + `starting with ${targets[0] ?? "(none)"}`, { cause });
   }
-  async function* queryWithContinuation(api2, request, fetchName, targets, method = "post") {
+  async function* queryWithContinuation(api, request, fetchName, targets, method = "post") {
     let continuation = {};
     for (let round = 0;round < MAX_CONTINUATION_ROUNDS; round++) {
       let response;
       try {
-        response = await api2[method]({ ...request, ...continuation });
+        const params = { ...request, ...continuation };
+        response = await (method === "post" ? postReadOnly(api, params) : api.get(params));
       } catch (error) {
         throw bulkFetchError(fetchName, targets, error);
       }
@@ -1522,10 +1526,10 @@ ${body}` : body;
   }
   async function fetchInChunks(opts) {
     const { targets, fetchName, buildRequest, onResponse, method } = opts;
-    const api2 = spiHelperGetAPI();
+    const api = spiHelperGetAPI();
     const chunkSize = targets.length <= API_LIMIT ? API_LIMIT : await getApiChunkSize();
     await Promise.all(chunkArray(targets, chunkSize).map(async (chunk) => {
-      for await (const response of queryWithContinuation(api2, buildRequest(chunk), fetchName, chunk, method)) {
+      for await (const response of queryWithContinuation(api, buildRequest(chunk), fetchName, chunk, method)) {
         await onResponse(response);
       }
     }));
@@ -1758,8 +1762,8 @@ ${body}` : body;
 
   // src/options/options.ts
   var spiHelperSettings = structuredClone(spiHelperDefaultSettings);
-  function setGlobalSettings(settings2) {
-    spiHelperSettings = structuredClone(settings2);
+  function setGlobalSettings(settings) {
+    spiHelperSettings = structuredClone(settings);
   }
   var saveKey = "userjs-spihelper";
   function saveOptions() {
@@ -1949,7 +1953,7 @@ ${body}` : body;
     return parts;
   }
   function parseTemplate(templateText) {
-    const parts = splitTemplateParts(templateText).map((p2) => p2.trim());
+    const parts = splitTemplateParts(templateText).map((p) => p.trim());
     const name = parts.shift()?.toLowerCase() ?? "unknown";
     const params = {};
     const positional = [];
@@ -3253,7 +3257,7 @@ ${body}` : body;
         const templateUsernames = fetchTemplateArguments(template);
         for (const templateUsername of templateUsernames) {
           const username = spiHelperNormalizeUsername(templateUsername);
-          if (!allUsernames.has(username)) {
+          if (username && !allUsernames.has(username)) {
             possibleSocks.push(generateUserRow(username, state));
             allUsernames.add(username);
           }
@@ -3494,7 +3498,8 @@ ${body}` : body;
       accounts: { type: Array, required: true },
       state: { type: Object, required: true },
       multiSelectMode: { type: Boolean, required: true },
-      selectedSections: { type: Array, required: true }
+      selectedSections: { type: Array, required: true },
+      displayed: { type: Boolean, required: true }
     },
     emits: [
       "update:multiSelectMode",
@@ -3570,7 +3575,8 @@ ${body}` : body;
                   @user-selected="handleUserSelected"
                   @remove-rows="handleRemoveRows" @add-row="handleAddRow"
                   @fetch-rows="handleFetchRows" />
-    <link-action v-else-if="name === 'link'" v-model:enabled="caseActions.link.enabled"
+    <!-- Link special case -->
+    <link-action v-else-if="name === 'link' && displayed"
                  :accounts="accounts" :case-name="caseName"
                  @user-selected="handleUserSelected"
                  @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
@@ -3634,14 +3640,14 @@ ${body}` : body;
         visibleItemLimit: 6,
         searchQuery: ""
       };
-      const messages2 = {
+      const messages = {
         success: "Valid user",
         warning: "User not found",
         error: "Field must not be empty"
       };
       return {
         lookupStatus: "default",
-        messages: messages2,
+        messages,
         selection: null,
         userSuggestions: [],
         menuConfig,
@@ -4611,7 +4617,7 @@ ${heading}`);
 ` : "";
     const escapedName = oldMasterName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const normalizedMaster = oldMasterName.toLowerCase();
-    const positionalIndex = sockListTemplate.positional.findIndex((u2) => u2.toLowerCase() === normalizedMaster);
+    const positionalIndex = sockListTemplate.positional.findIndex((u) => u.toLowerCase() === normalizedMaster);
     let namedIndex = -1;
     for (const [key, val] of Object.entries(sockListTemplate.params)) {
       if (/^\d+$/.test(key) && val.toString().toLowerCase() === normalizedMaster) {
@@ -4854,8 +4860,8 @@ ${heading}`);
     const matchText = firstMatch[0];
     pageText = pageText.replace(matchText, () => replacement);
     matches.slice(1).forEach((match) => {
-      const matchText2 = match[0];
-      pageText = pageText.replace(matchText2, "");
+      const matchText = match[0];
+      pageText = pageText.replace(matchText, "");
     });
     return pageText;
   }
@@ -5490,7 +5496,7 @@ ${heading}`);
       }
       if (blockAvailable && userRow.block.block) {
         const talkNotices = [];
-        if (blockOptions.addMasterNotice && (userRow.block.tags.some((tag2) => isSockmasterTag(tag2)) || userRow.username === master)) {
+        if (blockOptions.addMasterNotice && (userRow.block.tags.some((tag) => isSockmasterTag(tag)) || userRow.username === master)) {
           talkNotices.push("master");
         } else if (blockOptions.addSockNotice) {
           talkNotices.push("sock");
@@ -5566,7 +5572,7 @@ ${heading}`);
     const globalRows = globalTargetRows.filter((row) => !(isNonRegisteredAccount(row.username) ? userGlobalBlocks.has(row.username) : globalUsers.get(row.username)?.locked));
     if (globalRows.length > 0) {
       const hideNames = blockOptions.lockHideNames;
-      const tagMasters = new Set(globalRows.flatMap((row) => row.block.tags.filter((tag2) => isSockpuppetTag(tag2))).map((tag2) => tag2.master).filter((tagMaster) => tagMaster !== ""));
+      const tagMasters = new Set(globalRows.flatMap((row) => row.block.tags.filter((tag) => isSockpuppetTag(tag))).map((tag) => tag.master).filter((tagMaster) => tagMaster !== ""));
       const [onlyTagMaster] = tagMasters;
       const globalMaster = tagMasters.size === 1 && onlyTagMaster ? onlyTagMaster : master;
       const [globalBlockTargets, lockTargets] = globalRows.reduce((acc, row) => {
@@ -5819,7 +5825,7 @@ ${heading}`);
     computed: {
       allDisabled() {
         for (const [name, action] of Object.entries(this.caseActions)) {
-          if (name === "sections" || name === "link") {
+          if (name === "sections") {
             continue;
           }
           if (action.enabled) {
@@ -5904,7 +5910,9 @@ ${heading}`);
             selectionType: this.actionButtons[caseAN].selectionType
           });
           const perSectionDriven = Array.isArray(newSection) && SpecificSectionActions.has(caseAN);
-          caseAction.enabled = actionDefaultEnabled && available && !perSectionDriven;
+          if (caseAN !== "link") {
+            caseAction.enabled = actionDefaultEnabled && available && !perSectionDriven;
+          }
           if (actionDefaultEnabled && available) {
             this.displayedForms.add(caseAN);
           }
@@ -6062,24 +6070,23 @@ ${heading}`);
         this.multiSelectMode = newValue;
         mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "multi", enabled: newValue });
         if (!newValue) {
-          const current = this.selectedSections;
-          if (current.length > 1) {
-            const [first] = current;
+          if (this.state.selectedSection?.type === "multiple") {
+            const [first] = this.selectedSections;
             if (first) {
               await this.applySectionSelection([first]);
             }
           }
           return;
         }
-        if (this.state.selectedSection?.type === "all") {
-          await this.applySectionSelection([]);
+        if (this.state.selectedSection?.type !== "multiple") {
+          await this.applySectionSelection(this.selectedSections);
         }
       },
       async toggleMultiSelectSection(sectionId) {
         const current = this.selectedSections;
-        const isRemoving = current.some((section2) => section2.id === sectionId);
+        const isRemoving = current.some((section) => section.id === sectionId);
         if (isRemoving) {
-          await this.applySectionSelection(current.filter((section2) => section2.id !== sectionId));
+          await this.applySectionSelection(current.filter((section) => section.id !== sectionId));
           return;
         }
         const section = this.state.sections.find((s) => s.id === sectionId);
@@ -6102,7 +6109,7 @@ ${heading}`);
           this.syncSelectedSectionOverlay();
           return;
         }
-        if (sections.length === 1) {
+        if (sections.length === 1 && !this.multiSelectMode) {
           const [only] = sections;
           if (!only) {
             return;
@@ -6360,6 +6367,7 @@ ${heading}`);
                 :state="state"
                 :multi-select-mode="multiSelectMode"
                 :selected-sections="selectedSections"
+                :displayed="isVisible(name)"
                 @update-section-selection="onUpdateSectionSelection"
                 @update-status="onUpdateNewStatus"
                 @update-section-status="onUpdateSectionStatus"
@@ -6393,6 +6401,7 @@ ${heading}`);
               :state="state"
               :multi-select-mode="multiSelectMode"
               :selected-sections="selectedSections"
+              :displayed="isVisible(name)"
               @update-section-selection="onUpdateSectionSelection"
               @update-status="onUpdateNewStatus"
               @update-section-status="onUpdateSectionStatus"
@@ -6650,37 +6659,37 @@ ${heading}`);
           row.block[key] = value;
         }
       },
-      setAllTags(tag2) {
+      setAllTags(tag) {
         for (const row of this.targetRows) {
           if (isNonRegisteredAccount(row.username)) {
             continue;
           }
-          row.block.tags = [tag2.clone()];
+          row.block.tags = [tag.clone()];
         }
       },
       fetchSocks() {
         this.topButtonActions.fetched = true;
         this.$emit("fetchRows");
       },
-      isSameTagTarget(tag2, tagIndex, rowId) {
+      isSameTagTarget(tag, tagIndex, rowId) {
         const { row } = this.popovers;
         if (row.rowId !== rowId) {
           return false;
         }
-        return tag2 === null ? row.sourceTag === null && row.tagIndex === tagIndex : row.sourceTag === tag2;
+        return tag === null ? row.sourceTag === null && row.tagIndex === tagIndex : row.sourceTag === tag;
       },
-      showTagPopover(tag2, tagIndex, rowId, $event) {
-        const isSameTarget = this.isSameTagTarget(tag2, tagIndex, rowId);
+      showTagPopover(tag, tagIndex, rowId, $event) {
+        const isSameTarget = this.isSameTagTarget(tag, tagIndex, rowId);
         this.popovers.row.tagIndex = tagIndex;
         this.popovers.row.rowId = rowId;
         this.popovers.row.anchor = $event.currentTarget;
         if (isSameTarget) {
           this.popovers.row.open = !this.popovers.row.open;
         } else {
-          this.popovers.row.sourceTag = tag2;
+          this.popovers.row.sourceTag = tag;
           this.popovers.row.open = true;
           const rowTagPopover = this.$refs.rowTagPopover;
-          rowTagPopover.setTag(tag2);
+          rowTagPopover.setTag(tag);
         }
       },
       handleTagUpdate(updatedTag) {
@@ -6732,17 +6741,17 @@ ${heading}`);
           row.block.tags.length = 0;
         }
       },
-      validateTag(tag2) {
-        return !(isSockpuppetTag(tag2) && !tag2.master);
+      validateTag(tag) {
+        return !(isSockpuppetTag(tag) && !tag.master);
       },
-      tagStatusDisplay(tag2) {
-        return isSockmasterTag(tag2) ? SockmasterTagStatuses[tag2.status] : SockpuppetTagStatuses[tag2.status];
+      tagStatusDisplay(tag) {
+        return isSockmasterTag(tag) ? SockmasterTagStatuses[tag.status] : SockpuppetTagStatuses[tag.status];
       },
-      tagLabel(tag2) {
-        if (tag2 === null) {
+      tagLabel(tag) {
+        if (tag === null) {
           return "None";
         }
-        return isSockmasterTag(tag2) ? SockmasterTagStatuses[tag2.status].label : tag2.master;
+        return isSockmasterTag(tag) ? SockmasterTagStatuses[tag.status].label : tag.master;
       }
     },
     template: `
@@ -7233,10 +7242,9 @@ ${heading}`);
   var LinkActionComponent = defineComponent({
     props: {
       accounts: { type: Array, required: true },
-      caseName: { type: String, required: true },
-      enabled: { type: Boolean, required: true }
+      caseName: { type: String, required: true }
     },
-    emits: ["update:enabled", "update:modelValue", "removeRows", "addRow", "userSelected", "usernameChanged"],
+    emits: ["update:modelValue", "removeRows", "addRow", "userSelected", "usernameChanged"],
     data() {
       const columns = [
         { id: "username", label: "Username" },
@@ -7411,96 +7419,94 @@ ${heading}`);
     },
     template: `
     <!--suppress VueUnrecognizedDirective -->
-    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
-      <cdx-table :hide-caption="false" caption="Links" :use-row-selection="true"
-                 :columns="columns" :data="accounts" v-model:selected-rows="selectedRows"
-                 :paginate="paginate" :pagination-size-options="spiHelperPaginationSizeOptions"
-                 class="spiHelper-sockTable linkTable">
-        <template #header>
-          <div class="header-content">
-            <span>
-              {{ selectedRows.length }} row{{ selectedRows.length === 1 ? '' : 's' }} selected
-            </span>
-            <span class="header-content-buttons">
-              <cdx-button action="progressive" @click="addDefaultRow" aria-label="Add row">
-                <cdx-icon :icon="cdxIconAdd" />
-              </cdx-button>
-              <cdx-button @click="removeRows" action="destructive" aria-label="Remove selected rows">
-                <cdx-icon :icon="cdxIconTrash" />
-              </cdx-button>
-            </span>
-          </div>
-        </template>
-        <template #thead>
-          <thead>
-          <tr>
-            <th class="cdx-table__table__select-rows">
-              <cdx-checkbox
-                  v-model="selectAll"
-                  :hide-label="true"
-                  :indeterminate="selectAllIndeterminate"
-                  @update:model-value="handleSelectAll"
-              >
-                Select all rows
-              </cdx-checkbox>
-            </th>
-            <th scope="col">Username</th>
-            <th v-for="column in optionColumns" :key="column.id">
-              {{ column.label }}
-            </th>
-          </tr>
-          <tr class="setAllRow">
-            <th scope="col">
-              <cdx-checkbox
-                  :hide-label="true" :model-value="allColumnsChecked"
-                  :indeterminate="allColumnsIndeterminate" @update:model-value="toggleAllColumns">
-                Select all columns
-              </cdx-checkbox>
-            </th>
-            <th scope="col" style="padding-left: 12px; min-width: 155px;">(all users)</th>
-            <th v-for="column in optionColumns" :key="column.id">
-              <cdx-checkbox
-                  :hide-label="true" :model-value="columnState[column.id].checked"
-                  :indeterminate="columnState[column.id].indeterminate"
-                  @update:model-value="toggleColumn(column.id, $event)">
-                Toggle all rows for {{ column.label }}
-              </cdx-checkbox>
-            </th>
-          </tr>
-          </thead>
-        </template>
-        <template #item-username="{ item, row }">
-          <user-lookup v-model="row.username" @user-selected="handleUserSelected($event, row)" />
-        </template>
+    <cdx-table :hide-caption="false" caption="Links" :use-row-selection="true"
+               :columns="columns" :data="accounts" v-model:selected-rows="selectedRows"
+               :paginate="paginate" :pagination-size-options="spiHelperPaginationSizeOptions"
+               class="spiHelper-sockTable linkTable">
+      <template #header>
+        <div class="header-content">
+          <span>
+            {{ selectedRows.length }} row{{ selectedRows.length === 1 ? '' : 's' }} selected
+          </span>
+          <span class="header-content-buttons">
+            <cdx-button action="progressive" @click="addDefaultRow" aria-label="Add row">
+              <cdx-icon :icon="cdxIconAdd" />
+            </cdx-button>
+            <cdx-button @click="removeRows" action="destructive" aria-label="Remove selected rows">
+              <cdx-icon :icon="cdxIconTrash" />
+            </cdx-button>
+          </span>
+        </div>
+      </template>
+      <template #thead>
+        <thead>
+        <tr>
+          <th class="cdx-table__table__select-rows">
+            <cdx-checkbox
+                v-model="selectAll"
+                :hide-label="true"
+                :indeterminate="selectAllIndeterminate"
+                @update:model-value="handleSelectAll"
+            >
+              Select all rows
+            </cdx-checkbox>
+          </th>
+          <th scope="col">Username</th>
+          <th v-for="column in optionColumns" :key="column.id">
+            {{ column.label }}
+          </th>
+        </tr>
+        <tr class="setAllRow">
+          <th scope="col">
+            <cdx-checkbox
+                :hide-label="true" :model-value="allColumnsChecked"
+                :indeterminate="allColumnsIndeterminate" @update:model-value="toggleAllColumns">
+              Select all columns
+            </cdx-checkbox>
+          </th>
+          <th scope="col" style="padding-left: 12px; min-width: 155px;">(all users)</th>
+          <th v-for="column in optionColumns" :key="column.id">
+            <cdx-checkbox
+                :hide-label="true" :model-value="columnState[column.id].checked"
+                :indeterminate="columnState[column.id].indeterminate"
+                @update:model-value="toggleColumn(column.id, $event)">
+              Toggle all rows for {{ column.label }}
+            </cdx-checkbox>
+          </th>
+        </tr>
+        </thead>
+      </template>
+      <template #item-username="{ item, row }">
+        <user-lookup v-model="row.username" @user-selected="handleUserSelected($event, row)" />
+      </template>
 
-        <template #item-analyser="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.link.analyser">Editor interaction analyser</cdx-checkbox>
-        </template>
-        <template #item-timeline="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.link.timeline">Consolidated timeline</cdx-checkbox>
-        </template>
-        <template #item-timecard="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.link.timecard">Timecard</cdx-checkbox>
-        </template>
-        <template #item-pages="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.link.pages">Pages</cdx-checkbox>
-        </template>
-        <template #item-summary="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.link.summary">Summaries</cdx-checkbox>
-        </template>
-        <template #item-cuwiki="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.link.cuwiki">CheckUser wiki</cdx-checkbox>
-        </template>
-        <template #item-interleaved="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.link.interleaved">Interleaved</cdx-checkbox>
-        </template>
-      </cdx-table>
-      <ul>
-        <li v-for="[columnId, linkItem] in Object.entries(linkItems)" :key="columnId">
-          <a :href="linkItem.url.href">{{ linkItem.label }}</a>
-        </li>
-      </ul>
-    </action-container>
+      <template #item-analyser="{ item, row }">
+        <cdx-checkbox :hide-label="true" v-model="row.link.analyser">Editor interaction analyser</cdx-checkbox>
+      </template>
+      <template #item-timeline="{ item, row }">
+        <cdx-checkbox :hide-label="true" v-model="row.link.timeline">Consolidated timeline</cdx-checkbox>
+      </template>
+      <template #item-timecard="{ item, row }">
+        <cdx-checkbox :hide-label="true" v-model="row.link.timecard">Timecard</cdx-checkbox>
+      </template>
+      <template #item-pages="{ item, row }">
+        <cdx-checkbox :hide-label="true" v-model="row.link.pages">Pages</cdx-checkbox>
+      </template>
+      <template #item-summary="{ item, row }">
+        <cdx-checkbox :hide-label="true" v-model="row.link.summary">Summaries</cdx-checkbox>
+      </template>
+      <template #item-cuwiki="{ item, row }">
+        <cdx-checkbox :hide-label="true" v-model="row.link.cuwiki">CheckUser wiki</cdx-checkbox>
+      </template>
+      <template #item-interleaved="{ item, row }">
+        <cdx-checkbox :hide-label="true" v-model="row.link.interleaved">Interleaved</cdx-checkbox>
+      </template>
+    </cdx-table>
+    <ul>
+      <li v-for="[columnId, linkItem] in Object.entries(linkItems)" :key="columnId">
+        <a :href="linkItem.url.href">{{ linkItem.label }}</a>
+      </li>
+    </ul>
   `
   });
   // src/ui/views/top/actions/managementAction.ts
@@ -7625,7 +7631,7 @@ ${heading}`);
       Archival is enabled, which overrides moving.
     </cdx-message>
     <cdx-message v-if="selectionType === 'multiple'" type="warning" :inline="true">
-      Moving isn't currently supported while multiple sections are selected.
+      Moving isn't currently supported in multi-action mode.
     </cdx-message>
   `
   });
@@ -7885,7 +7891,7 @@ ${heading}`);
       <cdx-button weight="normal" :disabled="multiSelectMode || !canJumpToSelectedSection" @click="jumpToSelectedSection">
         Jump to section
       </cdx-button>
-      <cdx-toggle-switch v-if="allSections.length > 1"
+      <cdx-toggle-switch v-if="allSections.length > 0"
                          :model-value="multiSelectMode" @update:model-value="$emit('update:multiSelectMode', $event)">
         Multi-action
       </cdx-toggle-switch>
@@ -7980,13 +7986,13 @@ ${heading}`);
         visibleItemLimit: 6,
         searchQuery: ""
       };
-      const messages2 = {
+      const messages = {
         success: "Page exists",
         warning: "Page not found"
       };
       return {
         lookupStatus: "default",
-        messages: messages2,
+        messages,
         pageSuggestions: [],
         useLookup: spiHelperSettings.useLookup,
         searchController: null,
@@ -8181,7 +8187,7 @@ ${heading}`);
         if (!blockAction.enabled) {
           return false;
         }
-        return this.accounts.some((user) => user.block.tags.some((tag2) => isSockpuppetTag(tag2) && !tag2.master));
+        return this.accounts.some((user) => user.block.tags.some((tag) => isSockpuppetTag(tag) && !tag.master));
       },
       hasInvalidMove() {
         const moveAction = this.caseActions.move;
@@ -8426,12 +8432,12 @@ ${heading}`);
         this.originalTag = newTag ? newTag.clone() : null;
         this.temporaryTag = newTag ? newTag.clone() : null;
       },
-      normaliseMasters(tag2) {
-        if (isSockpuppetTag(tag2)) {
-          tag2.master = spiHelperNormalizeUsername(tag2.master);
-          tag2.altmaster = spiHelperNormalizeUsername(tag2.altmaster);
+      normaliseMasters(tag) {
+        if (isSockpuppetTag(tag)) {
+          tag.master = spiHelperNormalizeUsername(tag.master);
+          tag.altmaster = spiHelperNormalizeUsername(tag.altmaster);
         }
-        return tag2;
+        return tag;
       },
       handleSave() {
         if (this.temporaryTag === null) {
@@ -8890,12 +8896,12 @@ ${heading}`);
           }
         }
         const $userSearchOrigin = $("table.mw-checkuser-helper-table", document);
-        const sockList = $userSearchOrigin.find("td > a.mw-userlink > bdi");
+        const sockList = $userSearchOrigin.find("td a.mw-userlink > bdi");
         await this.populateUserRows(sockList);
       },
       async initialiseSIView() {
         const $searchOrigin = $("ul.mw-checkuser-suggestedinvestigations-users", document);
-        const sockList = $searchOrigin.find("li > a.mw-userlink > bdi");
+        const sockList = $searchOrigin.find("li a.mw-userlink > bdi");
         await this.populateUserRows(sockList);
       },
       async populateUserRows(sockElementList) {
@@ -8960,9 +8966,7 @@ ${heading}`);
       <div id="spiHelper-alternateView-Content" v-if="caseLoaded">
         <div>
           <h4>Link</h4>
-          <link-action :enabled="true" :case-name="targetCase"
-                       :accounts="accounts"
-                       @user-selected="handleUserSelected"
+          <link-action :case-name="targetCase" :accounts="accounts" @user-selected="handleUserSelected"
                        @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
         </div>
         <div>
@@ -9047,7 +9051,7 @@ ${heading}`);
   });
   // src/changelog.ts
   async function getChangelog() {
-    const api2 = spiHelperGetEnwikiAPI();
+    const api = spiHelperGetEnwikiAPI();
     const request = {
       action: "query",
       prop: "revisions",
@@ -9057,7 +9061,7 @@ ${heading}`);
       formatversion: "2"
     };
     try {
-      const response = await api2.get(request);
+      const response = await api.get(request);
       const content = response.query.pages[0]?.revisions?.[0]?.slots.main.content;
       if (content) {
         return JSON.parse(content);
