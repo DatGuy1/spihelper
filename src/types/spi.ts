@@ -122,7 +122,7 @@ export interface CaseActions {
     bySection: Map<number, SectionStatusChange>;
   }>;
   block: CaseAction<BlockActionData>;
-  link: { enabled: boolean };
+  link: { enabled: false };
   management: CaseAction<{ flags: Set<ManagementFlag> }>;
   move: CaseAction<{ target: string; suppress: boolean; addNote: boolean }>;
   archive: { enabled: boolean };

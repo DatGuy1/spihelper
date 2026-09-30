@@ -15,9 +15,8 @@ export const LinkActionComponent = defineComponent({
   props: {
     accounts: { type: Array as PropType<UserRow[]>, required: true },
     caseName: { type: String, required: true },
-    enabled: { type: Boolean, required: true },
   },
-  emits: ['update:enabled', 'update:modelValue', 'removeRows', 'addRow', 'userSelected', 'usernameChanged'],
+  emits: ['update:modelValue', 'removeRows', 'addRow', 'userSelected', 'usernameChanged'],
   data() {
     const columns: { id: ColumnId | 'username'; label: string }[] = [
       { id: 'username', label: 'Username' },
@@ -219,95 +218,93 @@ export const LinkActionComponent = defineComponent({
   },
   template: `
     <!--suppress VueUnrecognizedDirective -->
-    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
-      <cdx-table :hide-caption="false" caption="Links" :use-row-selection="true"
-                 :columns="columns" :data="accounts" v-model:selected-rows="selectedRows"
-                 :paginate="paginate" :pagination-size-options="spiHelperPaginationSizeOptions"
-                 class="spiHelper-sockTable linkTable">
-        <template #header>
-          <div class="header-content">
-            <span>
-              {{ selectedRows.length }} row{{ selectedRows.length === 1 ? '' : 's' }} selected
-            </span>
-            <span class="header-content-buttons">
-              <cdx-button action="progressive" @click="addDefaultRow" aria-label="Add row">
-                <cdx-icon :icon="cdxIconAdd" />
-              </cdx-button>
-              <cdx-button @click="removeRows" action="destructive" aria-label="Remove selected rows">
-                <cdx-icon :icon="cdxIconTrash" />
-              </cdx-button>
-            </span>
-          </div>
-        </template>
-        <template #thead>
-          <thead>
-          <tr>
-            <th class="cdx-table__table__select-rows">
-              <cdx-checkbox
-                  v-model="selectAll"
-                  :hide-label="true"
-                  :indeterminate="selectAllIndeterminate"
-                  @update:model-value="handleSelectAll"
-              >
-                Select all rows
-              </cdx-checkbox>
-            </th>
-            <th scope="col">Username</th>
-            <th v-for="column in optionColumns" :key="column.id">
-              {{ column.label }}
-            </th>
-          </tr>
-          <tr class="setAllRow">
-            <th scope="col">
-              <cdx-checkbox
-                  :hide-label="true" :model-value="allColumnsChecked"
-                  :indeterminate="allColumnsIndeterminate" @update:model-value="toggleAllColumns">
-                Select all columns
-              </cdx-checkbox>
-            </th>
-            <th scope="col" style="padding-left: 12px; min-width: 155px;">(all users)</th>
-            <th v-for="column in optionColumns" :key="column.id">
-              <cdx-checkbox
-                  :hide-label="true" :model-value="columnState[column.id].checked"
-                  :indeterminate="columnState[column.id].indeterminate"
-                  @update:model-value="toggleColumn(column.id, $event)">
-                Toggle all rows for {{ column.label }}
-              </cdx-checkbox>
-            </th>
-          </tr>
-          </thead>
-        </template>
-        <template #item-username="{ item, row }">
-          <user-lookup v-model="row.username" @user-selected="handleUserSelected($event, row)" />
-        </template>
+    <cdx-table :hide-caption="false" caption="Links" :use-row-selection="true"
+               :columns="columns" :data="accounts" v-model:selected-rows="selectedRows"
+               :paginate="paginate" :pagination-size-options="spiHelperPaginationSizeOptions"
+               class="spiHelper-sockTable linkTable">
+      <template #header>
+        <div class="header-content">
+          <span>
+            {{ selectedRows.length }} row{{ selectedRows.length === 1 ? '' : 's' }} selected
+          </span>
+          <span class="header-content-buttons">
+            <cdx-button action="progressive" @click="addDefaultRow" aria-label="Add row">
+              <cdx-icon :icon="cdxIconAdd" />
+            </cdx-button>
+            <cdx-button @click="removeRows" action="destructive" aria-label="Remove selected rows">
+              <cdx-icon :icon="cdxIconTrash" />
+            </cdx-button>
+          </span>
+        </div>
+      </template>
+      <template #thead>
+        <thead>
+        <tr>
+          <th class="cdx-table__table__select-rows">
+            <cdx-checkbox
+                v-model="selectAll"
+                :hide-label="true"
+                :indeterminate="selectAllIndeterminate"
+                @update:model-value="handleSelectAll"
+            >
+              Select all rows
+            </cdx-checkbox>
+          </th>
+          <th scope="col">Username</th>
+          <th v-for="column in optionColumns" :key="column.id">
+            {{ column.label }}
+          </th>
+        </tr>
+        <tr class="setAllRow">
+          <th scope="col">
+            <cdx-checkbox
+                :hide-label="true" :model-value="allColumnsChecked"
+                :indeterminate="allColumnsIndeterminate" @update:model-value="toggleAllColumns">
+              Select all columns
+            </cdx-checkbox>
+          </th>
+          <th scope="col" style="padding-left: 12px; min-width: 155px;">(all users)</th>
+          <th v-for="column in optionColumns" :key="column.id">
+            <cdx-checkbox
+                :hide-label="true" :model-value="columnState[column.id].checked"
+                :indeterminate="columnState[column.id].indeterminate"
+                @update:model-value="toggleColumn(column.id, $event)">
+              Toggle all rows for {{ column.label }}
+            </cdx-checkbox>
+          </th>
+        </tr>
+        </thead>
+      </template>
+      <template #item-username="{ item, row }">
+        <user-lookup v-model="row.username" @user-selected="handleUserSelected($event, row)" />
+      </template>
 
-        <template #item-analyser="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.link.analyser">Editor interaction analyser</cdx-checkbox>
-        </template>
-        <template #item-timeline="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.link.timeline">Consolidated timeline</cdx-checkbox>
-        </template>
-        <template #item-timecard="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.link.timecard">Timecard</cdx-checkbox>
-        </template>
-        <template #item-pages="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.link.pages">Pages</cdx-checkbox>
-        </template>
-        <template #item-summary="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.link.summary">Summaries</cdx-checkbox>
-        </template>
-        <template #item-cuwiki="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.link.cuwiki">CheckUser wiki</cdx-checkbox>
-        </template>
-        <template #item-interleaved="{ item, row }">
-          <cdx-checkbox :hide-label="true" v-model="row.link.interleaved">Interleaved</cdx-checkbox>
-        </template>
-      </cdx-table>
-      <ul>
-        <li v-for="[columnId, linkItem] in Object.entries(linkItems)" :key="columnId">
-          <a :href="linkItem.url.href">{{ linkItem.label }}</a>
-        </li>
-      </ul>
-    </action-container>
+      <template #item-analyser="{ item, row }">
+        <cdx-checkbox :hide-label="true" v-model="row.link.analyser">Editor interaction analyser</cdx-checkbox>
+      </template>
+      <template #item-timeline="{ item, row }">
+        <cdx-checkbox :hide-label="true" v-model="row.link.timeline">Consolidated timeline</cdx-checkbox>
+      </template>
+      <template #item-timecard="{ item, row }">
+        <cdx-checkbox :hide-label="true" v-model="row.link.timecard">Timecard</cdx-checkbox>
+      </template>
+      <template #item-pages="{ item, row }">
+        <cdx-checkbox :hide-label="true" v-model="row.link.pages">Pages</cdx-checkbox>
+      </template>
+      <template #item-summary="{ item, row }">
+        <cdx-checkbox :hide-label="true" v-model="row.link.summary">Summaries</cdx-checkbox>
+      </template>
+      <template #item-cuwiki="{ item, row }">
+        <cdx-checkbox :hide-label="true" v-model="row.link.cuwiki">CheckUser wiki</cdx-checkbox>
+      </template>
+      <template #item-interleaved="{ item, row }">
+        <cdx-checkbox :hide-label="true" v-model="row.link.interleaved">Interleaved</cdx-checkbox>
+      </template>
+    </cdx-table>
+    <ul>
+      <li v-for="[columnId, linkItem] in Object.entries(linkItems)" :key="columnId">
+        <a :href="linkItem.url.href">{{ linkItem.label }}</a>
+      </li>
+    </ul>
   `,
 });

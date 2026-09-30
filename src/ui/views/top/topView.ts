@@ -110,8 +110,8 @@ export const TopViewComponent = defineComponent({
   computed: {
     allDisabled(): boolean {
       for (const [name, action] of Object.entries(this.caseActions)) {
-        // Don't count 'sections' or 'link' since they don't affect the edit
-        if (name === 'sections' || name === 'link') {
+        // Don't count 'sections' since it doesn't affect the edit
+        if (name === 'sections') {
           continue;
         }
         if (action.enabled) {
@@ -207,7 +207,10 @@ export const TopViewComponent = defineComponent({
         // The form still opens for these, but each section drives its own entry, so the
         // top-level flag is never shown or read while the selection holds several sections
         const perSectionDriven = Array.isArray(newSection) && SpecificSectionActions.has(caseAN);
-        caseAction.enabled = actionDefaultEnabled && available && !perSectionDriven;
+        // Links have no switch, so defaulting them on only opens the form
+        if (caseAN !== 'link') {
+          caseAction.enabled = actionDefaultEnabled && available && !perSectionDriven;
+        }
         if (actionDefaultEnabled && available) {
           this.displayedForms.add(caseAN);
         }
@@ -724,6 +727,7 @@ export const TopViewComponent = defineComponent({
                 :state="state"
                 :multi-select-mode="multiSelectMode"
                 :selected-sections="selectedSections"
+                :displayed="isVisible(name)"
                 @update-section-selection="onUpdateSectionSelection"
                 @update-status="onUpdateNewStatus"
                 @update-section-status="onUpdateSectionStatus"
@@ -757,6 +761,7 @@ export const TopViewComponent = defineComponent({
               :state="state"
               :multi-select-mode="multiSelectMode"
               :selected-sections="selectedSections"
+              :displayed="isVisible(name)"
               @update-section-selection="onUpdateSectionSelection"
               @update-status="onUpdateNewStatus"
               @update-section-status="onUpdateSectionStatus"

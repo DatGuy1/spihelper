@@ -14,6 +14,7 @@ export const ActionContentComponent = defineComponent({
     state: { type: Object as PropType<CaseState>, required: true },
     multiSelectMode: { type: Boolean, required: true },
     selectedSections: { type: Array as PropType<SectionEntry[]>, required: true },
+    displayed: { type: Boolean, required: true },
   },
   emits: [
     'update:multiSelectMode',
@@ -90,7 +91,8 @@ export const ActionContentComponent = defineComponent({
                   @user-selected="handleUserSelected"
                   @remove-rows="handleRemoveRows" @add-row="handleAddRow"
                   @fetch-rows="handleFetchRows" />
-    <link-action v-else-if="name === 'link'" v-model:enabled="caseActions.link.enabled"
+    <!-- Link special case -->
+    <link-action v-else-if="name === 'link' && displayed"
                  :accounts="accounts" :case-name="caseName"
                  @user-selected="handleUserSelected"
                  @remove-rows="handleRemoveRows" @add-row="handleAddRow" />

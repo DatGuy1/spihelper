@@ -82,10 +82,9 @@ describe('allDisabled', () => {
     expect(computed.allDisabled.call(ctx)).toBe(false);
   });
 
-  test('does not count the actions that never reach an edit', () => {
+  test('does not count the section selector, which never reaches an edit', () => {
     const ctx = makeCtx({ selection: { type: 'single', section: sectionA } });
     ctx.caseActions.sections.enabled = true;
-    ctx.caseActions.link.enabled = true;
 
     expect(computed.allDisabled.call(ctx)).toBe(true);
   });

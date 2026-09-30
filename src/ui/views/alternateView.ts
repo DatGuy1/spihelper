@@ -466,9 +466,7 @@ export const AlternateViewComponent = defineComponent({
       <div id="spiHelper-alternateView-Content" v-if="caseLoaded">
         <div>
           <h4>Link</h4>
-          <link-action :enabled="true" :case-name="targetCase"
-                       :accounts="accounts"
-                       @user-selected="handleUserSelected"
+          <link-action :case-name="targetCase" :accounts="accounts" @user-selected="handleUserSelected"
                        @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
         </div>
         <div>
