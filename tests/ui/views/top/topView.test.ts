@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import type { CaseActions, UserRow } from '../../../../src/types';
-import { CaseState, type SectionSelection } from '../../../../src/state.ts';
+import { CaseState, type SectionSelection, getSelectedSections } from '../../../../src/state.ts';
 import { SectionEntry } from '../../../../src/types';
 import { setContext } from '../../../../src/context.ts';
 import { getInitialCaseActions } from '../../../../src/ui/views/top/utils';
@@ -312,5 +312,135 @@ describe('loadNewSection', () => {
     await loadSlow;
 
     expect(ctx.accountLoads).toEqual([{ type: 'single', section: quick }]);
+  });
+});
+
+describe('multi-select mode', () => {
+  interface MultiSelectCtx {
+    caseActions: CaseActions;
+    state: CaseState;
+    multiSelectMode: boolean;
+    sectionSelectionController: AbortController | null;
+    readonly selectedSections: SectionEntry[];
+    toggleMultiSelectMode(newValue: boolean): Promise<void>;
+    applySectionSelection(sections: SectionEntry[]): Promise<void>;
+    loadNewSection(section: SectionEntry): Promise<void>;
+    ensureBySectionEntry(section: SectionEntry): Promise<void>;
+    pruneBySectionData(keepIds: Set<number>): void;
+    startSelectionLoad(): AbortSignal;
+    loadSectionAccounts(): void;
+    syncSelectedSectionOverlay(): void;
+  }
+
+  const methods = TopViewComponent.methods as unknown as {
+    toggleMultiSelectMode(this: MultiSelectCtx, newValue: boolean): Promise<void>;
+    applySectionSelection(this: MultiSelectCtx, sections: SectionEntry[]): Promise<void>;
+    loadNewSection(this: MultiSelectCtx, section: SectionEntry): Promise<void>;
+    ensureBySectionEntry(this: MultiSelectCtx, section: SectionEntry): Promise<void>;
+    pruneBySectionData(this: MultiSelectCtx, keepIds: Set<number>): void;
+    startSelectionLoad(this: MultiSelectCtx): AbortSignal;
+  };
+
+  const sectionA = new SectionEntry(1, '09 July 2020');
+  const sectionB = new SectionEntry(2, '10 August 2021');
+  sectionA._text = '{{SPI case status|open}}';
+  sectionB._text = '{{SPI case status|endorse}}';
+
+  beforeEach(() => {
+    (mw as unknown as { track: () => void }).track = () => { /* no-op */ };
+  });
+
+  function makeCtx(opts: {
+    multiSelectMode: boolean;
+    selection: SectionSelection | null;
+  }): MultiSelectCtx {
+    const state = new CaseState([sectionA, sectionB]);
+    state.selectedSection = opts.selection;
+    const ctx: MultiSelectCtx = {
+      caseActions: getInitialCaseActions(),
+      state,
+      multiSelectMode: opts.multiSelectMode,
+      sectionSelectionController: null,
+      get selectedSections() {
+        return getSelectedSections(ctx.state.selectedSection);
+      },
+      toggleMultiSelectMode: newValue => methods.toggleMultiSelectMode.call(ctx, newValue),
+      applySectionSelection: sections => methods.applySectionSelection.call(ctx, sections),
+      loadNewSection: section => methods.loadNewSection.call(ctx, section),
+      ensureBySectionEntry: section => methods.ensureBySectionEntry.call(ctx, section),
+      pruneBySectionData: (keepIds) => {
+        methods.pruneBySectionData.call(ctx, keepIds);
+      },
+      startSelectionLoad: () => methods.startSelectionLoad.call(ctx),
+      loadSectionAccounts: () => undefined,
+      syncSelectedSectionOverlay: () => undefined,
+    };
+    return ctx;
+  }
+
+  describe('applySectionSelection', () => {
+    test('keeps a lone section as a multiple selection', async () => {
+      const ctx = makeCtx({ multiSelectMode: true, selection: null });
+
+      await ctx.applySectionSelection([sectionA]);
+
+      expect(ctx.state.selectedSection).toEqual({ type: 'multiple', sections: [sectionA] });
+      expect(ctx.caseActions.sections.data.section).toEqual([sectionA.id]);
+      expect(ctx.caseActions.status.data.bySection.get(sectionA.id)?.old).toBe('open');
+    });
+
+    test('keeps a multiple selection when narrowed down to one section', async () => {
+      const ctx = makeCtx({ multiSelectMode: true, selection: { type: 'multiple', sections: [sectionA, sectionB] } });
+
+      await ctx.applySectionSelection([sectionB]);
+
+      expect(ctx.state.selectedSection).toEqual({ type: 'multiple', sections: [sectionB] });
+      expect(ctx.caseActions.status.data.bySection.has(sectionA.id)).toBe(false);
+    });
+
+    test('collapses a lone section to a single selection outside multi-select mode', async () => {
+      const ctx = makeCtx({ multiSelectMode: false, selection: null });
+
+      await ctx.applySectionSelection([sectionA]);
+
+      expect(ctx.state.selectedSection).toEqual({ type: 'single', section: sectionA });
+      expect(ctx.caseActions.sections.data.section).toBe(sectionA.id);
+    });
+  });
+
+  describe('toggleMultiSelectMode', () => {
+    test('turns the selected section into a one-section multiple selection', async () => {
+      const ctx = makeCtx({ multiSelectMode: false, selection: { type: 'single', section: sectionA } });
+
+      await ctx.toggleMultiSelectMode(true);
+
+      expect(ctx.state.selectedSection).toEqual({ type: 'multiple', sections: [sectionA] });
+    });
+
+    test('clears a whole-case selection, which has no chip to show', async () => {
+      const ctx = makeCtx({ multiSelectMode: false, selection: { type: 'all' } });
+
+      await ctx.toggleMultiSelectMode(true);
+
+      expect(ctx.state.selectedSection).toBeNull();
+      expect(ctx.caseActions.sections.data.section).toBeNull();
+    });
+
+    test('collapses a one-section multiple selection back to a single one', async () => {
+      const ctx = makeCtx({ multiSelectMode: true, selection: { type: 'multiple', sections: [sectionA] } });
+
+      await ctx.toggleMultiSelectMode(false);
+
+      expect(ctx.state.selectedSection).toEqual({ type: 'single', section: sectionA });
+      expect(ctx.caseActions.sections.data.section).toBe(sectionA.id);
+    });
+
+    test('keeps only the first section when leaving with several selected', async () => {
+      const ctx = makeCtx({ multiSelectMode: true, selection: { type: 'multiple', sections: [sectionA, sectionB] } });
+
+      await ctx.toggleMultiSelectMode(false);
+
+      expect(ctx.state.selectedSection).toEqual({ type: 'single', section: sectionA });
+    });
   });
 });

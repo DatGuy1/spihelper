@@ -89,7 +89,7 @@ export const MoveActionComponent = defineComponent({
       Archival is enabled, which overrides moving.
     </cdx-message>
     <cdx-message v-if="selectionType === 'multiple'" type="warning" :inline="true">
-      Moving isn't currently supported while multiple sections are selected.
+      Moving isn't currently supported in multi-action mode.
     </cdx-message>
   `,
 });

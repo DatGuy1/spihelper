@@ -214,7 +214,7 @@ export const SectionActionComponent = defineComponent({
       <cdx-button weight="normal" :disabled="multiSelectMode || !canJumpToSelectedSection" @click="jumpToSelectedSection">
         Jump to section
       </cdx-button>
-      <cdx-toggle-switch v-if="allSections.length > 1"
+      <cdx-toggle-switch v-if="allSections.length > 0"
                          :model-value="multiSelectMode" @update:model-value="$emit('update:multiSelectMode', $event)">
         Multi-action
       </cdx-toggle-switch>

@@ -389,19 +389,20 @@ export const TopViewComponent = defineComponent({
       mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'multi', enabled: newValue });
       if (!newValue) {
         // Grab the first section from the multiple selected sections array
-        const current = this.selectedSections;
-        if (current.length > 1) {
-          const [first] = current;
+        if (this.state.selectedSection?.type === 'multiple') {
+          const [first] = this.selectedSections;
           if (first) {
             await this.applySectionSelection([first]);
           }
         }
         return;
       }
-      // 'all' doesn't map to any chip in the multiselect lookup, so it'd otherwise show
-      // an empty working set while secretly still targeting the whole case underneath
-      if (this.state.selectedSection?.type === 'all') {
-        await this.applySectionSelection([]);
+      // Re-apply the current sections under multi-select rules. A lone section becomes a
+      // one-section 'multiple' selection so case-wide actions sit alongside it, and 'all'
+      // (which maps to no chip) clears, rather than showing an empty working set while
+      // secretly still targeting the whole case underneath
+      if (this.state.selectedSection?.type !== 'multiple') {
+        await this.applySectionSelection(this.selectedSections);
       }
     },
     // Add sectionId to the multi-select selection if it isn't already selected, otherwise remove it
@@ -435,7 +436,9 @@ export const TopViewComponent = defineComponent({
         this.syncSelectedSectionOverlay();
         return;
       }
-      if (sections.length === 1) {
+      // Multi-select mode keeps even a lone section as 'multiple', so it can be combined with
+      // case-wide actions (e.g. SPI management) in the same save
+      if (sections.length === 1 && !this.multiSelectMode) {
         const [only] = sections;
         if (!only) {
           return;
