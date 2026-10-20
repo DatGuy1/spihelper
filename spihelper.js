@@ -7184,10 +7184,8 @@ ${heading}`);
         }
         mainItems.push({ label: "Close", value: "closed" });
         cuItems.push({ label: "Request CheckUser", value: "CUrequest" });
-        if (isCheckuser) {
-          cuItems.push({ label: "Check in progress", value: "inprogress" });
-        }
         if (isClerk) {
+          clerkItems.push({ label: "In progress", value: "inprogress" });
           cuItems.push({ label: "Request and self-endorse", value: "selfendorse" });
           clerkItems.push({ label: "Request more information", value: "moreinfo" });
           if (isCheckuser) {
