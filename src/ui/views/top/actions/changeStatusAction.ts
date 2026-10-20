@@ -56,10 +56,8 @@ export const ChangeStatusActionComponent = defineComponent({
       }
       mainItems.push({ label: 'Close', value: 'closed' });
       cuItems.push({ label: 'Request CheckUser', value: 'CUrequest' });
-      if (isCheckuser) {
-        cuItems.push({ label: 'Check in progress', value: 'inprogress' });
-      }
       if (isClerk) {
+        clerkItems.push({ label: 'In progress', value: 'inprogress' });
         // Not a real status by the way, we change it ourselves later
         cuItems.push({ label: 'Request and self-endorse', value: 'selfendorse' });
         clerkItems.push({ label: 'Request more information', value: 'moreinfo' });
