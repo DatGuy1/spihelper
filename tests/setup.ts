@@ -16,9 +16,18 @@ import { messages, setMessagesReactive } from '../src/ui/messages.ts';
 (globalThis as Record<string, unknown>).mw = {
   Title: class Title {
     private title: string;
-    constructor(title: string) { this.title = title; }
-    getMainText() { return this.title.split(':').pop() ?? this.title; }
-    toString() { return this.title; }
+
+    constructor(title: string) {
+      this.title = title;
+    }
+
+    getMainText() {
+      return this.title.split(':').pop() ?? this.title;
+    }
+
+    toString() {
+      return this.title;
+    }
   },
   config: {
     get: (key: string) => {
@@ -39,12 +48,22 @@ import { messages, setMessagesReactive } from '../src/ui/messages.ts';
     getUrl: (title: string) => `/wiki/${encodeURIComponent(title)}`,
   },
   Api: class Api {
-    get() { return Promise.resolve({}); }
-    post() { return Promise.resolve({}); }
+    get() {
+      return Promise.resolve({});
+    }
+
+    post() {
+      return Promise.resolve({});
+    }
   },
   ForeignApi: class ForeignApi {
-    get() { return Promise.resolve({}); }
-    post() { return Promise.resolve({}); }
+    get() {
+      return Promise.resolve({});
+    }
+
+    post() {
+      return Promise.resolve({});
+    }
   },
   user: { options: { get: () => null }, getRights: () => Promise.resolve([]) },
   loader: {
