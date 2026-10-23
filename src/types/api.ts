@@ -293,6 +293,25 @@ export interface BlockActionResponse {
   };
 }
 
+export interface SearchResponse {
+  query: {
+    searchinfo: {
+      totalhits: number;
+    };
+    search: {
+      pageid: number;
+      ns: number;
+      title: string;
+      snippet: string;
+    }[];
+  };
+}
+
+export interface SearchResult {
+  title: string;
+  snippet: string;
+}
+
 export type RelativeExpiry = string & { __type: 'RelativeExpiry' };
 export type AbsoluteExpiry = string & { __type: 'AbsoluteExpiry' };
 export type NoExpiry = 'infinite' | 'indefinite' | 'infinity' | 'never';

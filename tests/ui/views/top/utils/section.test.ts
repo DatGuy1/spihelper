@@ -4,6 +4,7 @@ import type {
   GlobalBlockEntry,
   GlobalUser,
   PrefetchedUser,
+  SearchResult,
   UserRow,
 } from '../../../../../src/types';
 import { isSockpuppetTag } from '../../../../../src/tags.ts';
@@ -18,12 +19,14 @@ const mockGetBulkGlobalUsers = mock((_usernames: Set<string>) =>
   Promise.resolve(new Map<string, GlobalUser>()));
 const mockGetBulkGlobalBlocks = mock((_targets: Set<string>) =>
   Promise.resolve(new Map<string, GlobalBlockEntry>()));
+const mockSearch = mock((_query: string) => Promise.resolve<SearchResult[]>([]));
 
 await stubApi({
   spiHelperGetBulkUserBlockSettings: mockGetBulkUserBlockSettings,
   spiHelperGetBulkPageText: mockGetBulkPageText,
   spiHelperGetBulkGlobalUsers: mockGetBulkGlobalUsers,
   spiHelperGetBulkGlobalBlocks: mockGetBulkGlobalBlocks,
+  spiHelperSearch: mockSearch,
 });
 
 const {
@@ -42,6 +45,7 @@ beforeEach(() => {
   mockGetBulkPageText.mockReset().mockResolvedValue(new Map());
   mockGetBulkGlobalUsers.mockReset().mockResolvedValue(new Map());
   mockGetBulkGlobalBlocks.mockReset().mockResolvedValue(new Map());
+  mockSearch.mockReset().mockResolvedValue([]);
 });
 
 afterEach(() => {

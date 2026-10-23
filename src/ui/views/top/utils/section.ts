@@ -12,6 +12,7 @@ import {
 import type { BlockActionData, PrefetchedUser, UserRow } from '../../../../types';
 import { isNonRegisteredAccount, spiHelperNormalizeUsername } from '../../../../utils.ts';
 import { VueMessage } from '../../../messages.ts';
+import { showUserMentions } from './mentions.ts';
 
 const SockListTemplateRegex = /sock ?list/;
 const UserTemplateNameParts = ['ip', 'vandal', 'user', 'noping', 'np'];
@@ -85,6 +86,11 @@ export async function ensureUsersFetched(
     (isNonRegisteredAccount(name) ? unregisteredUsernames : registeredUsernames).add(name);
   }
   const validUserPages = [...registeredUsernames].map(name => `User:${name}`);
+
+  // The mentions only feed messages, so nothing here waits on the search
+  if (newUsernames.size > 0) {
+    void showUserMentions(newUsernames);
+  }
 
   // Could maybe bundle the 4 API calls into a single spiHelperGetUserSnapshot
   // call that calls list=blocks|globalusers|...&bkusers=...&gususers=...?

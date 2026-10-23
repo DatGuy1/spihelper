@@ -47,6 +47,25 @@ import { messages, setMessagesReactive } from '../src/ui/messages.ts';
     ),
     getUrl: (title: string) => `/wiki/${encodeURIComponent(title)}`,
   },
+  html: {
+    // Lifted from mw.html
+    escape: (text: string) => text.replace(/['"<>&]/g, (char) => {
+      switch (char) {
+        case '\'':
+          return '&#039;';
+        case '"':
+          return '&quot;';
+        case '<':
+          return '&lt;';
+        case '>':
+          return '&gt;';
+        case '&':
+          return '&amp;';
+        default:
+          return char;
+      }
+    }),
+  },
   Api: class Api {
     get() {
       return Promise.resolve({});
