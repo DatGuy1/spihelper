@@ -204,8 +204,6 @@ export const OptionsComponent = defineComponent({
       // Create a deep copy and replace the reactive reference
       this.instanceSettings
         = JSON.parse(JSON.stringify(spiHelperDefaultSettings)) as ScriptSettings;
-      // Also update the global
-      Object.assign(spiHelperSettings, spiHelperDefaultSettings);
       this.resetTrigger++;
     },
     launchFeedback() {
