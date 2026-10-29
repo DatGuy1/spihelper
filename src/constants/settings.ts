@@ -1,4 +1,5 @@
 import type { ScriptSettings } from '../options/types.ts';
+import { spiHelperBuiltinLinkTools } from './linkview.ts';
 
 /**
  * Advert to append to the edit summary of edits.
@@ -78,6 +79,8 @@ export const spiHelperDefaultSettings: ScriptSettings = {
     // Custom templates for the comment action
     commentTemplates: [],
   },
+  // Columns of the link action, starting as the built-ins
+  linkTools: structuredClone(spiHelperBuiltinLinkTools),
   // These are for debugging to view as other roles. If you're picking apart the code and
   // decide to set these (especially the CU option), it is YOUR responsibility to make sure
   // you don't do something that violates policy

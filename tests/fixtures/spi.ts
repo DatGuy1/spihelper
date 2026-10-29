@@ -15,21 +15,12 @@ import { SockpuppetTag } from '../../src/tags.ts';
 export function makeUserRow(
   username: string,
   block: Partial<BlockRowData> = {},
-  link: Partial<LinkRowData> = {},
+  link: LinkRowData = {},
 ): UserRow {
   return {
     id: username,
     username,
-    link: {
-      analyser: false,
-      timeline: false,
-      timecard: false,
-      pages: false,
-      summary: false,
-      cuwiki: false,
-      interleaved: false,
-      ...link,
-    },
+    link: { ...link },
     block: {
       block: false,
       duration: '',

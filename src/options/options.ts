@@ -2,7 +2,7 @@
 import { spiHelperGetAPI } from '../api.ts';
 import type { ScriptSettings } from './types.ts';
 import { migrateSettings } from './migration.ts';
-import { spiHelperDefaultSettings } from '../constants/settings.ts';
+import { spiHelperDefaultSettings } from '../constants';
 
 export let spiHelperSettings: ScriptSettings = structuredClone(spiHelperDefaultSettings);
 export function setGlobalSettings(settings: ScriptSettings) {

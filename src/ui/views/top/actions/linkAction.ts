@@ -1,16 +1,23 @@
 import { type PropType, defineComponent } from 'vue';
 import { cdxIconAdd, cdxIconTrash } from '@wikimedia/codex-icons';
-import type { AllUser, UserRow } from '../../../../types';
+import type { AllUser, LinkTool, UserRow } from '../../../../types';
 import {
-  spiHelperLinkViewURLFormats,
   spiHelperPaginationSizeOptions,
   spiHelperPaginationThreshold,
 } from '../../../../constants';
+import { spiHelperSettings } from '../../../../options';
+import { buildLinkToolUrl, getLinkTools, linkToolNeedsCase } from '../../../../links.ts';
 
-export type ColumnId = 'analyser' | 'timeline' | 'timecard' | 'pages' | 'summary' | 'cuwiki' | 'interleaved';
-export type LinkRecord = Record<ColumnId, { url: URL; label: string }>;
+export type LinkRecord = Record<string, { url: URL; label: string }>;
 
-// noinspection DuplicatedCode
+export interface LinkColumn {
+  id: string;
+  label: string;
+  // The cdx-table slot the column's cells render through
+  slot: string;
+  tool: LinkTool;
+}
+
 export const LinkActionComponent = defineComponent({
   props: {
     accounts: { type: Array as PropType<UserRow[]>, required: true },
@@ -18,24 +25,11 @@ export const LinkActionComponent = defineComponent({
   },
   emits: ['update:modelValue', 'removeRows', 'addRow', 'userSelected', 'usernameChanged'],
   data() {
-    const columns: { id: ColumnId | 'username'; label: string }[] = [
-      { id: 'username', label: 'Username' },
-      { id: 'analyser', label: 'Interaction Analyser' },
-      { id: 'timeline', label: 'Timeline' },
-      { id: 'timecard', label: 'Timecard' },
-      { id: 'pages', label: 'Pages' },
-      { id: 'summary', label: 'Summaries' },
-      { id: 'cuwiki', label: 'CU wiki' },
-      { id: 'interleaved', label: 'Interleaved' },
-    ];
-    const optionColumns = columns.slice(1) as { id: ColumnId; label: string }[];
-
     // An array of selected row IDs
     const selectedRows: string[] = [];
 
     return {
-      columns,
-      optionColumns,
+      linkTools: getLinkTools(spiHelperSettings.linkTools),
       selectedRows,
       cdxIconAdd,
       cdxIconTrash,
@@ -43,15 +37,27 @@ export const LinkActionComponent = defineComponent({
     };
   },
   computed: {
+    optionColumns(): LinkColumn[] {
+      // A tool that needs the case name has nothing to link to without one
+      return this.linkTools
+        .filter(tool => this.caseName || !linkToolNeedsCase(tool))
+        .map(tool => ({ id: tool.id, label: tool.label, slot: `item-${tool.id}`, tool }));
+    },
+    columns(): { id: string; label: string }[] {
+      return [
+        { id: 'username', label: 'Username' },
+        ...this.optionColumns.map(({ id, label }) => ({ id, label })),
+      ];
+    },
     paginate(): boolean {
       return this.accounts.length > spiHelperPaginationThreshold;
     },
     columnState() {
       const rows = this.accounts;
-      const state: Record<ColumnId, {
+      const state: Record<string, {
         checked: boolean;
         indeterminate: boolean;
-      }> = {} as never;
+      }> = {};
 
       for (const column of this.optionColumns) {
         if (rows.length === 0) {
@@ -76,53 +82,29 @@ export const LinkActionComponent = defineComponent({
     },
     allColumnsChecked(): boolean {
       return this.accounts.length > 0
-        && this.optionColumns.every(k => this.columnState[k.id].checked);
+        && this.optionColumns.every(k => this.columnState[k.id]?.checked);
     },
     allColumnsIndeterminate(): boolean {
       const checkedCount = this.optionColumns.filter(
-        k => this.columnState[k.id].checked,
+        k => this.columnState[k.id]?.checked,
       ).length;
 
       return checkedCount > 0 && checkedCount < this.optionColumns.length;
     },
-    linkItems(): Partial<LinkRecord> {
-      const result: Partial<LinkRecord> = {};
+    linkItems(): LinkRecord {
+      const result: LinkRecord = {};
       for (const linkColumn of this.optionColumns) {
-        const linkFormat = this.getLinkFormat(linkColumn.id);
-        if (linkFormat === null) {
-          console.error('Couldn\'t find link format for', linkColumn.id);
-          continue;
-        }
-
-        const resultUrl = linkFormat.baseUrl(this.caseName);
-        if (linkFormat.startingParams) {
-          for (const [key, value] of linkFormat.startingParams) {
-            resultUrl.searchParams.set(key, value);
-          }
-        }
-        const includedUsers: string[] = this.accounts.reduce((accumulator: string[], row) => {
-          if (row.link[linkColumn.id]) {
-            accumulator.push(
-              linkFormat.userQueryStringWrapper + row.username + linkFormat.userQueryStringWrapper,
-            );
-          }
-          return accumulator;
-        }, []);
+        const includedUsers = this.accounts
+          .filter(row => row.link[linkColumn.id])
+          .map(row => row.username);
         if (includedUsers.length === 0) {
           continue;
         }
 
-        if (linkFormat.multipleUserQueryStringKeys) {
-          for (const username of includedUsers) {
-            resultUrl.searchParams.append(linkFormat.userQueryStringKey, username);
-          }
+        const resultUrl = buildLinkToolUrl(linkColumn.tool, this.caseName, includedUsers);
+        if (resultUrl) {
+          result[linkColumn.id] = { url: resultUrl, label: linkColumn.label };
         }
-        else {
-          resultUrl.searchParams.set(
-            linkFormat.userQueryStringKey, includedUsers.join(linkFormat.userQueryStringSeparator),
-          );
-        }
-        result[linkColumn.id] = { url: resultUrl, label: linkColumn.label };
       }
       return result;
     },
@@ -180,7 +162,7 @@ export const LinkActionComponent = defineComponent({
       this.$emit('removeRows', [...this.selectedRows]);
       this.selectedRows = [];
     },
-    toggleColumn(key: ColumnId, value: boolean) {
+    toggleColumn(key: string, value: boolean) {
       for (const row of this.accounts) {
         row.link[key] = value;
       }
@@ -193,26 +175,6 @@ export const LinkActionComponent = defineComponent({
     toggleRow(row: UserRow, value: boolean) {
       for (const col of this.optionColumns) {
         row.link[col.id] = value;
-      }
-    },
-    getLinkFormat(columnId: ColumnId) {
-      switch (columnId) {
-        case 'analyser':
-          return spiHelperLinkViewURLFormats.editorInteractionAnalyser;
-        case 'cuwiki':
-          return spiHelperLinkViewURLFormats.checkUserWikiSearch;
-        case 'interleaved':
-          return spiHelperLinkViewURLFormats.interleaved;
-        case 'pages':
-          return spiHelperLinkViewURLFormats.sandals.pages;
-        case 'summary':
-          return spiHelperLinkViewURLFormats.sandals.summaries;
-        case 'timecard':
-          return spiHelperLinkViewURLFormats.sandals.timecard;
-        case 'timeline':
-          return spiHelperLinkViewURLFormats.sandals.consolidatedTimeline;
-        default:
-          return null;
       }
     },
   },
@@ -279,26 +241,8 @@ export const LinkActionComponent = defineComponent({
         <user-lookup v-model="row.username" @user-selected="handleUserSelected($event, row)" />
       </template>
 
-      <template #item-analyser="{ item, row }">
-        <cdx-checkbox :hide-label="true" v-model="row.link.analyser">Editor interaction analyser</cdx-checkbox>
-      </template>
-      <template #item-timeline="{ item, row }">
-        <cdx-checkbox :hide-label="true" v-model="row.link.timeline">Consolidated timeline</cdx-checkbox>
-      </template>
-      <template #item-timecard="{ item, row }">
-        <cdx-checkbox :hide-label="true" v-model="row.link.timecard">Timecard</cdx-checkbox>
-      </template>
-      <template #item-pages="{ item, row }">
-        <cdx-checkbox :hide-label="true" v-model="row.link.pages">Pages</cdx-checkbox>
-      </template>
-      <template #item-summary="{ item, row }">
-        <cdx-checkbox :hide-label="true" v-model="row.link.summary">Summaries</cdx-checkbox>
-      </template>
-      <template #item-cuwiki="{ item, row }">
-        <cdx-checkbox :hide-label="true" v-model="row.link.cuwiki">CheckUser wiki</cdx-checkbox>
-      </template>
-      <template #item-interleaved="{ item, row }">
-        <cdx-checkbox :hide-label="true" v-model="row.link.interleaved">Interleaved</cdx-checkbox>
+      <template v-for="column in optionColumns" :key="column.id" #[column.slot]="{ row }">
+        <cdx-checkbox :hide-label="true" v-model="row.link[column.id]">{{ column.label }}</cdx-checkbox>
       </template>
     </cdx-table>
     <ul>

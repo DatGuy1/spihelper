@@ -1,7 +1,6 @@
 import {
   type BlockEntry,
   type BlockOptions,
-  DefaultLinkRowData,
   type InputColumn,
   type ParsedArchiveNotice,
   type PrefetchedUser,
@@ -44,7 +43,7 @@ export function getDefaultUserRow(archiveNotice: ParsedArchiveNotice | null): Us
     id,
     username: '',
     block: setupDefaultBlockRowData(),
-    link: { ...DefaultLinkRowData },
+    link: {},
   };
   if (tableRowIdentifier) {
     // Object spread carries own enumerable symbols, so this survives generateUserRow

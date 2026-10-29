@@ -6,7 +6,7 @@ import {
   cdxIconCheckAll,
   cdxIconHelp,
 } from '@wikimedia/codex-icons';
-import type { CaseActions, LinkRowData } from './spi.ts';
+import type { CaseActions } from './spi.ts';
 import type {
   AltmasterTagStatus,
   SockmasterTagStatus,
@@ -22,16 +22,6 @@ export const WatchOptionsSelect = [
 ];
 
 export const WatchOptions = ['preferences', 'watch', 'nochange', 'unwatch'];
-
-export const DefaultLinkRowData: LinkRowData = {
-  analyser: false,
-  timeline: false,
-  timecard: false,
-  pages: false,
-  summary: false,
-  cuwiki: false,
-  interleaved: false,
-};
 
 export type SelectionType = 'section' | 'case' | 'both';
 

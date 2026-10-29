@@ -1,4 +1,4 @@
-import type { CaseActionName, WatchOption } from '../types';
+import type { CaseActionName, LinkTool, WatchOption } from '../types';
 import type { MenuGroupData, MenuItemData } from '@wikimedia/codex';
 
 export interface ScriptSettings {
@@ -37,6 +37,7 @@ export interface ScriptSettings {
   custom: {
     commentTemplates: (MenuItemData | MenuGroupData)[];
   };
+  linkTools: LinkTool[];
   debug: {
     enabled: boolean;
     forceCheckuser: boolean;

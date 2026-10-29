@@ -185,14 +185,30 @@ export interface BlockRowData {
   lock: boolean;
 }
 
-export interface LinkRowData {
-  analyser: boolean;
-  timeline: boolean;
-  timecard: boolean;
-  pages: boolean;
-  summary: boolean;
-  cuwiki: boolean;
-  interleaved: boolean;
+// Whether each link tool includes this user, keyed by LinkTool.id. A missing key is unchecked
+export type LinkRowData = Record<string, boolean>;
+
+/**
+ * A tool the link action builds a URL for
+ */
+export interface LinkTool {
+  // A built-in's id from spiHelperBuiltinLinkTools, or custom-<uuid> for one the user added
+  id: string;
+  enabled: boolean;
+  // Set on a built-in whose fields the user changed, which stops updates replacing them
+  edited?: boolean;
+  // Viewable name
+  label: string;
+  // May contain {case}, which is replaced with the case name
+  url: string;
+  // The query parameter the usernames go in
+  userParam: string;
+  // Joins the users when they share a single parameter
+  separator: string;
+  // Placed on both sides of each username, e.g. quotes for a phrase search
+  wrapper: string;
+  // Whether we repeat userParam for every user (&users=user1&users=user2)
+  repeatParam: boolean;
 }
 
 export interface ArchiveSection {

@@ -5,19 +5,30 @@ import {
   cdxIconClock,
   cdxIconClose,
   cdxIconCode,
+  cdxIconEdit,
   cdxIconFeedback,
   cdxIconJournal,
   cdxIconLayout,
+  cdxIconLink,
   cdxIconPalette,
   cdxIconReload, cdxIconTrash,
   cdxIconWatchlist,
 } from '@wikimedia/codex-icons';
 import { saveOptions, spiHelperSettings } from '../../../options';
 import { MODE, VERSION, spiHelperDefaultSettings } from '../../../constants';
+import {
+  buildLinkToolUrl,
+  customLinkToolPrefix,
+  differsFromBuiltin,
+  isBuiltinLinkTool,
+  linkToolProblem,
+  markEditedLinkTools,
+  restoreBuiltinLinkTools,
+} from '../../../links.ts';
 import { getFullLogPage } from '../../../options/utils.ts';
 import type { ScriptSettings } from '../../../options/types.ts';
 import type { ChipInputItem, MenuItemData, MenuItemValue, useToast } from '@wikimedia/codex';
-import { CASE_ACTION_NAMES, type CaseActionName, type FeedbackDialog } from '../../../types';
+import { CASE_ACTION_NAMES, type CaseActionName, type FeedbackDialog, type LinkTool } from '../../../types';
 import { isMenuGroupData } from '../../utils.ts';
 import { toRaw } from '../../runtime.ts';
 import { setGlobalSettings } from '../../../options/options.ts';
@@ -32,6 +43,7 @@ interface Data {
   showExtraHandler: ((e: KeyboardEvent) => void) | null;
   logPrefix: string;
   caseActionMenuItems: MenuItemData[];
+  expandedLinkTool: string | null;
   selectedChipItems: MenuItemValue[];
   icons: {
     cdxIconAdd: typeof cdxIconAdd;
@@ -39,8 +51,10 @@ interface Data {
     cdxIconClock: typeof cdxIconClock;
     cdxIconClose: typeof cdxIconClose;
     cdxIconCode: typeof cdxIconCode;
+    cdxIconEdit: typeof cdxIconEdit;
     cdxIconFeedback: typeof cdxIconFeedback;
     cdxIconJournal: typeof cdxIconJournal;
+    cdxIconLink: typeof cdxIconLink;
     cdxIconLayout: typeof cdxIconLayout;
     cdxIconPalette: typeof cdxIconPalette;
     cdxIconReload: typeof cdxIconReload;
@@ -84,6 +98,7 @@ export const OptionsComponent = defineComponent({
       showExtraHandler: null,
       logPrefix,
       caseActionMenuItems,
+      expandedLinkTool: null,
       selectedChipItems: spiHelperSettings.defaultActions,
       icons: {
         cdxIconAdd,
@@ -91,8 +106,10 @@ export const OptionsComponent = defineComponent({
         cdxIconClock,
         cdxIconClose,
         cdxIconCode,
+        cdxIconEdit,
         cdxIconFeedback,
         cdxIconJournal,
+        cdxIconLink,
         cdxIconLayout,
         cdxIconPalette,
         cdxIconReload,
@@ -105,6 +122,9 @@ export const OptionsComponent = defineComponent({
     };
   },
   computed: {
+    hasEditedBuiltins(): boolean {
+      return this.instanceSettings.linkTools.some(tool => differsFromBuiltin(tool));
+    },
     logPage(): string {
       return `${mw.config.get('wgServer')}/wiki/${getFullLogPage(spiHelperSettings.log.page)}`;
     },
@@ -134,6 +154,9 @@ export const OptionsComponent = defineComponent({
         }
       }
       else {
+        this.instanceSettings.linkTools = markEditedLinkTools(
+          toRaw(this.instanceSettings.linkTools),
+        );
         const currentSettingsJson = JSON.stringify(this.instanceSettings);
         const settingsDiffer = JSON.stringify(this.oldSettings) !== currentSettingsJson;
         if (settingsDiffer) {
@@ -200,6 +223,49 @@ export const OptionsComponent = defineComponent({
   },
   methods: {
     isMenuGroupData,
+    linkToolProblem,
+    isBuiltinLinkTool,
+    // Where the tool links to, for its description in the list
+    linkToolSummary(tool: LinkTool): string {
+      let host = '';
+      try {
+        host = new URL(tool.url).host;
+      }
+      catch {
+        // An unfinished URL just goes without
+      }
+      return differsFromBuiltin(tool) ? `${host} (edited)` : host;
+    },
+    // The link the tool would make for a sample case, or null while it can't make one
+    linkToolPreview(tool: LinkTool): { href: string; text: string } | null {
+      if (linkToolProblem(tool)) {
+        return null;
+      }
+      const url = buildLinkToolUrl(tool, 'Master', ['Sock1', 'Sock2']);
+      return url ? { href: url.href, text: decodeURI(url.href) } : null;
+    },
+    toggleLinkToolEditor(tool: LinkTool) {
+      this.expandedLinkTool = this.expandedLinkTool === tool.id ? null : tool.id;
+    },
+    addLinkTool() {
+      const id = `${customLinkToolPrefix}${crypto.randomUUID()}`;
+      this.instanceSettings.linkTools.push({
+        id,
+        enabled: true,
+        label: '',
+        url: '',
+        userParam: '',
+        separator: '|',
+        wrapper: '',
+        repeatParam: false,
+      });
+      this.expandedLinkTool = id;
+    },
+    restoreBuiltinLinkTools() {
+      this.instanceSettings.linkTools = restoreBuiltinLinkTools(
+        toRaw(this.instanceSettings.linkTools),
+      );
+    },
     loadDefaults() {
       // Create a deep copy and replace the reactive reference
       this.instanceSettings
@@ -316,9 +382,8 @@ export const OptionsComponent = defineComponent({
                         :reset-trigger="resetTrigger" />
       </cdx-accordion>
       <cdx-accordion :action-icon="icons.cdxIconPalette" :action-always-visible="true">
-        <template #title>Customisation</template>
+        <template #title>Comment templates</template>
         <div>
-          <h3 style="padding-top: 0;">Comment templates</h3>
           <div class="spiHelper-template-container">
             <div v-for="(entry, i) in instanceSettings.custom.commentTemplates" :key="i" class="spiHelper-template">
               <div v-if="isMenuGroupData(entry)">
@@ -374,6 +439,81 @@ export const OptionsComponent = defineComponent({
         <cdx-button @click="addTemplateEntry('group')" action="progressive">
           <cdx-icon :icon="icons.cdxIconAdd" />
           Add group
+        </cdx-button>
+      </cdx-accordion>
+      <cdx-accordion :action-icon="icons.cdxIconLink" :action-always-visible="true">
+        <template #title>Links</template>
+        <p>
+          The columns of the Generate Links action, ordered. Some tools are managed by the script; you
+          can still edit them, but pressing "restore" will undo their edits and load the latest defaults.
+        </p>
+        <div class="spiHelper-template-container">
+          <div v-for="(tool, i) in instanceSettings.linkTools" :key="tool.id" class="spiHelper-template">
+            <div class="spiHelper-template-input spiHelper-linkTool-header">
+              <cdx-toggle-switch v-model="tool.enabled" :align-switch="true" class="spiHelper-linkTool-switch">
+                {{ tool.label || 'Untitled tool' }}
+                <template #description>{{ linkToolSummary(tool) }}</template>
+              </cdx-toggle-switch>
+              <cdx-button @click="toggleLinkToolEditor(tool)" :aria-label="'Edit ' + tool.label"
+                          :aria-expanded="expandedLinkTool === tool.id"
+                          :action="expandedLinkTool === tool.id ? 'progressive' : 'default'">
+                <cdx-icon :icon="icons.cdxIconEdit" />
+              </cdx-button>
+              <cdx-button @click="moveDown(instanceSettings.linkTools, i)" aria-label="Move tool down"
+                          :disabled="instanceSettings.linkTools.length <= i + 1">
+                <cdx-icon :icon="icons.cdxIconArrowDown" />
+              </cdx-button>
+              <cdx-button v-if="!isBuiltinLinkTool(tool)" @click="instanceSettings.linkTools.splice(i, 1)"
+                          action="destructive" aria-label="Delete tool">
+                <cdx-icon :icon="icons.cdxIconTrash" />
+              </cdx-button>
+            </div>
+            <div v-if="expandedLinkTool === tool.id" class="spiHelper-template-group-item">
+              <div class="spiHelper-template-input spiHelper-linkTool-fields">
+                <cdx-field>
+                  <template #label>Label</template>
+                  <cdx-text-input v-model="tool.label" />
+                </cdx-field>
+                <cdx-field class="spiHelper-linkTool-url">
+                  <template #label>URL</template>
+                  <cdx-text-input v-model="tool.url" placeholder="https://example.toolforge.org/{case}" />
+                </cdx-field>
+              </div>
+              <div class="spiHelper-template-input spiHelper-linkTool-fields">
+                <cdx-field>
+                  <template #label>Parameter</template>
+                  <cdx-text-input v-model="tool.userParam" />
+                </cdx-field>
+                <cdx-field :disabled="tool.repeatParam">
+                  <template #label>Separator</template>
+                  <cdx-text-input v-model="tool.separator" />
+                </cdx-field>
+                <cdx-field>
+                  <template #label>Wrapper</template>
+                  <cdx-text-input v-model="tool.wrapper" />
+                </cdx-field>
+              </div>
+              <cdx-toggle-switch v-model="tool.repeatParam" class="spiHelper-linkTool-repeat">
+                Repeat the parameter for each user
+              </cdx-toggle-switch>
+              <p v-if="linkToolPreview(tool)" class="spiHelper-linkTool-preview">
+                <a :href="linkToolPreview(tool)?.href" target="_blank" rel="noopener">
+                  {{ linkToolPreview(tool)?.text }}
+                </a>
+              </p>
+            </div>
+            <cdx-message v-if="linkToolProblem(tool)" type="error" :inline="true">
+              {{ linkToolProblem(tool) }}
+            </cdx-message>
+          </div>
+        </div>
+        <cdx-button @click="addLinkTool" action="progressive">
+          <cdx-icon :icon="icons.cdxIconAdd" />
+          Add tool
+        </cdx-button>
+        <cdx-button @click="restoreBuiltinLinkTools" :disabled="!hasEditedBuiltins">
+          <cdx-icon :icon="icons.cdxIconReload" />
+          Restore built-ins
         </cdx-button>
       </cdx-accordion>
       <cdx-accordion :action-icon="icons.cdxIconCode" :action-always-visible="true" v-if="showExtra">

@@ -243,6 +243,33 @@
                 flex-grow: 1;
                 width: 0;
             }
+
+            > .cdx-field.spiHelper-linkTool-url {
+                flex-grow: 3;
+            }
+        }
+
+        .spiHelper-linkTool-fields {
+            gap: 8px;
+        }
+
+        .spiHelper-linkTool-header {
+            align-items: center;
+        }
+
+        .spiHelper-linkTool-switch {
+            flex-grow: 1;
+            margin-bottom: 0;
+            margin-inline-end: 12px;
+        }
+
+        .spiHelper-linkTool-repeat {
+            margin-top: 12px;
+        }
+
+        .spiHelper-linkTool-preview {
+            margin: 4px 0 0;
+            overflow-wrap: anywhere;
         }
     }
 }

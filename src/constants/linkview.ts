@@ -1,113 +1,119 @@
-interface LinkFormatCollection {
-  editorInteractionAnalyser: LinkFormat;
-  interactionTimeline: LinkFormat;
-  checkUserWikiSearch: LinkFormat;
-  interleaved: LinkFormat;
-  SPITools: {
-    timecard: LinkFormat;
-    consolidatedTimeline: LinkFormat;
-    pages: LinkFormat;
-  };
-  sandals: {
-    timecard: LinkFormat;
-    consolidatedTimeline: LinkFormat;
-    pages: LinkFormat;
-    summaries: LinkFormat;
-  };
-}
+import type { LinkTool } from '../types';
 
-export interface LinkFormat {
-  baseUrl: (caseName: string) => URL;
-  startingParams?: URLSearchParams;
-  userQueryStringKey: string;
-  userQueryStringSeparator: string;
-  userQueryStringWrapper: string;
-  // Whether we repeat userQueryStringKey for every new user. I.e. &users=user1&users=user2
-  multipleUserQueryStringKeys: boolean;
-}
-
-export const spiHelperLinkViewURLFormats: LinkFormatCollection = {
-  editorInteractionAnalyser: {
-    baseUrl: (_caseName: string) => new URL('https://sigma.toolforge.org/editorinteract.py'),
-    userQueryStringKey: 'users',
-    userQueryStringSeparator: '&',
-    userQueryStringWrapper: '',
-    multipleUserQueryStringKeys: true,
+/**
+ * The link tools that ship with the script, and so the default contents of the user's list.
+ * Each load brings the user's copies of these up to date unless they've edited them (see
+ * reconcileLinkTools), so a change here reaches existing users without a migration
+ */
+export const spiHelperBuiltinLinkTools: LinkTool[] = [
+  {
+    id: 'analyser',
+    label: 'Interaction Analyser',
+    url: 'https://sigma.toolforge.org/editorinteract.py',
+    userParam: 'users',
+    separator: '&',
+    wrapper: '',
+    repeatParam: true,
+    enabled: true,
   },
-  interactionTimeline: {
-    baseUrl: (_caseName: string) => new URL('https://interaction-timeline.toolforge.org'),
-    startingParams: new URLSearchParams('wiki=enwiki'),
-    userQueryStringKey: 'user',
-    userQueryStringSeparator: '&',
-    userQueryStringWrapper: '',
-    multipleUserQueryStringKeys: true,
+  {
+    id: 'timeline',
+    label: 'Timeline (Sandals)',
+    url: 'https://sandals.toolforge.org/contributions',
+    userParam: 'users',
+    separator: '|',
+    wrapper: '',
+    repeatParam: false,
+    enabled: true,
   },
-  SPITools: {
-    timecard: {
-      baseUrl: (caseName: string) => new URL('https://spi-tools.toolforge.org/spi/timecard/' + caseName),
-      userQueryStringKey: 'users',
-      userQueryStringSeparator: '&',
-      userQueryStringWrapper: '',
-      multipleUserQueryStringKeys: true,
-    },
-    consolidatedTimeline: {
-      baseUrl: (caseName: string) => new URL('https://spi-tools.toolforge.org/spi/timeline/' + caseName),
-      userQueryStringKey: 'users',
-      userQueryStringSeparator: '&',
-      userQueryStringWrapper: '',
-      multipleUserQueryStringKeys: true,
-    },
-    pages: {
-      baseUrl: (caseName: string) => new URL('https://spi-tools.toolforge.org/spi/pages/' + caseName),
-      userQueryStringKey: 'users',
-      userQueryStringSeparator: '&',
-      userQueryStringWrapper: '',
-      multipleUserQueryStringKeys: true,
-    },
+  {
+    id: 'spitools-timeline',
+    label: 'Timeline (SPI Tools)',
+    url: 'https://spi-tools.toolforge.org/spi/timeline/{case}',
+    userParam: 'users',
+    separator: '&',
+    wrapper: '',
+    repeatParam: true,
+    enabled: false,
   },
-  sandals: {
-    timecard: {
-      baseUrl: (_caseName: string) => new URL('https://sandals.toolforge.org/timecard'),
-      userQueryStringKey: 'users',
-      userQueryStringSeparator: '|',
-      userQueryStringWrapper: '',
-      multipleUserQueryStringKeys: false,
-    },
-    consolidatedTimeline: {
-      baseUrl: (_caseName: string) => new URL('https://sandals.toolforge.org/contributions'),
-      userQueryStringKey: 'users',
-      userQueryStringSeparator: '|',
-      userQueryStringWrapper: '',
-      multipleUserQueryStringKeys: false,
-    },
-    pages: {
-      baseUrl: (_caseName: string) => new URL('https://sandals.toolforge.org/pages'),
-      userQueryStringKey: 'users',
-      userQueryStringSeparator: '|',
-      userQueryStringWrapper: '',
-      multipleUserQueryStringKeys: false,
-    },
-    summaries: {
-      baseUrl: (_caseName: string) => new URL('https://sandals.toolforge.org/summaries'),
-      userQueryStringKey: 'users',
-      userQueryStringSeparator: '|',
-      userQueryStringWrapper: '',
-      multipleUserQueryStringKeys: false,
-    },
+  {
+    id: 'interaction-timeline',
+    label: 'Interaction Timeline',
+    url: 'https://interaction-timeline.toolforge.org/?wiki=enwiki',
+    userParam: 'user',
+    separator: '&',
+    wrapper: '',
+    repeatParam: true,
+    enabled: false,
   },
-  checkUserWikiSearch: {
-    baseUrl: (_caseName: string) => new URL('https://checkuser.wikimedia.org/w/index.php'),
-    startingParams: new URLSearchParams('ns0=1'),
-    userQueryStringKey: 'search',
-    userQueryStringSeparator: ' OR ',
-    userQueryStringWrapper: '"',
-    multipleUserQueryStringKeys: false,
+  {
+    id: 'timecard',
+    label: 'Timecard (Sandals)',
+    url: 'https://sandals.toolforge.org/timecard',
+    userParam: 'users',
+    separator: '|',
+    wrapper: '',
+    repeatParam: false,
+    enabled: true,
   },
-  interleaved: {
-    baseUrl: (_caseName: string) => new URL('https://interleaved.toolforge.org/'),
-    userQueryStringKey: 'user',
-    userQueryStringSeparator: '|',
-    userQueryStringWrapper: '',
-    multipleUserQueryStringKeys: false,
+  {
+    id: 'spitools-timecard',
+    label: 'Timecard (SPI Tools)',
+    url: 'https://spi-tools.toolforge.org/spi/timecard/{case}',
+    userParam: 'users',
+    separator: '&',
+    wrapper: '',
+    repeatParam: true,
+    enabled: false,
   },
-};
+  {
+    id: 'pages',
+    label: 'Pages (Sandals)',
+    url: 'https://sandals.toolforge.org/pages',
+    userParam: 'users',
+    separator: '|',
+    wrapper: '',
+    repeatParam: false,
+    enabled: true,
+  },
+  {
+    id: 'spitools-pages',
+    label: 'Pages (SPI Tools)',
+    url: 'https://spi-tools.toolforge.org/spi/pages/{case}',
+    userParam: 'users',
+    separator: '&',
+    wrapper: '',
+    repeatParam: true,
+    enabled: false,
+  },
+  {
+    id: 'summary',
+    label: 'Summaries (Sandals)',
+    url: 'https://sandals.toolforge.org/summaries',
+    userParam: 'users',
+    separator: '|',
+    wrapper: '',
+    repeatParam: false,
+    enabled: true,
+  },
+  {
+    id: 'cuwiki',
+    label: 'CU wiki',
+    url: 'https://checkuser.wikimedia.org/w/index.php?ns0=1',
+    userParam: 'search',
+    separator: ' OR ',
+    wrapper: '"',
+    repeatParam: false,
+    enabled: true,
+  },
+  {
+    id: 'interleaved',
+    label: 'Interleaved',
+    url: 'https://interleaved.toolforge.org/',
+    userParam: 'user',
+    separator: '|',
+    wrapper: '',
+    repeatParam: false,
+    enabled: true,
+  },
+];

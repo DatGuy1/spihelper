@@ -47,6 +47,7 @@ import type * as CodexType from '@wikimedia/codex';
 import type { FeedbackDialog } from './types';
 import { setContext } from './context.ts';
 import { getUnseenChanges } from './changelog.ts';
+import { reconcileLinkTools } from './links.ts';
 import { ToastContainerComponent } from './ui/views/toastView.ts';
 import { setMarkRaw, setTableRowIdentifier, setToRaw } from './ui/runtime.ts';
 import { setMessagesReactive } from './ui/messages.ts';
@@ -111,6 +112,7 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
     const loadedOptions = loadOptions();
     if (loadedOptions) {
       mergeOptions(spiHelperSettings, loadedOptions);
+      spiHelperSettings.linkTools = reconcileLinkTools(spiHelperSettings.linkTools);
     }
     else {
       void (async () => {
