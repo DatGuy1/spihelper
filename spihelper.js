@@ -1,95 +1,122 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
-// v3.4.0
+// v3.4.1
 // <nowiki>
 'use strict';
 (() => {
 
   // src/constants/linkview.ts
-  var spiHelperLinkViewURLFormats = {
-    editorInteractionAnalyser: {
-      baseUrl: (_caseName) => new URL("https://sigma.toolforge.org/editorinteract.py"),
-      userQueryStringKey: "users",
-      userQueryStringSeparator: "&",
-      userQueryStringWrapper: "",
-      multipleUserQueryStringKeys: true
+  var spiHelperBuiltinLinkTools = [
+    {
+      id: "analyser",
+      label: "Interaction Analyser",
+      url: "https://sigma.toolforge.org/editorinteract.py",
+      userParam: "users",
+      separator: "&",
+      wrapper: "",
+      repeatParam: true,
+      enabled: true
     },
-    interactionTimeline: {
-      baseUrl: (_caseName) => new URL("https://interaction-timeline.toolforge.org"),
-      startingParams: new URLSearchParams("wiki=enwiki"),
-      userQueryStringKey: "user",
-      userQueryStringSeparator: "&",
-      userQueryStringWrapper: "",
-      multipleUserQueryStringKeys: true
+    {
+      id: "timeline",
+      label: "Timeline (Sandals)",
+      url: "https://sandals.toolforge.org/contributions",
+      userParam: "users",
+      separator: "|",
+      wrapper: "",
+      repeatParam: false,
+      enabled: true
     },
-    SPITools: {
-      timecard: {
-        baseUrl: (caseName) => new URL("https://spi-tools.toolforge.org/spi/timecard/" + caseName),
-        userQueryStringKey: "users",
-        userQueryStringSeparator: "&",
-        userQueryStringWrapper: "",
-        multipleUserQueryStringKeys: true
-      },
-      consolidatedTimeline: {
-        baseUrl: (caseName) => new URL("https://spi-tools.toolforge.org/spi/timeline/" + caseName),
-        userQueryStringKey: "users",
-        userQueryStringSeparator: "&",
-        userQueryStringWrapper: "",
-        multipleUserQueryStringKeys: true
-      },
-      pages: {
-        baseUrl: (caseName) => new URL("https://spi-tools.toolforge.org/spi/pages/" + caseName),
-        userQueryStringKey: "users",
-        userQueryStringSeparator: "&",
-        userQueryStringWrapper: "",
-        multipleUserQueryStringKeys: true
-      }
+    {
+      id: "spitools-timeline",
+      label: "Timeline (SPI Tools)",
+      url: "https://spi-tools.toolforge.org/spi/timeline/{case}",
+      userParam: "users",
+      separator: "&",
+      wrapper: "",
+      repeatParam: true,
+      enabled: false
     },
-    sandals: {
-      timecard: {
-        baseUrl: (_caseName) => new URL("https://sandals.toolforge.org/timecard"),
-        userQueryStringKey: "users",
-        userQueryStringSeparator: "|",
-        userQueryStringWrapper: "",
-        multipleUserQueryStringKeys: false
-      },
-      consolidatedTimeline: {
-        baseUrl: (_caseName) => new URL("https://sandals.toolforge.org/contributions"),
-        userQueryStringKey: "users",
-        userQueryStringSeparator: "|",
-        userQueryStringWrapper: "",
-        multipleUserQueryStringKeys: false
-      },
-      pages: {
-        baseUrl: (_caseName) => new URL("https://sandals.toolforge.org/pages"),
-        userQueryStringKey: "users",
-        userQueryStringSeparator: "|",
-        userQueryStringWrapper: "",
-        multipleUserQueryStringKeys: false
-      },
-      summaries: {
-        baseUrl: (_caseName) => new URL("https://sandals.toolforge.org/summaries"),
-        userQueryStringKey: "users",
-        userQueryStringSeparator: "|",
-        userQueryStringWrapper: "",
-        multipleUserQueryStringKeys: false
-      }
+    {
+      id: "interaction-timeline",
+      label: "Interaction Timeline",
+      url: "https://interaction-timeline.toolforge.org/?wiki=enwiki",
+      userParam: "user",
+      separator: "&",
+      wrapper: "",
+      repeatParam: true,
+      enabled: false
     },
-    checkUserWikiSearch: {
-      baseUrl: (_caseName) => new URL("https://checkuser.wikimedia.org/w/index.php"),
-      startingParams: new URLSearchParams("ns0=1"),
-      userQueryStringKey: "search",
-      userQueryStringSeparator: " OR ",
-      userQueryStringWrapper: '"',
-      multipleUserQueryStringKeys: false
+    {
+      id: "timecard",
+      label: "Timecard (Sandals)",
+      url: "https://sandals.toolforge.org/timecard",
+      userParam: "users",
+      separator: "|",
+      wrapper: "",
+      repeatParam: false,
+      enabled: true
     },
-    interleaved: {
-      baseUrl: (_caseName) => new URL("https://interleaved.toolforge.org/"),
-      userQueryStringKey: "user",
-      userQueryStringSeparator: "|",
-      userQueryStringWrapper: "",
-      multipleUserQueryStringKeys: false
+    {
+      id: "spitools-timecard",
+      label: "Timecard (SPI Tools)",
+      url: "https://spi-tools.toolforge.org/spi/timecard/{case}",
+      userParam: "users",
+      separator: "&",
+      wrapper: "",
+      repeatParam: true,
+      enabled: false
+    },
+    {
+      id: "pages",
+      label: "Pages (Sandals)",
+      url: "https://sandals.toolforge.org/pages",
+      userParam: "users",
+      separator: "|",
+      wrapper: "",
+      repeatParam: false,
+      enabled: true
+    },
+    {
+      id: "spitools-pages",
+      label: "Pages (SPI Tools)",
+      url: "https://spi-tools.toolforge.org/spi/pages/{case}",
+      userParam: "users",
+      separator: "&",
+      wrapper: "",
+      repeatParam: true,
+      enabled: false
+    },
+    {
+      id: "summary",
+      label: "Summaries (Sandals)",
+      url: "https://sandals.toolforge.org/summaries",
+      userParam: "users",
+      separator: "|",
+      wrapper: "",
+      repeatParam: false,
+      enabled: true
+    },
+    {
+      id: "cuwiki",
+      label: "CU wiki",
+      url: "https://checkuser.wikimedia.org/w/index.php?ns0=1",
+      userParam: "search",
+      separator: " OR ",
+      wrapper: '"',
+      repeatParam: false,
+      enabled: true
+    },
+    {
+      id: "interleaved",
+      label: "Interleaved",
+      url: "https://interleaved.toolforge.org/",
+      userParam: "user",
+      separator: "|",
+      wrapper: "",
+      repeatParam: false,
+      enabled: true
     }
-  };
+  ];
   // src/constants/regex.ts
   var spiHelperCaseStatusRegex = /{{\s*SPI case status\s*\|?\s*(\S*?)\s*}}/i;
   var spiHelperCaseClosedRegex = /^closed?$/i;
@@ -116,7 +143,7 @@
       useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
     };
   }
-  var VERSION = "3.4.0";
+  var VERSION = "3.4.1";
   var MODE = "dev";
   var spiHelperDefaultSettings = {
     watch: {
@@ -154,6 +181,7 @@
     custom: {
       commentTemplates: []
     },
+    linkTools: structuredClone(spiHelperBuiltinLinkTools),
     debug: {
       enabled: false,
       forceCheckuser: false,
@@ -616,83 +644,87 @@ ${body}` : body;
   ];
   // node_modules/@wikimedia/codex-icons/dist/codex-icons.js
   var p = '<path d="M11 9h7v2h-7v7H9v-7H2V9h7V2h2z"/>';
-  var u = '<path d="M11 1v13.876l4-4 1.414 1.414-5.707 5.707H9.293L3.586 12.29 5 10.876l4 4V1z"/>';
-  var P = '<path d="M10 1a9 9 0 110 18 9 9 0 010-18M5 9v2h10V9z"/>';
-  var v1 = '<path d="M10 1a9 9 0 110 18 9 9 0 010-18M4.394 5.806A6.97 6.97 0 003 10a7 7 0 0011.193 5.605l-9.8-9.8ZM10 3a6.97 6.97 0 00-4.191 1.392l9.797 9.798A7 7 0 0010 3"/>';
-  var V1 = '<path d="M18.154 3.837 8 16.8H6.65l-4.8-3.6 1.2-1.6 4.02 3.015 9.517-12.02z"/>';
-  var M1 = '<path d="M14 17h-4v-2h4zm2.404-13.163L6.22 16.8H4.9L.1 13.2l1.2-1.6 4.02 3.015 9.517-12.02zM17 13h-4v-2h4zm3-4h-4V7h4z"/>';
-  var i1 = '<path d="M10 1a9 9 0 110 18 9 9 0 010-18m0 2a7 7 0 100 14 7 7 0 000-14m1 7h3v2H9V5h2z"/>';
-  var m1 = '<path d="M16.707 4.707 11.414 10l5.293 5.293-1.414 1.414L10 11.414l-5.293 5.293-1.414-1.414L8.586 10 3.293 4.707l1.414-1.414L10 8.586l5.293-5.293z"/>';
-  var g1 = '<path d="M8.5 3H6a1 1 0 00-1 1v2.488c0 1.19-.525 2.273-1.371 3.012A4 4 0 015 12.512V16a1 1 0 001 1h2.5v2H6a3 3 0 01-3-3v-3.488a2 2 0 00-1.648-1.969L1 10.484V8.516l.352-.059A2 2 0 003 6.488V4a3 3 0 013-3h2.5zM14 1a3 3 0 013 3v2.488a2 2 0 001.648 1.969l.352.059v1.968l-.352.059A2 2 0 0017 12.512V16a3 3 0 01-3 3h-2.5v-2H14a1 1 0 001-1v-3.488c0-1.19.525-2.273 1.371-3.012A4 4 0 0115 6.488V4a1 1 0 00-1-1h-2.5V1z"/>';
-  var L1 = '<path d="m10 8.1-5.3 5.3L3.3 12l6-6h1.4l6 6-1.4 1.4z"/>';
-  var u1 = '<path d="M13 19H1V7h6V1h12v12h-6zm-6-6V9H3v8h8v-4zm2-2h8V3H9z"/>';
-  var S1 = '<path d="M19 19H1v-2h18zm-8-7.104 3.5-3.5 1.414 1.414-5.207 5.208H9.293L4.086 9.81 5.5 8.396l3.5 3.5V1h2z"/>';
-  var O1 = '<path d="m16.7 8-6 6H9.3l-6-6 1.4-1.4 5.3 5.3 5.3-5.3z"/>';
-  var Q1 = '<path d="M17 1v6.174c1.165.412 2 1.52 2 2.826a3 3 0 01-2 2.825V19h-2.563l-4.8-4H8v4H6v-4H3v-2H1V7h2V5h6.637l4.8-4zm-6.36 5.769L10.363 7H7v6h3.362l.279.231L15 16.864V3.136z"/>';
-  var n0 = '<path d="M11 18H9v-2h2zM10 2c1.497 0 2.76.433 3.66 1.268.905.84 1.34 1.994 1.34 3.232 0 1.182-.443 2.007-1.094 2.638a6.7 6.7 0 01-.95.742c-.363.241-.587.373-.923.602C11.351 10.948 11 11.86 11 13v1H9v-1c0-1.455.443-3.17 1.905-4.169.3-.204.71-.461.94-.615.281-.187.498-.349.67-.515.297-.287.485-.607.485-1.201 0-.762-.258-1.357-.7-1.768C11.853 4.317 11.117 4 10 4 7.98 4 7 5.636 7 6.5v1H5v-1C5 4.614 6.794 2 10 2"/>';
-  var P0 = '<path d="M12 10H9V8h3zm2-4H9V4h5z"/><path d="M18 20H2V0h16zM7 18h9V2H7z"/>';
-  var K0 = '<path d="M9 18H2V2h7zm-5-2h3V4H4zm14 2h-7v-7h7zm-5-2h3v-3h-3zm5-7h-7V2h7zm-5-2h3V4h-3z"/>';
-  var l4 = '<path d="M1.456 7.172a9 9 0 0117.259 5.079l-.968.75L11.75 13a.75.75 0 00-.75.75v4.21l-1.06 1c-.648-.04-1.938-.142-2.768-.416A9 9 0 011.456 7.172M12.2 3.354a7 7 0 00-4.4 13.291c.3.1.745.17 1.2.224v-3.12A2.75 2.75 0 0111.75 11h5.178A7 7 0 0012.2 3.355Z"/><circle cx="6.5" cy="10.5" r="1.5"/><circle cx="9.5" cy="6.5" r="1.5"/><circle cx="13.5" cy="8.5" r="1.5"/>';
-  var s4 = '<path d="M11 3H9v8h8V9h2v4h-6v6H1V7h6V1h4zM3 17h8v-4H7V9H3z"/><path d="M16.5 3.5H19v2h-2.5V8h-2V5.5H12v-2h2.5V1h2z"/>';
-  var H4 = '<path d="M16 2h-2v4.764l3 5.936V14h-6v6H9v-6H3v-1.3l3-5.936V2H4V0h12zM8 7.236 5.618 12h8.764L12 7.236V2H8z"/>';
-  var I4 = '<path d="M10 1a8.98 8.98 0 016.999 3.343L17 2h2v5l-1 1h-5l-.001-2h2.746a7 7 0 101.184 5h2.016A9 9 0 1110 1"/>';
-  var I3 = '<path d="M10 0a3 3 0 013 3v1h5v2h-2v14H4V6H2V4h5V3a3 3 0 013-3M6 18h8V6H6zm4-16a1 1 0 00-1 1v1h2V3a1 1 0 00-1-1"/>';
-  var T3 = '<path d="m12.009 13.695.002 1.388-4.694 4.88-1.441-1.385 3.065-3.188H0v-2h8.933l-3.057-3.164 1.438-1.39zm2.115-12.219L11.067 4.64H20v2h-8.941l3.065 3.188-1.441 1.386-4.694-4.881.002-1.388 4.694-4.86 1.439 1.39Z"/>';
-  var R3 = '<path d="M12 11a6 6 0 016 6v2H2v-2a6 6 0 016-6z"/><circle cx="10" cy="5" r="4"/>';
-  var P3 = '<path d="M12 11a6 6 0 016 6v2H2v-2a6 6 0 016-6zm-4 2a4 4 0 00-4 4h12a4 4 0 00-4-4zm2-12a4 4 0 110 8 4 4 0 010-8m0 2a2 2 0 100 4 2 2 0 000-4"/>';
-  var l5 = '<path d="M1 3h18v2H1zm0 6h7v2H1zm0 6h8v2H1zm15-4.75h3v1l-2.2 1.5L18 16.5h-1.2l-2.3-1.9-2.3 1.9H11l1.2-3.75-2.2-1.5v-1h3L14 7h1z"/>';
-  var z5 = p;
-  var i5 = u;
-  var U5 = P;
-  var Q5 = v1;
-  var _5 = V1;
-  var $5 = M1;
+  var I = '<path d="M11 1v13.876l4-4 1.414 1.414-5.707 5.707H9.293L3.586 12.29 5 10.876l4 4V1z"/>';
+  var E = '<path d="M10 1a9 9 0 110 18 9 9 0 010-18M5 9v2h10V9z"/>';
+  var d1 = '<path d="M10 1a9 9 0 110 18 9 9 0 010-18M4.394 5.806A6.97 6.97 0 003 10a7 7 0 0011.193 5.605l-9.8-9.8ZM10 3a6.97 6.97 0 00-4.191 1.392l9.797 9.798A7 7 0 0010 3"/>';
+  var M1 = '<path d="M18.154 3.837 8 16.8H6.65l-4.8-3.6 1.2-1.6 4.02 3.015 9.517-12.02z"/>';
+  var i1 = '<path d="M14 17h-4v-2h4zm2.404-13.163L6.22 16.8H4.9L.1 13.2l1.2-1.6 4.02 3.015 9.517-12.02zM17 13h-4v-2h4zm3-4h-4V7h4z"/>';
+  var m1 = '<path d="M10 1a9 9 0 110 18 9 9 0 010-18m0 2a7 7 0 100 14 7 7 0 000-14m1 7h3v2H9V5h2z"/>';
+  var g1 = '<path d="M16.707 4.707 11.414 10l5.293 5.293-1.414 1.414L10 11.414l-5.293 5.293-1.414-1.414L8.586 10 3.293 4.707l1.414-1.414L10 8.586l5.293-5.293z"/>';
+  var L1 = '<path d="M8.5 3H6a1 1 0 00-1 1v2.488c0 1.19-.525 2.273-1.371 3.012A4 4 0 015 12.512V16a1 1 0 001 1h2.5v2H6a3 3 0 01-3-3v-3.488a2 2 0 00-1.648-1.969L1 10.484V8.516l.352-.059A2 2 0 003 6.488V4a3 3 0 013-3h2.5zM14 1a3 3 0 013 3v2.488a2 2 0 001.648 1.969l.352.059v1.968l-.352.059A2 2 0 0017 12.512V16a3 3 0 01-3 3h-2.5v-2H14a1 1 0 001-1v-3.488c0-1.19.525-2.273 1.371-3.012A4 4 0 0115 6.488V4a1 1 0 00-1-1h-2.5V1z"/>';
+  var x1 = '<path d="m10 8.1-5.3 5.3L3.3 12l6-6h1.4l6 6-1.4 1.4z"/>';
+  var I1 = '<path d="M13 19H1V7h6V1h12v12h-6zm-6-6V9H3v8h8v-4zm2-2h8V3H9z"/>';
+  var q1 = '<path d="M19 19H1v-2h18zm-8-7.104 3.5-3.5 1.414 1.414-5.207 5.208H9.293L4.086 9.81 5.5 8.396l3.5 3.5V1h2z"/>';
+  var Z1 = '<path d="m15.4.4 4.2 4.2-3.2 3.2-4.2-4.2zM10.8 5 15 9.2l-8.6 8.6-4.5 1.5-1.2-1.2 1.5-4.5z"/>';
+  var N1 = '<path d="m16.7 8-6 6H9.3l-6-6 1.4-1.4 5.3 5.3 5.3-5.3z"/>';
+  var K1 = '<path d="M17 1v6.174c1.165.412 2 1.52 2 2.826a3 3 0 01-2 2.825V19h-2.563l-4.8-4H8v4H6v-4H3v-2H1V7h2V5h6.637l4.8-4zm-6.36 5.769L10.363 7H7v6h3.362l.279.231L15 16.864V3.136z"/>';
+  var v0 = '<path d="M11 18H9v-2h2zM10 2c1.497 0 2.76.433 3.66 1.268.905.84 1.34 1.994 1.34 3.232 0 1.182-.443 2.007-1.094 2.638a6.7 6.7 0 01-.95.742c-.363.241-.587.373-.923.602C11.351 10.948 11 11.86 11 13v1H9v-1c0-1.455.443-3.17 1.905-4.169.3-.204.71-.461.94-.615.281-.187.498-.349.67-.515.297-.287.485-.607.485-1.201 0-.762-.258-1.357-.7-1.768C11.853 4.317 11.117 4 10 4 7.98 4 7 5.636 7 6.5v1H5v-1C5 4.614 6.794 2 10 2"/>';
+  var E0 = '<path d="M12 10H9V8h3zm2-4H9V4h5z"/><path d="M18 20H2V0h16zM7 18h9V2H7z"/>';
+  var J0 = '<path d="M9 18H2V2h7zm-5-2h3V4H4zm14 2h-7v-7h7zm-5-2h3v-3h-3zm5-7h-7V2h7zm-5-2h3V4h-3z"/>';
+  var $0 = '<path d="M5.862 7.453a4.353 4.353 0 016.167-.01l.707.706-1.414 1.414-.707-.707a2.355 2.355 0 00-3.335.005L4.354 11.81a2.725 2.725 0 003.842 3.868l.046-.046.715-.7 1.4 1.43-.715.698-.046.046A4.727 4.727 0 012.934 10.4z"/><path d="M10.405 2.894a4.726 4.726 0 016.662 6.707l-2.928 2.947a4.354 4.354 0 01-6.167.01l-.707-.707 1.414-1.415.707.707c.921.921 2.416.92 3.334-.004l2.928-2.948a2.727 2.727 0 00-3.843-3.868l-.761.746-1.4-1.428.713-.7z"/>';
+  var s4 = '<path d="M1.456 7.172a9 9 0 0117.259 5.079l-.968.75L11.75 13a.75.75 0 00-.75.75v4.21l-1.06 1c-.648-.04-1.938-.142-2.768-.416A9 9 0 011.456 7.172M12.2 3.354a7 7 0 00-4.4 13.291c.3.1.745.17 1.2.224v-3.12A2.75 2.75 0 0111.75 11h5.178A7 7 0 0012.2 3.355Z"/><circle cx="6.5" cy="10.5" r="1.5"/><circle cx="9.5" cy="6.5" r="1.5"/><circle cx="13.5" cy="8.5" r="1.5"/>';
+  var n4 = '<path d="M11 3H9v8h8V9h2v4h-6v6H1V7h6V1h4zM3 17h8v-4H7V9H3z"/><path d="M16.5 3.5H19v2h-2.5V8h-2V5.5H12v-2h2.5V1h2z"/>';
+  var V4 = '<path d="M16 2h-2v4.764l3 5.936V14h-6v6H9v-6H3v-1.3l3-5.936V2H4V0h12zM8 7.236 5.618 12h8.764L12 7.236V2H8z"/>';
+  var A4 = '<path d="M10 1a8.98 8.98 0 016.999 3.343L17 2h2v5l-1 1h-5l-.001-2h2.746a7 7 0 101.184 5h2.016A9 9 0 1110 1"/>';
+  var y3 = '<path d="M10 0a3 3 0 013 3v1h5v2h-2v14H4V6H2V4h5V3a3 3 0 013-3M6 18h8V6H6zm4-16a1 1 0 00-1 1v1h2V3a1 1 0 00-1-1"/>';
+  var Z3 = '<path d="m12.009 13.695.002 1.388-4.694 4.88-1.441-1.385 3.065-3.188H0v-2h8.933l-3.057-3.164 1.438-1.39zm2.115-12.219L11.067 4.64H20v2h-8.941l3.065 3.188-1.441 1.386-4.694-4.881.002-1.388 4.694-4.86 1.439 1.39Z"/>';
+  var E3 = '<path d="M12 11a6 6 0 016 6v2H2v-2a6 6 0 016-6z"/><circle cx="10" cy="5" r="4"/>';
+  var O3 = '<path d="M12 11a6 6 0 016 6v2H2v-2a6 6 0 016-6zm-4 2a4 4 0 00-4 4h12a4 4 0 00-4-4zm2-12a4 4 0 110 8 4 4 0 010-8m0 2a2 2 0 100 4 2 2 0 000-4"/>';
+  var n5 = '<path d="M1 3h18v2H1zm0 6h7v2H1zm0 6h8v2H1zm15-4.75h3v1l-2.2 1.5L18 16.5h-1.2l-2.3-1.9-2.3 1.9H11l1.2-3.75-2.2-1.5v-1h3L14 7h1z"/>';
+  var H5 = p;
+  var g5 = I;
+  var w5 = E;
+  var J5 = d1;
+  var c6 = M1;
   var h6 = i1;
-  var t6 = m1;
-  var a6 = g1;
-  var o6 = L1;
-  var s6 = {
-    ltr: u1,
+  var a6 = m1;
+  var o6 = g1;
+  var l6 = L1;
+  var s6 = x1;
+  var v6 = {
+    ltr: I1,
     shouldFlip: true
   };
-  var V6 = S1;
-  var y6 = O1;
-  var k6 = {
-    ltr: Q1,
+  var i6 = q1;
+  var L6 = Z1;
+  var F6 = N1;
+  var f6 = {
+    ltr: K1,
     shouldFlip: true
   };
-  var O6 = {
-    ltr: n0,
+  var G6 = {
+    ltr: v0,
     shouldFlip: true,
     shouldFlipExceptions: ["he", "yi"]
   };
-  var H7 = {
-    ltr: P0,
+  var i7 = {
+    ltr: E0,
     shouldFlip: true
   };
-  var g7 = {
-    ltr: K0,
+  var u7 = {
+    ltr: J0,
     shouldFlip: true
   };
-  var f8 = {
-    ltr: l4,
-    shouldFlip: true
-  };
-  var S8 = {
+  var F7 = $0;
+  var B8 = {
     ltr: s4,
     shouldFlip: true
   };
-  var W8 = H4;
-  var K8 = I4;
-  var Q9 = I3;
-  var tc = {
-    ltr: T3,
+  var T8 = {
+    ltr: n4,
     shouldFlip: true
   };
-  var vc = R3;
-  var dc = P3;
-  var Cc = {
-    ltr: l5,
+  var P8 = V4;
+  var X8 = A4;
+  var X9 = y3;
+  var sc = {
+    ltr: Z3,
+    shouldFlip: true
+  };
+  var rc = E3;
+  var Hc = O3;
+  var fc = {
+    ltr: n5,
     shouldFlip: true
   };
 
@@ -704,28 +736,19 @@ ${body}` : body;
     { label: "Unwatch", value: "unwatch" }
   ];
   var WatchOptions = ["preferences", "watch", "nochange", "unwatch"];
-  var DefaultLinkRowData = {
-    analyser: false,
-    timeline: false,
-    timecard: false,
-    pages: false,
-    summary: false,
-    cuwiki: false,
-    interleaved: false
-  };
   var SockpuppetTagStatuses = {
-    blocked: { label: "Suspected", icon: O6 },
-    proven: { label: "Proven", icon: _5 },
-    confirmed: { label: "Confirmed", icon: $5 }
+    blocked: { label: "Suspected", icon: G6 },
+    proven: { label: "Proven", icon: c6 },
+    confirmed: { label: "Confirmed", icon: h6 }
   };
   var SockmasterTagStatuses = {
-    blocked: { label: "Blocked", icon: U5 },
-    confirmed: { label: "Confirmed", icon: $5 },
-    banned: { label: "3X Banned", icon: Q5 }
+    blocked: { label: "Blocked", icon: w5 },
+    confirmed: { label: "Confirmed", icon: h6 },
+    banned: { label: "3X Banned", icon: J5 }
   };
   var AltmasterTagStatuses = {
-    suspected: { label: "Suspected", icon: O6 },
-    proven: { label: "Proven", icon: _5 }
+    suspected: { label: "Suspected", icon: G6 },
+    proven: { label: "Proven", icon: c6 }
   };
   // src/ui/messages.ts
   var DISMISS_FADE_MS = 250;
@@ -1488,6 +1511,19 @@ ${body}` : body;
     }
     return members;
   }
+  async function spiHelperSearch(query, limit) {
+    const api = spiHelperGetAPI();
+    const request = {
+      action: "query",
+      list: "search",
+      srsearch: query,
+      srlimit: limit,
+      srprop: ["snippet"],
+      formatversion: "2"
+    };
+    const response = await api.get(request);
+    return response.query.search.map(({ title, snippet }) => ({ title, snippet }));
+  }
   function postReadOnly(api, request) {
     return api.post(request, { headers: { "Promise-Non-Write-API-Action": "true" } });
   }
@@ -1778,6 +1814,23 @@ ${body}` : body;
       return null;
     }
   }
+  function isPlainObject(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+  function mergeOptions(target, saved) {
+    const targetRecord = target;
+    for (const [key, value] of Object.entries(saved)) {
+      if (key === "__proto__") {
+        continue;
+      }
+      const current = targetRecord[key];
+      if (isPlainObject(current) && isPlainObject(value)) {
+        mergeOptions(current, value);
+      } else {
+        targetRecord[key] = value;
+      }
+    }
+  }
   async function migrateOptions() {
     mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "migrate" });
     try {
@@ -1897,6 +1950,107 @@ ${body}` : body;
     </cdx-field>
   `
   });
+  // src/links.ts
+  var customLinkToolPrefix = "custom-";
+  var casePlaceholder = "{case}";
+  function linkToolNeedsCase(tool) {
+    return tool.url.includes(casePlaceholder);
+  }
+  function buildBaseUrl(tool, caseName) {
+    let url;
+    try {
+      url = new URL(tool.url.replaceAll(casePlaceholder, encodeURIComponent(caseName)));
+    } catch {
+      return null;
+    }
+    return url.protocol === "https:" ? url : null;
+  }
+  function linkToolProblem(tool) {
+    if (!tool.label.trim()) {
+      return "The tool is missing a label";
+    }
+    if (buildBaseUrl(tool, "Example") === null) {
+      return "The URL must be a full https:// address";
+    }
+    if (!tool.userParam.trim()) {
+      return "Name the query parameter the usernames go in";
+    }
+    return null;
+  }
+  function getLinkTools(tools) {
+    return tools.filter((tool) => tool.enabled && linkToolProblem(tool) === null);
+  }
+  var builtinsById = new Map(spiHelperBuiltinLinkTools.map((tool) => [tool.id, tool]));
+  function isBuiltinLinkTool(tool) {
+    return builtinsById.has(tool.id);
+  }
+  var definitionFields = ["label", "url", "userParam", "separator", "wrapper", "repeatParam"];
+  function differsFromBuiltin(tool) {
+    const builtin = builtinsById.get(tool.id);
+    return builtin !== undefined && definitionFields.some((field) => tool[field] !== builtin[field]);
+  }
+  function markEditedLinkTools(tools) {
+    return tools.map((tool) => {
+      if (!isBuiltinLinkTool(tool)) {
+        return tool;
+      }
+      const edited = differsFromBuiltin(tool);
+      if (edited === Boolean(tool.edited)) {
+        return tool;
+      }
+      if (edited) {
+        return { ...tool, edited: true };
+      }
+      const unedited = { ...tool };
+      delete unedited.edited;
+      return unedited;
+    });
+  }
+  function reconcileLinkTools(saved) {
+    const tools = (Array.isArray(saved) ? saved : []).filter((tool) => typeof tool?.id === "string");
+    const seen = new Set;
+    const result = [];
+    for (const tool of tools) {
+      if (seen.has(tool.id)) {
+        continue;
+      }
+      seen.add(tool.id);
+      const builtin = builtinsById.get(tool.id);
+      if (builtin && !tool.edited) {
+        result.push({ ...builtin, enabled: tool.enabled });
+      } else if (builtin || tool.edited || tool.id.startsWith(customLinkToolPrefix)) {
+        result.push(tool);
+      }
+    }
+    for (const builtin of spiHelperBuiltinLinkTools) {
+      if (!seen.has(builtin.id)) {
+        result.push({ ...builtin });
+      }
+    }
+    return result;
+  }
+  function restoreBuiltinLinkTools(tools) {
+    return reconcileLinkTools(tools.map((tool) => isBuiltinLinkTool(tool) ? { ...tool, edited: false } : tool));
+  }
+  function buildLinkToolUrl(tool, caseName, usernames) {
+    if (linkToolNeedsCase(tool) && !caseName) {
+      return null;
+    }
+    const url = buildBaseUrl(tool, caseName);
+    if (!url) {
+      return null;
+    }
+    const wrapped = usernames.map((username) => tool.wrapper + username + tool.wrapper);
+    if (tool.repeatParam) {
+      for (const username of wrapped) {
+        url.searchParams.append(tool.userParam, username);
+      }
+    } else {
+      url.searchParams.set(tool.userParam, wrapped.join(tool.separator));
+    }
+    return url;
+  }
+
   // src/template.ts
   function findTemplateSpans(templateName, text) {
     const namePattern = templateName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/[\s_]+/g, "[\\s_]+");
@@ -2288,7 +2442,7 @@ ${body}` : body;
       id,
       username: "",
       block: setupDefaultBlockRowData(),
-      link: { ...DefaultLinkRowData }
+      link: {}
     };
     if (tableRowIdentifier) {
       newRow[tableRowIdentifier] = id;
@@ -2426,20 +2580,23 @@ ${body}` : body;
         showExtraHandler: null,
         logPrefix,
         caseActionMenuItems,
+        expandedLinkTool: null,
         selectedChipItems: spiHelperSettings.defaultActions,
         icons: {
-          cdxIconAdd: z5,
-          cdxIconArrowDown: i5,
-          cdxIconClock: h6,
-          cdxIconClose: t6,
-          cdxIconCode: a6,
-          cdxIconFeedback: k6,
-          cdxIconJournal: H7,
-          cdxIconLayout: g7,
-          cdxIconPalette: f8,
-          cdxIconReload: K8,
-          cdxIconTrash: Q9,
-          cdxIconWatchlist: Cc
+          cdxIconAdd: H5,
+          cdxIconArrowDown: g5,
+          cdxIconClock: a6,
+          cdxIconClose: o6,
+          cdxIconCode: l6,
+          cdxIconEdit: L6,
+          cdxIconFeedback: f6,
+          cdxIconJournal: i7,
+          cdxIconLink: F7,
+          cdxIconLayout: u7,
+          cdxIconPalette: B8,
+          cdxIconReload: X8,
+          cdxIconTrash: X9,
+          cdxIconWatchlist: fc
         },
         instanceSettings: structuredClone(spiHelperSettings),
         oldSettings: structuredClone(spiHelperSettings),
@@ -2447,6 +2604,9 @@ ${body}` : body;
       };
     },
     computed: {
+      hasEditedBuiltins() {
+        return this.instanceSettings.linkTools.some((tool) => differsFromBuiltin(tool));
+      },
       logPage() {
         return `${mw.config.get("wgServer")}/wiki/${getFullLogPage(spiHelperSettings.log.page)}`;
       },
@@ -2474,6 +2634,7 @@ ${body}` : body;
             window.addEventListener("keydown", this.showExtraHandler);
           }
         } else {
+          this.instanceSettings.linkTools = markEditedLinkTools(toRaw(this.instanceSettings.linkTools));
           const currentSettingsJson = JSON.stringify(this.instanceSettings);
           const settingsDiffer = JSON.stringify(this.oldSettings) !== currentSettingsJson;
           if (settingsDiffer) {
@@ -2538,9 +2699,44 @@ ${body}` : body;
     },
     methods: {
       isMenuGroupData,
+      linkToolProblem,
+      isBuiltinLinkTool,
+      linkToolSummary(tool) {
+        let host = "";
+        try {
+          host = new URL(tool.url).host;
+        } catch {}
+        return differsFromBuiltin(tool) ? `${host} (edited)` : host;
+      },
+      linkToolPreview(tool) {
+        if (linkToolProblem(tool)) {
+          return null;
+        }
+        const url = buildLinkToolUrl(tool, "Master", ["Sock1", "Sock2"]);
+        return url ? { href: url.href, text: decodeURI(url.href) } : null;
+      },
+      toggleLinkToolEditor(tool) {
+        this.expandedLinkTool = this.expandedLinkTool === tool.id ? null : tool.id;
+      },
+      addLinkTool() {
+        const id = `${customLinkToolPrefix}${crypto.randomUUID()}`;
+        this.instanceSettings.linkTools.push({
+          id,
+          enabled: true,
+          label: "",
+          url: "",
+          userParam: "",
+          separator: "|",
+          wrapper: "",
+          repeatParam: false
+        });
+        this.expandedLinkTool = id;
+      },
+      restoreBuiltinLinkTools() {
+        this.instanceSettings.linkTools = restoreBuiltinLinkTools(toRaw(this.instanceSettings.linkTools));
+      },
       loadDefaults() {
         this.instanceSettings = JSON.parse(JSON.stringify(spiHelperDefaultSettings));
-        Object.assign(spiHelperSettings, spiHelperDefaultSettings);
         this.resetTrigger++;
       },
       launchFeedback() {
@@ -2653,9 +2849,8 @@ ${body}` : body;
                         :reset-trigger="resetTrigger" />
       </cdx-accordion>
       <cdx-accordion :action-icon="icons.cdxIconPalette" :action-always-visible="true">
-        <template #title>Customisation</template>
+        <template #title>Comment templates</template>
         <div>
-          <h3 style="padding-top: 0;">Comment templates</h3>
           <div class="spiHelper-template-container">
             <div v-for="(entry, i) in instanceSettings.custom.commentTemplates" :key="i" class="spiHelper-template">
               <div v-if="isMenuGroupData(entry)">
@@ -2711,6 +2906,81 @@ ${body}` : body;
         <cdx-button @click="addTemplateEntry('group')" action="progressive">
           <cdx-icon :icon="icons.cdxIconAdd" />
           Add group
+        </cdx-button>
+      </cdx-accordion>
+      <cdx-accordion :action-icon="icons.cdxIconLink" :action-always-visible="true">
+        <template #title>Links</template>
+        <p>
+          The columns of the Generate Links action, ordered. Some tools are managed by the script; you
+          can still edit them, but pressing "restore" will undo their edits and load the latest defaults.
+        </p>
+        <div class="spiHelper-template-container">
+          <div v-for="(tool, i) in instanceSettings.linkTools" :key="tool.id" class="spiHelper-template">
+            <div class="spiHelper-template-input spiHelper-linkTool-header">
+              <cdx-toggle-switch v-model="tool.enabled" :align-switch="true" class="spiHelper-linkTool-switch">
+                {{ tool.label || 'Untitled tool' }}
+                <template #description>{{ linkToolSummary(tool) }}</template>
+              </cdx-toggle-switch>
+              <cdx-button @click="toggleLinkToolEditor(tool)" :aria-label="'Edit ' + tool.label"
+                          :aria-expanded="expandedLinkTool === tool.id"
+                          :action="expandedLinkTool === tool.id ? 'progressive' : 'default'">
+                <cdx-icon :icon="icons.cdxIconEdit" />
+              </cdx-button>
+              <cdx-button @click="moveDown(instanceSettings.linkTools, i)" aria-label="Move tool down"
+                          :disabled="instanceSettings.linkTools.length <= i + 1">
+                <cdx-icon :icon="icons.cdxIconArrowDown" />
+              </cdx-button>
+              <cdx-button v-if="!isBuiltinLinkTool(tool)" @click="instanceSettings.linkTools.splice(i, 1)"
+                          action="destructive" aria-label="Delete tool">
+                <cdx-icon :icon="icons.cdxIconTrash" />
+              </cdx-button>
+            </div>
+            <div v-if="expandedLinkTool === tool.id" class="spiHelper-template-group-item">
+              <div class="spiHelper-template-input spiHelper-linkTool-fields">
+                <cdx-field>
+                  <template #label>Label</template>
+                  <cdx-text-input v-model="tool.label" />
+                </cdx-field>
+                <cdx-field class="spiHelper-linkTool-url">
+                  <template #label>URL</template>
+                  <cdx-text-input v-model="tool.url" placeholder="https://example.toolforge.org/{case}" />
+                </cdx-field>
+              </div>
+              <div class="spiHelper-template-input spiHelper-linkTool-fields">
+                <cdx-field>
+                  <template #label>Parameter</template>
+                  <cdx-text-input v-model="tool.userParam" />
+                </cdx-field>
+                <cdx-field :disabled="tool.repeatParam">
+                  <template #label>Separator</template>
+                  <cdx-text-input v-model="tool.separator" />
+                </cdx-field>
+                <cdx-field>
+                  <template #label>Wrapper</template>
+                  <cdx-text-input v-model="tool.wrapper" />
+                </cdx-field>
+              </div>
+              <cdx-toggle-switch v-model="tool.repeatParam" class="spiHelper-linkTool-repeat">
+                Repeat the parameter for each user
+              </cdx-toggle-switch>
+              <p v-if="linkToolPreview(tool)" class="spiHelper-linkTool-preview">
+                <a :href="linkToolPreview(tool)?.href" target="_blank" rel="noopener">
+                  {{ linkToolPreview(tool)?.text }}
+                </a>
+              </p>
+            </div>
+            <cdx-message v-if="linkToolProblem(tool)" type="error" :inline="true">
+              {{ linkToolProblem(tool) }}
+            </cdx-message>
+          </div>
+        </div>
+        <cdx-button @click="addLinkTool" action="progressive">
+          <cdx-icon :icon="icons.cdxIconAdd" />
+          Add tool
+        </cdx-button>
+        <cdx-button @click="restoreBuiltinLinkTools" :disabled="!hasEditedBuiltins">
+          <cdx-icon :icon="icons.cdxIconReload" />
+          Restore built-ins
         </cdx-button>
       </cdx-accordion>
       <cdx-accordion :action-icon="icons.cdxIconCode" :action-always-visible="true" v-if="showExtra">
@@ -3221,6 +3491,142 @@ ${body}` : body;
       return quoted ? [{ quoted, reason: unfulfilledText }] : [];
     });
   }
+  // src/ui/views/top/utils/mentions.ts
+  var SPI_PREFIX = "Wikipedia:Sockpuppet investigations/";
+  var PREFIX_FILTER = ` prefix:${SPI_PREFIX}`;
+  var MAX_QUERY_LENGTH = 300;
+  var RESULTS_PER_QUERY = 50;
+  var MAX_CASES_PER_USER = 10;
+  var WORD_CHARS = "\\p{L}\\p{M}\\p{N}";
+  var WORD_REGEX = new RegExp(`[${WORD_CHARS}]+`, "gu");
+  function caseNameOf(title) {
+    return title.slice(SPI_PREFIX.length).replace(/\/Archive(\/.*)?$/, "");
+  }
+  function isArchive(title) {
+    return /\/Archive(\/|$)/.test(title);
+  }
+  function countCases(mentions) {
+    return new Set(mentions.map((mention) => mention.caseName)).size;
+  }
+  function buildMentionQueries(usernames) {
+    const queries = [];
+    let phrases = [];
+    for (const username of usernames) {
+      const phrase = `"${username.replace(/[\\"]/g, "\\$&")}"`;
+      const candidate = [...phrases, phrase].join(" OR ") + PREFIX_FILTER;
+      if (phrases.length > 0 && candidate.length > MAX_QUERY_LENGTH) {
+        queries.push(phrases.join(" OR ") + PREFIX_FILTER);
+        phrases = [];
+      }
+      phrases.push(phrase);
+    }
+    if (phrases.length > 0) {
+      queries.push(phrases.join(" OR ") + PREFIX_FILTER);
+    }
+    return queries;
+  }
+  function usernamePattern(username) {
+    const words = username.match(WORD_REGEX);
+    if (!words) {
+      return null;
+    }
+    return new RegExp(`(?<![${WORD_CHARS}])${words.join(`[^${WORD_CHARS}]+`)}(?![${WORD_CHARS}])`, "giu");
+  }
+  function snippetText(snippetHtml) {
+    const doc = new DOMParser().parseFromString(snippetHtml, "text/html");
+    return doc.body.textContent.replace(/\s+/g, " ").trim();
+  }
+  function splitOnMatches(text, pattern) {
+    const segments = [];
+    let end = 0;
+    for (const match of text.matchAll(pattern)) {
+      if (match.index > end) {
+        segments.push({ text: text.slice(end, match.index), isMatch: false });
+      }
+      segments.push({ text: match[0], isMatch: true });
+      end = match.index + match[0].length;
+    }
+    if (segments.length === 0) {
+      return null;
+    }
+    if (end < text.length) {
+      segments.push({ text: text.slice(end), isMatch: false });
+    }
+    return segments;
+  }
+  async function findUserMentions(usernames) {
+    const patterns = new Map;
+    for (const username of usernames) {
+      const pattern = usernamePattern(username);
+      if (pattern) {
+        patterns.set(username, pattern);
+      }
+    }
+    const queries = buildMentionQueries(patterns.keys());
+    const resultSets = await Promise.all(queries.map((query) => spiHelperSearch(query, RESULTS_PER_QUERY)));
+    const mentions = new Map;
+    for (const { title, snippet } of resultSets.flat()) {
+      if (title === context.casePageName || title.startsWith(context.casePageName + "/") || title.startsWith(SPI_PREFIX + "SPI/")) {
+        continue;
+      }
+      const text = snippetText(snippet);
+      for (const [username, pattern] of patterns) {
+        const segments = splitOnMatches(text, pattern);
+        if (!segments) {
+          continue;
+        }
+        const userMentions = mentions.get(username) ?? [];
+        userMentions.push({ title, caseName: caseNameOf(title), snippets: segments });
+        mentions.set(username, userMentions);
+      }
+    }
+    for (const userMentions of mentions.values()) {
+      userMentions.sort((a, b) => Number(isArchive(a.title)) - Number(isArchive(b.title)));
+    }
+    return mentions;
+  }
+  function formatMentionHtml(username, mentions) {
+    const pageLink = (title) => buildTitleLinkHtml(title, title.replace(SPI_PREFIX, ""));
+    const caseCount = countCases(mentions);
+    const [firstMention] = mentions;
+    let where;
+    if (caseCount === 1 && firstMention) {
+      where = buildTitleLinkHtml(SPI_PREFIX + firstMention.caseName, firstMention.caseName);
+    } else if (caseCount > MAX_CASES_PER_USER) {
+      where = `${MAX_CASES_PER_USER}+ SPIs`;
+    } else {
+      where = countOf(caseCount, "SPI");
+    }
+    if (mentions.length !== caseCount) {
+      where += ` (${countOf(mentions.length, "page")})`;
+    }
+    const items = mentions.map(({ title, snippets }) => {
+      const snippetHtml = snippets.map(({ text, isMatch }) => isMatch ? `<b>${mw.html.escape(text)}</b>` : mw.html.escape(text)).join("");
+      return `<li>${pageLink(title)}: …${snippetHtml}…</li>`;
+    }).join("");
+    return `<details><summary>${mw.html.escape(username)} is mentioned in ${where}</summary>` + `<ul>${items}</ul></details>`;
+  }
+  async function showUserMentions(usernames) {
+    let mentions;
+    try {
+      mentions = await findUserMentions(usernames);
+    } catch (error) {
+      console.error("Searching for user mentions failed:", error);
+      new VueMessage({
+        type: "warning",
+        content: "Could not search other cases for mentions of these accounts"
+      }).showOnce();
+      return;
+    }
+    for (const [username, userMentions] of mentions) {
+      new VueMessage({
+        type: "notice",
+        content: formatMentionHtml(username, userMentions),
+        isHtml: true
+      }).showOnce();
+    }
+  }
+
   // src/ui/views/top/utils/section.ts
   var SockListTemplateRegex = /sock ?list/;
   var UserTemplateNameParts = ["ip", "vandal", "user", "noping", "np"];
@@ -3274,6 +3680,9 @@ ${body}` : body;
       (isNonRegisteredAccount(name) ? unregisteredUsernames : registeredUsernames).add(name);
     }
     const validUserPages = [...registeredUsernames].map((name) => `User:${name}`);
+    if (newUsernames.size > 0) {
+      showUserMentions(newUsernames);
+    }
     const lookups = await Promise.all([
       spiHelperGetBulkUserBlockSettings(newUsernames),
       spiHelperGetBulkPageText(validUserPages),
@@ -5815,10 +6224,10 @@ ${heading}`);
         sectionClickCleanup: null,
         multiSelectMode: false,
         icons: {
-          cdxIconPushPin: W8,
-          cdxIconCollapse: o6,
-          cdxIconExpand: y6,
-          cdxIconFeedback: k6
+          cdxIconPushPin: P8,
+          cdxIconCollapse: s6,
+          cdxIconExpand: F6,
+          cdxIconFeedback: f6
         }
       };
     },
@@ -6545,11 +6954,11 @@ ${heading}`);
         isCheckuser,
         isClerk,
         popovers,
-        cdxIconCopy: s6,
-        cdxIconDownload: V6,
-        cdxIconTrash: Q9,
-        cdxIconUserAvatar: vc,
-        cdxIconUserAvatarOutline: dc,
+        cdxIconCopy: v6,
+        cdxIconDownload: i6,
+        cdxIconTrash: X9,
+        cdxIconUserAvatar: rc,
+        cdxIconUserAvatarOutline: Hc,
         spiHelperPaginationSizeOptions
       };
     },
@@ -7046,7 +7455,7 @@ ${heading}`);
         loadingPreview: false,
         htmlPreview: "",
         fullPreview: spiHelperSettings.interface.fullPreview,
-        cdxIconReload: K8
+        cdxIconReload: X8
       };
     },
     computed: {
@@ -7244,28 +7653,25 @@ ${heading}`);
     },
     emits: ["update:modelValue", "removeRows", "addRow", "userSelected", "usernameChanged"],
     data() {
-      const columns = [
-        { id: "username", label: "Username" },
-        { id: "analyser", label: "Interaction Analyser" },
-        { id: "timeline", label: "Timeline" },
-        { id: "timecard", label: "Timecard" },
-        { id: "pages", label: "Pages" },
-        { id: "summary", label: "Summaries" },
-        { id: "cuwiki", label: "CU wiki" },
-        { id: "interleaved", label: "Interleaved" }
-      ];
-      const optionColumns = columns.slice(1);
       const selectedRows = [];
       return {
-        columns,
-        optionColumns,
+        linkTools: getLinkTools(spiHelperSettings.linkTools),
         selectedRows,
-        cdxIconAdd: z5,
-        cdxIconTrash: Q9,
+        cdxIconAdd: H5,
+        cdxIconTrash: X9,
         spiHelperPaginationSizeOptions
       };
     },
     computed: {
+      optionColumns() {
+        return this.linkTools.filter((tool) => this.caseName || !linkToolNeedsCase(tool)).map((tool) => ({ id: tool.id, label: tool.label, slot: `item-${tool.id}`, tool }));
+      },
+      columns() {
+        return [
+          { id: "username", label: "Username" },
+          ...this.optionColumns.map(({ id, label }) => ({ id, label }))
+        ];
+      },
       paginate() {
         return this.accounts.length > spiHelperPaginationThreshold;
       },
@@ -7291,43 +7697,23 @@ ${heading}`);
         return state;
       },
       allColumnsChecked() {
-        return this.accounts.length > 0 && this.optionColumns.every((k) => this.columnState[k.id].checked);
+        return this.accounts.length > 0 && this.optionColumns.every((k) => this.columnState[k.id]?.checked);
       },
       allColumnsIndeterminate() {
-        const checkedCount = this.optionColumns.filter((k) => this.columnState[k.id].checked).length;
+        const checkedCount = this.optionColumns.filter((k) => this.columnState[k.id]?.checked).length;
         return checkedCount > 0 && checkedCount < this.optionColumns.length;
       },
       linkItems() {
         const result = {};
         for (const linkColumn of this.optionColumns) {
-          const linkFormat = this.getLinkFormat(linkColumn.id);
-          if (linkFormat === null) {
-            console.error("Couldn't find link format for", linkColumn.id);
-            continue;
-          }
-          const resultUrl = linkFormat.baseUrl(this.caseName);
-          if (linkFormat.startingParams) {
-            for (const [key, value] of linkFormat.startingParams) {
-              resultUrl.searchParams.set(key, value);
-            }
-          }
-          const includedUsers = this.accounts.reduce((accumulator, row) => {
-            if (row.link[linkColumn.id]) {
-              accumulator.push(linkFormat.userQueryStringWrapper + row.username + linkFormat.userQueryStringWrapper);
-            }
-            return accumulator;
-          }, []);
+          const includedUsers = this.accounts.filter((row) => row.link[linkColumn.id]).map((row) => row.username);
           if (includedUsers.length === 0) {
             continue;
           }
-          if (linkFormat.multipleUserQueryStringKeys) {
-            for (const username of includedUsers) {
-              resultUrl.searchParams.append(linkFormat.userQueryStringKey, username);
-            }
-          } else {
-            resultUrl.searchParams.set(linkFormat.userQueryStringKey, includedUsers.join(linkFormat.userQueryStringSeparator));
+          const resultUrl = buildLinkToolUrl(linkColumn.tool, this.caseName, includedUsers);
+          if (resultUrl) {
+            result[linkColumn.id] = { url: resultUrl, label: linkColumn.label };
           }
-          result[linkColumn.id] = { url: resultUrl, label: linkColumn.label };
         }
         return result;
       },
@@ -7392,26 +7778,6 @@ ${heading}`);
       toggleRow(row, value) {
         for (const col of this.optionColumns) {
           row.link[col.id] = value;
-        }
-      },
-      getLinkFormat(columnId) {
-        switch (columnId) {
-          case "analyser":
-            return spiHelperLinkViewURLFormats.editorInteractionAnalyser;
-          case "cuwiki":
-            return spiHelperLinkViewURLFormats.checkUserWikiSearch;
-          case "interleaved":
-            return spiHelperLinkViewURLFormats.interleaved;
-          case "pages":
-            return spiHelperLinkViewURLFormats.sandals.pages;
-          case "summary":
-            return spiHelperLinkViewURLFormats.sandals.summaries;
-          case "timecard":
-            return spiHelperLinkViewURLFormats.sandals.timecard;
-          case "timeline":
-            return spiHelperLinkViewURLFormats.sandals.consolidatedTimeline;
-          default:
-            return null;
         }
       }
     },
@@ -7478,26 +7844,8 @@ ${heading}`);
         <user-lookup v-model="row.username" @user-selected="handleUserSelected($event, row)" />
       </template>
 
-      <template #item-analyser="{ item, row }">
-        <cdx-checkbox :hide-label="true" v-model="row.link.analyser">Editor interaction analyser</cdx-checkbox>
-      </template>
-      <template #item-timeline="{ item, row }">
-        <cdx-checkbox :hide-label="true" v-model="row.link.timeline">Consolidated timeline</cdx-checkbox>
-      </template>
-      <template #item-timecard="{ item, row }">
-        <cdx-checkbox :hide-label="true" v-model="row.link.timecard">Timecard</cdx-checkbox>
-      </template>
-      <template #item-pages="{ item, row }">
-        <cdx-checkbox :hide-label="true" v-model="row.link.pages">Pages</cdx-checkbox>
-      </template>
-      <template #item-summary="{ item, row }">
-        <cdx-checkbox :hide-label="true" v-model="row.link.summary">Summaries</cdx-checkbox>
-      </template>
-      <template #item-cuwiki="{ item, row }">
-        <cdx-checkbox :hide-label="true" v-model="row.link.cuwiki">CheckUser wiki</cdx-checkbox>
-      </template>
-      <template #item-interleaved="{ item, row }">
-        <cdx-checkbox :hide-label="true" v-model="row.link.interleaved">Interleaved</cdx-checkbox>
+      <template v-for="column in optionColumns" :key="column.id" #[column.slot]="{ row }">
+        <cdx-checkbox :hide-label="true" v-model="row.link[column.id]">{{ column.label }}</cdx-checkbox>
       </template>
     </cdx-table>
     <ul>
@@ -8158,7 +8506,7 @@ ${heading}`);
           continueAction
         },
         submitElement: null,
-        cdxIconUpdate: tc
+        cdxIconUpdate: sc
       };
     },
     computed: {
@@ -8371,16 +8719,16 @@ ${heading}`);
         altmaster: "none"
       };
       const tagCategoryButtons = [
-        { value: "sock", label: "Sockpuppet", icon: dc },
-        { value: "master", label: "Sockmaster", icon: vc }
+        { value: "sock", label: "Sockpuppet", icon: Hc },
+        { value: "master", label: "Sockmaster", icon: rc }
       ];
       const temporaryTag = null;
       const originalTag = null;
       const icons = {
-        cdxIconAdd: z5,
-        cdxIconCopy: s6,
-        cdxIconPaste: S8,
-        cdxIconTrash: Q9
+        cdxIconAdd: H5,
+        cdxIconCopy: v6,
+        cdxIconPaste: T8,
+        cdxIconTrash: X9
       };
       return {
         sockTags,
@@ -8608,8 +8956,8 @@ ${heading}`);
         actionsRunning: false,
         unpinned: !spiHelperSettings.interface.pinned,
         messages,
-        cdxIconFeedback: k6,
-        cdxIconPushPin: W8
+        cdxIconFeedback: f6,
+        cdxIconPushPin: P8
       };
     },
     computed: {
@@ -9128,7 +9476,8 @@ ${heading}`);
       }
       const loadedOptions = loadOptions();
       if (loadedOptions) {
-        Object.assign(spiHelperSettings, loadedOptions);
+        mergeOptions(spiHelperSettings, loadedOptions);
+        spiHelperSettings.linkTools = reconcileLinkTools(spiHelperSettings.linkTools);
       } else {
         (async () => {
           await migrateOptions();

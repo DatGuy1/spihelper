@@ -1,5 +1,5 @@
 /* {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.css}} */
-/* v3.4.0 */
+/* v3.4.1 */
 /* src/spihelper.css */
 .spiHelper-section-open {
   background-color: var(--background-color-progressive-subtle, #eaf3ff);
@@ -287,6 +287,33 @@
 #spiHelper-opts-dialog .spiHelper-template-container .spiHelper-template-input > .cdx-text-input {
   flex-grow: 1;
   width: 0;
+}
+
+#spiHelper-opts-dialog .spiHelper-template-container .spiHelper-template-input > .cdx-field.spiHelper-linkTool-url {
+  flex-grow: 3;
+}
+
+#spiHelper-opts-dialog .spiHelper-template-container .spiHelper-linkTool-fields {
+  gap: 8px;
+}
+
+#spiHelper-opts-dialog .spiHelper-template-container .spiHelper-linkTool-header {
+  align-items:  center;
+}
+
+#spiHelper-opts-dialog .spiHelper-template-container .spiHelper-linkTool-switch {
+  margin-bottom: 0;
+  flex-grow: 1;
+  margin-inline-end: 12px;
+}
+
+#spiHelper-opts-dialog .spiHelper-template-container .spiHelper-linkTool-repeat {
+  margin-top: 12px;
+}
+
+#spiHelper-opts-dialog .spiHelper-template-container .spiHelper-linkTool-preview {
+  overflow-wrap: anywhere;
+  margin: 4px 0 0;
 }
 
 .spiHelper-submitForm {
