@@ -3,8 +3,9 @@ import type { SearchResult } from '../../../../../src/types';
 import { stubApi } from '../../../../fixtures/api.ts';
 
 const mockSearch = mock((_query: string, _limit: number) => Promise.resolve<SearchResult[]>([]));
+const mockGetPageRev = mock((_title: string) => Promise.resolve(0));
 
-await stubApi({ spiHelperSearch: mockSearch });
+await stubApi({ spiHelperSearch: mockSearch, spiHelperGetPageRev: mockGetPageRev });
 
 const {
   buildMentionQueries,
@@ -47,6 +48,7 @@ const SEARCH_RESULTS: SearchResult[] = [
 beforeEach(() => {
   contextModule.setContext(SPI + 'AngieWigger');
   mockSearch.mockReset().mockResolvedValue([]);
+  mockGetPageRev.mockReset().mockResolvedValue(0);
 });
 
 afterEach(() => {
@@ -172,6 +174,66 @@ describe('findUserMentions', () => {
 
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toBe('search down');
+  });
+
+  describe('the master', () => {
+    // The current case is AngieWigger, mentioned in an open case and in another's archive
+    const MASTER_RESULTS: SearchResult[] = [
+      {
+        title: SPI + 'Kestrel',
+        snippet: `possibly ${match('AngieWigger')} again, and ${match('Fox')} ${match('Boise')}`,
+      },
+      {
+        title: SPI + 'BellaEditor/Archive',
+        snippet: `${match('AngieWigger')} and ${match('Fox')} ${match('Boise')} share a range`,
+      },
+    ];
+    const titles = (mentions: Map<string, { title: string }[]>, username: string) =>
+      mentions.get(username)?.map(mention => mention.title);
+
+    test('of a returning case is left out of other cases\' archives', async () => {
+      mockGetPageRev.mockResolvedValue(12345);
+      mockSearch.mockResolvedValue(MASTER_RESULTS);
+
+      const mentions = await findUserMentions(new Set(['AngieWigger', 'Fox Boise']));
+
+      expect(mockGetPageRev).toHaveBeenCalledWith(SPI + 'AngieWigger/Archive');
+      expect(titles(mentions, 'AngieWigger')).toEqual([SPI + 'Kestrel']);
+      expect(titles(mentions, 'Fox Boise')).toEqual([SPI + 'Kestrel', SPI + 'BellaEditor/Archive']);
+    });
+
+    test('of a returning case mentioned only in archives is left out entirely', async () => {
+      mockGetPageRev.mockResolvedValue(12345);
+      mockSearch.mockResolvedValue(MASTER_RESULTS.slice(1));
+
+      const mentions = await findUserMentions(new Set(['AngieWigger']));
+
+      expect(mentions.has('AngieWigger')).toBe(false);
+    });
+
+    test('of a new case keeps other cases\' archives', async () => {
+      mockSearch.mockResolvedValue(MASTER_RESULTS);
+
+      const mentions = await findUserMentions(new Set(['AngieWigger']));
+
+      expect(titles(mentions, 'AngieWigger')).toEqual([SPI + 'Kestrel', SPI + 'BellaEditor/Archive']);
+    });
+
+    test('counts as returning without a lookup when viewing the archive', async () => {
+      contextModule.setContext(SPI + 'AngieWigger/Archive');
+      mockSearch.mockResolvedValue(MASTER_RESULTS);
+
+      const mentions = await findUserMentions(new Set(['AngieWigger']));
+
+      expect(mockGetPageRev).not.toHaveBeenCalled();
+      expect(titles(mentions, 'AngieWigger')).toEqual([SPI + 'Kestrel']);
+    });
+
+    test('is not looked up when it is not among the users searched', async () => {
+      await findUserMentions(new Set(['Fox Boise']));
+
+      expect(mockGetPageRev).not.toHaveBeenCalled();
+    });
   });
 });
 

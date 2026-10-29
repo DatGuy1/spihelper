@@ -1,4 +1,4 @@
-import { spiHelperSearch } from '../../../../api.ts';
+import { spiHelperGetPageRev, spiHelperSearch } from '../../../../api.ts';
 import { context } from '../../../../context.ts';
 import { buildTitleLinkHtml, countOf } from '../../../../utils.ts';
 import { VueMessage } from '../../../messages.ts';
@@ -33,6 +33,15 @@ function caseNameOf(title: string): string {
 
 function isArchive(title: string): boolean {
   return /\/Archive(\/|$)/.test(title);
+}
+
+/** Whether this case has been archived before, false if the lookup fails */
+async function caseHasArchive(): Promise<boolean> {
+  if (context.isArchive) {
+    return true;
+  }
+  // 0 is a missing page, but also a failed lookup
+  return await spiHelperGetPageRev(context.casePageName + '/Archive') !== 0;
 }
 
 function countCases(mentions: UserMention[]): number {
@@ -107,7 +116,8 @@ function splitOnMatches(text: string, pattern: RegExp): SnippetSegment[] | null 
  *
  * One OR'd search covers many users, so which of them a page matched is read back off its
  * snippet. CirrusSearch picks the fragment with the most matches, but a page that names two
- * users far apart can show only one, and the other misses that page
+ * users far apart can show only one, and the other misses that page.
+ * A returning case's master is left out of other cases' archives.
  *
  * @param usernames Usernames to search for
  * @returns Each mentioned user's pages, open cases before archives, with the snippet split
@@ -127,9 +137,11 @@ export async function findUserMentions(
 
   // A name with no pattern could never be matched to a result, so isn't worth searching for
   const queries = buildMentionQueries(patterns.keys());
-  const resultSets = await Promise.all(
-    queries.map(query => spiHelperSearch(query, RESULTS_PER_QUERY)),
-  );
+  const [resultSets, isReturningCase] = await Promise.all([
+    Promise.all(queries.map(query => spiHelperSearch(query, RESULTS_PER_QUERY))),
+    // Only the master's mentions depend on it, so don't look it up for a list without them
+    patterns.has(context.userName) && caseHasArchive(),
+  ]);
 
   const mentions = new Map<string, UserMention[]>();
   for (const { title, snippet } of resultSets.flat()) {
@@ -140,6 +152,9 @@ export async function findUserMentions(
     }
     const text = snippetText(snippet);
     for (const [username, pattern] of patterns) {
+      if (isReturningCase && username === context.userName && isArchive(title)) {
+        continue;
+      }
       const segments = splitOnMatches(text, pattern);
       if (!segments) {
         continue;

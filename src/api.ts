@@ -1188,7 +1188,7 @@ export async function spiHelperSearch(query: string, limit: number): Promise<Sea
     srprop: ['snippet'],
     formatversion: '2',
   };
-  const response = await api.get(request) as SearchResponse;
+  const response = await postReadOnly(api, request) as SearchResponse;
   return response.query.search.map(({ title, snippet }) => ({ title, snippet }));
 }
 
