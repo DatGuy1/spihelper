@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { SearchResult } from '../../../../../src/types';
 import { stubApi } from '../../../../fixtures/api.ts';
 
-const mockSearch = mock((_query: string) => Promise.resolve<SearchResult[]>([]));
+const mockSearch = mock((_query: string, _limit: number) => Promise.resolve<SearchResult[]>([]));
 
 await stubApi({ spiHelperSearch: mockSearch });
 
@@ -90,10 +90,10 @@ describe('findUserMentions', () => {
     const titles = (username: string) => mentions.get(username)?.map(mention => mention.title);
     expect(titles('Rick Lay')).toEqual([SPI + 'BellaEditor']);
     expect(titles('Lee Hazz')).toEqual([SPI + 'BellaEditor']);
-    expect(titles('BellaEditor')).toEqual([SPI + 'BellaEditor']);
+    expect(titles('BellaEditor')).toEqual([SPI + 'BellaEditor', SPI + 'BellaEditor/Archive']);
   });
 
-  test('leaves out the current case, archives and the SPI/ listings', async () => {
+  test('leaves out the current case, its archive and the SPI/ listings', async () => {
     contextModule.setContext(SPI + 'BellaEditor');
     mockSearch.mockResolvedValue(SEARCH_RESULTS);
 
@@ -101,6 +101,24 @@ describe('findUserMentions', () => {
 
     expect(mentions.get('BellaEditor')?.map(mention => mention.title)).toEqual([SPI + 'AngieWigger']);
     expect(mentions.get('Fox Boise')?.map(mention => mention.title)).toEqual([SPI + 'AngieWigger']);
+  });
+
+  test('includes other cases\' archives after the open cases, under their case', async () => {
+    mockSearch.mockResolvedValue(SEARCH_RESULTS);
+
+    const mentions = await findUserMentions(new Set(['BellaEditor']));
+
+    expect(mentions.get('BellaEditor')?.map(({ title, caseName }) => [title, caseName])).toEqual([
+      [SPI + 'BellaEditor', 'BellaEditor'],
+      [SPI + 'BellaEditor/Archive', 'BellaEditor'],
+    ]);
+  });
+
+  test('asks for one capped page of results per query', async () => {
+    await findUserMentions(new Set(['Rick Lay']));
+
+    expect(mockSearch).toHaveBeenCalledTimes(1);
+    expect(mockSearch.mock.calls[0]?.[1]).toBe(50);
   });
 
   test('does not take a case whose name merely starts with this one as its subpage', async () => {
@@ -163,9 +181,14 @@ describe('formatMentionHtml', () => {
     { text: 'Lee Hazz', isMatch: true },
     { text: ' <is> back', isMatch: false },
   ];
+  const mention = (title: string) => ({
+    title: SPI + title,
+    caseName: title.replace(/\/Archive$/, ''),
+    snippets: snippet,
+  });
 
   test('names the page when there is only one', () => {
-    const html = formatMentionHtml('Lee Hazz', [{ title: SPI + 'BellaEditor', snippets: snippet }]);
+    const html = formatMentionHtml('Lee Hazz', [mention('BellaEditor')]);
 
     const summary = new DOMParser().parseFromString(html, 'text/html').querySelector('summary');
     expect(summary?.textContent).toBe('Lee Hazz is mentioned in BellaEditor');
@@ -174,8 +197,8 @@ describe('formatMentionHtml', () => {
 
   test('counts the pages when there are several', () => {
     const html = formatMentionHtml('Lee Hazz', [
-      { title: SPI + 'BellaEditor', snippets: snippet },
-      { title: SPI + 'AngieWigger', snippets: snippet },
+      mention('BellaEditor'),
+      mention('AngieWigger'),
     ]);
 
     const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -184,11 +207,44 @@ describe('formatMentionHtml', () => {
   });
 
   test('bolds the mention and escapes the rest of the snippet', () => {
-    const html = formatMentionHtml('Lee Hazz', [{ title: SPI + 'BellaEditor', snippets: snippet }]);
+    const html = formatMentionHtml('Lee Hazz', [mention('BellaEditor')]);
 
     const item = new DOMParser().parseFromString(html, 'text/html').querySelector('li');
     expect(item?.querySelector('b')?.textContent).toBe('Lee Hazz');
     expect(item?.textContent).toBe('BellaEditor: …then Lee Hazz <is> back…');
+  });
+
+  test('counts a case and its archive as one SPI, listing both pages', () => {
+    const html = formatMentionHtml('Lee Hazz', [mention('BellaEditor'), mention('BellaEditor/Archive')]);
+
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const summary = doc.querySelector('summary');
+    expect(summary?.textContent).toBe('Lee Hazz is mentioned in BellaEditor (2 pages)');
+    expect(summary?.querySelector('a')?.getAttribute('title')).toBe(SPI + 'BellaEditor');
+    expect(doc.querySelectorAll('li').length).toBe(2);
+  });
+
+  test('counts both the SPIs and the pages when they differ', () => {
+    const html = formatMentionHtml('Lee Hazz', [
+      mention('BellaEditor'),
+      mention('BellaEditor/Archive'),
+      mention('AngieWigger'),
+      mention('AngieWigger/Archive'),
+    ]);
+
+    const summary = new DOMParser().parseFromString(html, 'text/html').querySelector('summary');
+    expect(summary?.textContent).toBe('Lee Hazz is mentioned in 2 SPIs (4 pages)');
+  });
+
+  test('gives a floor past the cap, still listing every page', () => {
+    const html = formatMentionHtml('John', [
+      ...Array.from({ length: 11 }, (_, i) => mention(`Case ${i}`)),
+      mention('Case 0/Archive'),
+    ]);
+
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    expect(doc.querySelector('summary')?.textContent).toBe('John is mentioned in 10+ SPIs (12 pages)');
+    expect(doc.querySelectorAll('li').length).toBe(12);
   });
 });
 

@@ -19,7 +19,7 @@ const mockGetBulkGlobalUsers = mock((_usernames: Set<string>) =>
   Promise.resolve(new Map<string, GlobalUser>()));
 const mockGetBulkGlobalBlocks = mock((_targets: Set<string>) =>
   Promise.resolve(new Map<string, GlobalBlockEntry>()));
-const mockSearch = mock((_query: string) => Promise.resolve<SearchResult[]>([]));
+const mockSearch = mock((_query: string, _limit: number) => Promise.resolve<SearchResult[]>([]));
 
 await stubApi({
   spiHelperGetBulkUserBlockSettings: mockGetBulkUserBlockSettings,

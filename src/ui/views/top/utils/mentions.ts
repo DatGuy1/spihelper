@@ -7,6 +7,9 @@ const SPI_PREFIX = 'Wikipedia:Sockpuppet investigations/';
 const PREFIX_FILTER = ` prefix:${SPI_PREFIX}`;
 // CirrusSearch rejects a longer srsearch outright ($wgCirrusSearchMaxFullTextQueryLength)
 const MAX_QUERY_LENGTH = 300;
+const RESULTS_PER_QUERY = 50;
+// Past this many cases the count reads as a floor, since the search may have cut the list short
+const MAX_CASES_PER_USER = 10;
 // What CirrusSearch counts as part of a word. A phrase search matches across anything else,
 // so "Foo Bar" finds "Foo_Bar" and "foo-bar" alike
 const WORD_CHARS = '\\p{L}\\p{M}\\p{N}';
@@ -19,7 +22,21 @@ export interface SnippetSegment {
 
 export interface UserMention {
   title: string;
+  /** The case the page belongs to, the same for its archive */
+  caseName: string;
   snippets: SnippetSegment[];
+}
+
+function caseNameOf(title: string): string {
+  return title.slice(SPI_PREFIX.length).replace(/\/Archive(\/.*)?$/, '');
+}
+
+function isArchive(title: string): boolean {
+  return /\/Archive(\/|$)/.test(title);
+}
+
+function countCases(mentions: UserMention[]): number {
+  return new Set(mentions.map(mention => mention.caseName)).size;
 }
 
 /**
@@ -86,15 +103,15 @@ function splitOnMatches(text: string, pattern: RegExp): SnippetSegment[] | null 
 }
 
 /**
- * Search the SPI pages for other cases that mention any of the usernames.
+ * Search the SPI pages and their archives for other cases that mention any of the usernames.
  *
  * One OR'd search covers many users, so which of them a page matched is read back off its
  * snippet. CirrusSearch picks the fragment with the most matches, but a page that names two
  * users far apart can show only one, and the other misses that page
  *
  * @param usernames Usernames to search for
- * @returns Each mentioned user's pages, with the snippet split around the mention. Users
- * mentioned nowhere are left out
+ * @returns Each mentioned user's pages, open cases before archives, with the snippet split
+ * around the mention. Users mentioned nowhere are left out
  * @throws Error If any search fails
  */
 export async function findUserMentions(
@@ -110,14 +127,15 @@ export async function findUserMentions(
 
   // A name with no pattern could never be matched to a result, so isn't worth searching for
   const queries = buildMentionQueries(patterns.keys());
-  const resultSets = await Promise.all(queries.map(spiHelperSearch));
+  const resultSets = await Promise.all(
+    queries.map(query => spiHelperSearch(query, RESULTS_PER_QUERY)),
+  );
 
   const mentions = new Map<string, UserMention[]>();
   for (const { title, snippet } of resultSets.flat()) {
     if (title === context.casePageName
       || title.startsWith(context.casePageName + '/')
-      || title.startsWith(SPI_PREFIX + 'SPI/')
-      || /\/Archive(\/|$)/.test(title)) {
+      || title.startsWith(SPI_PREFIX + 'SPI/')) {
       continue;
     }
     const text = snippetText(snippet);
@@ -127,19 +145,35 @@ export async function findUserMentions(
         continue;
       }
       const userMentions = mentions.get(username) ?? [];
-      userMentions.push({ title, snippets: segments });
+      userMentions.push({ title, caseName: caseNameOf(title), snippets: segments });
       mentions.set(username, userMentions);
     }
+  }
+  for (const userMentions of mentions.values()) {
+    // Stable, so each group keeps its relevance order
+    userMentions.sort((a, b) => Number(isArchive(a.title)) - Number(isArchive(b.title)));
   }
   return mentions;
 }
 
 export function formatMentionHtml(username: string, mentions: UserMention[]): string {
   const pageLink = (title: string) => buildTitleLinkHtml(title, title.replace(SPI_PREFIX, ''));
-  const [onlyMention] = mentions;
-  const where = mentions.length === 1 && onlyMention
-    ? pageLink(onlyMention.title)
-    : countOf(mentions.length, 'SPI');
+  const caseCount = countCases(mentions);
+  const [firstMention] = mentions;
+  let where: string;
+  if (caseCount === 1 && firstMention) {
+    where = buildTitleLinkHtml(SPI_PREFIX + firstMention.caseName, firstMention.caseName);
+  }
+  else if (caseCount > MAX_CASES_PER_USER) {
+    where = `${MAX_CASES_PER_USER}+ SPIs`;
+  }
+  else {
+    where = countOf(caseCount, 'SPI');
+  }
+  // A case and its archive are one SPI, so the pages only need counting when they differ
+  if (mentions.length !== caseCount) {
+    where += ` (${countOf(mentions.length, 'page')})`;
+  }
   const items = mentions.map(({ title, snippets }) => {
     const snippetHtml = snippets
       .map(({ text, isMatch }) => (isMatch ? `<b>${mw.html.escape(text)}</b>` : mw.html.escape(text)))

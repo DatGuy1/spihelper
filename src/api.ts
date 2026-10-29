@@ -1178,23 +1178,18 @@ export async function spiHelperGetCategoryMembers(category: string): Promise<str
   return members;
 }
 
-export async function spiHelperSearch(query: string): Promise<SearchResult[]> {
+export async function spiHelperSearch(query: string, limit: number): Promise<SearchResult[]> {
   const api = spiHelperGetAPI();
   const request: ApiQuerySearchParams = {
     action: 'query',
     list: 'search',
     srsearch: query,
-    srlimit: 'max',
+    srlimit: limit,
     srprop: ['snippet'],
     formatversion: '2',
   };
-  const results: SearchResult[] = [];
-  for await (const response of queryWithContinuation<SearchResponse>(
-    api, request, 'spiHelperSearch', [query], 'get',
-  )) {
-    results.push(...response.query.search.map(({ title, snippet }) => ({ title, snippet })));
-  }
-  return results;
+  const response = await api.get(request) as SearchResponse;
+  return response.query.search.map(({ title, snippet }) => ({ title, snippet }));
 }
 
 type ApiRequestParams = Parameters<mw.Api['post']>[0];
