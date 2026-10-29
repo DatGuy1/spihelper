@@ -26,6 +26,35 @@ export function loadOptions(): Record<string, unknown> | null {
   }
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Lays saved options over the current settings. Nested objects are merged key by key, so
+ * a setting added to a group after the user last saved keeps its default rather than the
+ * saved group replacing it wholesale. Arrays and primitives are replaced.
+ *
+ * @param target Mutated in place to receive the saved options
+ * @param saved The saved options, as read by loadOptions
+ */
+export function mergeOptions(target: object, saved: Record<string, unknown>) {
+  const targetRecord = target as Record<string, unknown>;
+  for (const [key, value] of Object.entries(saved)) {
+    // JSON.parse makes __proto__ an own key, and recursing into it would write to Object.prototype
+    if (key === '__proto__') {
+      continue;
+    }
+    const current = targetRecord[key];
+    if (isPlainObject(current) && isPlainObject(value)) {
+      mergeOptions(current, value);
+    }
+    else {
+      targetRecord[key] = value;
+    }
+  }
+}
+
 declare let spiHelperCustomOpts: Record<string, unknown> | undefined;
 
 export async function migrateOptions() {

@@ -8,6 +8,7 @@ import {
 } from './ui/views/options';
 import {
   loadOptions,
+  mergeOptions,
   migrateOptions,
   saveOptions,
   spiHelperSettings,
@@ -109,7 +110,7 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
     }
     const loadedOptions = loadOptions();
     if (loadedOptions) {
-      Object.assign(spiHelperSettings, loadedOptions);
+      mergeOptions(spiHelperSettings, loadedOptions);
     }
     else {
       void (async () => {

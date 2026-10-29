@@ -1,5 +1,6 @@
 export {
   loadOptions,
+  mergeOptions,
   migrateOptions,
   saveOptions,
   spiHelperSettings,
