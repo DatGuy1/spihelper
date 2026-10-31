@@ -1521,7 +1521,7 @@ ${body}` : body;
       srprop: ["snippet"],
       formatversion: "2"
     };
-    const response = await api.get(request);
+    const response = await postReadOnly(api, request);
     return response.query.search.map(({ title, snippet }) => ({ title, snippet }));
   }
   function postReadOnly(api, request) {
@@ -3505,23 +3505,37 @@ ${body}` : body;
   function isArchive(title) {
     return /\/Archive(\/|$)/.test(title);
   }
+  async function caseHasArchive() {
+    if (context.isArchive) {
+      return true;
+    }
+    return await spiHelperGetPageRev(context.casePageName + "/Archive") !== 0;
+  }
   function countCases(mentions) {
     return new Set(mentions.map((mention) => mention.caseName)).size;
   }
-  function buildMentionQueries(usernames) {
+  function quote(text) {
+    return `"${text.replace(/[\\"]/g, "\\$&")}"`;
+  }
+  function pointerFilter(master) {
+    const name = master.replace(/[.?+*|{}[\]()"\\#@&<>~/]/g, "\\$&");
+    return ` -insource:/archive notice\\|(1=)?${name}[|}]/`;
+  }
+  function buildMentionQueries(usernames, master) {
+    const filter = pointerFilter(master) + PREFIX_FILTER;
     const queries = [];
     let phrases = [];
     for (const username of usernames) {
-      const phrase = `"${username.replace(/[\\"]/g, "\\$&")}"`;
-      const candidate = [...phrases, phrase].join(" OR ") + PREFIX_FILTER;
+      const phrase = quote(username);
+      const candidate = [...phrases, phrase].join(" OR ") + filter;
       if (phrases.length > 0 && candidate.length > MAX_QUERY_LENGTH) {
-        queries.push(phrases.join(" OR ") + PREFIX_FILTER);
+        queries.push(phrases.join(" OR ") + filter);
         phrases = [];
       }
       phrases.push(phrase);
     }
     if (phrases.length > 0) {
-      queries.push(phrases.join(" OR ") + PREFIX_FILTER);
+      queries.push(phrases.join(" OR ") + filter);
     }
     return queries;
   }
@@ -3562,8 +3576,11 @@ ${body}` : body;
         patterns.set(username, pattern);
       }
     }
-    const queries = buildMentionQueries(patterns.keys());
-    const resultSets = await Promise.all(queries.map((query) => spiHelperSearch(query, RESULTS_PER_QUERY)));
+    const queries = buildMentionQueries(patterns.keys(), context.userName);
+    const [resultSets, isReturningCase] = await Promise.all([
+      Promise.all(queries.map((query) => spiHelperSearch(query, RESULTS_PER_QUERY))),
+      patterns.has(context.userName) && caseHasArchive()
+    ]);
     const mentions = new Map;
     for (const { title, snippet } of resultSets.flat()) {
       if (title === context.casePageName || title.startsWith(context.casePageName + "/") || title.startsWith(SPI_PREFIX + "SPI/")) {
@@ -3571,11 +3588,17 @@ ${body}` : body;
       }
       const text = snippetText(snippet);
       for (const [username, pattern] of patterns) {
+        if (isReturningCase && username === context.userName && isArchive(title)) {
+          continue;
+        }
         const segments = splitOnMatches(text, pattern);
         if (!segments) {
           continue;
         }
         const userMentions = mentions.get(username) ?? [];
+        if (userMentions.some((mention) => mention.title === title)) {
+          continue;
+        }
         userMentions.push({ title, caseName: caseNameOf(title), snippets: segments });
         mentions.set(username, userMentions);
       }
