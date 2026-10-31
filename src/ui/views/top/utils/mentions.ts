@@ -48,23 +48,39 @@ function countCases(mentions: UserMention[]): number {
   return new Set(mentions.map(mention => mention.caseName)).size;
 }
 
+function quote(text: string): string {
+  return `"${text.replace(/[\\"]/g, '\\$&')}"`;
+}
+
+/**
+ * Leaves out pages merged into the current case.
+ */
+function pointerFilter(master: string): string {
+  const name = master.replace(/[.?+*|{}[\]()"\\#@&<>~/]/g, '\\$&');
+  return ` -insource:/archive notice\\|(1=)?${name}[|}]/`;
+}
+
 /**
  * Split the usernames into OR searches, as few as fit under the length limit
+ *
+ * @param usernames Usernames to search for
+ * @param master The current case's master, whose redirects every search leaves out
  */
-export function buildMentionQueries(usernames: Iterable<string>): string[] {
+export function buildMentionQueries(usernames: Iterable<string>, master: string): string[] {
+  const filter = pointerFilter(master) + PREFIX_FILTER;
   const queries: string[] = [];
   let phrases: string[] = [];
   for (const username of usernames) {
-    const phrase = `"${username.replace(/[\\"]/g, '\\$&')}"`;
-    const candidate = [...phrases, phrase].join(' OR ') + PREFIX_FILTER;
+    const phrase = quote(username);
+    const candidate = [...phrases, phrase].join(' OR ') + filter;
     if (phrases.length > 0 && candidate.length > MAX_QUERY_LENGTH) {
-      queries.push(phrases.join(' OR ') + PREFIX_FILTER);
+      queries.push(phrases.join(' OR ') + filter);
       phrases = [];
     }
     phrases.push(phrase);
   }
   if (phrases.length > 0) {
-    queries.push(phrases.join(' OR ') + PREFIX_FILTER);
+    queries.push(phrases.join(' OR ') + filter);
   }
   return queries;
 }
@@ -117,7 +133,8 @@ function splitOnMatches(text: string, pattern: RegExp): SnippetSegment[] | null 
  * One OR'd search covers many users, so which of them a page matched is read back off its
  * snippet. CirrusSearch picks the fragment with the most matches, but a page that names two
  * users far apart can show only one, and the other misses that page.
- * A returning case's master is left out of other cases' archives.
+ * A returning case's master is left out of other cases' archives, and pages left behind
+ * pointing at this case are left out entirely.
  *
  * @param usernames Usernames to search for
  * @returns Each mentioned user's pages, open cases before archives, with the snippet split
@@ -136,7 +153,7 @@ export async function findUserMentions(
   }
 
   // A name with no pattern could never be matched to a result, so isn't worth searching for
-  const queries = buildMentionQueries(patterns.keys());
+  const queries = buildMentionQueries(patterns.keys(), context.userName);
   const [resultSets, isReturningCase] = await Promise.all([
     Promise.all(queries.map(query => spiHelperSearch(query, RESULTS_PER_QUERY))),
     // Only the master's mentions depend on it, so don't look it up for a list without them
@@ -160,6 +177,10 @@ export async function findUserMentions(
         continue;
       }
       const userMentions = mentions.get(username) ?? [];
+      // A page naming users from two searches comes back from both
+      if (userMentions.some(mention => mention.title === title)) {
+        continue;
+      }
       userMentions.push({ title, caseName: caseNameOf(title), snippets: segments });
       mentions.set(username, userMentions);
     }

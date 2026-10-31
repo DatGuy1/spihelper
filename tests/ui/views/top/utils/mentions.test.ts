@@ -56,28 +56,70 @@ afterEach(() => {
 });
 
 describe('buildMentionQueries', () => {
+  const FILTER = String.raw` -insource:/archive notice\|(1=)?AngieWigger[|}]/ prefix:` + SPI;
+
+  // The filter's regex, run here the way CirrusSearch runs it on the wikitext
+  function pointerRegex(master: string): RegExp {
+    const [query] = buildMentionQueries(['Anyone'], master);
+    const source = /-insource:\/(.*)\/ /.exec(query ?? '')?.[1];
+    if (source === undefined) {
+      throw new Error('No pointer filter in ' + String(query));
+    }
+    return new RegExp(source);
+  }
+
   test('ORs the usernames as phrases under the SPI prefix', () => {
-    expect(buildMentionQueries(new Set(['Rick Lay', 'BellaEditor']))).toEqual([
-      `"Rick Lay" OR "BellaEditor" prefix:${SPI}`,
+    expect(buildMentionQueries(new Set(['Rick Lay', 'BellaEditor']), 'AngieWigger')).toEqual([
+      `"Rick Lay" OR "BellaEditor"${FILTER}`,
     ]);
   });
 
   test('escapes quotes and backslashes inside a phrase', () => {
-    expect(buildMentionQueries(new Set(['Say "hi"\\']))).toEqual([`"Say \\"hi\\"\\\\" prefix:${SPI}`]);
+    expect(buildMentionQueries(new Set(['Say "hi"\\']), 'AngieWigger'))
+      .toEqual([`"Say \\"hi\\"\\\\"${FILTER}`]);
   });
 
   test('splits into as many queries as the length limit needs', () => {
     const usernames = Array.from({ length: 40 }, (_, i) => `Sockpuppet account ${i}`);
 
-    const queries = buildMentionQueries(new Set(usernames));
+    const queries = buildMentionQueries(new Set(usernames), 'AngieWigger');
 
     expect(queries.length).toBeGreaterThan(1);
     for (const query of queries) {
       expect(query.length).toBeLessThanOrEqual(300);
-      expect(query.endsWith(` prefix:${SPI}`)).toBe(true);
+      expect(query.endsWith(FILTER)).toBe(true);
     }
     const searched = queries.flatMap(query => [...query.matchAll(/"([^"]+)"/g)].map(m => m[1]));
     expect(searched).toEqual(usernames);
+  });
+
+  describe('the pointer filter', () => {
+    test.each([
+      '{{SPIarchive notice|1=AngieWigger}}',
+      '{{SPI archive notice|AngieWigger}}',
+      '{{SPI archive notice|1=AngieWigger|crosswiki=yes}}',
+    ])('matches %p', (wikitext) => {
+      expect(pointerRegex('AngieWigger').test(wikitext)).toBe(true);
+    });
+
+    test.each([
+      'I notice AngieWigger is back',
+      '{{SPI archive notice|1=AngieWiggerII}}',
+      '{{SPI archive notice|1=BellaEditor}}',
+    ])('does not match %p', (wikitext) => {
+      expect(pointerRegex('AngieWigger').test(wikitext)).toBe(false);
+    });
+
+    test('takes the name\'s regex characters literally', () => {
+      const regex = pointerRegex('1.2.3.4 (bot)');
+
+      expect(regex.test('{{SPI archive notice|1=1.2.3.4 (bot)}}')).toBe(true);
+      expect(regex.test('{{SPI archive notice|1=1x2x3x4 bot}}')).toBe(false);
+    });
+
+    test('escapes a slash so it cannot close the regex', () => {
+      expect(buildMentionQueries(['Anyone'], 'A/B')[0]).toContain(String.raw`?A\/B[`);
+    });
   });
 });
 
@@ -157,6 +199,16 @@ describe('findUserMentions', () => {
 
     expect(mentions.has('Lee')).toBe(false);
     expect(mentions.has('Rick Lay')).toBe(true);
+  });
+
+  test('lists a page once for a user even when two searches return it', async () => {
+    const usernames = new Set(Array.from({ length: 40 }, (_, i) => `Sockpuppet account ${i}`));
+    mockSearch.mockResolvedValue([{ title: SPI + 'Other', snippet: match('Sockpuppet account 0') }]);
+
+    const mentions = await findUserMentions(usernames);
+
+    expect(mockSearch.mock.calls.length).toBeGreaterThan(1);
+    expect(mentions.get('Sockpuppet account 0')?.map(mention => mention.title)).toEqual([SPI + 'Other']);
   });
 
   test('splits a long list over several searches', async () => {
