@@ -3518,7 +3518,7 @@ ${body}` : body;
     return `"${text.replace(/[\\"]/g, "\\$&")}"`;
   }
   function pointerFilter(master) {
-    const name = master.replace(/[.?+*|{}[\]()"\\#@&<>~/]/g, "\\$&");
+    const name = master.replace(/[.?+*|{}[\]()"\\#@&<>~/]/g, "\\$&").replace(/ /g, "[ _]");
     return ` -insource:/archive notice\\|(1=)?${name}[|}]/`;
   }
   function buildMentionQueries(usernames, master) {
