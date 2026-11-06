@@ -22,31 +22,31 @@ function match(text: string): string {
   return `<span class="searchmatch">${text}</span>`;
 }
 
-// Trimmed from a real response to the query for these four users
+// Shaped like a real response to the query for these four users, with made-up names and text
 const SEARCH_RESULTS: SearchResult[] = [
   {
-    title: SPI + 'BellaEditor',
-    snippet: `third cluster are active. ${match('Rick')} ${match('Lay')} edits Elizabeth Lee Hazen, `
-      + `then ${match('Lee')} ${match('Hazz')} is created 3 minutes later. Do note however `
-      + `${match('BellaEditor')} is almost certainly related`,
+    title: SPI + 'Bobby',
+    snippet: `both accounts are new. ${match('John')} ${match('Doe')} edits Mary Jane Roebuck, `
+      + `and ${match('Jane')} ${match('Roe')} turns up an hour after. Separately, `
+      + `${match('Bobby')} looks related`,
   },
   {
-    title: SPI + 'AngieWigger',
-    snippet: `${match('Fox')} ${match('Boise')} is part of another filing at `
-      + `Wikipedia:Sockpuppet investigations/${match('BellaEditor')} — it does seem`,
+    title: SPI + 'Alice',
+    snippet: `${match('Carol')} ${match('Smith')} was also reported at `
+      + `Wikipedia:Sockpuppet investigations/${match('Bobby')} — worth a look`,
   },
   {
-    title: SPI + 'BellaEditor/Archive',
-    snippet: `${match('BellaEditor')} (talk+ · tag · contribs · deleted contribs · logs`,
+    title: SPI + 'Bobby/Archive',
+    snippet: `${match('Bobby')} (talk+ · tag · contribs · deleted contribs · logs`,
   },
   {
     title: SPI + 'SPI/Cases',
-    snippet: `User Time (UTC) ${match('BellaEditor')} Endorsed 2026-10-18 17:38`,
+    snippet: `User Time (UTC) ${match('Bobby')} Endorsed 2020-01-01 00:00`,
   },
 ];
 
 beforeEach(() => {
-  contextModule.setContext(SPI + 'AngieWigger');
+  contextModule.setContext(SPI + 'Alice');
   mockSearch.mockReset().mockResolvedValue([]);
   mockGetPageRev.mockReset().mockResolvedValue(0);
 });
@@ -56,7 +56,7 @@ afterEach(() => {
 });
 
 describe('buildMentionQueries', () => {
-  const FILTER = String.raw` -insource:/archive notice\|(1=)?AngieWigger[|}]/ prefix:` + SPI;
+  const FILTER = String.raw` -insource:/archive notice\|(1=)?Alice[|}]/ prefix:` + SPI;
 
   // The filter's regex, run here the way CirrusSearch runs it on the wikitext
   function pointerRegex(master: string): RegExp {
@@ -69,20 +69,20 @@ describe('buildMentionQueries', () => {
   }
 
   test('ORs the usernames as phrases under the SPI prefix', () => {
-    expect(buildMentionQueries(new Set(['Rick Lay', 'BellaEditor']), 'AngieWigger')).toEqual([
-      `"Rick Lay" OR "BellaEditor"${FILTER}`,
+    expect(buildMentionQueries(new Set(['John Doe', 'Bobby']), 'Alice')).toEqual([
+      `"John Doe" OR "Bobby"${FILTER}`,
     ]);
   });
 
   test('escapes quotes and backslashes inside a phrase', () => {
-    expect(buildMentionQueries(new Set(['Say "hi"\\']), 'AngieWigger'))
+    expect(buildMentionQueries(new Set(['Say "hi"\\']), 'Alice'))
       .toEqual([`"Say \\"hi\\"\\\\"${FILTER}`]);
   });
 
   test('splits into as many queries as the length limit needs', () => {
     const usernames = Array.from({ length: 40 }, (_, i) => `Sockpuppet account ${i}`);
 
-    const queries = buildMentionQueries(new Set(usernames), 'AngieWigger');
+    const queries = buildMentionQueries(new Set(usernames), 'Alice');
 
     expect(queries.length).toBeGreaterThan(1);
     for (const query of queries) {
@@ -95,19 +95,19 @@ describe('buildMentionQueries', () => {
 
   describe('the pointer filter', () => {
     test.each([
-      '{{SPIarchive notice|1=AngieWigger}}',
-      '{{SPI archive notice|AngieWigger}}',
-      '{{SPI archive notice|1=AngieWigger|crosswiki=yes}}',
+      '{{SPIarchive notice|1=Alice}}',
+      '{{SPI archive notice|Alice}}',
+      '{{SPI archive notice|1=Alice|crosswiki=yes}}',
     ])('matches %p', (wikitext) => {
-      expect(pointerRegex('AngieWigger').test(wikitext)).toBe(true);
+      expect(pointerRegex('Alice').test(wikitext)).toBe(true);
     });
 
     test.each([
-      'I notice AngieWigger is back',
-      '{{SPI archive notice|1=AngieWiggerII}}',
-      '{{SPI archive notice|1=BellaEditor}}',
+      'I notice Alice is back',
+      '{{SPI archive notice|1=AliceII}}',
+      '{{SPI archive notice|1=Bobby}}',
     ])('does not match %p', (wikitext) => {
-      expect(pointerRegex('AngieWigger').test(wikitext)).toBe(false);
+      expect(pointerRegex('Alice').test(wikitext)).toBe(false);
     });
 
     test('takes the name\'s regex characters literally', () => {
@@ -118,10 +118,10 @@ describe('buildMentionQueries', () => {
     });
 
     test('matches a space in the name written as an underscore', () => {
-      const regex = pointerRegex('Tobias Conradi');
+      const regex = pointerRegex('Jane Doe');
 
-      expect(regex.test('{{SPIarchive notice|Tobias_Conradi}}')).toBe(true);
-      expect(regex.test('{{SPI archive notice|1=Tobias Conradi}}')).toBe(true);
+      expect(regex.test('{{SPIarchive notice|Jane_Doe}}')).toBe(true);
+      expect(regex.test('{{SPI archive notice|1=Jane Doe}}')).toBe(true);
     });
 
     test('escapes a slash so it cannot close the regex', () => {
@@ -135,63 +135,63 @@ describe('findUserMentions', () => {
     mockSearch.mockResolvedValue(SEARCH_RESULTS);
 
     const mentions = await findUserMentions(
-      new Set(['Rick Lay', 'Lee Hazz', 'BellaEditor', 'Fox Boise']),
+      new Set(['John Doe', 'Jane Roe', 'Bobby', 'Carol Smith']),
     );
 
     const titles = (username: string) => mentions.get(username)?.map(mention => mention.title);
-    expect(titles('Rick Lay')).toEqual([SPI + 'BellaEditor']);
-    expect(titles('Lee Hazz')).toEqual([SPI + 'BellaEditor']);
-    expect(titles('BellaEditor')).toEqual([SPI + 'BellaEditor', SPI + 'BellaEditor/Archive']);
+    expect(titles('John Doe')).toEqual([SPI + 'Bobby']);
+    expect(titles('Jane Roe')).toEqual([SPI + 'Bobby']);
+    expect(titles('Bobby')).toEqual([SPI + 'Bobby', SPI + 'Bobby/Archive']);
   });
 
   test('leaves out the current case, its archive and the SPI/ listings', async () => {
-    contextModule.setContext(SPI + 'BellaEditor');
+    contextModule.setContext(SPI + 'Bobby');
     mockSearch.mockResolvedValue(SEARCH_RESULTS);
 
-    const mentions = await findUserMentions(new Set(['BellaEditor', 'Fox Boise']));
+    const mentions = await findUserMentions(new Set(['Bobby', 'Carol Smith']));
 
-    expect(mentions.get('BellaEditor')?.map(mention => mention.title)).toEqual([SPI + 'AngieWigger']);
-    expect(mentions.get('Fox Boise')?.map(mention => mention.title)).toEqual([SPI + 'AngieWigger']);
+    expect(mentions.get('Bobby')?.map(mention => mention.title)).toEqual([SPI + 'Alice']);
+    expect(mentions.get('Carol Smith')?.map(mention => mention.title)).toEqual([SPI + 'Alice']);
   });
 
   test('includes other cases\' archives after the open cases, under their case', async () => {
     mockSearch.mockResolvedValue(SEARCH_RESULTS);
 
-    const mentions = await findUserMentions(new Set(['BellaEditor']));
+    const mentions = await findUserMentions(new Set(['Bobby']));
 
-    expect(mentions.get('BellaEditor')?.map(({ title, caseName }) => [title, caseName])).toEqual([
-      [SPI + 'BellaEditor', 'BellaEditor'],
-      [SPI + 'BellaEditor/Archive', 'BellaEditor'],
+    expect(mentions.get('Bobby')?.map(({ title, caseName }) => [title, caseName])).toEqual([
+      [SPI + 'Bobby', 'Bobby'],
+      [SPI + 'Bobby/Archive', 'Bobby'],
     ]);
   });
 
   test('asks for one capped page of results per query', async () => {
-    await findUserMentions(new Set(['Rick Lay']));
+    await findUserMentions(new Set(['John Doe']));
 
     expect(mockSearch).toHaveBeenCalledTimes(1);
     expect(mockSearch.mock.calls[0]?.[1]).toBe(50);
   });
 
   test('does not take a case whose name merely starts with this one as its subpage', async () => {
-    contextModule.setContext(SPI + 'Bella');
+    contextModule.setContext(SPI + 'Bob');
     mockSearch.mockResolvedValue(SEARCH_RESULTS);
 
-    const mentions = await findUserMentions(new Set(['BellaEditor']));
+    const mentions = await findUserMentions(new Set(['Bobby']));
 
-    expect(mentions.get('BellaEditor')?.map(mention => mention.title)).toContain(SPI + 'BellaEditor');
+    expect(mentions.get('Bobby')?.map(mention => mention.title)).toContain(SPI + 'Bobby');
   });
 
   test('splits the snippet around the mention', async () => {
     mockSearch.mockResolvedValue([{
       title: SPI + 'Other',
-      snippet: `Pretty sure ${match('rick')}_${match('lay')} is back &amp; editing`,
+      snippet: `Pretty sure ${match('john')}_${match('doe')} is back &amp; editing`,
     }]);
 
-    const mentions = await findUserMentions(new Set(['Rick Lay']));
+    const mentions = await findUserMentions(new Set(['John Doe']));
 
-    expect(mentions.get('Rick Lay')?.[0]?.snippets).toEqual([
+    expect(mentions.get('John Doe')?.[0]?.snippets).toEqual([
       { text: 'Pretty sure ', isMatch: false },
-      { text: 'rick_lay', isMatch: true },
+      { text: 'john_doe', isMatch: true },
       { text: ' is back & editing', isMatch: false },
     ]);
   });
@@ -199,13 +199,13 @@ describe('findUserMentions', () => {
   test('does not count a username inside a longer word', async () => {
     mockSearch.mockResolvedValue([{
       title: SPI + 'Other',
-      snippet: `Edits from Leeds by ${match('Rick')} ${match('Lay')}`,
+      snippet: `Edits from Janesville by ${match('John')} ${match('Doe')}`,
     }]);
 
-    const mentions = await findUserMentions(new Set(['Lee', 'Rick Lay']));
+    const mentions = await findUserMentions(new Set(['Jane', 'John Doe']));
 
-    expect(mentions.has('Lee')).toBe(false);
-    expect(mentions.has('Rick Lay')).toBe(true);
+    expect(mentions.has('Jane')).toBe(false);
+    expect(mentions.has('John Doe')).toBe(true);
   });
 
   test('lists a page once for a user even when two searches return it', async () => {
@@ -229,22 +229,22 @@ describe('findUserMentions', () => {
   test('fails rather than reporting no mentions when a search fails', async () => {
     mockSearch.mockRejectedValue(new Error('search down'));
 
-    const error = await findUserMentions(new Set(['Rick Lay'])).catch((e: unknown) => e);
+    const error = await findUserMentions(new Set(['John Doe'])).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toBe('search down');
   });
 
   describe('the master', () => {
-    // The current case is AngieWigger, mentioned in an open case and in another's archive
+    // The current case is Alice, mentioned in an open case and in another's archive
     const MASTER_RESULTS: SearchResult[] = [
       {
-        title: SPI + 'Kestrel',
-        snippet: `possibly ${match('AngieWigger')} again, and ${match('Fox')} ${match('Boise')}`,
+        title: SPI + 'Dave',
+        snippet: `possibly ${match('Alice')} again, and ${match('Carol')} ${match('Smith')}`,
       },
       {
-        title: SPI + 'BellaEditor/Archive',
-        snippet: `${match('AngieWigger')} and ${match('Fox')} ${match('Boise')} share a range`,
+        title: SPI + 'Bobby/Archive',
+        snippet: `${match('Alice')} and ${match('Carol')} ${match('Smith')} share a range`,
       },
     ];
     const titles = (mentions: Map<string, { title: string }[]>, username: string) =>
@@ -254,42 +254,42 @@ describe('findUserMentions', () => {
       mockGetPageRev.mockResolvedValue(12345);
       mockSearch.mockResolvedValue(MASTER_RESULTS);
 
-      const mentions = await findUserMentions(new Set(['AngieWigger', 'Fox Boise']));
+      const mentions = await findUserMentions(new Set(['Alice', 'Carol Smith']));
 
-      expect(mockGetPageRev).toHaveBeenCalledWith(SPI + 'AngieWigger/Archive');
-      expect(titles(mentions, 'AngieWigger')).toEqual([SPI + 'Kestrel']);
-      expect(titles(mentions, 'Fox Boise')).toEqual([SPI + 'Kestrel', SPI + 'BellaEditor/Archive']);
+      expect(mockGetPageRev).toHaveBeenCalledWith(SPI + 'Alice/Archive');
+      expect(titles(mentions, 'Alice')).toEqual([SPI + 'Dave']);
+      expect(titles(mentions, 'Carol Smith')).toEqual([SPI + 'Dave', SPI + 'Bobby/Archive']);
     });
 
     test('of a returning case mentioned only in archives is left out entirely', async () => {
       mockGetPageRev.mockResolvedValue(12345);
       mockSearch.mockResolvedValue(MASTER_RESULTS.slice(1));
 
-      const mentions = await findUserMentions(new Set(['AngieWigger']));
+      const mentions = await findUserMentions(new Set(['Alice']));
 
-      expect(mentions.has('AngieWigger')).toBe(false);
+      expect(mentions.has('Alice')).toBe(false);
     });
 
     test('of a new case keeps other cases\' archives', async () => {
       mockSearch.mockResolvedValue(MASTER_RESULTS);
 
-      const mentions = await findUserMentions(new Set(['AngieWigger']));
+      const mentions = await findUserMentions(new Set(['Alice']));
 
-      expect(titles(mentions, 'AngieWigger')).toEqual([SPI + 'Kestrel', SPI + 'BellaEditor/Archive']);
+      expect(titles(mentions, 'Alice')).toEqual([SPI + 'Dave', SPI + 'Bobby/Archive']);
     });
 
     test('counts as returning without a lookup when viewing the archive', async () => {
-      contextModule.setContext(SPI + 'AngieWigger/Archive');
+      contextModule.setContext(SPI + 'Alice/Archive');
       mockSearch.mockResolvedValue(MASTER_RESULTS);
 
-      const mentions = await findUserMentions(new Set(['AngieWigger']));
+      const mentions = await findUserMentions(new Set(['Alice']));
 
       expect(mockGetPageRev).not.toHaveBeenCalled();
-      expect(titles(mentions, 'AngieWigger')).toEqual([SPI + 'Kestrel']);
+      expect(titles(mentions, 'Alice')).toEqual([SPI + 'Dave']);
     });
 
     test('is not looked up when it is not among the users searched', async () => {
-      await findUserMentions(new Set(['Fox Boise']));
+      await findUserMentions(new Set(['Carol Smith']));
 
       expect(mockGetPageRev).not.toHaveBeenCalled();
     });
@@ -299,7 +299,7 @@ describe('findUserMentions', () => {
 describe('formatMentionHtml', () => {
   const snippet = [
     { text: 'then ', isMatch: false },
-    { text: 'Lee Hazz', isMatch: true },
+    { text: 'Jane Roe', isMatch: true },
     { text: ' <is> back', isMatch: false },
   ];
   const mention = (title: string) => ({
@@ -309,52 +309,52 @@ describe('formatMentionHtml', () => {
   });
 
   test('names the page when there is only one', () => {
-    const html = formatMentionHtml('Lee Hazz', [mention('BellaEditor')]);
+    const html = formatMentionHtml('Jane Roe', [mention('Bobby')]);
 
     const summary = new DOMParser().parseFromString(html, 'text/html').querySelector('summary');
-    expect(summary?.textContent).toBe('Lee Hazz is mentioned in BellaEditor');
-    expect(summary?.querySelector('a')?.getAttribute('title')).toBe(SPI + 'BellaEditor');
+    expect(summary?.textContent).toBe('Jane Roe is mentioned in Bobby');
+    expect(summary?.querySelector('a')?.getAttribute('title')).toBe(SPI + 'Bobby');
   });
 
   test('counts the pages when there are several', () => {
-    const html = formatMentionHtml('Lee Hazz', [
-      mention('BellaEditor'),
-      mention('AngieWigger'),
+    const html = formatMentionHtml('Jane Roe', [
+      mention('Bobby'),
+      mention('Alice'),
     ]);
 
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    expect(doc.querySelector('summary')?.textContent).toBe('Lee Hazz is mentioned in 2 SPIs');
+    expect(doc.querySelector('summary')?.textContent).toBe('Jane Roe is mentioned in 2 SPIs');
     expect(doc.querySelectorAll('li').length).toBe(2);
   });
 
   test('bolds the mention and escapes the rest of the snippet', () => {
-    const html = formatMentionHtml('Lee Hazz', [mention('BellaEditor')]);
+    const html = formatMentionHtml('Jane Roe', [mention('Bobby')]);
 
     const item = new DOMParser().parseFromString(html, 'text/html').querySelector('li');
-    expect(item?.querySelector('b')?.textContent).toBe('Lee Hazz');
-    expect(item?.textContent).toBe('BellaEditor: …then Lee Hazz <is> back…');
+    expect(item?.querySelector('b')?.textContent).toBe('Jane Roe');
+    expect(item?.textContent).toBe('Bobby: …then Jane Roe <is> back…');
   });
 
   test('counts a case and its archive as one SPI, listing both pages', () => {
-    const html = formatMentionHtml('Lee Hazz', [mention('BellaEditor'), mention('BellaEditor/Archive')]);
+    const html = formatMentionHtml('Jane Roe', [mention('Bobby'), mention('Bobby/Archive')]);
 
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const summary = doc.querySelector('summary');
-    expect(summary?.textContent).toBe('Lee Hazz is mentioned in BellaEditor (2 pages)');
-    expect(summary?.querySelector('a')?.getAttribute('title')).toBe(SPI + 'BellaEditor');
+    expect(summary?.textContent).toBe('Jane Roe is mentioned in Bobby (2 pages)');
+    expect(summary?.querySelector('a')?.getAttribute('title')).toBe(SPI + 'Bobby');
     expect(doc.querySelectorAll('li').length).toBe(2);
   });
 
   test('counts both the SPIs and the pages when they differ', () => {
-    const html = formatMentionHtml('Lee Hazz', [
-      mention('BellaEditor'),
-      mention('BellaEditor/Archive'),
-      mention('AngieWigger'),
-      mention('AngieWigger/Archive'),
+    const html = formatMentionHtml('Jane Roe', [
+      mention('Bobby'),
+      mention('Bobby/Archive'),
+      mention('Alice'),
+      mention('Alice/Archive'),
     ]);
 
     const summary = new DOMParser().parseFromString(html, 'text/html').querySelector('summary');
-    expect(summary?.textContent).toBe('Lee Hazz is mentioned in 2 SPIs (4 pages)');
+    expect(summary?.textContent).toBe('Jane Roe is mentioned in 2 SPIs (4 pages)');
   });
 
   test('gives a floor past the cap, still listing every page', () => {
@@ -373,7 +373,7 @@ describe('showUserMentions', () => {
   test('posts one notice per mentioned user', async () => {
     mockSearch.mockResolvedValue(SEARCH_RESULTS);
 
-    await showUserMentions(new Set(['Rick Lay', 'BellaEditor', 'Nobody']));
+    await showUserMentions(new Set(['John Doe', 'Bobby', 'Nobody']));
 
     expect(messages.map(message => message.type)).toEqual(['notice', 'notice']);
     expect(messages.every(message => message.isHtml)).toBe(true);
@@ -386,7 +386,7 @@ describe('showUserMentions', () => {
     console.error = consoleError;
 
     try {
-      await showUserMentions(new Set(['Rick Lay']));
+      await showUserMentions(new Set(['John Doe']));
     }
     finally {
       console.error = originalError;
