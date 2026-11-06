@@ -56,7 +56,9 @@ function quote(text: string): string {
  * Leaves out pages merged into the current case.
  */
 function pointerFilter(master: string): string {
-  const name = master.replace(/[.?+*|{}[\]()"\\#@&<>~/]/g, '\\$&');
+  const name = master
+    .replace(/[.?+*|{}[\]()"\\#@&<>~/]/g, '\\$&')
+    .replace(/ /g, '[ _]');
   return ` -insource:/archive notice\\|(1=)?${name}[|}]/`;
 }
 

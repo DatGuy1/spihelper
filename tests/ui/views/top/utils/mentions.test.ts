@@ -117,6 +117,13 @@ describe('buildMentionQueries', () => {
       expect(regex.test('{{SPI archive notice|1=1x2x3x4 bot}}')).toBe(false);
     });
 
+    test('matches a space in the name written as an underscore', () => {
+      const regex = pointerRegex('Tobias Conradi');
+
+      expect(regex.test('{{SPIarchive notice|Tobias_Conradi}}')).toBe(true);
+      expect(regex.test('{{SPI archive notice|1=Tobias Conradi}}')).toBe(true);
+    });
+
     test('escapes a slash so it cannot close the regex', () => {
       expect(buildMentionQueries(['Anyone'], 'A/B')[0]).toContain(String.raw`?A\/B[`);
     });
