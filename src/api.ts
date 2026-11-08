@@ -42,6 +42,7 @@ import type {
   NormalizedTitle,
   PageRestrictions,
   PageRestrictionsResponse,
+  PageRevision,
   ParseResponse,
   Protection,
   Restrictions,
@@ -975,17 +976,17 @@ export async function spiHelperEditPage(opts: {
 }
 
 /**
- * Get the text of a page. Not that complicated.
+ * Get a page's latest revision data
  *
  * @param title Title of the page to get the contents of
  * @param show Whether to show page fetch progress on-screen
  * @param sectionId Section to retrieve, setting this to null will retrieve the entire page
  *
- * @return {Promise<string>} The text of the page, '' if the page does not exist.
+ * @return The revision, or null if the page does not exist or the fetch failed
  */
-export async function spiHelperGetPageText(
+export async function spiHelperGetPageRevision(
   title: string, show: boolean, sectionId?: number | null,
-): Promise<string> {
+): Promise<PageRevision | null> {
   // Build the link element (use JQuery so we get escapes and such)
   const linkHtml = buildTitleLinkHtml(title);
   const message = new VueMessage({ type: 'notice', content: 'Getting page ' + linkHtml, isHtml: true });
@@ -998,7 +999,7 @@ export async function spiHelperGetPageText(
   const request: ApiQueryRevisionsParams = {
     action: 'query',
     prop: 'revisions',
-    rvprop: 'content',
+    rvprop: ['content', 'ids'],
     rvslots: 'main',
     titles: finalTitle,
     formatversion: '2',
@@ -1009,22 +1010,25 @@ export async function spiHelperGetPageText(
   }
 
   try {
-    const response = await spiHelperGetAPI(title).get(request) as RevisionsResponse<'content'>;
+    const response = await spiHelperGetAPI(title).get(request) as RevisionsResponse<'content|ids'>;
     const targetPage = response.query.pages[0];
     if (!targetPage || 'missing' in targetPage) {
       if (show) {
         message.update({ type: 'warning', content: `Page ${linkHtml} does not exist`, isHtml: true });
       }
-      return '';
+      return null;
     }
     const latestRevision = targetPage.revisions?.[0];
     if (!latestRevision) {
-      return '';
+      return null;
     }
     if (show) {
       message.update({ type: 'success', content: `Got ${linkHtml}`, isHtml: true });
     }
-    return latestRevision.slots.main.content;
+    return {
+      text: latestRevision.slots.main.content,
+      revid: latestRevision.revid,
+    };
   }
   catch (error) {
     if (show) {
@@ -1034,8 +1038,23 @@ export async function spiHelperGetPageText(
         isHtml: true,
       });
     }
-    return '';
+    return null;
   }
+}
+
+/**
+ * Gets the text of a page.
+ *
+ * @param title Title of the page to get the contents of
+ * @param show Whether to show page fetch progress on-screen
+ * @param sectionId Section to retrieve, setting this to null will retrieve the entire page
+ *
+ * @return {Promise<string>} The text of the page, '' if the page does not exist.
+ */
+export async function spiHelperGetPageText(
+  title: string, show: boolean, sectionId?: number | null,
+): Promise<string> {
+  return (await spiHelperGetPageRevision(title, show, sectionId))?.text ?? '';
 }
 
 /**

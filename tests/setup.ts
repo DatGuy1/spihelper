@@ -45,7 +45,14 @@ import { messages, setMessagesReactive } from '../src/ui/messages.ts';
     isInfinity: (value?: string | null) => (
       ['indefinite', 'infinite', 'infinity', 'never'].includes(value ?? '')
     ),
-    getUrl: (title: string) => `/wiki/${encodeURIComponent(title)}`,
+    // Like the real one, query params switch it to the index.php form with a wiki-encoded title
+    getUrl: (title: string, params?: Record<string, string>) => {
+      if (!params || Object.keys(params).length === 0) {
+        return `/wiki/${encodeURIComponent(title)}`;
+      }
+      const wikiTitle = encodeURIComponent(title.replace(/ /g, '_')).replace(/%2F/g, '/').replace(/%3A/g, ':');
+      return `/w/index.php?title=${wikiTitle}&${new URLSearchParams(params).toString()}`;
+    },
   },
   html: {
     // Lifted from mw.html

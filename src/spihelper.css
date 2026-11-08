@@ -102,6 +102,10 @@
     &:has(> *) {
         padding-top: 20px;
     }
+
+    .spiHelper-messageAction {
+        margin-top: 8px;
+    }
 }
 
 .spiHelper-contentRow {

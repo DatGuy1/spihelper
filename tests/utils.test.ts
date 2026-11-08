@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 import {
   addAdminSectionNote,
+  buildPrefilledEditFields,
+  buildPrefilledEditFormHtml,
   parseArchiveSections,
   rebuildArchiveText,
   spiHelperGetXWikiPrefix,
@@ -131,5 +133,88 @@ describe('spiHelperGetXWikiPrefix', () => {
   test('stripping leaves the on-wiki title', () => {
     expect(spiHelperStripXWikiPrefix('meta:Steward requests/Global')).toBe('Steward requests/Global');
     expect(spiHelperStripXWikiPrefix('User:Foo')).toBe('User:Foo');
+  });
+});
+
+describe('buildPrefilledEditFields', () => {
+  const fields = buildPrefilledEditFields({
+    text: 'Foo',
+    summary: 'Bar',
+    base: { text: 'Foo', revid: 5678 },
+    startTimestamp: '2026-01-02T03:10:00.123Z',
+  });
+
+  test('names the revision we read by id, so Publish catches edit conflicts', () => {
+    expect(fields.editRevId).toBe('5678');
+  });
+
+  test('carries when editing started, in the form format', () => {
+    expect(fields.wpStarttime).toBe('20260102031000');
+  });
+
+  test('keeps the watch box checked, absent would unwatch', () => {
+    expect(fields.wpWatchthis).toBe('1');
+  });
+
+  test('asks for a diff rather than a save', () => {
+    expect(fields.wpDiff).toBe('1');
+    expect(fields).not.toHaveProperty('wpSave');
+    expect(fields).not.toHaveProperty('wpEditToken');
+  });
+
+  test('marks the form as complete', () => {
+    expect(fields.wpUltimateParam).toBe('1');
+  });
+
+  test('passes the text and summary through untouched', () => {
+    expect(fields.wpTextbox1).toBe('Foo');
+    expect(fields.wpSummary).toBe('Bar');
+  });
+});
+
+describe('buildPrefilledEditFormHtml', () => {
+  function parseForm(html: string): HTMLFormElement {
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    const form = container.querySelector('form');
+    if (!form) {
+      throw new Error('no form rendered');
+    }
+    return form;
+  }
+
+  const edit = {
+    text: 'Line one\n"quoted" & <b>bold</b>',
+    summary: 'Bar',
+    base: { text: '', revid: 5678 },
+    startTimestamp: '2026-01-02T03:10:00Z',
+  };
+  const fields = buildPrefilledEditFields(edit);
+  const form = parseForm(buildPrefilledEditFormHtml({
+    ...edit, title: 'meta:Steward requests/Global', label: 'Open',
+  }));
+
+  test('posts to a new tab, so the user stays on the case', () => {
+    expect(form.getAttribute('method')).toBe('post');
+    expect(form.getAttribute('target')).toBe('_blank');
+  });
+
+  test('sends a cross-wiki title to the edit form on meta, without its prefix', () => {
+    const action = new URL(form.getAttribute('action') ?? '');
+    expect(action.origin).toBe('https://meta.wikimedia.org');
+    expect(action.pathname).toBe('/w/index.php');
+    expect(action.searchParams.get('title')).toBe('Steward_requests/Global');
+    expect(action.searchParams.get('action')).toBe('submit');
+  });
+
+  test('carries every field through intact, markup and newlines included', () => {
+    const posted = Object.fromEntries(
+      [...form.querySelectorAll('input')].map(input => [input.name, input.value]),
+    );
+    expect(posted).toEqual(fields);
+  });
+
+  test('is submitted by a button the user clicks', () => {
+    expect(form.querySelector('button')?.getAttribute('type')).toBe('submit');
   });
 });

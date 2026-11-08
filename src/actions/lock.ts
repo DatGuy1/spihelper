@@ -1,7 +1,8 @@
 import { context } from '../context.ts';
-import { spiHelperEditPage, spiHelperGetPageText } from '../api.ts';
+import { spiHelperEditPage, spiHelperGetPageRevision } from '../api.ts';
+import { spiHelperAdvert } from '../constants/settings.ts';
 import { VueMessage } from '../ui/messages.ts';
-import { buildTitleLinkHtml, isNonRegisteredAccount } from '../utils.ts';
+import { buildPrefilledEditFormHtml, buildTitleLinkHtml, isNonRegisteredAccount } from '../utils.ts';
 import type { GlobalRequestResults } from '../types';
 
 // Parts of this code were adapted from https://github.com/Xi-Plus/twinkle-global
@@ -199,7 +200,14 @@ export async function spiHelperRequestGlobalActions(opts: {
   }
   const actionLabel = buildRequestLabel(requests);
 
-  let newText = await spiHelperGetPageText(SRG_PAGE, false);
+  // Taken before the read, so the fallback form also catches anything that happens mid-fetch
+  const startTimestamp = new Date().toISOString();
+  const srgPage = await spiHelperGetPageRevision(SRG_PAGE, false);
+  if (!srgPage) {
+    new VueMessage({ type: 'error', content: `${actionLabel} failed: could not read ${SRG_PAGE}.` }).show();
+    return nothingFiled;
+  }
+  let newText = srgPage.text;
   for (const request of requests) {
     const splicedText = newText.replace(
       SRG_SECTION_ANCHORS[request.kind],
@@ -217,19 +225,35 @@ export async function spiHelperRequestGlobalActions(opts: {
     newText = splicedText;
   }
 
+  // Named over every target at once, the per-section headings covering them individually
+  const summary = `${actionLabel} for ${buildRequestHeading({
+    targets: [...blockTargets, ...lockTargets], master, hideNames,
+  }).heading}`;
+
   new VueMessage({ type: 'notice', content: `Filing ${actionLabel.toLowerCase()}` }).show();
   const editId = await spiHelperEditPage({
     title: SRG_PAGE,
     newText,
-    // Named over every target at once, the per-section headings covering them individually
-    summary: `${actionLabel} for ${buildRequestHeading({
-      targets: [...blockTargets, ...lockTargets], master, hideNames,
-    }).heading}`,
+    summary,
     createonly: false,
     watch: 'nochange',
   });
   if (!editId) {
-    new VueMessage({ type: 'warning', content: `${actionLabel} failed.` }).show();
+    // Sometimes our crosswiki request gets rejected because of badtoken,
+    // so we build a form that pops into a new tab and lets the user press submit
+    const formHtml = buildPrefilledEditFormHtml({
+      title: SRG_PAGE,
+      text: newText,
+      summary: summary + spiHelperAdvert(true),
+      base: srgPage,
+      startTimestamp,
+      label: 'Submit request manually',
+    });
+    new VueMessage({
+      type: 'warning',
+      content: `${mw.html.escape(actionLabel)} failed. ${formHtml}`,
+      isHtml: true,
+    }).show();
     return nothingFiled;
   }
 

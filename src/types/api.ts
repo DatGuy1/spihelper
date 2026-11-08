@@ -216,8 +216,9 @@ interface RevisionsResponseContent {
 }
 
 interface RevisionsDataMap {
-  ids: RevisionsResponseIDs;
-  content: RevisionsResponseContent;
+  'ids': RevisionsResponseIDs;
+  'content': RevisionsResponseContent;
+  'content|ids': RevisionsResponseContent & RevisionsResponseIDs;
 }
 
 export interface RevisionsResponse<T extends keyof RevisionsDataMap> {
@@ -321,3 +322,8 @@ export type Expiry
   = | RelativeExpiry // "5 months", "2 weeks", "36 hours", etc.
     | AbsoluteExpiry // "2014-09-18T12:34:56Z"
     | NoExpiry;
+
+export interface PageRevision {
+  text: string;
+  revid: number;
+}

@@ -12,6 +12,7 @@ import type {
   BlockRowData,
   Expiry,
   NoExpiry,
+  PageRevision,
   RelativeExpiry,
   SectionEntry,
 } from './types';
@@ -242,6 +243,55 @@ export function buildURLLinkHtml(url: string, text: string, title?: string): str
   title ??= url;
   const $link = $('<a>').attr('href', url).attr('title', title).text(text);
   return $link.prop('outerHTML') as string;
+}
+
+/** MediaWiki's edit form takes timestamps as YYYYMMDDHHMMSS, not ISO 8601 */
+function toFormTimestamp(iso: string): string {
+  return iso.replace(/\D/g, '').slice(0, 14);
+}
+
+export interface PrefilledEdit {
+  text: string;
+  summary: string;
+  /** The revision the text was built on */
+  base: PageRevision;
+  /** When editing started, so MediaWiki can tell if the page was deleted meanwhile */
+  startTimestamp: string;
+}
+
+export function buildPrefilledEditFields(edit: PrefilledEdit): Record<string, string> {
+  return {
+    wpTextbox1: edit.text,
+    wpSummary: edit.summary,
+    wpDiff: '1',
+    editRevId: edit.base.revid.toString(),
+    wpStarttime: toFormTimestamp(edit.startTimestamp),
+    wpWatchthis: '1',
+    // For EditPage.php's incompleteForm
+    wpUltimateParam: '1',
+  };
+}
+
+/**
+ * A button that opens a page's edit form in a new tab with our edit already in it.
+ *
+ * It has to be a POST: MediaWiki only preloads text into new pages and new sections, so the
+ * only way to put text into an existing page's edit box is to submit it as the form would.
+ * The user submits the form themselves, so the new tab counts as a click and isn't popup-blocked.
+ */
+export function buildPrefilledEditFormHtml(
+  edit: PrefilledEdit & { title: string; label: string },
+): string {
+  const path = mw.util.getUrl(spiHelperStripXWikiPrefix(edit.title), { action: 'submit' });
+  const action = spiHelperGetXWikiPrefix(edit.title) === null ? path : `https://meta.wikimedia.org${path}`;
+  const $form = $('<form>')
+    .addClass('spiHelper-messageAction')
+    .attr({ method: 'post', target: '_blank', action });
+  for (const [name, value] of Object.entries(buildPrefilledEditFields(edit))) {
+    $form.append($('<input>').attr({ type: 'hidden', name, value }));
+  }
+  $form.append($('<button>').attr('type', 'submit').addClass('cdx-button').text(edit.label));
+  return $form.prop('outerHTML') as string;
 }
 
 /**

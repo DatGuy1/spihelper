@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import type { PageRevision } from '../../src/types';
 import { type EditPageOpts, stubApi } from '../fixtures/api.ts';
 
-const mockGetPageText = mock((_title: string, _cache: boolean) => Promise.resolve(''));
+const SRG_REVID = 5678;
+const mockGetPageRevision = mock(
+  (_title: string, _show: boolean) => Promise.resolve<PageRevision | null>(null),
+);
 const mockEditPage = mock((_opts: EditPageOpts) => Promise.resolve<number | null>(1234));
 
 await stubApi({
-  spiHelperGetPageText: mockGetPageText,
+  spiHelperGetPageRevision: mockGetPageRevision,
   spiHelperEditPage: mockEditPage,
   spiHelperGetPageRev: mock(() => Promise.resolve(0)),
 });
@@ -17,6 +21,7 @@ const {
   spiHelperRequestGlobalActions,
 } = await import('../../src/actions/lock.ts');
 const contextModule = await import('../../src/context.ts');
+const { messages } = await import('../../src/ui/messages.ts');
 
 const MASTER_LINK = '[[Special:CentralAuth/Master|Master]]';
 
@@ -37,7 +42,10 @@ const SRG_TEXT = [
 
 beforeEach(() => {
   contextModule.setContext('Wikipedia:Sockpuppet investigations/Master');
-  mockGetPageText.mockReset().mockResolvedValue(SRG_TEXT);
+  mockGetPageRevision.mockReset().mockResolvedValue({
+    text: SRG_TEXT, revid: SRG_REVID,
+  });
+  messages.splice(0);
   mockEditPage.mockReset().mockResolvedValue(1234);
 });
 
@@ -261,8 +269,39 @@ describe('spiHelperRequestGlobalActions', () => {
     expect(filed).toEqual({ lockedUsers: [], globalBlockedUsers: [] });
   });
 
+  test('offers to open the edit on Meta when the edit fails', async () => {
+    mockEditPage.mockResolvedValue(null);
+
+    await spiHelperRequestGlobalActions({ ...base, lockTargets: ['SockA'], blockTargets: [] });
+
+    const form = messages.find(message => message.content.includes('<form'));
+    expect(form?.isHtml).toBe(true);
+    // The splice we tried to save is what the form hands over
+    expect(form?.content).toContain('LockHide|1=SockA');
+  });
+
+  test('offers nothing extra when the edit goes through', async () => {
+    await spiHelperRequestGlobalActions({ ...base, lockTargets: ['SockA'], blockTargets: [] });
+
+    expect(messages.some(message => message.content.includes('<form'))).toBe(false);
+  });
+
+  test('files nothing when SRG cannot be read', async () => {
+    mockGetPageRevision.mockResolvedValue(null);
+
+    const filed = await spiHelperRequestGlobalActions({
+      ...base, lockTargets: ['SockA'], blockTargets: [],
+    });
+
+    expect(filed).toEqual({ lockedUsers: [], globalBlockedUsers: [] });
+    expect(mockEditPage).not.toHaveBeenCalled();
+  });
+
   test('files neither request when one of the sections is missing', async () => {
-    mockGetPageText.mockResolvedValue('== Requests for global (un)lock and (un)hiding ==\n\n== See also ==\n');
+    mockGetPageRevision.mockResolvedValue({
+      text: '== Requests for global (un)lock and (un)hiding ==\n\n== See also ==\n',
+      revid: SRG_REVID,
+    });
 
     const filed = await spiHelperRequestGlobalActions({
       ...base, lockTargets: ['SockA'], blockTargets: ['~2026-00000-01'],
