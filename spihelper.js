@@ -433,6 +433,30 @@ ${note}
     const $link = $("<a>").attr("href", url).attr("title", title).text(text);
     return $link.prop("outerHTML");
   }
+  function toFormTimestamp(iso) {
+    return iso.replace(/\D/g, "").slice(0, 14);
+  }
+  function buildPrefilledEditFields(edit) {
+    return {
+      wpTextbox1: edit.text,
+      wpSummary: edit.summary,
+      wpDiff: "1",
+      editRevId: edit.base.revid.toString(),
+      wpStarttime: toFormTimestamp(edit.startTimestamp),
+      wpWatchthis: "1",
+      wpUltimateParam: "1"
+    };
+  }
+  function buildPrefilledEditFormHtml(edit) {
+    const path = mw.util.getUrl(spiHelperStripXWikiPrefix(edit.title), { action: "submit" });
+    const action = spiHelperGetXWikiPrefix(edit.title) === null ? path : `https://meta.wikimedia.org${path}`;
+    const $form = $("<form>").addClass("spiHelper-messageAction").attr({ method: "post", target: "_blank", action });
+    for (const [name, value] of Object.entries(buildPrefilledEditFields(edit))) {
+      $form.append($("<input>").attr({ type: "hidden", name, value }));
+    }
+    $form.append($("<button>").attr("type", "submit").addClass("cdx-button").text(edit.label));
+    return $form.prop("outerHTML");
+  }
   function pluralise(count, singular, plural = `${singular}s`) {
     return count === 1 ? singular : plural;
   }
@@ -1371,7 +1395,7 @@ ${body}` : body;
       return null;
     }
   }
-  async function spiHelperGetPageText(title, show, sectionId) {
+  async function spiHelperGetPageRevision(title, show, sectionId) {
     const linkHtml = buildTitleLinkHtml(title);
     const message = new VueMessage({ type: "notice", content: "Getting page " + linkHtml, isHtml: true });
     if (show) {
@@ -1381,7 +1405,7 @@ ${body}` : body;
     const request = {
       action: "query",
       prop: "revisions",
-      rvprop: "content",
+      rvprop: ["content", "ids"],
       rvslots: "main",
       titles: finalTitle,
       formatversion: "2"
@@ -1396,16 +1420,19 @@ ${body}` : body;
         if (show) {
           message.update({ type: "warning", content: `Page ${linkHtml} does not exist`, isHtml: true });
         }
-        return "";
+        return null;
       }
       const latestRevision = targetPage.revisions?.[0];
       if (!latestRevision) {
-        return "";
+        return null;
       }
       if (show) {
         message.update({ type: "success", content: `Got ${linkHtml}`, isHtml: true });
       }
-      return latestRevision.slots.main.content;
+      return {
+        text: latestRevision.slots.main.content,
+        revid: latestRevision.revid
+      };
     } catch (error) {
       if (show) {
         message.update({
@@ -1414,8 +1441,11 @@ ${body}` : body;
           isHtml: true
         });
       }
-      return "";
+      return null;
     }
+  }
+  async function spiHelperGetPageText(title, show, sectionId) {
+    return (await spiHelperGetPageRevision(title, show, sectionId))?.text ?? "";
   }
   async function spiHelperGetPageRev(title) {
     const finalTitle = spiHelperStripXWikiPrefix(title);
@@ -4698,7 +4728,13 @@ ${buildLockTemplate(tempAccounts)}`;
       return nothingFiled;
     }
     const actionLabel = buildRequestLabel(requests);
-    let newText = await spiHelperGetPageText(SRG_PAGE, false);
+    const startTimestamp = new Date().toISOString();
+    const srgPage = await spiHelperGetPageRevision(SRG_PAGE, false);
+    if (!srgPage) {
+      new VueMessage({ type: "error", content: `${actionLabel} failed: could not read ${SRG_PAGE}.` }).show();
+      return nothingFiled;
+    }
+    let newText = srgPage.text;
     for (const request of requests) {
       const splicedText = newText.replace(SRG_SECTION_ANCHORS[request.kind], (_match, heading) => `
 
@@ -4714,20 +4750,33 @@ ${heading}`);
       }
       newText = splicedText;
     }
+    const summary = `${actionLabel} for ${buildRequestHeading({
+      targets: [...blockTargets, ...lockTargets],
+      master,
+      hideNames
+    }).heading}`;
     new VueMessage({ type: "notice", content: `Filing ${actionLabel.toLowerCase()}` }).show();
     const editId = await spiHelperEditPage({
       title: SRG_PAGE,
       newText,
-      summary: `${actionLabel} for ${buildRequestHeading({
-        targets: [...blockTargets, ...lockTargets],
-        master,
-        hideNames
-      }).heading}`,
+      summary,
       createonly: false,
       watch: "nochange"
     });
     if (!editId) {
-      new VueMessage({ type: "warning", content: `${actionLabel} failed.` }).show();
+      const formHtml = buildPrefilledEditFormHtml({
+        title: SRG_PAGE,
+        text: newText,
+        summary: summary + spiHelperAdvert(true),
+        base: srgPage,
+        startTimestamp,
+        label: "Submit request manually"
+      });
+      new VueMessage({
+        type: "warning",
+        content: `${mw.html.escape(actionLabel)} failed. ${formHtml}`,
+        isHtml: true
+      }).show();
       return nothingFiled;
     }
     for (const request of requests) {

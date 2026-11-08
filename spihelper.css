@@ -137,6 +137,10 @@
   padding-top: 20px;
 }
 
+.spiHelper-messageRow .spiHelper-messageAction {
+  margin-top: 8px;
+}
+
 .spiHelper-contentRow {
   display: flex;
   flex-direction: column;
