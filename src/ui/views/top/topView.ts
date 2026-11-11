@@ -617,6 +617,7 @@ export const TopViewComponent = defineComponent({
         // Otherwise submitting again would file the same report twice. A report that
         // failed to save is kept, so it can be retried
         if (filedRevId !== null) {
+          mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'file', type: 'top' });
           this.discardReport();
         }
         finishOp('mainActions', OpState.Success);

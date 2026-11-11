@@ -8,6 +8,7 @@ import type {
   UserRow,
 } from '../../../src/types';
 import { AlternateViewComponent } from '../../../src/ui/views';
+import * as caseActionsModule from '../../../src/caseActions.ts';
 import { CaseState } from '../../../src/state.ts';
 import { generateUserRow } from '../../../src/ui/utils.ts';
 import { getInitialCaseReport } from '../../../src/ui/views/top/utils';
@@ -88,5 +89,54 @@ describe('onSubmitActions', () => {
     expect(messages.map(message => message.type)).toContain('error');
     expect(ctx.blockData.fetchedUsers.size).toBe(0);
     expect(ctx.actionsRunning).toBe(false);
+  });
+});
+
+describe('filing a report', () => {
+  interface FilingCtx extends TestCtx {
+    view: 'checkuser';
+    discardReport: ReturnType<typeof mock>;
+  }
+  const filingMethods = AlternateViewComponent.methods as unknown as {
+    onSubmitActions(this: FilingCtx): Promise<void>;
+  };
+
+  let track: ReturnType<typeof mock>;
+  let fileAndAct: ReturnType<typeof spyOn<typeof caseActionsModule, 'spiHelperFileAndAct'>>;
+
+  beforeEach(() => {
+    track = mock();
+    (mw as unknown as { track: () => void }).track = track;
+    fileAndAct = spyOn(caseActionsModule, 'spiHelperFileAndAct');
+  });
+
+  afterEach(() => {
+    fileAndAct.mockRestore();
+  });
+
+  function makeFilingCtx(): FilingCtx {
+    return { ...makeCtx(), view: 'checkuser', discardReport: mock() };
+  }
+
+  test('counts a report once it is filed, with the view it came from', async () => {
+    fileAndAct.mockResolvedValue(999);
+    const ctx = makeFilingCtx();
+
+    await filingMethods.onSubmitActions.call(ctx);
+
+    expect(track).toHaveBeenCalledWith('stats.mediawiki_gadget_spihelper_total', 1, {
+      action: 'file', type: 'alternate', view: 'checkuser',
+    });
+    expect(ctx.discardReport).toHaveBeenCalled();
+  });
+
+  test('does not count a report that failed to save', async () => {
+    fileAndAct.mockResolvedValue(null);
+
+    await filingMethods.onSubmitActions.call(makeFilingCtx());
+
+    expect(track).not.toHaveBeenCalledWith(
+      'stats.mediawiki_gadget_spihelper_total', 1, expect.objectContaining({ action: 'file' }),
+    );
   });
 });

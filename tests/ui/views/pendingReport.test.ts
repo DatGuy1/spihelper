@@ -42,8 +42,8 @@ describe('PendingReportComponent summary', () => {
 
   test('names the case anywhere else, its archive included', () => {
     expect(summaryOn('Wikipedia:Sockpuppet_investigations/Alice_Foo/Archive'))
-      .toBe('A new report listing 2 accounts will be filed on Alice Foo when you submit.');
+      .toBe('A new report listing 2 accounts will be filed on [[Wikipedia:Sockpuppet investigations/Alice Foo]] when you submit.');
     expect(summaryOn('Special:CheckUser'))
-      .toContain('on Alice Foo');
+      .toContain('on [[Wikipedia:Sockpuppet investigations/Alice Foo]]');
   });
 });
