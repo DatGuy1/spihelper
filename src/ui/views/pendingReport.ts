@@ -9,19 +9,22 @@ export const PendingReportComponent = defineComponent({
   },
   emits: ['edit', 'discard'],
   computed: {
-    onOtherPage(): boolean {
-      const casePage = `Wikipedia:Sockpuppet investigations/${this.master}`;
-      return mw.config.get('wgPageName').replace(/_/g, ' ') !== casePage;
+    casePage(): string {
+      return `Wikipedia:Sockpuppet investigations/${this.master}`;
     },
-    summary(): string {
-      const accountCount = countOf(this.report.socks.length, 'account');
-      const where = this.onOtherPage ? ` on [[Wikipedia:Sockpuppet investigations/${this.master}]]` : '';
-      return `A new report listing ${accountCount} will be filed${where} when you submit.`;
+    caseUrl(): string {
+      return mw.util.getUrl(this.casePage);
+    },
+    onOtherPage(): boolean {
+      return mw.config.get('wgPageName').replace(/_/g, ' ') !== this.casePage;
+    },
+    accountCount(): string {
+      return countOf(this.report.socks.length, 'account');
     },
   },
   template: `
     <cdx-message class="spiHelper-pendingReport">
-      {{ summary }}
+      A new report listing {{ accountCount }} will be filed<template v-if="onOtherPage"> on <a :href="caseUrl">{{ casePage }}</a></template> when you submit.
       <div class="spiHelper-pendingReport-actions">
         <cdx-button @click="$emit('edit')">Edit</cdx-button>
         <cdx-button action="destructive" @click="$emit('discard')">Discard</cdx-button>
