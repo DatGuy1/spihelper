@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:
 import { silenceConsoleError } from './fixtures/console.ts';
 import {
   chunkArray,
+  spiHelperAppendToPage,
+  spiHelperEditPage,
   spiHelperGetBulkGlobalBlocks,
   spiHelperGetBulkGlobalUsers,
   spiHelperGetBulkPageRestrictions,
@@ -593,5 +595,85 @@ describe('lookup requests', () => {
     })).toBeNull();
     expect(errorSpy).not.toHaveBeenCalled();
     errorSpy.mockRestore();
+  });
+});
+
+describe('page edits', () => {
+  let post: ReturnType<typeof spyOn<typeof mw.Api.prototype, 'post'>>;
+
+  /** The request the edit sent */
+  function sentRequest() {
+    return post.mock.calls[0]?.[0] as Record<string, unknown> | undefined;
+  }
+
+  beforeEach(() => {
+    post = spyOn(mw.Api.prototype, 'post');
+    post.mockResolvedValue({ edit: { newrevid: 42 } });
+  });
+
+  afterEach(() => {
+    mock.restore();
+  });
+
+  describe('spiHelperAppendToPage', () => {
+    const append = () => spiHelperAppendToPage({
+      title: 'Wikipedia:Sockpuppet investigations/Foo',
+      appendText: '\nnew report',
+      summary: 'Adding report',
+      watch: 'nochange',
+    });
+
+    test('appends rather than sending the full page text', async () => {
+      await append();
+
+      const request = sentRequest();
+      expect(request?.appendtext).toBe('\nnew report');
+      expect(request).not.toHaveProperty('text');
+    });
+
+    test('has nothing that could overwrite or conflict with the existing page', async () => {
+      await append();
+
+      const request = sentRequest();
+      expect(request).not.toHaveProperty('section');
+      expect(request).not.toHaveProperty('baserevid');
+      expect(request).not.toHaveProperty('createonly');
+    });
+
+    test('follows a redirect to the merged case', async () => {
+      await append();
+
+      expect(sentRequest()?.redirect).toBe(true);
+    });
+
+    test('returns the new revision ID', async () => {
+      expect(await append()).toBe(42);
+    });
+
+    test('returns null when the edit fails', async () => {
+      silenceConsoleError();
+      post.mockRejectedValue('badtoken');
+
+      expect(await append()).toBeNull();
+    });
+  });
+
+  describe('spiHelperEditPage', () => {
+    test('still sends the full text against the given section and base revision', async () => {
+      await spiHelperEditPage({
+        title: 'Wikipedia:Sockpuppet investigations/Foo',
+        newText: 'section text',
+        summary: 'Editing',
+        watch: 'nochange',
+        baseRevId: 7,
+        sectionId: 3,
+      });
+
+      const request = sentRequest();
+      expect(request?.text).toBe('section text');
+      expect(request?.section).toBe('3');
+      expect(request?.baserevid).toBe(7);
+      expect(request).not.toHaveProperty('appendtext');
+    });
   });
 });

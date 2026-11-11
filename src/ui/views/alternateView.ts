@@ -3,6 +3,9 @@ import type { CaseState } from '../../state.ts';
 import {
   type AllUser,
   type BlockActionData,
+  type CaseAction,
+  type CaseActions,
+  type CaseReport,
   type FeedbackDialog,
   ParsedArchiveNotice,
   type SubmitFormActions,
@@ -10,7 +13,7 @@ import {
 } from '../../types';
 import { spiHelperSettings } from '../../options';
 import { VueMessage, dismissMessage, messages } from '../messages.ts';
-import { cdxIconFeedback, cdxIconPushPin } from '@wikimedia/codex-icons';
+import { cdxIconAdd, cdxIconFeedback, cdxIconPushPin } from '@wikimedia/codex-icons';
 import { OpState, finishOp, getOpState, isOpRunning, startOp } from '../../operations.ts';
 import { UpdateUserAllUserData } from './userLookup.ts';
 import {
@@ -18,13 +21,18 @@ import {
   getDefaultUserRow,
   updateUserBlockDataSettings,
 } from '../utils.ts';
-import { spiHelperHandleBlocks } from '../../caseActions.ts';
-import { spiHelperLog } from '../../actions';
+import { spiHelperFileAndAct } from '../../caseActions.ts';
 import { context, setContext } from '../../context.ts';
-import { buildUserActionLogMessage, setupBlockActionData, spiHelperNormalizeUsername } from '../../utils.ts';
+import { setupBlockActionData, spiHelperNormalizeUsername } from '../../utils.ts';
 import { spiHelperParseArchiveNotice } from '../../archivenotice.ts';
 import { spiHelperGetCategoryMembers } from '../../api.ts';
-import { applyFetchedUsers, ensureUsersFetched, getSockEntries, prefetchSockRows } from './top/utils';
+import {
+  applyFetchedUsers,
+  ensureUsersFetched,
+  getInitialCaseReport,
+  getSockEntries,
+  prefetchSockRows,
+} from './top/utils';
 import { MODE, VERSION } from '../../constants';
 
 interface Data {
@@ -36,12 +44,15 @@ interface Data {
   accountsLoading: boolean;
   targetCase: string;
   blockData: BlockActionData;
+  report: CaseAction<CaseReport>;
   accounts: UserRow[];
   actionsRunning: boolean;
-  cdxIconFeedback: typeof cdxIconFeedback;
-  cdxIconPushPin: typeof cdxIconPushPin;
+  filingViewOpen: boolean;
   unpinned: boolean;
   messages: VueMessage[];
+  cdxIconAdd: typeof cdxIconAdd;
+  cdxIconFeedback: typeof cdxIconFeedback;
+  cdxIconPushPin: typeof cdxIconPushPin;
 }
 
 const SPI_CASE_REGEX = /\[\[(?:Wikipedia|WP):(?:Sockpuppet investigations|SPI)\/([^\]]+)/i;
@@ -64,10 +75,16 @@ export const AlternateViewComponent = defineComponent({
       accountsLoading: false,
       targetCase: this.defaultCase,
       blockData: setupBlockActionData(),
+      report: {
+        enabled: false,
+        data: getInitialCaseReport(),
+      },
       accounts: [],
       actionsRunning: false,
+      filingViewOpen: false,
       unpinned: !spiHelperSettings.interface.pinned,
       messages,
+      cdxIconAdd,
       cdxIconFeedback,
       cdxIconPushPin,
     };
@@ -79,13 +96,14 @@ export const AlternateViewComponent = defineComponent({
     pageName() {
       return `Wikipedia:Sockpuppet investigations/${this.targetCase}`;
     },
-    // What submit-form takes. This view has no case text, so block is the only action
-    caseActions(): SubmitFormActions {
+    // What submit-form takes. This view has no case text, so it can only block and file
+    caseActions(): SubmitFormActions & Pick<CaseActions, 'block'> {
       return {
         block: {
           enabled: true,
           data: this.blockData,
         },
+        file: this.report,
       };
     },
   },
@@ -164,6 +182,32 @@ export const AlternateViewComponent = defineComponent({
   },
   methods: {
     dismissMessage,
+    onReportSaved(report: CaseReport) {
+      this.report = {
+        enabled: true,
+        data: report,
+      };
+    },
+    discardReport() {
+      this.report = {
+        enabled: false,
+        data: getInitialCaseReport(),
+      };
+    },
+    // Keep the filing table in sync with the block table
+    async onReportAccountAdded(username: string) {
+      const row = updateUserBlockDataSettings({
+        userRow: generateUserRow(username, this.state), defaultBlock: false,
+      });
+      const added = new Set(this.massAddUserRows([row]).map(r => r.username));
+      await ensureUsersFetched(added, this.blockData.fetchedUsers);
+      applyFetchedUsers({
+        accounts: this.accounts,
+        usernames: added,
+        blockData: this.blockData,
+        state: this.state,
+      });
+    },
     handleUserSelected(data: AllUser, rowId: string) {
       const userRow = this.accounts.find(r => r.id === rowId);
       if (!userRow) {
@@ -294,32 +338,17 @@ export const AlternateViewComponent = defineComponent({
       startOp('alternateActions');
       this.actionsRunning = true;
       try {
-        const {
-          blockPromises, tagPromises, talkNoticePromises, globalRequestPromise,
-        } = await spiHelperHandleBlocks({
+        const filedRevId = await spiHelperFileAndAct({
+          caseName: context.userName,
+          report: this.report,
+          block: this.caseActions.block,
           accounts: this.accounts,
-          blockData: this.blockData,
         });
-        const userActionsPromise = Promise.all([
-          Promise.all(blockPromises),
-          Promise.all(tagPromises),
-          globalRequestPromise,
-        ]);
-        const talkNoticePromise = Promise.all(talkNoticePromises);
-
-        const [blockedUsers, taggedUsers, globalRequests] = await userActionsPromise;
-        await talkNoticePromise;
-        if (spiHelperSettings.log.enabled) {
-          const logMessage = `* [[:User:${context.userName}]]` + buildUserActionLogMessage({
-            blockedUsers,
-            taggedUsers,
-            lockedUsers: globalRequests.lockedUsers,
-            globalBlockedUsers: globalRequests.globalBlockedUsers,
-          });
-          await spiHelperLog(logMessage);
+        // Otherwise submitting again would file the same report twice. A report that failed
+        // to save is kept, so it can be retried
+        if (filedRevId !== null) {
+          this.discardReport();
         }
-
-        new VueMessage({ type: 'success', content: 'Done!' }).show();
         finishOp('alternateActions', OpState.Success);
       }
       catch (error) {
@@ -440,13 +469,19 @@ export const AlternateViewComponent = defineComponent({
     },
   },
   template: `
-    <div id="spiHelper-alternateView" class="spiHelper-mainCard" v-if="open" @keydown.ctrl.enter.capture.prevent="$refs.submitForm?.onSubmit?.()">
+    <div id="spiHelper-alternateView" class="spiHelper-mainCard" v-if="open"
+         @keydown.ctrl.enter.capture.prevent="$refs.submitForm?.onSubmit?.()">
       <div id="spiHelper-alternateView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
-          <cdx-button aria-label="Give feedback" weight="quiet" @click="launchFeedback">
+          <cdx-button aria-label="File new report" v-tooltip="'File new report'" weight="quiet"
+                      :disabled="!caseLoaded" @click="filingViewOpen = true">
+            <cdx-icon :icon="cdxIconAdd" />
+          </cdx-button>
+          <cdx-button aria-label="Give feedback" v-tooltip="'Give feedback'" weight="quiet" @click="launchFeedback">
             <cdx-icon :icon="cdxIconFeedback" />
           </cdx-button>
           <cdx-button :action="unpinned ? 'default': 'progressive'" aria-label="Toggle pin"
+                      v-tooltip="unpinned ? 'Pin form' : 'Unpin form'"
                       weight="quiet" @click="unpinned = !unpinned">
             <cdx-icon :icon="cdxIconPushPin" />
           </cdx-button>
@@ -457,8 +492,9 @@ export const AlternateViewComponent = defineComponent({
                      :namespace="4" prefix="Sockpuppet investigations/"
                      placeholder="Case" label="Case title" description="Optional but recommended" />
         <div style="display: flex; gap: 10px;">
-          <cdx-button weight="primary" action="progressive" :disabled="caseLoading"
-                      @click="loadCase(true)">Load</cdx-button>
+          <cdx-button weight="primary" action="progressive" :disabled="caseLoading" @click="loadCase(true)">
+            Load
+          </cdx-button>
           <cdx-progress-indicator v-if="caseLoading">Loading case</cdx-progress-indicator>
           <cdx-progress-indicator v-else-if="accountsLoading">Loading accounts</cdx-progress-indicator>
         </div>
@@ -481,9 +517,14 @@ export const AlternateViewComponent = defineComponent({
                         @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
         </div>
       </div>
+      <filing-view v-model:open="filingViewOpen" :report="report" :accounts="accounts"
+                   :master="blockData.master" @save="onReportSaved" @add-account="onReportAccountAdded" />
+      <pending-report v-if="caseLoaded && report.enabled" :report="report.data" :master="blockData.master"
+                      @edit="filingViewOpen = true" @discard="discardReport" />
       <div v-if="caseLoaded">
         <submit-form :accounts="accounts"
-                     v-model:lock-comment="blockData.lockcomment" v-model:skipCUVerifyUsers="blockData.skipCUVerifyUsers"
+                     v-model:lock-comment="blockData.lockcomment"
+                     v-model:skipCUVerifyUsers="blockData.skipCUVerifyUsers"
                      :case-actions="caseActions" :state="state"
                      :all-disabled="false" :action-name="'alternateActions'" :check-conflict="false"
                      @on-submit="onSubmitActions" ref="submitForm" />

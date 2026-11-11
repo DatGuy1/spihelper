@@ -8,6 +8,8 @@ import { isMenuGroupData } from '../../../utils.ts';
 export const ChangeStatusActionComponent = defineComponent({
   props: {
     enabled: { type: Boolean, required: true },
+    toggleable: { type: Boolean, default: true },
+    disabled: { type: Boolean, default: false },
     oldStatus: { type: String as PropType<CaseStatus>, required: true },
     newStatus: { type: String as PropType<CaseStatusChoice>, required: true },
   },
@@ -110,8 +112,9 @@ export const ChangeStatusActionComponent = defineComponent({
     },
   },
   template: `
-    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
-      <cdx-select v-model:selected="selected" :menu-items="caseStatusItems" default-label="New case status" />
+    <action-container v-model:enabled="enabled" :toggleable="toggleable" @update:enabled="$emit('update:enabled', $event)">
+      <cdx-select v-model:selected="selected" :menu-items="caseStatusItems" default-label="New case status"
+                  :disabled="disabled" />
     </action-container>
   `,
 });

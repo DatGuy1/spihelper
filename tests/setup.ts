@@ -78,8 +78,12 @@ import { messages, setMessagesReactive } from '../src/ui/messages.ts';
       return Promise.resolve({});
     }
 
-    post() {
+    post(_params?: unknown) {
       return Promise.resolve({});
+    }
+
+    postWithToken(_tokenType: string, params: unknown) {
+      return this.post(params);
     }
   },
   ForeignApi: class ForeignApi {

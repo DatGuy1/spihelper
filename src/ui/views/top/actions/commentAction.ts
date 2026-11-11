@@ -1,18 +1,19 @@
 import { type PropType, defineComponent } from 'vue';
 import { type CdxTextArea, type MenuItemData } from '@wikimedia/codex';
-import { spiHelperRenderText } from '../../../../api.ts';
 import { context } from '../../../../context.ts';
-import { cdxIconReload } from '@wikimedia/codex-icons';
 import { spiHelperIsAdmin, spiHelperIsCheckuser, spiHelperIsClerk } from '../../../../role.ts';
 import { spiHelperAdminSectionWithPrecedingNewlinesRegex, spiHelperCUTemplates, spiHelperClerkTemplates, spiHelperClosingRuleRegex } from '../../../../constants';
 import { addSignature } from '../../../../utils.ts';
 import { type SectionSelection, loadSectionText } from '../../../../state.ts';
+import type { SectionEntry } from '../../../../types';
 import { spiHelperSettings } from '../../../../options';
 import { pruneMenuData } from '../../../utils.ts';
 
 export const CommentActionComponent = defineComponent({
   props: {
     enabled: { type: Boolean, required: true },
+    toggleable: { type: Boolean, default: true },
+    showPreview: { type: Boolean, default: true },
     text: { type: String, required: true },
     selectedSection: { type: [Object, null] as PropType<SectionSelection | null>, required: true },
   },
@@ -48,15 +49,42 @@ export const CommentActionComponent = defineComponent({
       clerkTemplates,
       cuTemplates,
       customTemplates,
-      loadingPreview: false,
-      htmlPreview: '',
       fullPreview: spiHelperSettings.interface.fullPreview,
-      cdxIconReload,
+      previewContext: null as string | null,
     };
   },
   computed: {
     commentBox(): InstanceType<typeof CdxTextArea> {
       return this.$refs.commentBox as InstanceType<typeof CdxTextArea>;
+    },
+    previewSection(): SectionEntry | null {
+      return this.fullPreview && this.selectedSection?.type === 'single' ? this.selectedSection.section : null;
+    },
+    // Nothing to render until there's more than the starting bullet
+    previewSource(): string | null {
+      const text = this.text.trim();
+      if (text === '' || text === '*' || this.previewContext === null) {
+        return null;
+      }
+      const userText = addSignature(this.text);
+      return this.previewContext === '' ? userText : this.previewContext + '\n' + userText;
+    },
+    previewTitle(): string {
+      return context.pageName;
+    },
+  },
+  watch: {
+    // By ID, since the multi-section view builds a new selection object on every render
+    'previewSection.id': {
+      handler() {
+        void this.loadPreviewContext();
+      },
+      immediate: true,
+    },
+    enabled(isEnabled: boolean) {
+      if (isEnabled && this.previewContext === null) {
+        void this.loadPreviewContext();
+      }
     },
   },
   methods: {
@@ -71,34 +99,34 @@ export const CommentActionComponent = defineComponent({
     onTextUpdate(newValue: string) {
       this.$emit('update:text', newValue);
     },
-    async updatePreview() {
-      this.loadingPreview = true;
-      const userText = addSignature(this.text);
-      try {
-        if (this.fullPreview && this.selectedSection?.type === 'single') {
-          const sectionText = await loadSectionText(this.selectedSection.section);
-          let startIndex: number | undefined;
-          let endIndex: number | undefined;
-          if (this.isClerk || this.isAdmin) {
-            // Find the invisible marker
-            startIndex = spiHelperAdminSectionWithPrecedingNewlinesRegex.exec(sectionText)?.index;
-            endIndex = spiHelperClosingRuleRegex.exec(sectionText)?.index;
-          }
-          else {
-            // Everyone else posts in the "other users" section
-            startIndex = /\s*====\s*<big>Comments by other users<\/big>\s*====\s*/i.exec(sectionText)?.index;
-            endIndex = spiHelperAdminSectionWithPrecedingNewlinesRegex.exec(sectionText)?.index;
-          }
-          const subsectionText = sectionText.slice(startIndex ?? 0, endIndex ?? 0).trim() + '\n' + userText;
-          this.htmlPreview = await spiHelperRenderText(context.pageName, subsectionText);
-        }
-        else {
-          this.htmlPreview = await spiHelperRenderText(context.pageName, userText);
-        }
+    async loadPreviewContext() {
+      const section = this.previewSection;
+      if (section === null) {
+        this.previewContext = '';
+        return;
       }
-      finally {
-        this.loadingPreview = false;
+      this.previewContext = null;
+      if (!this.enabled) {
+        return;
       }
+      const sectionText = await loadSectionText(section);
+      // A newer selection has taken over
+      if (this.previewSection?.id !== section.id) {
+        return;
+      }
+      let startIndex: number | undefined;
+      let endIndex: number | undefined;
+      if (this.isClerk || this.isAdmin) {
+        // Find the invisible marker
+        startIndex = spiHelperAdminSectionWithPrecedingNewlinesRegex.exec(sectionText)?.index;
+        endIndex = spiHelperClosingRuleRegex.exec(sectionText)?.index;
+      }
+      else {
+        // Everyone else posts in the "other users" section
+        startIndex = /\s*====\s*<big>Comments by other users<\/big>\s*====\s*/i.exec(sectionText)?.index;
+        endIndex = spiHelperAdminSectionWithPrecedingNewlinesRegex.exec(sectionText)?.index;
+      }
+      this.previewContext = sectionText.slice(startIndex ?? 0, endIndex ?? 0).trim();
     },
     /**
      * Inserts a {{note}} template at the start of the text box
@@ -143,7 +171,7 @@ export const CommentActionComponent = defineComponent({
     },
   },
   template: `
-    <action-container v-model:enabled="enabled" @update:enabled="onEnable">
+    <action-container v-model:enabled="enabled" :toggleable="toggleable" @update:enabled="onEnable">
       <div class="spiHelper-templateRow">
         <cdx-select :menu-items="noteTemplates" default-label="Comment templates" @update:selected="insertNote" />
         <cdx-select v-if="isClerk || isAdmin" :menu-items="clerkTemplates" default-label="Admin/clerk templates" @update:selected="insertText" />
@@ -153,14 +181,7 @@ export const CommentActionComponent = defineComponent({
       </div>
       <cdx-text-area ref="commentBox" :autosize="true" placeholder="Write your comment" :model-value="text"
                      @update:model-value="onTextUpdate" />
-      <div class="cdx-card spiHelper-PreviewBox" style="min-height:26px">
-        <cdx-button class="spiHelper-preview-reload" aria-label="Load preview" @click="updatePreview"
-                    weight="primary" action="progressive" :disabled="loadingPreview">
-          <cdx-progress-indicator v-if="loadingPreview">Loading preview</cdx-progress-indicator>
-          <cdx-icon v-else :icon="cdxIconReload" />
-        </cdx-button>
-        <div v-html="htmlPreview" class="spiHelper-htmlPreview" />
-      </div>
+      <preview-box v-if="showPreview" :source="previewSource" :title="previewTitle" :active="enabled" />
     </action-container>
   `,
 });

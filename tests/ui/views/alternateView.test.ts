@@ -1,8 +1,16 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
-import type { BlockActionData, PrefetchedUser, UserRow } from '../../../src/types';
-import { AlternateViewComponent } from '../../../src/ui/views/alternateView.ts';
+import type {
+  BlockActionData,
+  CaseAction,
+  CaseReport,
+  PrefetchedUser,
+  SubmitFormActions,
+  UserRow,
+} from '../../../src/types';
+import { AlternateViewComponent } from '../../../src/ui/views';
 import { CaseState } from '../../../src/state.ts';
 import { generateUserRow } from '../../../src/ui/utils.ts';
+import { getInitialCaseReport } from '../../../src/ui/views/top/utils';
 import { messages } from '../../../src/ui/messages.ts';
 import { setContext } from '../../../src/context.ts';
 import { setupBlockActionData } from '../../../src/utils.ts';
@@ -10,11 +18,16 @@ import { setupBlockActionData } from '../../../src/utils.ts';
 interface TestCtx {
   accounts: UserRow[];
   blockData: BlockActionData;
+  report: CaseAction<CaseReport>;
+  caseActions: SubmitFormActions;
   actionsRunning: boolean;
 }
 
 const methods = AlternateViewComponent.methods as unknown as {
   onSubmitActions(this: TestCtx): Promise<void>;
+};
+const computed = AlternateViewComponent.computed as unknown as {
+  caseActions(this: Omit<TestCtx, 'caseActions'>): SubmitFormActions;
 };
 
 /** A cache entry for someone we looked up and found unblocked, untagged and unlocked */
@@ -28,7 +41,14 @@ const nothingFound: PrefetchedUser = {
 function makeCtx(accounts: UserRow[] = []): TestCtx {
   const blockData = setupBlockActionData();
   blockData.fetchedUsers.set('Sock', { ...nothingFound });
-  return { accounts, blockData, actionsRunning: false };
+  const base = {
+    accounts,
+    blockData,
+    report: { enabled: false, data: getInitialCaseReport() },
+    actionsRunning: false,
+  };
+  // The real computed, so the context can't drift from what the view submits
+  return { ...base, caseActions: computed.caseActions.call(base) };
 }
 
 let post: ReturnType<typeof spyOn<typeof mw.Api.prototype, 'post'>>;

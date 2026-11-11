@@ -5,10 +5,13 @@ export const ActionContainerComponent = defineComponent({
     enabled: { type: Boolean, required: true },
     empty: { type: Boolean, default: false },
     disabled: { type: Boolean, default: false },
+    toggleable: { type: Boolean, default: true },
   },
   emits: ['update:enabled'],
   data() {
-    return { built: this.enabled };
+    return {
+      built: this.enabled || !this.toggleable,
+    };
   },
   watch: {
     enabled(newValue: boolean) {
@@ -22,7 +25,7 @@ export const ActionContainerComponent = defineComponent({
     },
   },
   template: `
-    <cdx-toggle-switch class="enableSwitch" :disabled="disabled" :model-value="enabled" @update:model-value="$emit('update:enabled', $event)">
+    <cdx-toggle-switch v-if="toggleable" class="enableSwitch" :disabled="disabled" :model-value="enabled" @update:model-value="$emit('update:enabled', $event)">
       Enabled
     </cdx-toggle-switch>
     <div v-if="!empty && built" v-show="enabled">

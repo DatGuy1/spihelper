@@ -16,10 +16,12 @@ import {
 } from './constants';
 import { spiHelperSettings } from './options';
 import {
+  buildCaseReportWikitext,
   createSockCategories,
   spiHelperAddTalkBlockNotice,
   spiHelperArchiveCase,
   spiHelperArchiveCaseSection,
+  spiHelperFileCaseReport,
   spiHelperLog,
   spiHelperMoveCase,
   spiHelperMoveCaseSection,
@@ -46,6 +48,7 @@ import {
   type BlockActionData,
   type CaseAction,
   type CaseActions,
+  type CaseReport,
   type CaseStatusChoice,
   type GlobalRequestResults,
   ParsedArchiveNotice,
@@ -86,11 +89,14 @@ export async function spiHelperOneClickArchive(state: CaseState): Promise<void> 
 }
 
 /**
- * Goes through the action selections and executes them
+ * Run the top view's actions
+ *
+ * @returns The revision that filed the report, or null if there was none
+ * @throws {Error} If the report is invalid, or a lookup the blocks depend on failed
  */
 export async function spiHelperPerformActions(opts: {
   actions: CaseActions; accounts: UserRow[]; state: CaseState;
-}) {
+}): Promise<number | null> {
   const { actions, accounts, state } = opts;
 
   const anyTopLevelEnabled = Object.values(actions)
@@ -101,24 +107,28 @@ export async function spiHelperPerformActions(opts: {
   ].some(entry => entry.enabled);
   if (!anyTopLevelEnabled && !anyBySectionEnabled) {
     new VueMessage({ type: 'warning', content: 'No actions are enabled' }).show();
-    return;
+    return null;
   }
   if (!state.selectedSection) {
     console.error('spiHelperPerformActions: Expected a selected section, got null');
     new VueMessage({ type: 'error', content: 'Expected a selected section, got null' }).show();
-    return;
+    return null;
   }
   if (!state.archiveNotice) {
     console.error('spiHelperPerformActions: Could not find archive notice');
     new VueMessage({ type: 'error', content: 'Could not find archive notice' }).show();
-    return;
+    return null;
   }
   if (!actions.block.data.master) {
     console.error('spiHelperPerformActions: Could not get master');
     new VueMessage({ type: 'error', content: 'Could not get master' }).show();
-    return;
+    return null;
   }
   const sectionType = state.selectedSection.type;
+  // Built first, so an invalid report stops everything before anything is written
+  const reportWikitext = actions.file.enabled && !context.isArchive
+    ? buildCaseReportWikitext(actions.file.data)
+    : null;
 
   new VueMessage({ type: 'notice', content: 'Running actions' }).show();
 
@@ -138,9 +148,10 @@ export async function spiHelperPerformActions(opts: {
   let targetText = await (sectionType === 'single'
     ? loadSectionText(state.selectedSection.section)
     : loadCaseText(state));
-  if (!targetText) {
+  // A case page that doesn't exist yet is empty, which is fine when filing its first report
+  if (!targetText && reportWikitext === null) {
     new VueMessage({ type: 'error', content: 'Could not fetch text for the page' }).show();
-    return;
+    return null;
   }
 
   const startText = targetText;
@@ -274,29 +285,56 @@ export async function spiHelperPerformActions(opts: {
   summaryFacts.globalBlockedUsers = globalRequests.globalBlockedUsers;
 
   const structureChanged = actions.move.enabled || actions.archive.enabled;
+  let filedRevId: number | null = null;
   // Make all the requested edits synchronously since we might make more changes to the page,
   // unless the page is an archive
-  if (!context.isArchive && targetText !== startText) {
+  if (!context.isArchive && (targetText !== startText || reportWikitext !== null)) {
+    // A new report goes on the end of the page in the same edit as the rest, so the edit
+    // has to cover the whole page even when only one section is selected
+    const editedSection = state.selectedSection.type === 'single' && reportWikitext === null
+      ? state.selectedSection.section
+      : null;
+    let newText = targetText;
+    if (reportWikitext !== null) {
+      if (state.selectedSection.type === 'single') {
+        const caseText = await loadCaseText(state);
+        newText = caseText.replace(startText, () => targetText);
+        if (targetText !== startText && newText === caseText) {
+          new VueMessage({
+            type: 'error', content: `Failed to update section ${state.selectedSection.section.name}`,
+          }).show();
+        }
+      }
+      newText = newText.trimEnd() + '\n' + reportWikitext;
+      summaryFacts.filedReport = true;
+    }
     // 'all' and 'multiple' both edit the whole page (sectionId null); only 'single' targets
     // a single MediaWiki section, which is also the only case where the "/* section */"
     // autocomment makes sense, since MediaWiki only supports one summary target.
-    const sectionId = state.selectedSection.type === 'single'
-      ? state.selectedSection.section.id
-      : null;
-    const sectionName = state.selectedSection.type === 'single'
-      ? state.selectedSection.section.name
-      : null;
+    const sectionId = editedSection?.id ?? null;
+    const sectionName = editedSection?.name ?? null;
 
     const editSummary = formatEditSummary(buildEditSummaryActions(summaryFacts), sectionName);
     const newRevId = await context.edit({
-      newText: targetText,
+      newText,
       summary: editSummary,
       watch: spiHelperSettings.watch.case,
       watchExpiry: spiHelperSettings.expiry.case,
       baseRevId: context.startingRevId,
+      // In case a case page has been created since
+      createonly: reportWikitext !== null && sectionType === 'all' && startText === '',
       sectionId: sectionId,
     });
-    if (newRevId === null) {
+    if (reportWikitext !== null && newRevId !== null) {
+      filedRevId = newRevId;
+      logMessage += '\n** filed new report';
+      state._text = null;
+      for (const section of state.sections) {
+        section._text = null;
+      }
+      context.startingRevId = newRevId;
+    }
+    else if (newRevId === null) {
       // Page edit failed (probably an edit conflict)
       new VueMessage({ type: 'error', content: 'Failed to save edit' }).show();
       if (!structureChanged) {
@@ -397,7 +435,13 @@ export async function spiHelperPerformActions(opts: {
     await context.refreshRevId();
   }
 
+  if (filedRevId !== null) {
+    // So the new report shows up as a section to pick
+    await refreshSections(state);
+  }
+
   new VueMessage({ type: 'success', content: 'Done!' }).show();
+  return filedRevId;
 }
 
 function spiHelperHandleComment(targetText: string, comment: string) {
@@ -489,6 +533,60 @@ function spiHelperHandleStatus(newStatus: CaseStatusChoice, targetText: string) 
     targetText = targetText.replace(caseStatusResult[0], `{{SPI case status|${newStatus}}}`);
   }
   return { newStatus, summaryItem, targetText };
+}
+
+/**
+ * Run the account actions and, if needed, file a new report on the case
+ *
+ * @returns The filed report's revision ID, or null if none was filed or it failed to save
+ * @throws {Error} If the report is invalid, or a lookup the blocks depend on failed
+ */
+export async function spiHelperFileAndAct(opts: {
+  caseName: string;
+  report: CaseAction<CaseReport> | undefined;
+  block: CaseAction<BlockActionData>;
+  accounts: UserRow[];
+}): Promise<number | null> {
+  const { caseName, report, block, accounts } = opts;
+  const reportWikitext = report?.enabled ? buildCaseReportWikitext(report.data) : null;
+
+  let blockPromises: Promise<string | null>[] = [];
+  let tagPromises: Promise<string | null>[] = [];
+  let talkNoticePromises: Promise<void>[] = [];
+  let globalRequestPromise: Promise<GlobalRequestResults> = Promise.resolve(
+    { lockedUsers: [], globalBlockedUsers: [] },
+  );
+  if (block.enabled) {
+    ({ blockPromises, tagPromises, talkNoticePromises, globalRequestPromise }
+      = await spiHelperHandleBlocks({ accounts, blockData: block.data }));
+  }
+  const userActionsPromise = Promise.all([
+    Promise.all(blockPromises),
+    Promise.all(tagPromises),
+    globalRequestPromise,
+  ]);
+
+  const filedRevId = reportWikitext === null
+    ? null
+    : await spiHelperFileCaseReport(caseName, reportWikitext);
+
+  const [blockedUsers, taggedUsers, globalRequests] = await userActionsPromise;
+  await Promise.all(talkNoticePromises);
+  if (spiHelperSettings.log.enabled) {
+    let logMessage = filedRevId === null
+      ? `* [[:User:${caseName}]]`
+      : `* [[Wikipedia:Sockpuppet investigations/${caseName}]] ~~~~~\n** filed new report`;
+    logMessage += buildUserActionLogMessage({
+      blockedUsers,
+      taggedUsers,
+      lockedUsers: globalRequests.lockedUsers,
+      globalBlockedUsers: globalRequests.globalBlockedUsers,
+    });
+    await spiHelperLog(logMessage);
+  }
+
+  new VueMessage({ type: 'success', content: 'Done!' }).show();
+  return filedRevId;
 }
 
 export async function spiHelperHandleBlocks(opts: {

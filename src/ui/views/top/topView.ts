@@ -1,10 +1,17 @@
 import { type PropType, defineComponent } from 'vue';
-import { cdxIconCollapse, cdxIconExpand, cdxIconFeedback, cdxIconPushPin } from '@wikimedia/codex-icons';
+import {
+  cdxIconAdd,
+  cdxIconCollapse,
+  cdxIconExpand,
+  cdxIconFeedback,
+  cdxIconPushPin,
+} from '@wikimedia/codex-icons';
 import {
   type AllUser,
   type CaseActionName,
   type CaseActionSection,
   type CaseActions,
+  type CaseReport,
   type CaseStatusChoice,
   type FeedbackDialog,
   ParsedArchiveNotice,
@@ -22,13 +29,19 @@ import { saveOptions, spiHelperSettings } from '../../../options';
 import { UpdateUserAllUserData } from '../userLookup.ts';
 import { spiHelperParseArchiveNotice } from '../../../archivenotice.ts';
 import { context } from '../../../context.ts';
-import { getDefaultUserRow, isAborted, updateUserBlockDataSettings } from '../../utils.ts';
+import {
+  generateUserRow,
+  getDefaultUserRow,
+  isAborted,
+  updateUserBlockDataSettings,
+} from '../../utils.ts';
 import {
   type ActionButtons,
   applyFetchedUsers,
   ensureUsersFetched,
   getActionButtons,
   getInitialCaseActions,
+  getInitialCaseReport,
   getManagementFlagsFromArchiveNotice,
   getSockEntries,
   prefetchSockRows,
@@ -52,11 +65,13 @@ interface Data {
   actionsRunning: boolean;
   displayedForms: Set<CaseActionName>;
   icons: {
+    cdxIconAdd: typeof cdxIconAdd;
     cdxIconPushPin: typeof cdxIconPushPin;
     cdxIconCollapse: typeof cdxIconCollapse;
     cdxIconExpand: typeof cdxIconExpand;
     cdxIconFeedback: typeof cdxIconFeedback;
   };
+  filingViewOpen: boolean;
   unpinned: boolean;
   buttonLayout: boolean;
   sectionAccountNames: Set<string>;
@@ -99,7 +114,9 @@ export const TopViewComponent = defineComponent({
       messages,
       sectionClickCleanup: null,
       multiSelectMode: false,
+      filingViewOpen: false,
       icons: {
+        cdxIconAdd,
         cdxIconPushPin,
         cdxIconCollapse,
         cdxIconExpand,
@@ -192,11 +209,13 @@ export const TopViewComponent = defineComponent({
       if (newSection === oldSection) {
         return;
       }
-      for (const [actionName, caseAction] of Object.entries(this.caseActions)) {
-        const caseAN = actionName as CaseActionName;
+      // Only the actions with a button. A pending report isn't one, and isn't tied to the
+      // selection, so changing section must leave it alone
+      for (const caseAN of this.actionButtonKeys) {
         if (caseAN === 'sections') {
           continue;
         }
+        const caseAction = this.caseActions[caseAN];
         const actionDefaultEnabled = spiHelperSettings.defaultActions.includes(caseAN);
         // Only enable actions the new selection can actually run
         const available = shouldShowAction({
@@ -323,6 +342,32 @@ export const TopViewComponent = defineComponent({
       else {
         this.displayedForms.add(formName);
       }
+    },
+    onReportSaved(report: CaseReport) {
+      this.caseActions.file = {
+        enabled: true,
+        data: report,
+      };
+    },
+    discardReport() {
+      this.caseActions.file = {
+        enabled: false,
+        data: getInitialCaseReport(),
+      };
+    },
+    // Keep the filing table in sync with the block table
+    async onReportAccountAdded(username: string) {
+      const row = updateUserBlockDataSettings({
+        userRow: generateUserRow(username, this.state), defaultBlock: false,
+      });
+      const added = new Set(this.massAddUserRows([row]).map(r => r.username));
+      await ensureUsersFetched(added, this.caseActions.block.data.fetchedUsers);
+      applyFetchedUsers({
+        accounts: this.accounts,
+        usernames: added,
+        blockData: this.caseActions.block.data,
+        state: this.state,
+      });
     },
     isVisible(name: CaseActionName): boolean {
       return this.displayedForms.has(name);
@@ -564,11 +609,16 @@ export const TopViewComponent = defineComponent({
       // I would have liked to use isOpRunning in the v-if, but it's messed up with Vue's reactivity
       this.actionsRunning = true;
       try {
-        await spiHelperPerformActions({
+        const filedRevId = await spiHelperPerformActions({
           actions: this.caseActions,
           accounts: this.accounts,
           state: this.state,
         });
+        // Otherwise submitting again would file the same report twice. A report that
+        // failed to save is kept, so it can be retried
+        if (filedRevId !== null) {
+          this.discardReport();
+        }
         finishOp('mainActions', OpState.Success);
       }
       catch (error) {
@@ -666,6 +716,11 @@ export const TopViewComponent = defineComponent({
       if (archiveNoticeResult === null) {
         // No archive notice was found, initialise default and add it
         this.state.archiveNotice = new ParsedArchiveNotice({ username: context.caseName });
+        // A case page that doesn't exist yet has no notice to find. Filing the first report
+        // adds one, since the report template writes the case header
+        if (!context.isArchive && context.startingRevId === 0) {
+          return;
+        }
         new VueMessage({
           type: 'warning',
           content: 'Can\'t find archivenotice template! Automatically adding the archive notice to the page',
@@ -690,16 +745,22 @@ export const TopViewComponent = defineComponent({
     },
   },
   template: `
-    <div id="spiHelper-topView" class="spiHelper-mainCard" v-if="open" @keydown.ctrl.enter.capture.prevent="$refs.submitForm?.onSubmit?.()">
+    <div id="spiHelper-topView" class="spiHelper-mainCard" v-if="open"
+         @keydown.ctrl.enter.capture.prevent="$refs.submitForm?.onSubmit?.()">
       <div id="spiHelper-topView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
-          <cdx-button aria-label="Give feedback" weight="quiet" @click="launchFeedback">
+          <cdx-button aria-label="File new report" v-tooltip="'File new report'" weight="quiet"
+                      :disabled="actionsRunning" @click="filingViewOpen = true">
+            <cdx-icon :icon="icons.cdxIconAdd" />
+          </cdx-button>
+          <cdx-button aria-label="Give feedback" v-tooltip="'Give feedback'" weight="quiet" @click="launchFeedback">
             <cdx-icon :icon="icons.cdxIconFeedback" />
           </cdx-button>
-          <cdx-button aria-label="Toggle layout" weight="quiet" @click="toggleButtonLayout">
+          <cdx-button aria-label="Toggle layout" v-tooltip="'Toggle layout'" weight="quiet" @click="toggleButtonLayout">
             <cdx-icon :icon="buttonLayout ? icons.cdxIconExpand : icons.cdxIconCollapse" />
           </cdx-button>
           <cdx-button :action="unpinned ? 'default': 'progressive'" aria-label="Toggle pin"
+                      v-tooltip="unpinned ? 'Pin form' : 'Unpin form'"
                       weight="quiet" @click="unpinned = !unpinned">
             <cdx-icon :icon="icons.cdxIconPushPin" />
           </cdx-button>
@@ -778,6 +839,12 @@ export const TopViewComponent = defineComponent({
           />
         </action-accordion>
       </div>
+      <filing-view v-model:open="filingViewOpen" :report="caseActions.file" :accounts="accounts"
+                   :master="caseActions.block.data.master" :reported="sectionAccountNames"
+                   @save="onReportSaved" @add-account="onReportAccountAdded" />
+      <pending-report v-if="caseActions.file.enabled" :report="caseActions.file.data"
+                      :master="caseActions.block.data.master"
+                      @edit="filingViewOpen = true" @discard="discardReport" />
       <submit-form v-if="caseActions.sections.data.section !== null" :accounts="accounts"
                    v-model:lock-comment="caseActions.block.data.lockcomment"
                    v-model:skipCUVerifyUsers="caseActions.block.data.skipCUVerifyUsers"

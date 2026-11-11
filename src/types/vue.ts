@@ -39,7 +39,7 @@ export type InputColumn = 'block' | 'duration' | 'acb' | 'abao' | 'ntp' | 'nem' 
  * without a case page to edit (the alternate view) have no comment, status or move
  */
 export type SubmitFormActions = Pick<CaseActions, 'block'>
-  & Partial<Pick<CaseActions, 'comment' | 'status' | 'move'>>;
+  & Partial<Pick<CaseActions, 'comment' | 'status' | 'move' | 'file'>>;
 
 export interface TagRowPopoverState {
   anchor: HTMLElement | null;

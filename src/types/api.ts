@@ -1,3 +1,5 @@
+import type { ApiEditPageParams } from 'types-mediawiki-api';
+
 type ProtectionType = 'edit' | 'move' | 'create';
 
 export interface NormalizedTitle {
@@ -327,3 +329,7 @@ export interface PageRevision {
   text: string;
   revid: number;
 }
+
+export type EditModeParams = Pick<
+  ApiEditPageParams, 'text' | 'appendtext' | 'section' | 'createonly' | 'baserevid' | 'redirect'
+>;

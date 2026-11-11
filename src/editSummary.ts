@@ -13,6 +13,7 @@ export interface EditSummaryFacts {
   closedCount: number;
   statusChangedCount: number;
   /** Shared in single and multi-section **/
+  filedReport: boolean;
   commentedCount: number;
   archiveNoticeUpdated: boolean;
   /** Who each user action landed on, not just how many - see groupByAccounts */
@@ -29,6 +30,7 @@ export function setupEditSummaryFacts(multiSection: boolean): EditSummaryFacts {
     closedCount: 0,
     statusChangedCount: 0,
     commentedCount: 0,
+    filedReport: false,
     archiveNoticeUpdated: false,
     blockedUsers: [],
     taggedUsers: [],
@@ -122,6 +124,9 @@ function groupByAccounts(facts: EditSummaryFacts): string[] {
  */
 export function buildEditSummaryActions(facts: EditSummaryFacts): string[] {
   const editSummaryActions: string[] = [];
+  if (facts.filedReport) {
+    editSummaryActions.push('filing new report');
+  }
   if (facts.archiveNoticeUpdated) {
     editSummaryActions.push('updating archivenotice');
   }

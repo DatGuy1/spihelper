@@ -33,6 +33,7 @@ import type {
   BlocksResponse,
   CategoriesResponse,
   CategoryMembersResponse,
+  EditModeParams,
   EditResponse,
   GlobalBlockEntry,
   GlobalBlocksResponse,
@@ -463,9 +464,12 @@ export async function spiHelperUndeletePage(title: string, reason: string) {
  *
  * @param {string} title Page title
  * @param {string} text Text to render
- * @return {Promise<string>} Rendered version of the text
+ * @param {AbortSignal} [signal] Cancels the request, such as when a newer preview supersedes it
+ * @return {Promise<string>} Rendered version of the text, or '' if it failed or was cancelled
  */
-export async function spiHelperRenderText(title: string, text: string): Promise<string> {
+export async function spiHelperRenderText(
+  title: string, text: string, signal?: AbortSignal,
+): Promise<string> {
   const request: ApiParseParams = {
     action: 'parse',
     prop: 'text',
@@ -475,11 +479,14 @@ export async function spiHelperRenderText(title: string, text: string): Promise<
   };
 
   try {
-    const response = await postReadOnly(spiHelperGetAPI(title), request) as ParseResponse<'text'>;
+    const response = await postReadOnly(spiHelperGetAPI(title), request, signal) as ParseResponse<'text'>;
     return response.parse?.text['*'] ?? '';
   }
   catch (error) {
-    console.error('Error rendering text:', error);
+    // Cancelling is the caller's choice, not a failure
+    if (!signal?.aborted) {
+      console.error('Error rendering text:', error);
+    }
     return '';
   }
 }
@@ -912,6 +919,57 @@ export async function spiHelperEditPage(opts: {
   if (sectionId) {
     activeOpKey += `_${sectionId}`;
   }
+  const params: EditModeParams = { text: newText, createonly };
+  if (sectionId) {
+    params.section = sectionId.toString();
+  }
+  if (baseRevId) {
+    params.baserevid = baseRevId;
+  }
+  return postEdit({ title, summary, watch, watchExpiry, activeOpKey, params });
+}
+
+/**
+ * Append text to the end of a page, creating the page if it doesn't exist
+ *
+ * @return The new revision ID if successful, or null if failure
+ */
+export async function spiHelperAppendToPage(opts: {
+  title: string; appendText: string; summary: string;
+  watch: WatchOption; watchExpiry?: string;
+}): Promise<number | null> {
+  const { title, appendText, summary, watch, watchExpiry } = opts;
+  return postEdit({
+    title,
+    summary,
+    watch,
+    watchExpiry,
+    activeOpKey: `append_${title}`,
+    params: { appendtext: appendText, redirect: true },
+  });
+}
+
+/**
+ * Send an edit request, reporting its progress and result on screen
+ */
+async function postEdit(opts: {
+  title: string; summary: string; watch: WatchOption; watchExpiry?: string;
+  activeOpKey: string; params: EditModeParams;
+}): Promise<number | null> {
+  const { title, summary, watch, watchExpiry, activeOpKey, params } = opts;
+  const xwikiPrefix = spiHelperGetXWikiPrefix(title);
+  const request: ApiEditPageParams = {
+    ...params,
+    action: 'edit',
+    title: spiHelperStripXWikiPrefix(title),
+    summary: summary + spiHelperAdvert(xwikiPrefix !== null),
+    watchlist: watch,
+    formatversion: '2',
+  };
+  if (watchExpiry) {
+    request.watchlistexpiry = watchExpiry;
+  }
+
   startOp(activeOpKey);
   const pageLinkHtml = buildTitleLinkHtml(title);
   const message = new VueMessage({
@@ -921,27 +979,6 @@ export async function spiHelperEditPage(opts: {
   }).show();
 
   const api = spiHelperGetAPI(title);
-  const xwikiPrefix = spiHelperGetXWikiPrefix(title);
-  const finalTitle = spiHelperStripXWikiPrefix(title);
-
-  const request: ApiEditPageParams = {
-    action: 'edit',
-    watchlist: watch,
-    summary: summary + spiHelperAdvert(xwikiPrefix !== null),
-    text: newText,
-    title: finalTitle,
-    createonly: createonly,
-    formatversion: '2',
-  };
-  if (sectionId) {
-    request.section = sectionId.toString();
-  }
-  if (watchExpiry) {
-    request.watchlistexpiry = watchExpiry;
-  }
-  if (baseRevId) {
-    request.baserevid = baseRevId;
-  }
   try {
     const response = await api.postWithToken('csrf', request) as EditResponse;
     const diffId = response.edit.newrevid;
@@ -1220,8 +1257,10 @@ type ApiRequestParams = Parameters<mw.Api['post']>[0];
  * doesn't, so the nearest one can serve it (https://www.mediawiki.org/wiki/API:Etiquette).
  * TODO: Use https://phabricator.wikimedia.org/T410883 when that's implemented
  */
-function postReadOnly(api: mw.Api, request: ApiRequestParams): ReturnType<mw.Api['post']> {
-  return api.post(request, { headers: { 'Promise-Non-Write-API-Action': 'true' } });
+function postReadOnly(
+  api: mw.Api, request: ApiRequestParams, signal?: AbortSignal,
+): ReturnType<mw.Api['post']> {
+  return api.post(request, { headers: { 'Promise-Non-Write-API-Action': 'true' }, signal });
 }
 
 /**

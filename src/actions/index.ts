@@ -1,5 +1,6 @@
 export * from './archive.ts';
 export * from './block.ts';
+export * from './filing.ts';
 export * from './lock.ts';
 export * from './log.ts';
 export * from './move.ts';

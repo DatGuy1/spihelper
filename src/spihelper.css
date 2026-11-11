@@ -96,6 +96,23 @@
     }
 }
 
+.spiHelper-filingView-addSock {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.spiHelper-pendingReport {
+    margin-top: 1em;
+
+    .spiHelper-pendingReport-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+    }
+}
+
 .spiHelper-messageRow {
     width: 100%;
 
@@ -422,7 +439,17 @@
 .spiHelper-PreviewBox {
     min-height: 26px;
 
+    /* Shown until there's a preview */
+    .spiHelper-previewBox-empty {
+        margin: 0;
+        color: var(--color-subtle, #54595d);
+    }
+
     .spiHelper-preview-reload {
+        /* Codex only sizes a button as icon-only while it holds just an icon, so swapping
+           the icon for the spinner would otherwise widen it */
+        min-width: 32px;
+        padding-inline: 0;
         position: absolute;
         inset-inline-end: 8px;
         inset-block-start: 8px;
@@ -432,7 +459,7 @@
         overflow-wrap: break-word;
         width: 100%;
         padding-inline-end: 40px;
-        box-sizing: border-box
+        box-sizing: border-box;
     }
 }
 

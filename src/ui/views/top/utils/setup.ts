@@ -1,5 +1,5 @@
 import { spiHelperIsAdmin } from '../../../../role.ts';
-import type { ActionLabel, CaseActionName, CaseActions } from '../../../../types';
+import type { ActionLabel, CaseActionName, CaseActions, CaseReport } from '../../../../types';
 import { context } from '../../../../context.ts';
 import { setupBlockActionData } from '../../../../utils.ts';
 
@@ -96,6 +96,10 @@ export function getInitialCaseActions(): CaseActions {
         addNote: false,
       },
     },
+    file: {
+      enabled: false,
+      data: getInitialCaseReport(),
+    },
     archive: {
       enabled: false,
     },
@@ -110,3 +114,12 @@ export const ClerkOnlyActions = new Set<CaseActionName>(['move', 'archive', 'man
 export const AlwaysAvailableActions = new Set<CaseActionName>(['sections', 'move', 'archive', 'block', 'link']);
 // Actions available only when a single section is selected
 export const SpecificSectionActions = new Set<CaseActionName>(['status', 'comment']);
+
+/** An empty report, for the filing view to fill in */
+export function getInitialCaseReport(): CaseReport {
+  return {
+    socks: [],
+    evidence: '',
+    adminComment: '',
+  };
+}

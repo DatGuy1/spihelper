@@ -7,7 +7,7 @@ interface TestCtx {
 }
 
 const container = ActionContainerComponent as unknown as {
-  data(this: { enabled: boolean }): { built: boolean };
+  data(this: { enabled: boolean; toggleable: boolean }): { built: boolean };
   watch: { enabled(this: TestCtx, newValue: boolean): void };
 };
 
@@ -37,12 +37,16 @@ function runFrame() {
 describe('ActionContainerComponent', () => {
   describe('initial build state', () => {
     test('a form that starts enabled is built immediately, with no deferred frame', () => {
-      expect(container.data.call({ enabled: true }).built).toBe(true);
+      expect(container.data.call({ enabled: true, toggleable: true }).built).toBe(true);
       expect(frameCallbacks).toHaveLength(0);
     });
 
     test('a form that starts disabled is not built', () => {
-      expect(container.data.call({ enabled: false }).built).toBe(false);
+      expect(container.data.call({ enabled: false, toggleable: true }).built).toBe(false);
+    });
+
+    test('a form without a switch is built immediately, since it can never be switched on', () => {
+      expect(container.data.call({ enabled: false, toggleable: false }).built).toBe(true);
     });
   });
 

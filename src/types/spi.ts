@@ -126,6 +126,18 @@ export interface CaseActions {
   management: CaseAction<{ flags: Set<ManagementFlag> }>;
   move: CaseAction<{ target: string; suppress: boolean; addNote: boolean }>;
   archive: { enabled: boolean };
+  file: CaseAction<CaseReport>;
+}
+
+/** A new report to file on a case, see buildCaseReportWikitext */
+export interface CaseReport {
+  /** Accounts to list under "Suspected sockpuppets", in order */
+  socks: string[];
+  /** Opening text of the report */
+  evidence: string;
+  status?: CaseStatus;
+  /** Comment for the clerk/CU/admin section */
+  adminComment?: string;
 }
 
 /** The status a section is at, and the status it's being set to */

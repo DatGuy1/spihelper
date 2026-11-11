@@ -1,9 +1,19 @@
 import { afterAll, beforeEach, describe, expect, spyOn, test } from 'bun:test';
-import type { CaseActions, UserRow } from '../../../../src/types';
+import type {
+  CaseActionName,
+  CaseActionSection,
+  CaseActions,
+  CaseReport,
+  UserRow,
+} from '../../../../src/types';
 import { CaseState, type SectionSelection, getSelectedSections } from '../../../../src/state.ts';
 import { SectionEntry } from '../../../../src/types';
 import { setContext } from '../../../../src/context.ts';
-import { getInitialCaseActions } from '../../../../src/ui/views/top/utils';
+import {
+  type ActionButtons,
+  getActionButtons,
+  getInitialCaseActions,
+} from '../../../../src/ui/views/top/utils';
 import { TopViewComponent } from '../../../../src/ui/views/top';
 import { makeUserRow } from '../../../fixtures/spi.ts';
 import { setupBlockActionData } from '../../../../src/utils.ts';
@@ -442,5 +452,59 @@ describe('multi-select mode', () => {
 
       expect(ctx.state.selectedSection).toEqual({ type: 'single', section: sectionA });
     });
+  });
+});
+
+describe('filing a new report', () => {
+  interface FilingCtx {
+    caseActions: CaseActions;
+    actionButtons: ActionButtons;
+    actionButtonKeys: CaseActionName[];
+    displayedForms: Set<CaseActionName>;
+  }
+  const filingMethods = TopViewComponent.methods as unknown as {
+    onReportSaved(this: FilingCtx, report: CaseReport): void;
+    discardReport(this: FilingCtx): void;
+  };
+  const filingWatch = TopViewComponent.watch as unknown as Record<
+    'caseActions.sections.data.section',
+    (this: FilingCtx, newSection: CaseActionSection, oldSection: CaseActionSection) => void
+  >;
+  const report: CaseReport = { socks: ['Alice'], evidence: 'Same edits.' };
+
+  function makeCtx(): FilingCtx {
+    const actionButtons = getActionButtons();
+    return {
+      caseActions: getInitialCaseActions(),
+      actionButtons,
+      actionButtonKeys: Object.keys(actionButtons) as CaseActionName[],
+      displayedForms: new Set(['sections']),
+    };
+  }
+
+  test('holds a saved report for the next submit', () => {
+    const ctx = makeCtx();
+
+    filingMethods.onReportSaved.call(ctx, report);
+
+    expect(ctx.caseActions.file).toEqual({ enabled: true, data: report });
+  });
+
+  test('drops a discarded report', () => {
+    const ctx = makeCtx();
+    filingMethods.onReportSaved.call(ctx, report);
+
+    filingMethods.discardReport.call(ctx);
+
+    expect(ctx.caseActions.file.enabled).toBe(false);
+  });
+
+  test('keeps a pending report through a change of section', () => {
+    const ctx = makeCtx();
+    filingMethods.onReportSaved.call(ctx, report);
+
+    filingWatch['caseActions.sections.data.section'].call(ctx, 2, 1);
+
+    expect(ctx.caseActions.file.enabled).toBe(true);
   });
 });

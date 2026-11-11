@@ -34,8 +34,11 @@ import {
   AlternateViewComponent,
   ChangelogViewComponent,
   ExpiryInputComponent,
+  FilingViewComponent,
   OneClickArchivalComponent,
   PageLookupComponent,
+  PendingReportComponent,
+  PreviewBoxComponent,
   SubmitFormComponent,
   TagPopoverComponent,
   UserLookupComponent,
@@ -183,6 +186,7 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
             .component('cdx-multiselect-lookup', Codex.CdxMultiselectLookup)
             .component('cdx-progress-bar', Codex.CdxProgressBar)
             .component('cdx-progress-indicator', Codex.CdxProgressIndicator)
+            .component('cdx-dialog', Codex.CdxDialog)
             .component('cdx-accordion', Codex.CdxAccordion)
             .component('cdx-label', Codex.CdxLabel)
             .component('cdx-popover', Codex.CdxPopover)
@@ -191,6 +195,9 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
             .component('action-container', ActionContainerComponent)
             .component('action-content', ActionContentComponent)
             .component('submit-form', SubmitFormComponent)
+            .component('filing-view', FilingViewComponent)
+            .component('pending-report', PendingReportComponent)
+            .component('preview-box', PreviewBoxComponent)
             .component('comment-action', CommentActionComponent)
             .component('change-status-action', ChangeStatusActionComponent)
             .component('multi-section-comment-action', MultiSectionCommentActionComponent)
@@ -219,19 +226,28 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
           })
             .component('cdx-button', Codex.CdxButton)
             .component('cdx-checkbox', Codex.CdxCheckbox)
+            .component('cdx-dialog', Codex.CdxDialog)
             .component('cdx-field', Codex.CdxField)
             .component('cdx-icon', Codex.CdxIcon)
             .component('cdx-label', Codex.CdxLabel)
             .component('cdx-lookup', Codex.CdxLookup)
             .component('cdx-message', Codex.CdxMessage)
             .component('cdx-popover', Codex.CdxPopover)
+            .component('cdx-progress-bar', Codex.CdxProgressBar)
             .component('cdx-progress-indicator', Codex.CdxProgressIndicator)
             .component('cdx-select', Codex.CdxSelect)
             .component('cdx-table', Codex.CdxTable)
             .component('cdx-text-area', Codex.CdxTextArea)
             .component('cdx-text-input', Codex.CdxTextInput)
             .component('cdx-toggle-button-group', Codex.CdxToggleButtonGroup)
+            .component('cdx-toggle-switch', Codex.CdxToggleSwitch)
             .component('submit-form', SubmitFormComponent)
+            .component('filing-view', FilingViewComponent)
+            .component('pending-report', PendingReportComponent)
+            .component('preview-box', PreviewBoxComponent)
+            .component('action-container', ActionContainerComponent)
+            .component('change-status-action', ChangeStatusActionComponent)
+            .component('comment-action', CommentActionComponent)
             .component('block-action', BlockActionComponent)
             .component('link-action', LinkActionComponent)
             .component('user-lookup', UserLookupComponent)

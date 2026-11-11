@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import * as blockModule from '../src/actions/block.ts';
+import * as filingModule from '../src/actions/filing.ts';
 import * as lockModule from '../src/actions/lock.ts';
 import * as logModule from '../src/actions/log.ts';
 import * as tagModule from '../src/actions/tag.ts';
 import * as apiModule from '../src/api.ts';
 import * as roleModule from '../src/role.ts';
-import { spiHelperHandleBlocks, spiHelperPerformActions } from '../src/caseActions.ts';
+import { spiHelperFileAndAct, spiHelperHandleBlocks, spiHelperPerformActions } from '../src/caseActions.ts';
 import { spiHelperSettings } from '../src/options';
 import { CaseState } from '../src/state.ts';
 import { getInitialCaseActions } from '../src/ui/views/top/utils';
@@ -15,6 +16,7 @@ import {
   type BlockEntry,
   type BlockOptions,
   type BlockRowData,
+  type CaseActions,
   type GlobalBlockEntry,
   type GlobalUser,
   ParsedArchiveNotice,
@@ -671,6 +673,277 @@ describe('spiHelperPerformActions', () => {
       const call = editSpy.mock.calls[0]?.[0];
       expect(call?.newText).toContain('===09 July 2020===\n{{SPI case status|closed}}');
       expect(call?.newText).toContain('Closing per consensus');
+    });
+  });
+
+  describe('filing a new report', () => {
+    const report = { socks: ['SockB'], evidence: 'Same edits.' };
+    const reportWikitext = '{{subst:SPI report|1=SockB|evidence=Same edits.}}';
+
+    function makeState(selection: 'single' | 'all') {
+      const section = new SectionEntry(1, '09 July 2020');
+      section._text = '===09 July 2020===\n{{SPI case status|}}\nEvidence about SockA.\n----';
+      const state = new CaseState([section]);
+      state._text = '{{SPIarchive notice|Foo}}\n' + section._text + '\n';
+      state.selectedSection = selection === 'single' ? { type: 'single', section } : { type: 'all' };
+      state.archiveNotice = new ParsedArchiveNotice({ username: 'Foo' });
+      return { state, section };
+    }
+
+    function makeActions() {
+      const actions = getInitialCaseActions();
+      actions.block.data.master = 'Foo';
+      actions.file = { enabled: true, data: report };
+      return actions;
+    }
+
+    test('files the report in the same edit as the selected section\'s comment', async () => {
+      const { state } = makeState('single');
+      const actions = makeActions();
+      actions.comment.enabled = true;
+      actions.comment.data.text = '* Closing.';
+      spyOn(apiModule, 'spiHelperGetInvestigationSections').mockResolvedValue([]);
+      const editSpy = spyOn(context, 'edit').mockResolvedValue(999);
+
+      await spiHelperPerformActions({ actions, accounts: [], state });
+
+      expect(editSpy).toHaveBeenCalledTimes(1);
+      const call = editSpy.mock.calls[0]?.[0];
+      // The whole page, since the new report sits outside the selected section
+      expect(call?.sectionId).toBeNull();
+      expect(call?.newText).toStartWith('{{SPIarchive notice|Foo}}\n===09 July 2020===');
+      expect(call?.newText).toContain('Closing.');
+      expect(call?.newText).toEndWith('----\n' + reportWikitext);
+      expect(call?.summary).toBe('Filing new report, commenting');
+    });
+
+    test('files a report alone, with nothing else to change', async () => {
+      const { state } = makeState('all');
+      spyOn(apiModule, 'spiHelperGetInvestigationSections').mockResolvedValue([]);
+      const editSpy = spyOn(context, 'edit').mockResolvedValue(999);
+
+      await spiHelperPerformActions({ actions: makeActions(), accounts: [], state });
+
+      expect(editSpy.mock.calls[0]?.[0].newText).toEndWith(reportWikitext);
+      expect(editSpy.mock.calls[0]?.[0].createonly).toBe(false);
+    });
+
+    test('creates a case page that does not exist yet, without overwriting one made since', async () => {
+      const state = new CaseState([]);
+      state._text = '';
+      state.selectedSection = { type: 'all' };
+      state.archiveNotice = new ParsedArchiveNotice({ username: 'Foo' });
+      spyOn(apiModule, 'spiHelperGetInvestigationSections').mockResolvedValue([]);
+      const editSpy = spyOn(context, 'edit').mockResolvedValue(999);
+
+      await spiHelperPerformActions({ actions: makeActions(), accounts: [], state });
+
+      expect(editSpy.mock.calls[0]?.[0].newText).toBe('\n' + reportWikitext);
+      expect(editSpy.mock.calls[0]?.[0].createonly).toBe(true);
+    });
+
+    test('stops before writing anything when the report is invalid', async () => {
+      const { state } = makeState('single');
+      const actions = makeActions();
+      actions.file.data = { socks: [], evidence: 'x' };
+      const editSpy = spyOn(context, 'edit').mockResolvedValue(999);
+
+      const error = await spiHelperPerformActions({ actions, accounts: [], state })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(Error);
+      expect(editSpy).not.toHaveBeenCalled();
+    });
+
+    describe('after the edit', () => {
+      test('returns the revision, and drops cached text that still has the report unexpanded', async () => {
+        const { state, section } = makeState('single');
+        spyOn(apiModule, 'spiHelperGetInvestigationSections').mockResolvedValue([]);
+        spyOn(context, 'edit').mockResolvedValue(999);
+
+        const filedRevId = await spiHelperPerformActions({
+          actions: makeActions(), accounts: [], state,
+        });
+
+        expect(filedRevId).toBe(999);
+        expect(state._text).toBeNull();
+        expect(section._text).toBeNull();
+      });
+
+      test('refreshes the sections, so the new report can be picked', async () => {
+        const { state } = makeState('all');
+        const newSections = [new SectionEntry(1, '09 July 2020'), new SectionEntry(2, '11 November 2026')];
+        spyOn(apiModule, 'spiHelperGetInvestigationSections').mockResolvedValue(newSections);
+        spyOn(context, 'edit').mockResolvedValue(999);
+
+        await spiHelperPerformActions({ actions: makeActions(), accounts: [], state });
+
+        expect(state.sections).toBe(newSections);
+      });
+
+      test('returns null when the edit fails, so the view keeps the report to retry', async () => {
+        const { state } = makeState('single');
+        spyOn(context, 'edit').mockResolvedValue(null);
+        spyOn(context, 'refreshRevId').mockResolvedValue(undefined);
+
+        const filedRevId = await spiHelperPerformActions({
+          actions: makeActions(), accounts: [], state,
+        });
+
+        expect(filedRevId).toBeNull();
+      });
+    });
+  });
+});
+
+describe('spiHelperFileAndAct', () => {
+  afterEach(() => {
+    mock.restore();
+  });
+
+  function makeActions(opts: { file?: boolean; block?: boolean } = {}) {
+    const actions = getInitialCaseActions();
+    actions.file.enabled = opts.file ?? true;
+    actions.file.data = { socks: ['SockA'], evidence: 'Same edits.' };
+    actions.block.enabled = opts.block ?? true;
+    actions.block.data.master = 'Foo';
+    return actions;
+  }
+
+  async function run(actions: CaseActions, accounts: UserRow[] = [makeRow('SockA')]) {
+    return spiHelperFileAndAct({
+      caseName: 'Foo', report: actions.file, block: actions.block, accounts,
+    });
+  }
+
+  describe('filing', () => {
+    test('files the built report on the case', async () => {
+      stubUserActions();
+      spyOn(blockModule, 'spiHelperProcessBlockRow').mockResolvedValue(true);
+      const fileSpy = spyOn(filingModule, 'spiHelperFileCaseReport').mockResolvedValue(5);
+
+      await run(makeActions());
+
+      expect(fileSpy).toHaveBeenCalledWith('Foo', '{{subst:SPI report|1=SockA|evidence=Same edits.}}');
+    });
+
+    test('files nothing when the report is off', async () => {
+      stubUserActions();
+      spyOn(blockModule, 'spiHelperProcessBlockRow').mockResolvedValue(true);
+      const fileSpy = spyOn(filingModule, 'spiHelperFileCaseReport').mockResolvedValue(5);
+
+      await run(makeActions({ file: false }));
+
+      expect(fileSpy).not.toHaveBeenCalled();
+    });
+
+    test('files without blocking when blocking is off', async () => {
+      stubUserActions();
+      const blockSpy = spyOn(blockModule, 'spiHelperProcessBlockRow').mockResolvedValue(true);
+      const fileSpy = spyOn(filingModule, 'spiHelperFileCaseReport').mockResolvedValue(5);
+
+      await run(makeActions({ block: false }));
+
+      expect(fileSpy).toHaveBeenCalledTimes(1);
+      expect(blockSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('result', () => {
+    test('is the revision of the filed report, so the view knows to let it go', async () => {
+      stubUserActions();
+      spyOn(blockModule, 'spiHelperProcessBlockRow').mockResolvedValue(true);
+      spyOn(filingModule, 'spiHelperFileCaseReport').mockResolvedValue(5);
+
+      expect(await run(makeActions())).toBe(5);
+    });
+
+    test('is null when the report failed to save, so the view keeps it for a retry', async () => {
+      stubUserActions();
+      spyOn(blockModule, 'spiHelperProcessBlockRow').mockResolvedValue(true);
+      spyOn(filingModule, 'spiHelperFileCaseReport').mockResolvedValue(null);
+
+      expect(await run(makeActions())).toBeNull();
+    });
+
+    test('is null when there was no report to file', async () => {
+      stubUserActions();
+      spyOn(blockModule, 'spiHelperProcessBlockRow').mockResolvedValue(true);
+
+      expect(await run(makeActions({ file: false }))).toBeNull();
+    });
+  });
+
+  describe('ordering', () => {
+    test('stops before blocking anyone when the report is invalid', async () => {
+      stubUserActions();
+      const blockSpy = spyOn(blockModule, 'spiHelperProcessBlockRow').mockResolvedValue(true);
+      const fileSpy = spyOn(filingModule, 'spiHelperFileCaseReport').mockResolvedValue(5);
+      const actions = makeActions();
+      actions.file.data.evidence = 'a | b';
+
+      const error = await run(actions).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(Error);
+      expect(blockSpy).not.toHaveBeenCalled();
+      expect(fileSpy).not.toHaveBeenCalled();
+    });
+
+    test('starts the blocks before writing the report', async () => {
+      stubUserActions();
+      const calls: string[] = [];
+      spyOn(blockModule, 'spiHelperProcessBlockRow').mockImplementation(() => {
+        calls.push('block');
+        return Promise.resolve(true);
+      });
+      spyOn(filingModule, 'spiHelperFileCaseReport').mockImplementation(() => {
+        calls.push('file');
+        return Promise.resolve(5);
+      });
+
+      await run(makeActions());
+
+      expect(calls).toEqual(['block', 'file']);
+    });
+
+    test('still finishes the blocks when the report fails to save', async () => {
+      stubUserActions();
+      const blockSpy = spyOn(blockModule, 'spiHelperProcessBlockRow').mockResolvedValue(true);
+      spyOn(filingModule, 'spiHelperFileCaseReport').mockResolvedValue(null);
+
+      await run(makeActions());
+
+      expect(blockSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('log', () => {
+    async function getLogMessage(filedRevId: number | null) {
+      stubUserActions();
+      spyOn(blockModule, 'spiHelperProcessBlockRow').mockResolvedValue(true);
+      spyOn(filingModule, 'spiHelperFileCaseReport').mockResolvedValue(filedRevId);
+      const logSpy = spyOn(logModule, 'spiHelperLog').mockResolvedValue(undefined);
+      const originalLogEnabled = spiHelperSettings.log.enabled;
+      spiHelperSettings.log.enabled = true;
+      try {
+        await run(makeActions());
+      }
+      finally {
+        spiHelperSettings.log.enabled = originalLogEnabled;
+      }
+      return logSpy.mock.calls[0]?.[0];
+    }
+
+    test('heads the entry with the case when the report was filed', async () => {
+      expect(await getLogMessage(5))
+        .toStartWith('* [[Wikipedia:Sockpuppet investigations/Foo]] ~~~~~\n** filed new report');
+    });
+
+    test('falls back to the master when the report did not save', async () => {
+      const logMessage = await getLogMessage(null);
+
+      expect(logMessage).toStartWith('* [[:User:Foo]]');
+      expect(logMessage).not.toContain('filed new report');
     });
   });
 });

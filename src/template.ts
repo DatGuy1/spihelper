@@ -68,7 +68,7 @@ export function parseTemplates(wikitext: string): Template[] {
  * `depth` tracks how many levels of [[ or {{ nesting we're currently inside;
  * only a pipe at depth 0 is a real argument boundary.
  */
-function splitTemplateParts(text: string): string[] {
+export function splitTemplateParts(text: string): string[] {
   const parts: string[] = [];
   let depth = 0;
   let segmentStart = 0;
