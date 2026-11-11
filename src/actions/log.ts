@@ -11,18 +11,17 @@ export async function spiHelperLog(logString: string): Promise<void> {
   const now = new Date();
   const dateString = now.toLocaleString('en', { month: 'long' }) + ' '
     + now.toLocaleString('en', { year: 'numeric' });
-  const dateHeader = '==\\s*' + dateString + '\\s*==';
-  const dateHeaderRe = new RegExp(dateHeader, 'i');
-  const dateHeaderReWithAnyDate = /==.*?==/i;
+  const dateHeader = '^==[ \\t]*' + dateString + '[ \\t]*==';
+  const dateHeaderRe = new RegExp(dateHeader, 'im');
+  const dateHeaderReWithAnyDate = /^==[^=\n].*?==.*$/m;
 
   const logPage = getFullLogPage(spiHelperSettings.log.page);
   let logPageText = await spiHelperGetPageText(logPage, false);
   if (!logPageText.match(dateHeaderRe)) {
     if (spiHelperSettings.log.reversed) {
       const firstHeaderMatch = dateHeaderReWithAnyDate.exec(logPageText);
-      if (firstHeaderMatch?.index) {
-        logPageText = logPageText.slice(0, firstHeaderMatch.index) + '== ' + dateString + ' ==\n' + logPageText.slice(firstHeaderMatch.index);
-      }
+      const insertAt = firstHeaderMatch ? firstHeaderMatch.index : logPageText.length;
+      logPageText = logPageText.slice(0, insertAt) + '== ' + dateString + ' ==\n' + logPageText.slice(insertAt);
     }
     else {
       logPageText += '\n== ' + dateString + ' ==';
@@ -30,7 +29,7 @@ export async function spiHelperLog(logString: string): Promise<void> {
   }
   if (spiHelperSettings.log.reversed) {
     const firstHeaderMatch = dateHeaderReWithAnyDate.exec(logPageText);
-    if (firstHeaderMatch?.index) {
+    if (firstHeaderMatch) {
       logPageText = logPageText.slice(0, firstHeaderMatch.index + firstHeaderMatch[0].length) + '\n' + logString + logPageText.slice(firstHeaderMatch.index + firstHeaderMatch[0].length);
     }
   }
