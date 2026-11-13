@@ -1,5 +1,5 @@
 // {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.js}}
-// v3.4.1
+// v3.5.0
 // <nowiki>
 'use strict';
 (() => {
@@ -143,7 +143,7 @@
       useragentCheckboxMessage: "I want to share my user agent publicly alongside my feedback. This is optional."
     };
   }
-  var VERSION = "3.4.1";
+  var VERSION = "3.5.0";
   var MODE = "dev";
   var spiHelperDefaultSettings = {
     watch: {
@@ -1050,7 +1050,7 @@ ${body}` : body;
       finishOp(activeOpKey, "failed" /* Failed */);
     }
   }
-  async function spiHelperRenderText(title, text) {
+  async function spiHelperRenderText(title, text, signal) {
     const request = {
       action: "parse",
       prop: "text",
@@ -1059,10 +1059,12 @@ ${body}` : body;
       title
     };
     try {
-      const response = await postReadOnly(spiHelperGetAPI(title), request);
+      const response = await postReadOnly(spiHelperGetAPI(title), request, signal);
       return response.parse?.text["*"] ?? "";
     } catch (error) {
-      console.error("Error rendering text:", error);
+      if (!signal?.aborted) {
+        console.error("Error rendering text:", error);
+      }
       return "";
     }
   }
@@ -1339,6 +1341,40 @@ ${body}` : body;
     if (sectionId) {
       activeOpKey += `_${sectionId}`;
     }
+    const params = { text: newText, createonly };
+    if (sectionId) {
+      params.section = sectionId.toString();
+    }
+    if (baseRevId) {
+      params.baserevid = baseRevId;
+    }
+    return postEdit({ title, summary, watch, watchExpiry, activeOpKey, params });
+  }
+  async function spiHelperAppendToPage(opts) {
+    const { title, appendText, summary, watch, watchExpiry } = opts;
+    return postEdit({
+      title,
+      summary,
+      watch,
+      watchExpiry,
+      activeOpKey: `append_${title}`,
+      params: { appendtext: appendText, redirect: true }
+    });
+  }
+  async function postEdit(opts) {
+    const { title, summary, watch, watchExpiry, activeOpKey, params } = opts;
+    const xwikiPrefix = spiHelperGetXWikiPrefix(title);
+    const request = {
+      ...params,
+      action: "edit",
+      title: spiHelperStripXWikiPrefix(title),
+      summary: summary + spiHelperAdvert(xwikiPrefix !== null),
+      watchlist: watch,
+      formatversion: "2"
+    };
+    if (watchExpiry) {
+      request.watchlistexpiry = watchExpiry;
+    }
     startOp(activeOpKey);
     const pageLinkHtml = buildTitleLinkHtml(title);
     const message = new VueMessage({
@@ -1347,26 +1383,6 @@ ${body}` : body;
       isHtml: true
     }).show();
     const api = spiHelperGetAPI(title);
-    const xwikiPrefix = spiHelperGetXWikiPrefix(title);
-    const finalTitle = spiHelperStripXWikiPrefix(title);
-    const request = {
-      action: "edit",
-      watchlist: watch,
-      summary: summary + spiHelperAdvert(xwikiPrefix !== null),
-      text: newText,
-      title: finalTitle,
-      createonly,
-      formatversion: "2"
-    };
-    if (sectionId) {
-      request.section = sectionId.toString();
-    }
-    if (watchExpiry) {
-      request.watchlistexpiry = watchExpiry;
-    }
-    if (baseRevId) {
-      request.baserevid = baseRevId;
-    }
     try {
       const response = await api.postWithToken("csrf", request);
       const diffId = response.edit.newrevid;
@@ -1554,8 +1570,8 @@ ${body}` : body;
     const response = await postReadOnly(api, request);
     return response.query.search.map(({ title, snippet }) => ({ title, snippet }));
   }
-  function postReadOnly(api, request) {
-    return api.post(request, { headers: { "Promise-Non-Write-API-Action": "true" } });
+  function postReadOnly(api, request, signal) {
+    return api.post(request, { headers: { "Promise-Non-Write-API-Action": "true" }, signal });
   }
   var MAX_CONTINUATION_ROUNDS = 10;
   function keyByRequestedTitle(resultMap, normalized) {
@@ -3198,6 +3214,10 @@ ${body}` : body;
           addNote: false
         }
       },
+      file: {
+        enabled: false,
+        data: getInitialCaseReport()
+      },
       archive: {
         enabled: false
       }
@@ -3207,6 +3227,13 @@ ${body}` : body;
   var ClerkOnlyActions = new Set(["move", "archive", "management"]);
   var AlwaysAvailableActions = new Set(["sections", "move", "archive", "block", "link"]);
   var SpecificSectionActions = new Set(["status", "comment"]);
+  function getInitialCaseReport() {
+    return {
+      socks: [],
+      evidence: "",
+      adminComment: ""
+    };
+  }
 
   // src/ui/views/top/utils/actionVisibility.ts
   function shouldShowAction(opts) {
@@ -3927,11 +3954,14 @@ ${body}` : body;
     props: {
       enabled: { type: Boolean, required: true },
       empty: { type: Boolean, default: false },
-      disabled: { type: Boolean, default: false }
+      disabled: { type: Boolean, default: false },
+      toggleable: { type: Boolean, default: true }
     },
     emits: ["update:enabled"],
     data() {
-      return { built: this.enabled };
+      return {
+        built: this.enabled || !this.toggleable
+      };
     },
     watch: {
       enabled(newValue) {
@@ -3944,7 +3974,7 @@ ${body}` : body;
       }
     },
     template: `
-    <cdx-toggle-switch class="enableSwitch" :disabled="disabled" :model-value="enabled" @update:model-value="$emit('update:enabled', $event)">
+    <cdx-toggle-switch v-if="toggleable" class="enableSwitch" :disabled="disabled" :model-value="enabled" @update:model-value="$emit('update:enabled', $event)">
       Enabled
     </cdx-toggle-switch>
     <div v-if="!empty && built" v-show="enabled">
@@ -4603,6 +4633,45 @@ ${body}` : body;
       watch: "nochange"
     });
   }
+  // src/actions/filing.ts
+  var REPORT_TEMPLATE = "subst:SPI report";
+  function buildCaseReportWikitext(report) {
+    const socks = report.socks.map((sock) => sock.trim()).filter((sock) => sock !== "");
+    if (socks.length === 0) {
+      throw new Error("Enter at least one account");
+    }
+    const args = socks.map((sock, index) => [String(index + 1), sock]);
+    args.push(["evidence", report.evidence.trim()]);
+    if (report.status !== undefined) {
+      args.push(["status", report.status]);
+    }
+    const adminComment = report.adminComment?.trim();
+    if (adminComment && adminComment !== "*") {
+      args.push(["admincomment", addSignature(adminComment)]);
+    }
+    const wikitext = `{{${REPORT_TEMPLATE}|${args.map(([key, value]) => `${key}=${value}`).join("|")}}}`;
+    assertArgumentsIntact(wikitext, args.length);
+    return wikitext;
+  }
+  async function spiHelperFileCaseReport(caseName, reportWikitext) {
+    return spiHelperAppendToPage({
+      title: `Wikipedia:Sockpuppet investigations/${caseName}`,
+      appendText: `
+` + reportWikitext,
+      summary: `Adding new report for [[Special:Contributions/${caseName}|${caseName}]]`,
+      watch: spiHelperSettings.watch.case,
+      watchExpiry: spiHelperSettings.expiry.case
+    });
+  }
+  function assertArgumentsIntact(wikitext, argumentCount) {
+    const span = findTemplateSpans(REPORT_TEMPLATE, wikitext)[0];
+    if (span?.text !== wikitext) {
+      throw new Error('The report contains an unbalanced "{{" or "}}"');
+    }
+    if (splitTemplateParts(span.text.slice(2, -2)).length !== argumentCount + 1) {
+      throw new Error('The report contains a "|" outside a link or template. Write it as {{!}}');
+    }
+  }
   // src/actions/lock.ts
   var SRG_PAGE = "meta:Steward requests/Global";
   var SRG_SECTION_ANCHORS = {
@@ -4796,18 +4865,17 @@ ${heading}`);
   async function spiHelperLog(logString) {
     const now = new Date;
     const dateString = now.toLocaleString("en", { month: "long" }) + " " + now.toLocaleString("en", { year: "numeric" });
-    const dateHeader = "==\\s*" + dateString + "\\s*==";
-    const dateHeaderRe = new RegExp(dateHeader, "i");
-    const dateHeaderReWithAnyDate = /==.*?==/i;
+    const dateHeader = "^==[ \\t]*" + dateString + "[ \\t]*==";
+    const dateHeaderRe = new RegExp(dateHeader, "im");
+    const dateHeaderReWithAnyDate = /^==[^=\n].*?==.*$/m;
     const logPage = getFullLogPage(spiHelperSettings.log.page);
     let logPageText = await spiHelperGetPageText(logPage, false);
     if (!logPageText.match(dateHeaderRe)) {
       if (spiHelperSettings.log.reversed) {
         const firstHeaderMatch = dateHeaderReWithAnyDate.exec(logPageText);
-        if (firstHeaderMatch?.index) {
-          logPageText = logPageText.slice(0, firstHeaderMatch.index) + "== " + dateString + ` ==
-` + logPageText.slice(firstHeaderMatch.index);
-        }
+        const insertAt = firstHeaderMatch ? firstHeaderMatch.index : logPageText.length;
+        logPageText = logPageText.slice(0, insertAt) + "== " + dateString + ` ==
+` + logPageText.slice(insertAt);
       } else {
         logPageText += `
 == ` + dateString + " ==";
@@ -4815,7 +4883,7 @@ ${heading}`);
     }
     if (spiHelperSettings.log.reversed) {
       const firstHeaderMatch = dateHeaderReWithAnyDate.exec(logPageText);
-      if (firstHeaderMatch?.index) {
+      if (firstHeaderMatch) {
         logPageText = logPageText.slice(0, firstHeaderMatch.index + firstHeaderMatch[0].length) + `
 ` + logString + logPageText.slice(firstHeaderMatch.index + firstHeaderMatch[0].length);
       }
@@ -5464,6 +5532,7 @@ ${heading}`);
       closedCount: 0,
       statusChangedCount: 0,
       commentedCount: 0,
+      filedReport: false,
       archiveNoticeUpdated: false,
       blockedUsers: [],
       taggedUsers: [],
@@ -5520,6 +5589,9 @@ ${heading}`);
   }
   function buildEditSummaryActions(facts) {
     const editSummaryActions = [];
+    if (facts.filedReport) {
+      editSummaryActions.push("filing new report");
+    }
     if (facts.archiveNoticeUpdated) {
       editSummaryActions.push("updating archivenotice");
     }
@@ -5584,24 +5656,25 @@ ${heading}`);
     ].some((entry) => entry.enabled);
     if (!anyTopLevelEnabled && !anyBySectionEnabled) {
       new VueMessage({ type: "warning", content: "No actions are enabled" }).show();
-      return;
+      return null;
     }
     if (!state.selectedSection) {
       console.error("spiHelperPerformActions: Expected a selected section, got null");
       new VueMessage({ type: "error", content: "Expected a selected section, got null" }).show();
-      return;
+      return null;
     }
     if (!state.archiveNotice) {
       console.error("spiHelperPerformActions: Could not find archive notice");
       new VueMessage({ type: "error", content: "Could not find archive notice" }).show();
-      return;
+      return null;
     }
     if (!actions.block.data.master) {
       console.error("spiHelperPerformActions: Could not get master");
       new VueMessage({ type: "error", content: "Could not get master" }).show();
-      return;
+      return null;
     }
     const sectionType = state.selectedSection.type;
+    const reportWikitext = actions.file.enabled && !context.isArchive ? buildCaseReportWikitext(actions.file.data) : null;
     new VueMessage({ type: "notice", content: "Running actions" }).show();
     const summaryFacts = setupEditSummaryFacts(sectionType === "multiple");
     let logMessage = `* [[${context.pageName}]]`;
@@ -5614,9 +5687,9 @@ ${heading}`);
     }
     logMessage += " ~~~~~";
     let targetText = await (sectionType === "single" ? loadSectionText(state.selectedSection.section) : loadCaseText(state));
-    if (!targetText) {
+    if (!targetText && reportWikitext === null) {
       new VueMessage({ type: "error", content: "Could not fetch text for the page" }).show();
-      return;
+      return null;
     }
     const startText = targetText;
     let blockPromises = [];
@@ -5731,19 +5804,47 @@ ${heading}`);
     summaryFacts.lockedUsers = globalRequests.lockedUsers;
     summaryFacts.globalBlockedUsers = globalRequests.globalBlockedUsers;
     const structureChanged = actions.move.enabled || actions.archive.enabled;
-    if (!context.isArchive && targetText !== startText) {
-      const sectionId = state.selectedSection.type === "single" ? state.selectedSection.section.id : null;
-      const sectionName = state.selectedSection.type === "single" ? state.selectedSection.section.name : null;
+    let filedRevId = null;
+    if (!context.isArchive && (targetText !== startText || reportWikitext !== null)) {
+      const editedSection = state.selectedSection.type === "single" && reportWikitext === null ? state.selectedSection.section : null;
+      let newText = targetText;
+      if (reportWikitext !== null) {
+        if (state.selectedSection.type === "single") {
+          const caseText = await loadCaseText(state);
+          newText = caseText.replace(startText, () => targetText);
+          if (targetText !== startText && newText === caseText) {
+            new VueMessage({
+              type: "error",
+              content: `Failed to update section ${state.selectedSection.section.name}`
+            }).show();
+          }
+        }
+        newText = newText.trimEnd() + `
+` + reportWikitext;
+        summaryFacts.filedReport = true;
+      }
+      const sectionId = editedSection?.id ?? null;
+      const sectionName = editedSection?.name ?? null;
       const editSummary = formatEditSummary(buildEditSummaryActions(summaryFacts), sectionName);
       const newRevId = await context.edit({
-        newText: targetText,
+        newText,
         summary: editSummary,
         watch: spiHelperSettings.watch.case,
         watchExpiry: spiHelperSettings.expiry.case,
         baseRevId: context.startingRevId,
+        createonly: reportWikitext !== null && sectionType === "all" && startText === "",
         sectionId
       });
-      if (newRevId === null) {
+      if (reportWikitext !== null && newRevId !== null) {
+        filedRevId = newRevId;
+        logMessage += `
+** filed new report`;
+        state._text = null;
+        for (const section of state.sections) {
+          section._text = null;
+        }
+        context.startingRevId = newRevId;
+      } else if (newRevId === null) {
         new VueMessage({ type: "error", content: "Failed to save edit" }).show();
         if (!structureChanged) {
           await context.refreshRevId();
@@ -5832,7 +5933,11 @@ ${heading}`);
       }
       await context.refreshRevId();
     }
+    if (filedRevId !== null) {
+      await refreshSections(state);
+    }
     new VueMessage({ type: "success", content: "Done!" }).show();
+    return filedRevId;
   }
   function spiHelperHandleComment(targetText, comment) {
     if (!targetText.includes(`
@@ -5921,6 +6026,38 @@ ${heading}`);
       targetText = targetText.replace(caseStatusResult[0], `{{SPI case status|${newStatus}}}`);
     }
     return { newStatus, summaryItem, targetText };
+  }
+  async function spiHelperFileAndAct(opts) {
+    const { caseName, report, block, accounts } = opts;
+    const reportWikitext = report?.enabled ? buildCaseReportWikitext(report.data) : null;
+    let blockPromises = [];
+    let tagPromises = [];
+    let talkNoticePromises = [];
+    let globalRequestPromise = Promise.resolve({ lockedUsers: [], globalBlockedUsers: [] });
+    if (block.enabled) {
+      ({ blockPromises, tagPromises, talkNoticePromises, globalRequestPromise } = await spiHelperHandleBlocks({ accounts, blockData: block.data }));
+    }
+    const userActionsPromise = Promise.all([
+      Promise.all(blockPromises),
+      Promise.all(tagPromises),
+      globalRequestPromise
+    ]);
+    const filedRevId = reportWikitext === null ? null : await spiHelperFileCaseReport(caseName, reportWikitext);
+    const [blockedUsers, taggedUsers, globalRequests] = await userActionsPromise;
+    await Promise.all(talkNoticePromises);
+    if (spiHelperSettings.log.enabled) {
+      let logMessage = filedRevId === null ? `* [[:User:${caseName}]]` : `* [[Wikipedia:Sockpuppet investigations/${caseName}]] ~~~~~
+** filed new report`;
+      logMessage += buildUserActionLogMessage({
+        blockedUsers,
+        taggedUsers,
+        lockedUsers: globalRequests.lockedUsers,
+        globalBlockedUsers: globalRequests.globalBlockedUsers
+      });
+      await spiHelperLog(logMessage);
+    }
+    new VueMessage({ type: "success", content: "Done!" }).show();
+    return filedRevId;
   }
   async function spiHelperHandleBlocks(opts) {
     const blockPromises = [];
@@ -6295,7 +6432,9 @@ ${heading}`);
         messages,
         sectionClickCleanup: null,
         multiSelectMode: false,
+        filingViewOpen: false,
         icons: {
+          cdxIconAdd: H5,
           cdxIconPushPin: P8,
           cdxIconCollapse: s6,
           cdxIconExpand: F6,
@@ -6379,11 +6518,11 @@ ${heading}`);
         if (newSection === oldSection) {
           return;
         }
-        for (const [actionName, caseAction] of Object.entries(this.caseActions)) {
-          const caseAN = actionName;
+        for (const caseAN of this.actionButtonKeys) {
           if (caseAN === "sections") {
             continue;
           }
+          const caseAction = this.caseActions[caseAN];
           const actionDefaultEnabled = spiHelperSettings.defaultActions.includes(caseAN);
           const available = shouldShowAction({
             name: caseAN,
@@ -6491,6 +6630,32 @@ ${heading}`);
         } else {
           this.displayedForms.add(formName);
         }
+      },
+      onReportSaved(report) {
+        this.caseActions.file = {
+          enabled: true,
+          data: report
+        };
+      },
+      discardReport() {
+        this.caseActions.file = {
+          enabled: false,
+          data: getInitialCaseReport()
+        };
+      },
+      async onReportAccountAdded(username) {
+        const row = updateUserBlockDataSettings({
+          userRow: generateUserRow(username, this.state),
+          defaultBlock: false
+        });
+        const added = new Set(this.massAddUserRows([row]).map((r) => r.username));
+        await ensureUsersFetched(added, this.caseActions.block.data.fetchedUsers);
+        applyFetchedUsers({
+          accounts: this.accounts,
+          usernames: added,
+          blockData: this.caseActions.block.data,
+          state: this.state
+        });
       },
       isVisible(name) {
         return this.displayedForms.has(name);
@@ -6699,11 +6864,15 @@ ${heading}`);
         startOp("mainActions");
         this.actionsRunning = true;
         try {
-          await spiHelperPerformActions({
+          const filedRevId = await spiHelperPerformActions({
             actions: this.caseActions,
             accounts: this.accounts,
             state: this.state
           });
+          if (filedRevId !== null) {
+            mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "file", type: "top" });
+            this.discardReport();
+          }
           finishOp("mainActions", "success" /* Success */);
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
@@ -6786,6 +6955,9 @@ ${heading}`);
         });
         if (archiveNoticeResult === null) {
           this.state.archiveNotice = new ParsedArchiveNotice({ username: context.caseName });
+          if (!context.isArchive && context.startingRevId === 0) {
+            return;
+          }
           new VueMessage({
             type: "warning",
             content: "Can't find archivenotice template! Automatically adding the archive notice to the page"
@@ -6808,16 +6980,22 @@ ${heading}`);
       }
     },
     template: `
-    <div id="spiHelper-topView" class="spiHelper-mainCard" v-if="open" @keydown.ctrl.enter.capture.prevent="$refs.submitForm?.onSubmit?.()">
+    <div id="spiHelper-topView" class="spiHelper-mainCard" v-if="open"
+         @keydown.ctrl.enter.capture.prevent="$refs.submitForm?.onSubmit?.()">
       <div id="spiHelper-topView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
-          <cdx-button aria-label="Give feedback" weight="quiet" @click="launchFeedback">
+          <cdx-button aria-label="File new report" v-tooltip="'File new report'" weight="quiet"
+                      :disabled="actionsRunning" @click="filingViewOpen = true">
+            <cdx-icon :icon="icons.cdxIconAdd" />
+          </cdx-button>
+          <cdx-button aria-label="Give feedback" v-tooltip="'Give feedback'" weight="quiet" @click="launchFeedback">
             <cdx-icon :icon="icons.cdxIconFeedback" />
           </cdx-button>
-          <cdx-button aria-label="Toggle layout" weight="quiet" @click="toggleButtonLayout">
+          <cdx-button aria-label="Toggle layout" v-tooltip="'Toggle layout'" weight="quiet" @click="toggleButtonLayout">
             <cdx-icon :icon="buttonLayout ? icons.cdxIconExpand : icons.cdxIconCollapse" />
           </cdx-button>
           <cdx-button :action="unpinned ? 'default': 'progressive'" aria-label="Toggle pin"
+                      v-tooltip="unpinned ? 'Pin form' : 'Unpin form'"
                       weight="quiet" @click="unpinned = !unpinned">
             <cdx-icon :icon="icons.cdxIconPushPin" />
           </cdx-button>
@@ -6896,6 +7074,12 @@ ${heading}`);
           />
         </action-accordion>
       </div>
+      <filing-view v-model:open="filingViewOpen" :report="caseActions.file" :accounts="accounts"
+                   :master="caseActions.block.data.master" :reported="sectionAccountNames"
+                   @save="onReportSaved" @add-account="onReportAccountAdded" />
+      <pending-report v-if="caseActions.file.enabled" :report="caseActions.file.data"
+                      :master="caseActions.block.data.master"
+                      @edit="filingViewOpen = true" @discard="discardReport" />
       <submit-form v-if="caseActions.sections.data.section !== null" :accounts="accounts"
                    v-model:lock-comment="caseActions.block.data.lockcomment"
                    v-model:skipCUVerifyUsers="caseActions.block.data.skipCUVerifyUsers"
@@ -7493,6 +7677,8 @@ ${heading}`);
   var CommentActionComponent = defineComponent({
     props: {
       enabled: { type: Boolean, required: true },
+      toggleable: { type: Boolean, default: true },
+      showPreview: { type: Boolean, default: true },
       text: { type: String, required: true },
       selectedSection: { type: [Object, null], required: true }
     },
@@ -7524,15 +7710,41 @@ ${heading}`);
         clerkTemplates,
         cuTemplates,
         customTemplates,
-        loadingPreview: false,
-        htmlPreview: "",
         fullPreview: spiHelperSettings.interface.fullPreview,
-        cdxIconReload: X8
+        previewContext: null
       };
     },
     computed: {
       commentBox() {
         return this.$refs.commentBox;
+      },
+      previewSection() {
+        return this.fullPreview && this.selectedSection?.type === "single" ? this.selectedSection.section : null;
+      },
+      previewSource() {
+        const text = this.text.trim();
+        if (text === "" || text === "*" || this.previewContext === null) {
+          return null;
+        }
+        const userText = addSignature(this.text);
+        return this.previewContext === "" ? userText : this.previewContext + `
+` + userText;
+      },
+      previewTitle() {
+        return context.pageName;
+      }
+    },
+    watch: {
+      "previewSection.id": {
+        handler() {
+          this.loadPreviewContext();
+        },
+        immediate: true
+      },
+      enabled(isEnabled) {
+        if (isEnabled && this.previewContext === null) {
+          this.loadPreviewContext();
+        }
       }
     },
     methods: {
@@ -7547,30 +7759,30 @@ ${heading}`);
       onTextUpdate(newValue) {
         this.$emit("update:text", newValue);
       },
-      async updatePreview() {
-        this.loadingPreview = true;
-        const userText = addSignature(this.text);
-        try {
-          if (this.fullPreview && this.selectedSection?.type === "single") {
-            const sectionText = await loadSectionText(this.selectedSection.section);
-            let startIndex;
-            let endIndex;
-            if (this.isClerk || this.isAdmin) {
-              startIndex = spiHelperAdminSectionWithPrecedingNewlinesRegex.exec(sectionText)?.index;
-              endIndex = spiHelperClosingRuleRegex.exec(sectionText)?.index;
-            } else {
-              startIndex = /\s*====\s*<big>Comments by other users<\/big>\s*====\s*/i.exec(sectionText)?.index;
-              endIndex = spiHelperAdminSectionWithPrecedingNewlinesRegex.exec(sectionText)?.index;
-            }
-            const subsectionText = sectionText.slice(startIndex ?? 0, endIndex ?? 0).trim() + `
-` + userText;
-            this.htmlPreview = await spiHelperRenderText(context.pageName, subsectionText);
-          } else {
-            this.htmlPreview = await spiHelperRenderText(context.pageName, userText);
-          }
-        } finally {
-          this.loadingPreview = false;
+      async loadPreviewContext() {
+        const section = this.previewSection;
+        if (section === null) {
+          this.previewContext = "";
+          return;
         }
+        this.previewContext = null;
+        if (!this.enabled) {
+          return;
+        }
+        const sectionText = await loadSectionText(section);
+        if (this.previewSection?.id !== section.id) {
+          return;
+        }
+        let startIndex;
+        let endIndex;
+        if (this.isClerk || this.isAdmin) {
+          startIndex = spiHelperAdminSectionWithPrecedingNewlinesRegex.exec(sectionText)?.index;
+          endIndex = spiHelperClosingRuleRegex.exec(sectionText)?.index;
+        } else {
+          startIndex = /\s*====\s*<big>Comments by other users<\/big>\s*====\s*/i.exec(sectionText)?.index;
+          endIndex = spiHelperAdminSectionWithPrecedingNewlinesRegex.exec(sectionText)?.index;
+        }
+        this.previewContext = sectionText.slice(startIndex ?? 0, endIndex ?? 0).trim();
       },
       insertNote(noteValue) {
         const newText = this.text.replace(/^(\s*\*\s*)?({{[\w\s]*note[\w\s]*}}\s*)?/i, "* {{" + noteValue + "}} ");
@@ -7599,7 +7811,7 @@ ${heading}`);
       }
     },
     template: `
-    <action-container v-model:enabled="enabled" @update:enabled="onEnable">
+    <action-container v-model:enabled="enabled" :toggleable="toggleable" @update:enabled="onEnable">
       <div class="spiHelper-templateRow">
         <cdx-select :menu-items="noteTemplates" default-label="Comment templates" @update:selected="insertNote" />
         <cdx-select v-if="isClerk || isAdmin" :menu-items="clerkTemplates" default-label="Admin/clerk templates" @update:selected="insertText" />
@@ -7609,14 +7821,7 @@ ${heading}`);
       </div>
       <cdx-text-area ref="commentBox" :autosize="true" placeholder="Write your comment" :model-value="text"
                      @update:model-value="onTextUpdate" />
-      <div class="cdx-card spiHelper-PreviewBox" style="min-height:26px">
-        <cdx-button class="spiHelper-preview-reload" aria-label="Load preview" @click="updatePreview"
-                    weight="primary" action="progressive" :disabled="loadingPreview">
-          <cdx-progress-indicator v-if="loadingPreview">Loading preview</cdx-progress-indicator>
-          <cdx-icon v-else :icon="cdxIconReload" />
-        </cdx-button>
-        <div v-html="htmlPreview" class="spiHelper-htmlPreview" />
-      </div>
+      <preview-box v-if="showPreview" :source="previewSource" :title="previewTitle" :active="enabled" />
     </action-container>
   `
   });
@@ -7624,6 +7829,8 @@ ${heading}`);
   var ChangeStatusActionComponent = defineComponent({
     props: {
       enabled: { type: Boolean, required: true },
+      toggleable: { type: Boolean, default: true },
+      disabled: { type: Boolean, default: false },
       oldStatus: { type: String, required: true },
       newStatus: { type: String, required: true }
     },
@@ -7712,8 +7919,9 @@ ${heading}`);
       }
     },
     template: `
-    <action-container v-model:enabled="enabled" @update:enabled="$emit('update:enabled', $event)">
-      <cdx-select v-model:selected="selected" :menu-items="caseStatusItems" default-label="New case status" />
+    <action-container v-model:enabled="enabled" :toggleable="toggleable" @update:enabled="$emit('update:enabled', $event)">
+      <cdx-select v-model:selected="selected" :menu-items="caseStatusItems" default-label="New case status"
+                  :disabled="disabled" />
     </action-container>
   `
   });
@@ -9024,10 +9232,16 @@ ${heading}`);
         accountsLoading: false,
         targetCase: this.defaultCase,
         blockData: setupBlockActionData(),
+        report: {
+          enabled: false,
+          data: getInitialCaseReport()
+        },
         accounts: [],
         actionsRunning: false,
+        filingViewOpen: false,
         unpinned: !spiHelperSettings.interface.pinned,
         messages,
+        cdxIconAdd: H5,
         cdxIconFeedback: f6,
         cdxIconPushPin: P8
       };
@@ -9044,7 +9258,8 @@ ${heading}`);
           block: {
             enabled: true,
             data: this.blockData
-          }
+          },
+          file: this.report
         };
       }
     },
@@ -9116,6 +9331,32 @@ ${heading}`);
     },
     methods: {
       dismissMessage,
+      onReportSaved(report) {
+        this.report = {
+          enabled: true,
+          data: report
+        };
+      },
+      discardReport() {
+        this.report = {
+          enabled: false,
+          data: getInitialCaseReport()
+        };
+      },
+      async onReportAccountAdded(username) {
+        const row = updateUserBlockDataSettings({
+          userRow: generateUserRow(username, this.state),
+          defaultBlock: false
+        });
+        const added = new Set(this.massAddUserRows([row]).map((r) => r.username));
+        await ensureUsersFetched(added, this.blockData.fetchedUsers);
+        applyFetchedUsers({
+          accounts: this.accounts,
+          usernames: added,
+          blockData: this.blockData,
+          state: this.state
+        });
+      },
       handleUserSelected(data, rowId) {
         const userRow = this.accounts.find((r) => r.id === rowId);
         if (!userRow) {
@@ -9228,33 +9469,20 @@ ${heading}`);
         startOp("alternateActions");
         this.actionsRunning = true;
         try {
-          const {
-            blockPromises,
-            tagPromises,
-            talkNoticePromises,
-            globalRequestPromise
-          } = await spiHelperHandleBlocks({
-            accounts: this.accounts,
-            blockData: this.blockData
+          const filedRevId = await spiHelperFileAndAct({
+            caseName: context.userName,
+            report: this.report,
+            block: this.caseActions.block,
+            accounts: this.accounts
           });
-          const userActionsPromise = Promise.all([
-            Promise.all(blockPromises),
-            Promise.all(tagPromises),
-            globalRequestPromise
-          ]);
-          const talkNoticePromise = Promise.all(talkNoticePromises);
-          const [blockedUsers, taggedUsers, globalRequests] = await userActionsPromise;
-          await talkNoticePromise;
-          if (spiHelperSettings.log.enabled) {
-            const logMessage = `* [[:User:${context.userName}]]` + buildUserActionLogMessage({
-              blockedUsers,
-              taggedUsers,
-              lockedUsers: globalRequests.lockedUsers,
-              globalBlockedUsers: globalRequests.globalBlockedUsers
+          if (filedRevId !== null) {
+            mw.track("stats.mediawiki_gadget_spihelper_total", 1, {
+              action: "file",
+              type: "alternate",
+              view: this.view
             });
-            await spiHelperLog(logMessage);
+            this.discardReport();
           }
-          new VueMessage({ type: "success", content: "Done!" }).show();
           finishOp("alternateActions", "success" /* Success */);
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
@@ -9358,13 +9586,19 @@ ${heading}`);
       }
     },
     template: `
-    <div id="spiHelper-alternateView" class="spiHelper-mainCard" v-if="open" @keydown.ctrl.enter.capture.prevent="$refs.submitForm?.onSubmit?.()">
+    <div id="spiHelper-alternateView" class="spiHelper-mainCard" v-if="open"
+         @keydown.ctrl.enter.capture.prevent="$refs.submitForm?.onSubmit?.()">
       <div id="spiHelper-alternateView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
-          <cdx-button aria-label="Give feedback" weight="quiet" @click="launchFeedback">
+          <cdx-button aria-label="File new report" v-tooltip="'File new report'" weight="quiet"
+                      :disabled="!caseLoaded" @click="filingViewOpen = true">
+            <cdx-icon :icon="cdxIconAdd" />
+          </cdx-button>
+          <cdx-button aria-label="Give feedback" v-tooltip="'Give feedback'" weight="quiet" @click="launchFeedback">
             <cdx-icon :icon="cdxIconFeedback" />
           </cdx-button>
           <cdx-button :action="unpinned ? 'default': 'progressive'" aria-label="Toggle pin"
+                      v-tooltip="unpinned ? 'Pin form' : 'Unpin form'"
                       weight="quiet" @click="unpinned = !unpinned">
             <cdx-icon :icon="cdxIconPushPin" />
           </cdx-button>
@@ -9375,8 +9609,9 @@ ${heading}`);
                      :namespace="4" prefix="Sockpuppet investigations/"
                      placeholder="Case" label="Case title" description="Optional but recommended" />
         <div style="display: flex; gap: 10px;">
-          <cdx-button weight="primary" action="progressive" :disabled="caseLoading"
-                      @click="loadCase(true)">Load</cdx-button>
+          <cdx-button weight="primary" action="progressive" :disabled="caseLoading" @click="loadCase(true)">
+            Load
+          </cdx-button>
           <cdx-progress-indicator v-if="caseLoading">Loading case</cdx-progress-indicator>
           <cdx-progress-indicator v-else-if="accountsLoading">Loading accounts</cdx-progress-indicator>
         </div>
@@ -9399,9 +9634,14 @@ ${heading}`);
                         @remove-rows="handleRemoveRows" @add-row="handleAddRow" />
         </div>
       </div>
+      <filing-view v-model:open="filingViewOpen" :report="report" :accounts="accounts"
+                   :master="blockData.master" @save="onReportSaved" @add-account="onReportAccountAdded" />
+      <pending-report v-if="caseLoaded && report.enabled" :report="report.data" :master="blockData.master"
+                      @edit="filingViewOpen = true" @discard="discardReport" />
       <div v-if="caseLoaded">
         <submit-form :accounts="accounts"
-                     v-model:lock-comment="blockData.lockcomment" v-model:skipCUVerifyUsers="blockData.skipCUVerifyUsers"
+                     v-model:lock-comment="blockData.lockcomment"
+                     v-model:skipCUVerifyUsers="blockData.skipCUVerifyUsers"
                      :case-actions="caseActions" :state="state"
                      :all-disabled="false" :action-name="'alternateActions'" :check-conflict="false"
                      @on-submit="onSubmitActions" ref="submitForm" />
@@ -9466,6 +9706,356 @@ ${heading}`);
         <cdx-button action="progressive" @click="onClose">Got it</cdx-button>
       </template>
     </cdx-dialog>`
+  });
+  // src/ui/views/filingView.ts
+  function getDefaultReportSocks(opts) {
+    const { accounts, master, reported } = opts;
+    return accounts.filter((row) => row.block.block && row.username !== master && !reported.has(row.username)).map((row) => row.username);
+  }
+  function draftFromReport(opts) {
+    const { report, accounts, master, reported } = opts;
+    if (!report.enabled) {
+      return {
+        socks: getDefaultReportSocks({ accounts, master, reported }),
+        evidence: "",
+        status: "nochange",
+        commentEnabled: false,
+        comment: "* "
+      };
+    }
+    const { socks, evidence, status, adminComment } = report.data;
+    return {
+      socks: [...socks],
+      evidence,
+      status: adminComment === undefined ? status ?? "nochange" : "nochange",
+      commentEnabled: adminComment !== undefined,
+      comment: adminComment ?? "* "
+    };
+  }
+  function resumeReportSocks(opts) {
+    const { draft, accounts, master, reported, accountsAtClose } = opts;
+    const newDefaults = getDefaultReportSocks({ accounts, master, reported }).filter((username) => !accountsAtClose.has(username));
+    return [...new Set([...draft.socks, ...newDefaults])];
+  }
+  function reportFromDraft(draft) {
+    const report = { socks: [...draft.socks], evidence: draft.evidence };
+    if (draft.commentEnabled) {
+      report.status = "closed";
+      report.adminComment = draft.comment;
+      return report;
+    }
+    const status = toReportStatus(draft.status);
+    if (status !== undefined) {
+      report.status = status;
+    }
+    return report;
+  }
+  function toReportStatus(choice) {
+    switch (choice) {
+      case "nochange":
+        return;
+      case "reopen":
+        return "open";
+      case "selfendorse":
+        return "endorse";
+      default:
+        return choice;
+    }
+  }
+  function fitTextArea(component) {
+    const textarea = component?.textarea;
+    if (textarea instanceof HTMLTextAreaElement) {
+      textarea.style.height = "auto";
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  }
+  var FilingViewComponent = defineComponent({
+    props: {
+      open: { type: Boolean, required: true },
+      report: { type: Object, required: true },
+      accounts: { type: Array, required: true },
+      master: { type: String, required: true },
+      reported: { type: Set, default: () => new Set }
+    },
+    emits: ["update:open", "save", "add-account"],
+    data() {
+      return {
+        draft: draftFromReport({
+          report: this.report,
+          accounts: this.accounts,
+          master: this.master,
+          reported: this.reported
+        }),
+        accountsAtClose: new Set,
+        newSock: "",
+        keepDraft: false,
+        canComment: spiHelperIsClerk() || spiHelperIsAdmin()
+      };
+    },
+    computed: {
+      candidateSocks() {
+        const usernames = this.accounts.map((row) => row.username).filter((username) => username !== "" && username !== this.master);
+        return [...new Set([...usernames, ...this.draft.socks])];
+      },
+      reportError() {
+        try {
+          buildCaseReportWikitext(reportFromDraft(this.draft));
+          return null;
+        } catch (error) {
+          return error instanceof Error ? error.message : String(error);
+        }
+      },
+      previewSource() {
+        return this.reportError === null ? buildCaseReportWikitext(reportFromDraft(this.draft)) : null;
+      },
+      caseTitle() {
+        return `Wikipedia:Sockpuppet investigations/${this.master}`;
+      },
+      primaryAction() {
+        return {
+          label: this.report.enabled ? "Update report" : "Add report",
+          actionType: "progressive",
+          disabled: this.reportError !== null
+        };
+      }
+    },
+    watch: {
+      report() {
+        this.keepDraft = false;
+      },
+      open(isOpen) {
+        if (isOpen && !this.keepDraft) {
+          this.draft = draftFromReport({
+            report: this.report,
+            accounts: this.accounts,
+            master: this.master,
+            reported: this.reported
+          });
+          this.newSock = "";
+        } else if (isOpen) {
+          this.draft.socks = resumeReportSocks({
+            draft: this.draft,
+            accounts: this.accounts,
+            master: this.master,
+            reported: this.reported,
+            accountsAtClose: this.accountsAtClose
+          });
+        }
+        if (isOpen) {
+          this.$nextTick(() => {
+            fitTextArea(this.$refs.evidence);
+          });
+        }
+      }
+    },
+    methods: {
+      onAddSock() {
+        const username = spiHelperNormalizeUsername(this.newSock);
+        if (username === "" || username === this.master) {
+          return;
+        }
+        if (!this.accounts.some((row) => row.username === username)) {
+          this.$emit("add-account", username);
+        }
+        if (!this.draft.socks.includes(username)) {
+          this.draft.socks.push(username);
+        }
+        this.newSock = "";
+      },
+      onSave() {
+        if (this.reportError !== null) {
+          return;
+        }
+        this.keepDraft = false;
+        this.$emit("save", reportFromDraft(this.draft));
+        this.$emit("update:open", false);
+      },
+      onCancel() {
+        this.keepDraft = false;
+        this.$emit("update:open", false);
+      },
+      onDialogToggle(isOpen) {
+        if (!isOpen) {
+          this.keepDraft = true;
+          this.accountsAtClose = new Set(this.accounts.map((row) => row.username));
+        }
+        this.$emit("update:open", isOpen);
+      }
+    },
+    template: `
+    <cdx-dialog :open="open" @update:open="onDialogToggle"
+                :title="report.enabled ? 'Edit new report' : 'File new report'"
+                :use-close-button="true"
+                :primary-action="primaryAction" :default-action="{ label: 'Cancel' }"
+                @primary="onSave" @default="onCancel">
+      <cdx-field :is-fieldset="true">
+        <template #label>Accounts</template>
+        <template #description>Listed under suspected sockpuppets</template>
+        <cdx-checkbox v-for="sock in candidateSocks" :key="sock" v-model="draft.socks" :input-value="sock">
+          {{ sock }}
+        </cdx-checkbox>
+        <div class="spiHelper-filingView-addSock">
+          <user-lookup v-model="newSock" @keydown.enter.prevent="onAddSock" />
+          <cdx-button :disabled="newSock.trim() === ''" @click="onAddSock">Add</cdx-button>
+        </div>
+      </cdx-field>
+      <cdx-field>
+        <template #label>Evidence</template>
+        <cdx-text-area ref="evidence" v-model="draft.evidence" :autosize="true" placeholder="Evidence" />
+      </cdx-field>
+      <!-- Fieldsets, so the labels match the fields above without handing one input ID to
+           every control inside -->
+      <cdx-field :is-fieldset="true">
+        <template #label>Status</template>
+        <!-- A clerk comment closes the report, so the status shows that and can't be
+             changed. The choice underneath is kept, for if the comment is switched off -->
+        <change-status-action :enabled="true" :toggleable="false" old-status="new"
+                              :new-status="draft.commentEnabled ? 'closed' : draft.status"
+                              :disabled="draft.commentEnabled" @update:new-status="draft.status = $event" />
+      </cdx-field>
+      <cdx-field v-if="canComment" :is-fieldset="true">
+        <template #label>Clerk comment</template>
+        <comment-action v-model:enabled="draft.commentEnabled" :show-preview="false"
+                        v-model:text="draft.comment" :selected-section="null" />
+      </cdx-field>
+      <cdx-message v-if="reportError" type="error" :inline="true">{{ reportError }}</cdx-message>
+      <cdx-field :is-fieldset="true">
+        <template #label>Preview</template>
+        <preview-box :source="previewSource" :title="caseTitle" :active="open" />
+      </cdx-field>
+    </cdx-dialog>
+  `
+  });
+  // src/ui/views/pendingReport.ts
+  var PendingReportComponent = defineComponent({
+    props: {
+      report: { type: Object, required: true },
+      master: { type: String, required: true }
+    },
+    emits: ["edit", "discard"],
+    computed: {
+      casePage() {
+        return `Wikipedia:Sockpuppet investigations/${this.master}`;
+      },
+      caseUrl() {
+        return mw.util.getUrl(this.casePage);
+      },
+      onOtherPage() {
+        return mw.config.get("wgPageName").replace(/_/g, " ") !== this.casePage;
+      },
+      accountCount() {
+        return countOf(this.report.socks.length, "account");
+      }
+    },
+    template: `
+    <cdx-message class="spiHelper-pendingReport">
+      A new report listing {{ accountCount }} will be filed<template v-if="onOtherPage"> on <a :href="caseUrl">{{ casePage }}</a></template> when you submit.
+      <div class="spiHelper-pendingReport-actions">
+        <cdx-button @click="$emit('edit')">Edit</cdx-button>
+        <cdx-button action="destructive" @click="$emit('discard')">Discard</cdx-button>
+      </div>
+    </cdx-message>
+  `
+  });
+  // src/ui/views/previewBox.ts
+  var PREVIEW_DEBOUNCE_MS = 1000;
+  var PreviewBoxComponent = defineComponent({
+    props: {
+      source: { type: [String, null], required: true },
+      title: { type: String, required: true },
+      active: { type: Boolean, default: true }
+    },
+    data() {
+      return {
+        html: "",
+        loading: false,
+        failed: false,
+        renderedSource: null,
+        timer: null,
+        controller: null,
+        cdxIconReload: X8
+      };
+    },
+    watch: {
+      source() {
+        this.schedule(PREVIEW_DEBOUNCE_MS);
+      },
+      active(isActive) {
+        if (isActive) {
+          this.schedule(0);
+        } else {
+          this.cancel();
+        }
+      }
+    },
+    mounted() {
+      this.schedule(0);
+    },
+    beforeUnmount() {
+      this.cancel();
+    },
+    methods: {
+      cancel() {
+        if (this.timer !== null) {
+          clearTimeout(this.timer);
+          this.timer = null;
+        }
+        this.controller?.abort();
+        this.controller = null;
+        this.loading = false;
+      },
+      schedule(delay) {
+        this.cancel();
+        if (!this.active || this.source === null || this.source === this.renderedSource) {
+          return;
+        }
+        this.timer = setTimeout(() => {
+          this.timer = null;
+          this.render();
+        }, delay);
+      },
+      async render() {
+        const source = this.source;
+        if (source === null) {
+          return;
+        }
+        this.cancel();
+        const controller = new AbortController;
+        this.controller = controller;
+        this.loading = true;
+        const html = await spiHelperRenderText(this.title, source, controller.signal);
+        if (controller.signal.aborted) {
+          return;
+        }
+        this.controller = null;
+        this.loading = false;
+        this.failed = html === "";
+        if (html !== "") {
+          this.html = html;
+          this.renderedSource = source;
+        }
+      }
+    },
+    template: `
+    <div class="cdx-card spiHelper-PreviewBox">
+      <template v-if="html">
+        <cdx-button class="spiHelper-preview-reload" aria-label="Reload preview" @click="render"
+                    :disabled="loading || source === null">
+          <cdx-progress-indicator v-if="loading">Loading preview</cdx-progress-indicator>
+          <cdx-icon v-else :icon="cdxIconReload" />
+        </cdx-button>
+        <div v-html="html" class="spiHelper-htmlPreview" />
+      </template>
+      <p v-else class="spiHelper-previewBox-empty">
+        <template v-if="loading || timer !== null">Loading preview...</template>
+        <template v-else-if="failed">
+          The preview failed to load.
+          <cdx-button weight="quiet" size="small" @click="render">Retry</cdx-button>
+        </template>
+        <template v-else>Nothing to preview yet</template>
+      </p>
+    </div>
+  `
   });
   // src/changelog.ts
   async function getChangelog() {
@@ -9590,7 +10180,7 @@ ${heading}`);
               state: caseState,
               feedbackDialog,
               openButton: initLink
-            }).component("cdx-tabs", Codex.CdxTabs).component("cdx-tab", Codex.CdxTab).component("cdx-select", Codex.CdxSelect).component("cdx-card", Codex.CdxCard).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-text-area", Codex.CdxTextArea).component("cdx-toggle-button", Codex.CdxToggleButton).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("cdx-button", Codex.CdxButton).component("cdx-button-group", Codex.CdxButtonGroup).component("cdx-icon", Codex.CdxIcon).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-lookup", Codex.CdxLookup).component("cdx-field", Codex.CdxField).component("cdx-message", Codex.CdxMessage).component("cdx-multiselect-lookup", Codex.CdxMultiselectLookup).component("cdx-progress-bar", Codex.CdxProgressBar).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-accordion", Codex.CdxAccordion).component("cdx-label", Codex.CdxLabel).component("cdx-popover", Codex.CdxPopover).component("action-accordion", ActionAccordionComponent).component("action-button", ActionButtonComponent).component("action-container", ActionContainerComponent).component("action-content", ActionContentComponent).component("submit-form", SubmitFormComponent).component("comment-action", CommentActionComponent).component("change-status-action", ChangeStatusActionComponent).component("multi-section-comment-action", MultiSectionCommentActionComponent).component("multi-section-status-action", MultiSectionStatusActionComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("management-action", ManagementActionComponent).component("archive-action", ArchiveActionComponent).component("move-action", MoveActionComponent).component("section-action", SectionActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).component("tag-popover", TagPopoverComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
+            }).component("cdx-tabs", Codex.CdxTabs).component("cdx-tab", Codex.CdxTab).component("cdx-select", Codex.CdxSelect).component("cdx-card", Codex.CdxCard).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("cdx-text-area", Codex.CdxTextArea).component("cdx-toggle-button", Codex.CdxToggleButton).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("cdx-button", Codex.CdxButton).component("cdx-button-group", Codex.CdxButtonGroup).component("cdx-icon", Codex.CdxIcon).component("cdx-table", Codex.CdxTable).component("cdx-text-input", Codex.CdxTextInput).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-lookup", Codex.CdxLookup).component("cdx-field", Codex.CdxField).component("cdx-message", Codex.CdxMessage).component("cdx-multiselect-lookup", Codex.CdxMultiselectLookup).component("cdx-progress-bar", Codex.CdxProgressBar).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-dialog", Codex.CdxDialog).component("cdx-accordion", Codex.CdxAccordion).component("cdx-label", Codex.CdxLabel).component("cdx-popover", Codex.CdxPopover).component("action-accordion", ActionAccordionComponent).component("action-button", ActionButtonComponent).component("action-container", ActionContainerComponent).component("action-content", ActionContentComponent).component("submit-form", SubmitFormComponent).component("filing-view", FilingViewComponent).component("pending-report", PendingReportComponent).component("preview-box", PreviewBoxComponent).component("comment-action", CommentActionComponent).component("change-status-action", ChangeStatusActionComponent).component("multi-section-comment-action", MultiSectionCommentActionComponent).component("multi-section-status-action", MultiSectionStatusActionComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("management-action", ManagementActionComponent).component("archive-action", ArchiveActionComponent).component("move-action", MoveActionComponent).component("section-action", SectionActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).component("tag-popover", TagPopoverComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
             break;
           }
           case "checkuser":
@@ -9602,7 +10192,7 @@ ${heading}`);
               openButton: initLink,
               view: pageType,
               ...pageType === "category" ? { defaultCase: targetSock?.[1] ?? "" } : {}
-            }).component("cdx-button", Codex.CdxButton).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-field", Codex.CdxField).component("cdx-icon", Codex.CdxIcon).component("cdx-label", Codex.CdxLabel).component("cdx-lookup", Codex.CdxLookup).component("cdx-message", Codex.CdxMessage).component("cdx-popover", Codex.CdxPopover).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-select", Codex.CdxSelect).component("cdx-table", Codex.CdxTable).component("cdx-text-area", Codex.CdxTextArea).component("cdx-text-input", Codex.CdxTextInput).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("submit-form", SubmitFormComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).component("tag-popover", TagPopoverComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
+            }).component("cdx-button", Codex.CdxButton).component("cdx-checkbox", Codex.CdxCheckbox).component("cdx-dialog", Codex.CdxDialog).component("cdx-field", Codex.CdxField).component("cdx-icon", Codex.CdxIcon).component("cdx-label", Codex.CdxLabel).component("cdx-lookup", Codex.CdxLookup).component("cdx-message", Codex.CdxMessage).component("cdx-popover", Codex.CdxPopover).component("cdx-progress-bar", Codex.CdxProgressBar).component("cdx-progress-indicator", Codex.CdxProgressIndicator).component("cdx-select", Codex.CdxSelect).component("cdx-table", Codex.CdxTable).component("cdx-text-area", Codex.CdxTextArea).component("cdx-text-input", Codex.CdxTextInput).component("cdx-toggle-button-group", Codex.CdxToggleButtonGroup).component("cdx-toggle-switch", Codex.CdxToggleSwitch).component("submit-form", SubmitFormComponent).component("filing-view", FilingViewComponent).component("pending-report", PendingReportComponent).component("preview-box", PreviewBoxComponent).component("action-container", ActionContainerComponent).component("change-status-action", ChangeStatusActionComponent).component("comment-action", CommentActionComponent).component("block-action", BlockActionComponent).component("link-action", LinkActionComponent).component("user-lookup", UserLookupComponent).component("page-lookup", PageLookupComponent).component("expiry-input", ExpiryInputComponent).component("tag-popover", TagPopoverComponent).directive("tooltip", Codex.CdxTooltip).mount(mountPoint);
             break;
           }
         }

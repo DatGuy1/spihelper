@@ -1,5 +1,5 @@
 /* {{Wikipedia:USync|repo=https://github.com/DatGuy1/spihelper|ref=refs/heads/build/develop|path=spihelper.css}} */
-/* v3.4.1 */
+/* v3.5.0 */
 /* src/spihelper.css */
 .spiHelper-section-open {
   background-color: var(--background-color-progressive-subtle, #eaf3ff);
@@ -127,6 +127,23 @@
 
 .spiHelper-buttonRow > button {
   flex-shrink: 0;
+}
+
+.spiHelper-filingView-addSock {
+  display: flex;
+  align-items:  flex-start;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.spiHelper-pendingReport {
+  margin-top: 1em;
+}
+
+.spiHelper-pendingReport .spiHelper-pendingReport-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .spiHelper-messageRow {
@@ -493,8 +510,16 @@
   min-height: 26px;
 }
 
+.spiHelper-PreviewBox .spiHelper-previewBox-empty {
+  color: var(--color-subtle, #54595d);
+  margin: 0;
+}
+
 .spiHelper-PreviewBox .spiHelper-preview-reload {
   position: absolute;
+  min-width: 32px;
+  padding-inline-start: 0;
+  padding-inline-end: 0;
   top: 8px;
 }
 
