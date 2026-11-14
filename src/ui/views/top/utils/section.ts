@@ -15,7 +15,7 @@ import { VueMessage } from '../../../messages.ts';
 import { showUserMentions } from './mentions.ts';
 
 const SockListTemplateRegex = /sock ?list/;
-const UserTemplateNameParts = ['ip', 'vandal', 'user', 'noping', 'np'];
+const UserTemplateNameParts = ['ip', 'vandal', 'user', 'usm', 'noping', 'np'];
 
 function isRelevantTemplate(templateName: string): boolean {
   return SockListTemplateRegex.test(templateName)

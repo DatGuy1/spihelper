@@ -548,6 +548,9 @@ export async function spiHelperFileAndAct(opts: {
   accounts: UserRow[];
 }): Promise<number | null> {
   const { caseName, report, block, accounts } = opts;
+  if (report?.enabled && caseName.trim() === '') {
+    throw new Error('A report needs a case to be filed on');
+  }
   const reportWikitext = report?.enabled ? buildCaseReportWikitext(report.data) : null;
 
   let blockPromises: Promise<string | null>[] = [];

@@ -47,7 +47,7 @@ import { hasRunningOps } from './operations.ts';
 import { MODE, VERSION, getFeedbackConfig } from './constants';
 import type * as VueType from 'vue';
 import type * as CodexType from '@wikimedia/codex';
-import type { FeedbackDialog } from './types';
+import type { AlternateView, FeedbackDialog } from './types';
 import { setContext } from './context.ts';
 import { getUnseenChanges } from './changelog.ts';
 import { reconcileLinkTools } from './links.ts';
@@ -73,8 +73,11 @@ else if (
 ) {
   bootstrap('category');
 }
+else if (mw.config.get('wgPageName') === 'Wikipedia_talk:WikiProject_Spam' && mw.config.get('wgAction') === 'view') {
+  bootstrap('wpspam');
+}
 
-function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
+function bootstrap(pageType: 'spi' | AlternateView) {
   mw.loader.using(['vue', '@wikimedia/codex', 'mediawiki.api', 'mediawiki.ForeignApi', 'mediawiki.util', 'mediawiki.user'], (require) => {
     const Vue = require('vue') as typeof VueType;
     const Codex = require('@wikimedia/codex') as typeof CodexType;
@@ -218,7 +221,8 @@ function bootstrap(pageType: 'spi' | 'checkuser' | 'si' | 'category') {
         }
         case 'checkuser':
         case 'category':
-        case 'si': {
+        case 'si':
+        case 'wpspam': {
           Vue.createMwApp(AlternateViewComponent, {
             state: caseState, feedbackDialog, openButton: initLink,
             view: pageType,

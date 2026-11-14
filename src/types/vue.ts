@@ -25,6 +25,8 @@ export const WatchOptions = ['preferences', 'watch', 'nochange', 'unwatch'];
 
 export type SelectionType = 'section' | 'case' | 'both';
 
+export type AlternateView = 'category' | 'checkuser' | 'si' | 'wpspam';
+
 export interface FeedbackDialog {
   launch: ((contents?: {
     subject?: string;

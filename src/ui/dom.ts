@@ -185,6 +185,18 @@ export function clearSelectedSectionOverlays(): void {
   setSelectedSectionOverlays([]);
 }
 
+export function getTopLevelSectionIds(): number[] {
+  const ids: number[] = [];
+  for (const link of document.querySelectorAll<HTMLAnchorElement>('.mw-heading2 .mw-editsection a[href*="section="]')) {
+    const query = link.getAttribute('href')?.split('#')[0]?.split('?')[1] ?? '';
+    const section = new URLSearchParams(query).get('section');
+    if (section && /^\d+$/.test(section)) {
+      ids.push(Number(section));
+    }
+  }
+  return [...new Set(ids)];
+}
+
 export const SECTION_BUTTON_LABEL = 'open in spiHelper';
 
 /*

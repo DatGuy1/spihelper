@@ -2,6 +2,7 @@ import { type PropType, defineComponent } from 'vue';
 import type { CaseState } from '../../state.ts';
 import {
   type AllUser,
+  type AlternateView,
   type BlockActionData,
   type CaseAction,
   type CaseActions,
@@ -25,7 +26,8 @@ import { spiHelperFileAndAct } from '../../caseActions.ts';
 import { context, setContext } from '../../context.ts';
 import { setupBlockActionData, spiHelperNormalizeUsername } from '../../utils.ts';
 import { spiHelperParseArchiveNotice } from '../../archivenotice.ts';
-import { spiHelperGetCategoryMembers } from '../../api.ts';
+import { spiHelperGetCategoryMembers, spiHelperGetPageText } from '../../api.ts';
+import { addSectionButtons, getTopLevelSectionIds } from '../dom.ts';
 import {
   applyFetchedUsers,
   ensureUsersFetched,
@@ -38,6 +40,7 @@ import { MODE, VERSION } from '../../constants';
 interface Data {
   open: boolean;
   openHandler: ((e: Event) => void) | null;
+  sectionClickCleanup: (() => void) | null;
   beforeUnloadHandler: ((e: Event) => void) | null;
   caseLoaded: boolean;
   caseLoading: boolean;
@@ -63,12 +66,13 @@ export const AlternateViewComponent = defineComponent({
     feedbackDialog: { type: Object as PropType<FeedbackDialog>, required: true },
     openButton: { type: Object as PropType<HTMLElement>, required: true },
     defaultCase: { type: String, required: false, default: '' },
-    view: { type: String as PropType<'category' | 'checkuser' | 'si'>, required: true },
+    view: { type: String as PropType<AlternateView>, required: true },
   },
   data(): Data {
     return {
       open: false,
       openHandler: null,
+      sectionClickCleanup: null,
       beforeUnloadHandler: null,
       caseLoaded: false,
       caseLoading: false,
@@ -144,9 +148,32 @@ export const AlternateViewComponent = defineComponent({
     };
 
     this.openHandler = () => {
-      this.open = !this.open;
-      if (this.open) {
-        mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'open', type: 'alternate' });
+      this.setOpen(!this.open);
+    };
+    this.openButton.addEventListener('click', this.openHandler);
+
+    if (this.view === 'wpspam') {
+      this.sectionClickCleanup = addSectionButtons(getTopLevelSectionIds(), (sectionId) => {
+        void this.openSpamSection(sectionId);
+      });
+    }
+  },
+  beforeUnmount() {
+    if (this.openHandler) {
+      this.openButton.removeEventListener('click', this.openHandler);
+    }
+    if (this.beforeUnloadHandler) {
+      window.removeEventListener('beforeunload', this.beforeUnloadHandler);
+    }
+    this.sectionClickCleanup?.();
+    this.sectionClickCleanup = null;
+  },
+  methods: {
+    dismissMessage,
+    setOpen(open: boolean) {
+      this.open = open;
+      if (open) {
+        mw.track('stats.mediawiki_gadget_spihelper_total', 1, { action: 'open', type: 'alternate', view: this.view });
         if (!this.caseLoaded) {
           switch (this.view) {
             case 'category':
@@ -158,30 +185,20 @@ export const AlternateViewComponent = defineComponent({
             case 'si':
               void this.initialiseSIView();
               break;
+            case 'wpspam':
+              break;
           }
         }
       }
       if (this.beforeUnloadHandler) {
-        if (this.open) {
+        if (open) {
           window.addEventListener('beforeunload', this.beforeUnloadHandler);
         }
         else {
           window.removeEventListener('beforeunload', this.beforeUnloadHandler);
         }
       }
-    };
-    this.openButton.addEventListener('click', this.openHandler);
-  },
-  beforeUnmount() {
-    if (this.openHandler) {
-      this.openButton.removeEventListener('click', this.openHandler);
-    }
-    if (this.beforeUnloadHandler) {
-      window.removeEventListener('beforeunload', this.beforeUnloadHandler);
-    }
-  },
-  methods: {
-    dismissMessage,
+    },
     onReportSaved(report: CaseReport) {
       this.report = {
         enabled: true,
@@ -435,6 +452,40 @@ export const AlternateViewComponent = defineComponent({
       const sockList = $searchOrigin.find('li a.mw-userlink > bdi');
       await this.populateUserRows(sockList);
     },
+    async openSpamSection(sectionId: number) {
+      if (!this.open) {
+        this.setOpen(true);
+      }
+      if (this.accountsLoading) {
+        return;
+      }
+      this.accountsLoading = true;
+      try {
+        const [sectionText] = await Promise.all([
+          spiHelperGetPageText(mw.config.get('wgPageName'), false, sectionId),
+          this.caseLoaded ? null : this.loadCase(false),
+        ]);
+        if (!sectionText) {
+          new VueMessage({ type: 'error', content: 'Could not read the section' }).show();
+          return;
+        }
+        const [likelySocks, possibleSocks] = getSockEntries({
+          text: sectionText, fullSearch: false, state: this.state,
+        });
+        if (likelySocks.length + possibleSocks.length === 0) {
+          new VueMessage({ type: 'warning', content: 'No accounts are listed in the section' }).show();
+        }
+        this.accounts = await prefetchSockRows({
+          likelySocks,
+          possibleSocks,
+          blockData: this.blockData,
+          state: this.state,
+        });
+      }
+      finally {
+        this.accountsLoading = false;
+      }
+    },
     async populateUserRows(sockElementList: JQuery<Element>) {
       const allSocks: UserRow[] = [];
       const allUsernames = new Set<string>();
@@ -476,8 +527,10 @@ export const AlternateViewComponent = defineComponent({
          @keydown.ctrl.enter.capture.prevent="$refs.submitForm?.onSubmit?.()">
       <div id="spiHelper-alternateView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
-          <cdx-button aria-label="File new report" v-tooltip="'File new report'" weight="quiet"
-                      :disabled="!caseLoaded" @click="filingViewOpen = true">
+          <cdx-button aria-label="File new report"
+                      v-tooltip="blockData.master ? 'File new report' : 'Load a case to file a report on it'"
+                      weight="quiet" :disabled="!caseLoaded || !blockData.master"
+                      @click="filingViewOpen = true">
             <cdx-icon :icon="cdxIconAdd" />
           </cdx-button>
           <cdx-button aria-label="Give feedback" v-tooltip="'Give feedback'" weight="quiet" @click="launchFeedback">

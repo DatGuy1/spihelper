@@ -3,6 +3,7 @@ import {
   SECTION_BUTTON_LABEL,
   addSectionButtons,
   clearSelectedSectionOverlays,
+  getTopLevelSectionIds,
   hideSectionOverlay,
   scrollToSection,
   setSelectedSectionOverlays,
@@ -50,6 +51,33 @@ function makeHeading(sectionId: number, withEditSection = true): HTMLElement {
 }
 
 function noop() { /* intentional no-op */ }
+
+describe('getTopLevelSectionIds', () => {
+  function addHeading(level: number, section: string) {
+    const heading = document.createElement('div');
+    heading.className = `mw-heading mw-heading${level}`;
+    heading.innerHTML = `<h${level}>Foo</h${level}><span class="mw-editsection">`
+      + `<a href="/w/index.php?title=Foo&action=edit&section=${section}">edit</a></span>`;
+    document.body.appendChild(heading);
+  }
+
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  test('reads the index off the edit link of each level-2 heading', () => {
+    addHeading(2, '1');
+    addHeading(2, '2');
+    expect(getTopLevelSectionIds()).toEqual([1, 2]);
+  });
+
+  test('skips subheadings and headings from a transcluded page', () => {
+    addHeading(2, '1');
+    addHeading(3, '2');
+    addHeading(2, 'T-1');
+    expect(getTopLevelSectionIds()).toEqual([1]);
+  });
+});
 
 describe('addSectionButtons', () => {
   beforeEach(() => {

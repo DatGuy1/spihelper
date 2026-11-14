@@ -8,7 +8,9 @@ import type {
   UserRow,
 } from '../../../src/types';
 import { AlternateViewComponent } from '../../../src/ui/views';
+import * as apiModule from '../../../src/api.ts';
 import * as caseActionsModule from '../../../src/caseActions.ts';
+import * as sectionModule from '../../../src/ui/views/top/utils/section.ts';
 import { CaseState } from '../../../src/state.ts';
 import { generateUserRow } from '../../../src/ui/utils.ts';
 import { getInitialCaseReport } from '../../../src/ui/views/top/utils';
@@ -138,5 +140,105 @@ describe('filing a report', () => {
     expect(track).not.toHaveBeenCalledWith(
       'stats.mediawiki_gadget_spihelper_total', 1, expect.objectContaining({ action: 'file' }),
     );
+  });
+});
+
+describe('openSpamSection', () => {
+  interface SectionCtx {
+    open: boolean;
+    accountsLoading: boolean;
+    caseLoaded: boolean;
+    accounts: UserRow[];
+    blockData: BlockActionData;
+    state: CaseState;
+    setOpen: ReturnType<typeof mock>;
+    loadCase: ReturnType<typeof mock>;
+  }
+  const sectionMethods = AlternateViewComponent.methods as unknown as {
+    openSpamSection(this: SectionCtx, sectionId: number): Promise<void>;
+  };
+
+  let getRevision: ReturnType<typeof spyOn<typeof apiModule, 'spiHelperGetPageRevision'>>;
+  let prefetch: ReturnType<typeof spyOn<typeof sectionModule, 'prefetchSockRows'>>;
+
+  beforeEach(() => {
+    spyOn(mw.config, 'get').mockImplementation(
+      ((key: string) => (key === 'wgPageName' ? 'Wikipedia_talk:WikiProject_Spam' : null)) as typeof mw.config.get,
+    );
+    getRevision = spyOn(apiModule, 'spiHelperGetPageRevision');
+    // Hand the rows straight back, so the test sees what was parsed out of the section
+    prefetch = spyOn(sectionModule, 'prefetchSockRows').mockImplementation(
+      ({ likelySocks, possibleSocks }) => Promise.resolve([...likelySocks, ...possibleSocks]),
+    );
+  });
+
+  afterEach(() => {
+    getRevision.mockRestore();
+    prefetch.mockRestore();
+  });
+
+  function makeSectionCtx(accounts: UserRow[] = []): SectionCtx {
+    return {
+      open: false,
+      accountsLoading: false,
+      caseLoaded: false,
+      accounts,
+      blockData: setupBlockActionData(),
+      state: new CaseState(),
+      setOpen: mock(),
+      loadCase: mock(() => Promise.resolve()),
+    };
+  }
+
+  /** A fetched section with this wikitext */
+  function section(text: string) {
+    return { text, revid: 1 };
+  }
+
+  test('reads the clicked section of this page', async () => {
+    getRevision.mockResolvedValue(section(''));
+
+    await sectionMethods.openSpamSection.call(makeSectionCtx(), 3);
+
+    expect(getRevision).toHaveBeenCalledWith('Wikipedia_talk:WikiProject_Spam', false, 3);
+  });
+
+  test('replaces the table with the accounts in the section, none set to block', async () => {
+    getRevision.mockResolvedValue(section('*{{usm|Alice}}\n*{{user summary|Bob}}\n{{lsm|example.com}}'));
+    const ctx = makeSectionCtx([generateUserRow('Carol', new CaseState())]);
+
+    await sectionMethods.openSpamSection.call(ctx, 1);
+
+    expect(ctx.accounts.map(row => row.username)).toEqual(['Alice', 'Bob']);
+    expect(prefetch.mock.calls[0]?.[0].likelySocks).toEqual([]);
+    expect(ctx.accountsLoading).toBe(false);
+  });
+
+  test('opens the panel and loads an empty case the first time', async () => {
+    getRevision.mockResolvedValue(section('{{usm|Alice}}'));
+    const ctx = makeSectionCtx();
+
+    await sectionMethods.openSpamSection.call(ctx, 1);
+
+    expect(ctx.setOpen).toHaveBeenCalledWith(true);
+    expect(ctx.loadCase).toHaveBeenCalledWith(false);
+  });
+
+  test('leaves the table alone when the section cannot be read', async () => {
+    getRevision.mockResolvedValue(null);
+    const ctx = makeSectionCtx([generateUserRow('Carol', new CaseState())]);
+
+    await sectionMethods.openSpamSection.call(ctx, 1);
+
+    expect(ctx.accounts.map(row => row.username)).toEqual(['Carol']);
+    expect(messages.map(message => message.type)).toContain('error');
+  });
+
+  test('ignores a click while another section is still loading', async () => {
+    const ctx = { ...makeSectionCtx(), accountsLoading: true };
+
+    await sectionMethods.openSpamSection.call(ctx, 1);
+
+    expect(getRevision).not.toHaveBeenCalled();
   });
 });

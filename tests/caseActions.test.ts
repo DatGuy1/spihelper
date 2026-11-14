@@ -875,6 +875,23 @@ describe('spiHelperFileAndAct', () => {
   });
 
   describe('ordering', () => {
+    test('stops before blocking anyone when there is no case to file on', async () => {
+      stubUserActions();
+      const blockSpy = spyOn(blockModule, 'spiHelperProcessBlockRow').mockResolvedValue(true);
+      const fileSpy = spyOn(filingModule, 'spiHelperFileCaseReport').mockResolvedValue(5);
+      const actions = makeActions();
+
+      const error = await spiHelperFileAndAct({
+        caseName: '', report: actions.file, block: actions.block, accounts: [makeRow('SockA')],
+      }).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe('A report needs a case to be filed on');
+
+      expect(blockSpy).not.toHaveBeenCalled();
+      expect(fileSpy).not.toHaveBeenCalled();
+    });
+
     test('stops before blocking anyone when the report is invalid', async () => {
       stubUserActions();
       const blockSpy = spyOn(blockModule, 'spiHelperProcessBlockRow').mockResolvedValue(true);

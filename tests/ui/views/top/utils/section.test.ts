@@ -181,6 +181,11 @@ describe('getSockEntries', () => {
       expect(possible.map(r => r.username)).toContain('Sock');
     });
 
+    test('{{usm|...}} adds username to possibleSocks', () => {
+      const [, possible] = getSockEntries({ text: '{{usm|Sock}}', fullSearch: false, state });
+      expect(possible.map(r => r.username)).toContain('Sock');
+    });
+
     test('{{vandal|...}} adds username to possibleSocks', () => {
       const [, possible] = getSockEntries({ text: '{{vandal|Vandal}}', fullSearch: false, state });
       expect(possible.map(r => r.username)).toContain('Vandal');
