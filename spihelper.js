@@ -3709,7 +3709,7 @@ ${body}` : body;
 
   // src/ui/views/top/utils/section.ts
   var SockListTemplateRegex = /sock ?list/;
-  var UserTemplateNameParts = ["ip", "vandal", "user", "noping", "np"];
+  var UserTemplateNameParts = ["ip", "vandal", "user", "usm", "noping", "np"];
   function isRelevantTemplate(templateName) {
     return SockListTemplateRegex.test(templateName) || UserTemplateNameParts.some((part) => templateName.includes(part));
   }
@@ -6029,6 +6029,9 @@ ${heading}`);
   }
   async function spiHelperFileAndAct(opts) {
     const { caseName, report, block, accounts } = opts;
+    if (report?.enabled && caseName.trim() === "") {
+      throw new Error("A report needs a case to be filed on");
+    }
     const reportWikitext = report?.enabled ? buildCaseReportWikitext(report.data) : null;
     let blockPromises = [];
     let tagPromises = [];
@@ -6345,6 +6348,17 @@ ${heading}`);
   }
   function clearSelectedSectionOverlays() {
     setSelectedSectionOverlays([]);
+  }
+  function getTopLevelSectionIds() {
+    const ids = [];
+    for (const link of document.querySelectorAll('.mw-heading2 .mw-editsection a[href*="section="]')) {
+      const query = link.getAttribute("href")?.split("#")[0]?.split("?")[1] ?? "";
+      const section = new URLSearchParams(query).get("section");
+      if (section && /^\d+$/.test(section)) {
+        ids.push(Number(section));
+      }
+    }
+    return [...new Set(ids)];
   }
   var SECTION_BUTTON_LABEL = "open in spiHelper";
   function addSectionButtons(sectionIds, onClick) {
@@ -9226,6 +9240,7 @@ ${heading}`);
       return {
         open: false,
         openHandler: null,
+        sectionClickCleanup: null,
         beforeUnloadHandler: null,
         caseLoaded: false,
         caseLoading: false,
@@ -9294,9 +9309,31 @@ ${heading}`);
         }
       };
       this.openHandler = () => {
-        this.open = !this.open;
-        if (this.open) {
-          mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "open", type: "alternate" });
+        this.setOpen(!this.open);
+      };
+      this.openButton.addEventListener("click", this.openHandler);
+      if (this.view === "wpspam") {
+        this.sectionClickCleanup = addSectionButtons(getTopLevelSectionIds(), (sectionId) => {
+          this.openSpamSection(sectionId);
+        });
+      }
+    },
+    beforeUnmount() {
+      if (this.openHandler) {
+        this.openButton.removeEventListener("click", this.openHandler);
+      }
+      if (this.beforeUnloadHandler) {
+        window.removeEventListener("beforeunload", this.beforeUnloadHandler);
+      }
+      this.sectionClickCleanup?.();
+      this.sectionClickCleanup = null;
+    },
+    methods: {
+      dismissMessage,
+      setOpen(open) {
+        this.open = open;
+        if (open) {
+          mw.track("stats.mediawiki_gadget_spihelper_total", 1, { action: "open", type: "alternate", view: this.view });
           if (!this.caseLoaded) {
             switch (this.view) {
               case "category":
@@ -9308,29 +9345,19 @@ ${heading}`);
               case "si":
                 this.initialiseSIView();
                 break;
+              case "wpspam":
+                break;
             }
           }
         }
         if (this.beforeUnloadHandler) {
-          if (this.open) {
+          if (open) {
             window.addEventListener("beforeunload", this.beforeUnloadHandler);
           } else {
             window.removeEventListener("beforeunload", this.beforeUnloadHandler);
           }
         }
-      };
-      this.openButton.addEventListener("click", this.openHandler);
-    },
-    beforeUnmount() {
-      if (this.openHandler) {
-        this.openButton.removeEventListener("click", this.openHandler);
-      }
-      if (this.beforeUnloadHandler) {
-        window.removeEventListener("beforeunload", this.beforeUnloadHandler);
-      }
-    },
-    methods: {
-      dismissMessage,
+      },
       onReportSaved(report) {
         this.report = {
           enabled: true,
@@ -9550,6 +9577,41 @@ ${heading}`);
         const sockList = $searchOrigin.find("li a.mw-userlink > bdi");
         await this.populateUserRows(sockList);
       },
+      async openSpamSection(sectionId) {
+        if (!this.open) {
+          this.setOpen(true);
+        }
+        if (this.accountsLoading) {
+          return;
+        }
+        this.accountsLoading = true;
+        try {
+          const [sectionText] = await Promise.all([
+            spiHelperGetPageText(mw.config.get("wgPageName"), false, sectionId),
+            this.caseLoaded ? null : this.loadCase(false)
+          ]);
+          if (!sectionText) {
+            new VueMessage({ type: "error", content: "Could not read the section" }).show();
+            return;
+          }
+          const [likelySocks, possibleSocks] = getSockEntries({
+            text: sectionText,
+            fullSearch: false,
+            state: this.state
+          });
+          if (likelySocks.length + possibleSocks.length === 0) {
+            new VueMessage({ type: "warning", content: "No accounts are listed in the section" }).show();
+          }
+          this.accounts = await prefetchSockRows({
+            likelySocks,
+            possibleSocks,
+            blockData: this.blockData,
+            state: this.state
+          });
+        } finally {
+          this.accountsLoading = false;
+        }
+      },
       async populateUserRows(sockElementList) {
         const allSocks = [];
         const allUsernames = new Set;
@@ -9590,8 +9652,10 @@ ${heading}`);
          @keydown.ctrl.enter.capture.prevent="$refs.submitForm?.onSubmit?.()">
       <div id="spiHelper-alternateView-Header" class="spiHelper-mainCard-Header">
         <div class="header-buttons">
-          <cdx-button aria-label="File new report" v-tooltip="'File new report'" weight="quiet"
-                      :disabled="!caseLoaded" @click="filingViewOpen = true">
+          <cdx-button aria-label="File new report"
+                      v-tooltip="blockData.master ? 'File new report' : 'Load a case to file a report on it'"
+                      weight="quiet" :disabled="!caseLoaded || !blockData.master"
+                      @click="filingViewOpen = true">
             <cdx-icon :icon="cdxIconAdd" />
           </cdx-button>
           <cdx-button aria-label="Give feedback" v-tooltip="'Give feedback'" weight="quiet" @click="launchFeedback">
@@ -10111,6 +10175,8 @@ ${heading}`);
     bootstrap("si");
   } else if (mw.config.get("wgNamespaceNumber") === 14 && ["Suspected Wikipedia sockpuppets", "Wikipedia sockpuppets"].some((cat) => mw.config.get("wgCategories").includes(cat))) {
     bootstrap("category");
+  } else if (mw.config.get("wgPageName") === "Wikipedia_talk:WikiProject_Spam" && mw.config.get("wgAction") === "view") {
+    bootstrap("wpspam");
   }
   function bootstrap(pageType) {
     mw.loader.using(["vue", "@wikimedia/codex", "mediawiki.api", "mediawiki.ForeignApi", "mediawiki.util", "mediawiki.user"], (require2) => {
@@ -10185,7 +10251,8 @@ ${heading}`);
           }
           case "checkuser":
           case "category":
-          case "si": {
+          case "si":
+          case "wpspam": {
             Vue.createMwApp(AlternateViewComponent, {
               state: caseState,
               feedbackDialog,
