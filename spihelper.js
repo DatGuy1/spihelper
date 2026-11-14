@@ -6234,6 +6234,11 @@ ${heading}`);
       heading.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }
+  function scrollToForm(mountPoint, unpinned) {
+    if (mountPoint && !unpinned) {
+      mountPoint.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
   function getSectionHighlightRoot() {
     return document.querySelector("#mw-content-text .mw-parser-output");
   }
@@ -6612,6 +6617,9 @@ ${heading}`);
           if (!this.open) {
             this.open = true;
           }
+          this.$nextTick(() => {
+            scrollToForm(this.mountPoint, this.unpinned);
+          });
         });
       },
       syncSelectedSectionOverlay() {
@@ -9315,6 +9323,9 @@ ${heading}`);
       if (this.view === "wpspam") {
         this.sectionClickCleanup = addSectionButtons(getTopLevelSectionIds(), (sectionId) => {
           this.openSpamSection(sectionId);
+          this.$nextTick(() => {
+            scrollToForm(this.mountPoint, this.unpinned);
+          });
         });
       }
     },
