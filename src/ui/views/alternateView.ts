@@ -27,7 +27,7 @@ import { context, setContext } from '../../context.ts';
 import { setupBlockActionData, spiHelperNormalizeUsername } from '../../utils.ts';
 import { spiHelperParseArchiveNotice } from '../../archivenotice.ts';
 import { spiHelperGetCategoryMembers, spiHelperGetPageText } from '../../api.ts';
-import { addSectionButtons, getTopLevelSectionIds } from '../dom.ts';
+import { addSectionButtons, getTopLevelSectionIds, scrollToForm } from '../dom.ts';
 import {
   applyFetchedUsers,
   ensureUsersFetched,
@@ -155,6 +155,10 @@ export const AlternateViewComponent = defineComponent({
     if (this.view === 'wpspam') {
       this.sectionClickCleanup = addSectionButtons(getTopLevelSectionIds(), (sectionId) => {
         void this.openSpamSection(sectionId);
+        // The form only renders once open, so wait for it before scrolling
+        void this.$nextTick(() => {
+          scrollToForm(this.mountPoint, this.unpinned);
+        });
       });
     }
   },

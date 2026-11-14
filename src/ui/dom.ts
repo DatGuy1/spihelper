@@ -32,6 +32,17 @@ export function scrollToSection(sectionId: number) {
   }
 }
 
+/*
+ * Brings the form into view after a section's "open in spiHelper" link, which can sit far
+ * below it. Only a pinned form needs this: an unpinned one is sticky, so it's already on
+ * screen, and scrolling to it would jump the page back to where it sits in the flow
+ */
+export function scrollToForm(mountPoint: HTMLElement | null, unpinned: boolean) {
+  if (mountPoint && !unpinned) {
+    mountPoint.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
 function getSectionHighlightRoot(): HTMLElement | null {
   return document.querySelector('#mw-content-text .mw-parser-output');
 }

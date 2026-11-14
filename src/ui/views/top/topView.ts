@@ -54,7 +54,12 @@ import { OpState, finishOp, getOpState, isOpRunning, startOp } from '../../../op
 import { spiHelperPerformActions } from '../../../caseActions.ts';
 import { VueMessage, dismissMessage, messages } from '../../messages.ts';
 import { AlwaysAvailableActions, SpecificSectionActions } from './utils/setup.ts';
-import { addSectionButtons, clearSelectedSectionOverlays, setSelectedSectionOverlays } from '../../dom.ts';
+import {
+  addSectionButtons,
+  clearSelectedSectionOverlays,
+  scrollToForm,
+  setSelectedSectionOverlays,
+} from '../../dom.ts';
 
 interface Data {
   open: boolean;
@@ -303,6 +308,10 @@ export const TopViewComponent = defineComponent({
         if (!this.open) {
           this.open = true;
         }
+        // The form only renders once open, so wait for it before scrolling
+        void this.$nextTick(() => {
+          scrollToForm(this.mountPoint, this.unpinned);
+        });
       });
     },
     syncSelectedSectionOverlay() {
