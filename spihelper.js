@@ -2493,20 +2493,15 @@ ${body}` : body;
     if (tableRowIdentifier) {
       newRow[tableRowIdentifier] = id;
     }
-    if (archiveNotice) {
-      if (archiveNotice.crosswiki) {
-        newRow.block.lock = true;
-      }
-      if (archiveNotice.notalk) {
-        newRow.block.nem = true;
-        newRow.block.ntp = true;
-      }
+    if (archiveNotice?.notalk) {
+      newRow.block.nem = true;
+      newRow.block.ntp = true;
     }
     newRow.block.duration = spiHelperSettings.interface.defaultBlockDuration;
     return newRow;
   }
   function updateUserBlockDataSettings(opts) {
-    const { userRow, currentBlock, userPage, defaultBlock } = opts;
+    const { userRow, currentBlock, userPage, defaultBlock, crosswiki } = opts;
     if (currentBlock) {
       userRow.block.block = true;
       userRow.block.acb = currentBlock.acb;
@@ -2520,6 +2515,7 @@ ${body}` : body;
         userRow.block.duration = "1 week";
       }
     }
+    userRow.block.lock = defaultBlock && crosswiki;
     if (userPage) {
       userRow.block.tags = parseUserTags(userPage, userRow.username);
     }
@@ -2528,20 +2524,22 @@ ${body}` : body;
   var isMenuGroupData = (item) => ("items" in item);
   function setUserRowData(opts) {
     const { fetchedUser, defaultBlock, state } = opts;
+    const crosswiki = state.archiveNotice?.crosswiki ?? false;
     const userRow = updateUserBlockDataSettings({
       userRow: opts.userRow,
       defaultBlock,
+      crosswiki,
       currentBlock: fetchedUser?.block,
       userPage: fetchedUser?.userPage
     });
-    const crosswiki = state.archiveNotice?.crosswiki ?? false;
+    const defaultLock = defaultBlock && crosswiki;
     if (fetchedUser?.globalUser) {
-      userRow.block.lock = fetchedUser.globalUser.locked || crosswiki;
+      userRow.block.lock = fetchedUser.globalUser.locked || defaultLock;
       return { userRow, globalStatus: { kind: "locked", locked: fetchedUser.globalUser.locked } };
     }
     if (isNonRegisteredAccount(userRow.username)) {
       const globallyBlocked = fetchedUser?.globalBlock !== undefined;
-      userRow.block.lock = globallyBlocked || crosswiki;
+      userRow.block.lock = globallyBlocked || defaultLock;
       return { userRow, globalStatus: { kind: "gblocked", blocked: globallyBlocked } };
     }
     return { userRow, globalStatus: { kind: "none" } };
@@ -6668,7 +6666,8 @@ ${heading}`);
       async onReportAccountAdded(username) {
         const row = updateUserBlockDataSettings({
           userRow: generateUserRow(username, this.state),
-          defaultBlock: false
+          defaultBlock: false,
+          crosswiki: this.state.archiveNotice?.crosswiki ?? false
         });
         const added = new Set(this.massAddUserRows([row]).map((r) => r.username));
         await ensureUsersFetched(added, this.caseActions.block.data.fetchedUsers);
@@ -6917,7 +6916,8 @@ ${heading}`);
         const likelyUsers = new Set(likelySocks.map((sock) => sock.username));
         const newRows = [...likelySocks, ...possibleSocks].map((sock) => updateUserBlockDataSettings({
           userRow: sock,
-          defaultBlock: likelyUsers.has(sock.username)
+          defaultBlock: likelyUsers.has(sock.username),
+          crosswiki: this.state.archiveNotice?.crosswiki ?? false
         }));
         const added = new Set(this.massAddUserRows(newRows).map((row) => row.username));
         await ensureUsersFetched(added, this.caseActions.block.data.fetchedUsers);
@@ -8827,6 +8827,24 @@ ${heading}`);
         }
         return this.accounts.filter((sock) => sock.block.lock && (isNonRegisteredAccount(sock.username) ? blockAction.data.userGlobalBlocks.get(sock.username) !== true : blockAction.data.userLocks.get(sock.username) !== true));
       },
+      blocksAvailable() {
+        const blockAction = this.caseActions.block;
+        return blockAction.enabled && spiHelperIsAdmin() && !blockAction.data.options.noBlock;
+      },
+      lockedWithoutBlock() {
+        if (!this.blocksAvailable) {
+          return [];
+        }
+        const { userBlocks } = this.caseActions.block.data;
+        return this.globalRequestTargets.filter((user) => user.username !== "" && !user.block.block && !userBlocks.has(user.username)).map((user) => user.username);
+      },
+      blockedWithoutLock() {
+        if (!this.blocksAvailable || !this.state.archiveNotice?.crosswiki) {
+          return [];
+        }
+        const { userLocks } = this.caseActions.block.data;
+        return this.accounts.filter((user) => user.username !== "" && !isNonRegisteredAccount(user.username) && user.block.block && !user.block.lock && userLocks.get(user.username) !== true).map((user) => user.username);
+      },
       needsLockComment() {
         return this.globalRequestTargets.length > 0;
       },
@@ -8969,6 +8987,16 @@ ${heading}`);
         <cdx-message v-for="claim in commentClaims" :key="claim.quoted + claim.reason"
                      type="warning" :inline="true">
           The comment includes {{ claim.quoted }}, but {{ claim.reason }}
+        </cdx-message>
+        <cdx-message v-if="lockedWithoutBlock.length > 0" type="warning" :inline="true">
+          Requesting lock without a local block for
+          <template v-for="(username, i) in lockedWithoutBlock" :key="username"
+            >{{ i > 0 ? ', ' : '' }}<b>{{ username }}</b></template>
+        </cdx-message>
+        <cdx-message v-if="blockedWithoutLock.length > 0" type="warning" :inline="true">
+          Blocking without requesting a lock on a cross-wiki case for
+          <template v-for="(username, i) in blockedWithoutLock" :key="username"
+            >{{ i > 0 ? ', ' : '' }}<b>{{ username }}</b></template>
         </cdx-message>
         <cdx-message v-for="override in lenientOverrides" :key="override.username"
                      type="warning" :inline="true">
@@ -9384,7 +9412,8 @@ ${heading}`);
       async onReportAccountAdded(username) {
         const row = updateUserBlockDataSettings({
           userRow: generateUserRow(username, this.state),
-          defaultBlock: false
+          defaultBlock: false,
+          crosswiki: this.state.archiveNotice?.crosswiki ?? false
         });
         const added = new Set(this.massAddUserRows([row]).map((r) => r.username));
         await ensureUsersFetched(added, this.blockData.fetchedUsers);
@@ -9440,7 +9469,8 @@ ${heading}`);
         const likelyUsers = new Set(likelySocks.map((sock) => sock.username));
         const newRows = [...likelySocks, ...possibleSocks].map((sock) => updateUserBlockDataSettings({
           userRow: sock,
-          defaultBlock: likelyUsers.has(sock.username)
+          defaultBlock: likelyUsers.has(sock.username),
+          crosswiki: this.state.archiveNotice?.crosswiki ?? false
         }));
         const added = new Set(this.massAddUserRows(newRows).map((row) => row.username));
         await ensureUsersFetched(added, this.blockData.fetchedUsers);
