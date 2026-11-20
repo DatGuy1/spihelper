@@ -218,7 +218,9 @@ export const AlternateViewComponent = defineComponent({
     // Keep the filing table in sync with the block table
     async onReportAccountAdded(username: string) {
       const row = updateUserBlockDataSettings({
-        userRow: generateUserRow(username, this.state), defaultBlock: false,
+        userRow: generateUserRow(username, this.state),
+        defaultBlock: false,
+        crosswiki: this.state.archiveNotice?.crosswiki ?? false,
       });
       const added = new Set(this.massAddUserRows([row]).map(r => r.username));
       await ensureUsersFetched(added, this.blockData.fetchedUsers);
@@ -277,6 +279,7 @@ export const AlternateViewComponent = defineComponent({
       const newRows = [...likelySocks, ...possibleSocks].map(sock => updateUserBlockDataSettings({
         userRow: sock,
         defaultBlock: likelyUsers.has(sock.username),
+        crosswiki: this.state.archiveNotice?.crosswiki ?? false,
       }));
       const added = new Set(this.massAddUserRows(newRows).map(row => row.username));
 

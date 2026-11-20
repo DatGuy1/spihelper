@@ -49,14 +49,9 @@ export function getDefaultUserRow(archiveNotice: ParsedArchiveNotice | null): Us
     // Object spread carries own enumerable symbols, so this survives generateUserRow
     (newRow as unknown as Record<symbol, string>)[tableRowIdentifier] = id;
   }
-  if (archiveNotice) {
-    if (archiveNotice.crosswiki) {
-      newRow.block.lock = true;
-    }
-    if (archiveNotice.notalk) {
-      newRow.block.nem = true;
-      newRow.block.ntp = true;
-    }
+  if (archiveNotice?.notalk) {
+    newRow.block.nem = true;
+    newRow.block.ntp = true;
   }
   newRow.block.duration = spiHelperSettings.interface.defaultBlockDuration;
   return newRow;
@@ -70,8 +65,9 @@ export function updateUserBlockDataSettings(opts: {
   currentBlock?: BlockEntry | null;
   userPage?: string;
   defaultBlock: boolean;
+  crosswiki: boolean;
 }): UserRow {
-  const { userRow, currentBlock, userPage, defaultBlock } = opts;
+  const { userRow, currentBlock, userPage, defaultBlock, crosswiki } = opts;
   if (currentBlock) {
     userRow.block.block = true;
     userRow.block.acb = currentBlock.acb;
@@ -86,6 +82,8 @@ export function updateUserBlockDataSettings(opts: {
       userRow.block.duration = '1 week';
     }
   }
+
+  userRow.block.lock = defaultBlock && crosswiki;
 
   if (userPage) {
     userRow.block.tags = parseUserTags(userPage, userRow.username);
@@ -108,23 +106,25 @@ export function setUserRowData(opts: {
   state: CaseState;
 }): { userRow: UserRow; globalStatus: GlobalStatus } {
   const { fetchedUser, defaultBlock, state } = opts;
+  const crosswiki = state.archiveNotice?.crosswiki ?? false;
   const userRow = updateUserBlockDataSettings({
     userRow: opts.userRow,
     defaultBlock,
+    crosswiki,
     currentBlock: fetchedUser?.block,
     userPage: fetchedUser?.userPage,
   });
 
-  const crosswiki = state.archiveNotice?.crosswiki ?? false;
+  const defaultLock = defaultBlock && crosswiki;
   if (fetchedUser?.globalUser) {
-    userRow.block.lock = fetchedUser.globalUser.locked || crosswiki;
+    userRow.block.lock = fetchedUser.globalUser.locked || defaultLock;
     return { userRow, globalStatus: { kind: 'locked', locked: fetchedUser.globalUser.locked } };
   }
   if (isNonRegisteredAccount(userRow.username)) {
     // Temporary accounts and IPs can't be locked, so the same checkbox stands for
     // the global block that gets requested for them instead
     const globallyBlocked = fetchedUser?.globalBlock !== undefined;
-    userRow.block.lock = globallyBlocked || crosswiki;
+    userRow.block.lock = globallyBlocked || defaultLock;
     return { userRow, globalStatus: { kind: 'gblocked', blocked: globallyBlocked } };
   }
 

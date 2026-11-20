@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, spyOn, test } from 'bun:test';
+import * as role from '../../../src/role.ts';
 import type {
   BlockEntry,
   BlockRowData,
@@ -10,7 +11,7 @@ import { SubmitFormComponent } from '../../../src/ui/views';
 import { type UnfulfilledClaim, getInitialCaseActions } from '../../../src/ui/views/top/utils';
 import { setContext } from '../../../src/context.ts';
 import { CaseState } from '../../../src/state.ts';
-import { SectionEntry } from '../../../src/types';
+import { ParsedArchiveNotice, SectionEntry } from '../../../src/types';
 import { makeBlockEntry, makeUserRow } from '../../fixtures/spi.ts';
 
 interface LenientOverride { username: string; reasons: string[] }
@@ -32,6 +33,11 @@ const computed = SubmitFormComponent.computed as unknown as {
   commentClaims(this: ClaimCtx): UnfulfilledClaim[];
   effectiveStatus(this: TestCtx): string;
   hasInvalidMove(this: TestCtx): boolean;
+  blocksAvailable(this: TestCtx): boolean;
+  lockedWithoutBlock(
+    this: TestCtx & { globalRequestTargets: UserRow[]; blocksAvailable: boolean },
+  ): string[];
+  blockedWithoutLock(this: TestCtx & { state: CaseState; blocksAvailable: boolean }): string[];
 };
 
 beforeEach(() => {
@@ -257,6 +263,138 @@ describe('lenientOverrides', () => {
           reasons: ['account creation is re-enabled', 'email access is restored'],
         },
       ]);
+  });
+});
+
+describe('block and lock mismatches', () => {
+  interface MismatchCtx extends TestCtx {
+    state: CaseState;
+    globalRequestTargets: UserRow[];
+    blocksAvailable: boolean;
+  }
+
+  let isAdmin: ReturnType<typeof spyOn<typeof role, 'spiHelperIsAdmin'>>;
+  beforeAll(() => {
+    isAdmin = spyOn(role, 'spiHelperIsAdmin').mockReturnValue(true);
+  });
+  afterAll(() => {
+    isAdmin.mockRestore();
+  });
+
+  function makeMismatchCtx(opts: {
+    accounts: UserRow[];
+    crosswiki?: boolean;
+    noBlock?: boolean;
+    userBlocks?: Map<string, BlockEntry>;
+    userLocks?: Map<string, boolean>;
+  }): MismatchCtx {
+    const { accounts, noBlock, userBlocks } = opts;
+    const ctx = makeCtx({ accounts, noBlock, userBlocks });
+    ctx.caseActions.block.data.userLocks = opts.userLocks ?? new Map<string, boolean>();
+    const notice = opts.crosswiki
+      ? new ParsedArchiveNotice({ username: 'Foo', crosswiki: true })
+      : null;
+    return {
+      ...ctx,
+      state: new CaseState([], null, notice),
+      get globalRequestTargets() {
+        return computed.globalRequestTargets.call(ctx);
+      },
+      get blocksAvailable() {
+        return computed.blocksAvailable.call(ctx);
+      },
+    };
+  }
+
+  describe('lockedWithoutBlock', () => {
+    const lockOnly = makeRow('Alice', { block: false, lock: true });
+
+    test('flags a lock requested for a user not being blocked', () => {
+      expect(computed.lockedWithoutBlock.call(makeMismatchCtx({ accounts: [lockOnly] })))
+        .toEqual(['Alice']);
+    });
+
+    test('ignores a user being blocked as well', () => {
+      expect(computed.lockedWithoutBlock.call(
+        makeMismatchCtx({ accounts: [makeRow('Alice', { lock: true })] }),
+      )).toEqual([]);
+    });
+
+    test('ignores a user who is already blocked locally', () => {
+      const userBlocks = new Map([['Alice', makeBlockEntry('Alice')]]);
+      expect(computed.lockedWithoutBlock.call(
+        makeMismatchCtx({ accounts: [lockOnly], userBlocks }),
+      )).toEqual([]);
+    });
+
+    test('ignores a user who is already locked', () => {
+      expect(computed.lockedWithoutBlock.call(
+        makeMismatchCtx({ accounts: [lockOnly], userLocks: new Map([['Alice', true]]) }),
+      )).toEqual([]);
+    });
+
+    test('ignores the blank row', () => {
+      expect(computed.lockedWithoutBlock.call(
+        makeMismatchCtx({ accounts: [makeRow('', { block: false, lock: true })] }),
+      )).toEqual([]);
+    });
+
+    test('says nothing when blocks are turned off', () => {
+      expect(computed.lockedWithoutBlock.call(
+        makeMismatchCtx({ accounts: [lockOnly], noBlock: true }),
+      )).toEqual([]);
+    });
+
+    test('says nothing to a non-admin, who can only request locks', () => {
+      isAdmin.mockReturnValueOnce(false);
+      expect(computed.lockedWithoutBlock.call(makeMismatchCtx({ accounts: [lockOnly] })))
+        .toEqual([]);
+    });
+  });
+
+  describe('blockedWithoutLock', () => {
+    const blockOnly = makeRow('Bob', { lock: false });
+
+    test('flags a block without a lock on a crosswiki case', () => {
+      expect(computed.blockedWithoutLock.call(
+        makeMismatchCtx({ accounts: [blockOnly], crosswiki: true }),
+      )).toEqual(['Bob']);
+    });
+
+    test('says nothing on a case that is not crosswiki', () => {
+      expect(computed.blockedWithoutLock.call(makeMismatchCtx({ accounts: [blockOnly] })))
+        .toEqual([]);
+    });
+
+    test('ignores a user being locked as well', () => {
+      expect(computed.blockedWithoutLock.call(
+        makeMismatchCtx({ accounts: [makeRow('Bob', { lock: true })], crosswiki: true }),
+      )).toEqual([]);
+    });
+
+    test('ignores a user who is already locked', () => {
+      expect(computed.blockedWithoutLock.call(makeMismatchCtx({
+        accounts: [blockOnly], crosswiki: true, userLocks: new Map([['Bob', true]]),
+      }))).toEqual([]);
+    });
+
+    test('ignores IPs, which would need a global block rather than a lock', () => {
+      const isIP = spyOn(mw.util, 'isIPAddress').mockReturnValue(true);
+      try {
+        expect(computed.blockedWithoutLock.call(
+          makeMismatchCtx({ accounts: [makeRow('192.0.2.1', { lock: false })], crosswiki: true }),
+        )).toEqual([]);
+      }
+      finally {
+        isIP.mockRestore();
+      }
+    });
+
+    test('says nothing when blocks are turned off', () => {
+      expect(computed.blockedWithoutLock.call(
+        makeMismatchCtx({ accounts: [blockOnly], crosswiki: true, noBlock: true }),
+      )).toEqual([]);
+    });
   });
 });
 

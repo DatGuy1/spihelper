@@ -9,7 +9,7 @@ import { context } from '../../context.ts';
 import { cdxIconUpdate } from '@wikimedia/codex-icons';
 import type { ModalAction, PrimaryModalAction } from '@wikimedia/codex';
 import { type CaseState, loadCaseText, loadSectionText } from '../../state.ts';
-import { spiHelperIsCheckuser } from '../../role.ts';
+import { spiHelperIsAdmin, spiHelperIsCheckuser } from '../../role.ts';
 import { spiHelperCUBlockRegex } from '../../constants';
 import {
   type UnfulfilledClaim,
@@ -80,6 +80,35 @@ export const SubmitFormComponent = defineComponent({
           ? blockAction.data.userGlobalBlocks.get(sock.username) !== true
           : blockAction.data.userLocks.get(sock.username) !== true),
       );
+    },
+    /** Whether this submission can block at all, so a block being left off is a choice */
+    blocksAvailable(): boolean {
+      const blockAction = this.caseActions.block;
+      return blockAction.enabled && spiHelperIsAdmin() && !blockAction.data.options.noBlock;
+    },
+    /** Users we're requesting locks for without blocking them here */
+    lockedWithoutBlock(): string[] {
+      if (!this.blocksAvailable) {
+        return [];
+      }
+      const { userBlocks } = this.caseActions.block.data;
+      return this.globalRequestTargets
+        .filter(user => user.username !== '' && !user.block.block && !userBlocks.has(user.username))
+        .map(user => user.username);
+    },
+    /** On a crosswiki case, accounts we're blocking without asking for a lock */
+    blockedWithoutLock(): string[] {
+      if (!this.blocksAvailable || !this.state.archiveNotice?.crosswiki) {
+        return [];
+      }
+      const { userLocks } = this.caseActions.block.data;
+      return this.accounts
+        .filter(user => user.username !== ''
+          && !isNonRegisteredAccount(user.username)
+          && user.block.block
+          && !user.block.lock
+          && userLocks.get(user.username) !== true)
+        .map(user => user.username);
     },
     needsLockComment(): boolean {
       return this.globalRequestTargets.length > 0;
@@ -247,6 +276,16 @@ export const SubmitFormComponent = defineComponent({
         <cdx-message v-for="claim in commentClaims" :key="claim.quoted + claim.reason"
                      type="warning" :inline="true">
           The comment includes {{ claim.quoted }}, but {{ claim.reason }}
+        </cdx-message>
+        <cdx-message v-if="lockedWithoutBlock.length > 0" type="warning" :inline="true">
+          Requesting lock without a local block for
+          <template v-for="(username, i) in lockedWithoutBlock" :key="username"
+            >{{ i > 0 ? ', ' : '' }}<b>{{ username }}</b></template>
+        </cdx-message>
+        <cdx-message v-if="blockedWithoutLock.length > 0" type="warning" :inline="true">
+          Blocking without requesting a lock on a cross-wiki case for
+          <template v-for="(username, i) in blockedWithoutLock" :key="username"
+            >{{ i > 0 ? ', ' : '' }}<b>{{ username }}</b></template>
         </cdx-message>
         <cdx-message v-for="override in lenientOverrides" :key="override.username"
                      type="warning" :inline="true">

@@ -367,7 +367,9 @@ export const TopViewComponent = defineComponent({
     // Keep the filing table in sync with the block table
     async onReportAccountAdded(username: string) {
       const row = updateUserBlockDataSettings({
-        userRow: generateUserRow(username, this.state), defaultBlock: false,
+        userRow: generateUserRow(username, this.state),
+        defaultBlock: false,
+        crosswiki: this.state.archiveNotice?.crosswiki ?? false,
       });
       const added = new Set(this.massAddUserRows([row]).map(r => r.username));
       await ensureUsersFetched(added, this.caseActions.block.data.fetchedUsers);
@@ -656,6 +658,7 @@ export const TopViewComponent = defineComponent({
       const newRows = [...likelySocks, ...possibleSocks].map(sock => updateUserBlockDataSettings({
         userRow: sock,
         defaultBlock: likelyUsers.has(sock.username),
+        crosswiki: this.state.archiveNotice?.crosswiki ?? false,
       }));
       // The rows go up with their defaults rather than waiting on the lookups behind them
       const added = new Set(this.massAddUserRows(newRows).map(row => row.username));

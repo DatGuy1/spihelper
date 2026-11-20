@@ -87,10 +87,11 @@ describe('user rows', () => {
       expect(row.block.duration).toBe(spiHelperSettings.interface.defaultBlockDuration);
     });
 
-    test('crosswiki archive notice sets lock=true', () => {
+    // A hand-added row starts unblocked, so a pre-checked lock would be lock-without-block
+    test('crosswiki archive notice leaves the lock unchecked', () => {
       const notice = new ParsedArchiveNotice({ username: 'User', crosswiki: true });
       const row = getDefaultUserRow(notice);
-      expect(row.block.lock).toBe(true);
+      expect(row.block.lock).toBe(false);
       expect(row.block.nem).toBe(false);
       expect(row.block.ntp).toBe(false);
     });
@@ -103,10 +104,10 @@ describe('user rows', () => {
       expect(row.block.ntp).toBe(true);
     });
 
-    test('crosswiki + notalk sets lock, nem, and ntp', () => {
+    test('crosswiki + notalk sets nem and ntp but not lock', () => {
       const notice = new ParsedArchiveNotice({ username: 'User', crosswiki: true, notalk: true });
       const row = getDefaultUserRow(notice);
-      expect(row.block.lock).toBe(true);
+      expect(row.block.lock).toBe(false);
       expect(row.block.nem).toBe(true);
       expect(row.block.ntp).toBe(true);
     });
@@ -133,6 +134,7 @@ describe('user rows', () => {
           reason: '',
         },
         defaultBlock: false,
+        crosswiki: false,
       });
       expect(result.block.block).toBe(true);
       expect(result.block.duration).toBe('1 year');
@@ -145,19 +147,38 @@ describe('user rows', () => {
     test('without currentBlock, block flag mirrors defaultBlock', () => {
       const rowTrue = getDefaultUserRow(null);
       expect(updateUserBlockDataSettings(
-        { userRow: rowTrue, defaultBlock: true }).block.block,
+        { userRow: rowTrue, defaultBlock: true, crosswiki: false }).block.block,
       ).toBe(true);
 
       const rowFalse = getDefaultUserRow(null);
       expect(updateUserBlockDataSettings(
-        { userRow: rowFalse, defaultBlock: false }).block.block,
+        { userRow: rowFalse, defaultBlock: false, crosswiki: false }).block.block,
       ).toBe(false);
+    });
+
+    describe('lock pre-check', () => {
+      test('follows defaultBlock on a crosswiki case', () => {
+        expect(updateUserBlockDataSettings(
+          { userRow: getDefaultUserRow(null), defaultBlock: true, crosswiki: true }).block.lock,
+        ).toBe(true);
+        expect(updateUserBlockDataSettings(
+          { userRow: getDefaultUserRow(null), defaultBlock: false, crosswiki: true }).block.lock,
+        ).toBe(false);
+      });
+
+      test('stays unchecked on a case that is not crosswiki', () => {
+        expect(updateUserBlockDataSettings(
+          { userRow: getDefaultUserRow(null), defaultBlock: true, crosswiki: false }).block.lock,
+        ).toBe(false);
+      });
     });
 
     test('IP address without currentBlock gets a 1-week duration default', () => {
       spyOn(mw.util, 'isIPAddress').mockReturnValue(true);
       const row = { ...getDefaultUserRow(null), username: '192.0.2.1' };
-      const result = updateUserBlockDataSettings({ userRow: row, defaultBlock: false });
+      const result = updateUserBlockDataSettings({
+        userRow: row, defaultBlock: false, crosswiki: false,
+      });
       expect(result.block.duration).toBe('1 week');
     });
 
@@ -166,6 +187,7 @@ describe('user rows', () => {
       const result = updateUserBlockDataSettings({
         userRow: row,
         defaultBlock: false,
+        crosswiki: false,
         userPage: '{{sockpuppet|1=Master|2=confirmed}}',
       });
       expect(result.block.tags).toHaveLength(1);
@@ -181,6 +203,7 @@ describe('user rows', () => {
       globalUser?: { name: string; locked: boolean; existsLocally: boolean };
       globalBlock?: { target: string; expiry: string; by: string; reason: string };
       crosswiki?: boolean;
+      defaultBlock?: boolean;
     } = {}) {
       const archiveNotice = opts.crosswiki
         ? new ParsedArchiveNotice({ username: 'Master', crosswiki: true })
@@ -193,7 +216,7 @@ describe('user rows', () => {
           globalUser: opts.globalUser,
           globalBlock: opts.globalBlock,
         },
-        defaultBlock: false,
+        defaultBlock: opts.defaultBlock ?? false,
         state: makeState(archiveNotice),
       });
     }
@@ -226,11 +249,47 @@ describe('user rows', () => {
       expect(result.userRow.block.lock).toBe(false);
     });
 
-    test('an unblocked temporary account is still pre-checked on a crosswiki case', () => {
-      const result = setRowData('~2026-00000-01', { crosswiki: true });
+    describe('on a crosswiki case', () => {
+      test('an unblocked temporary account is still pre-checked when it defaults to blocked', () => {
+        const result = setRowData('~2026-00000-01', { crosswiki: true, defaultBlock: true });
 
-      expect(result.globalStatus).toEqual({ kind: 'gblocked', blocked: false });
-      expect(result.userRow.block.lock).toBe(true);
+        expect(result.globalStatus).toEqual({ kind: 'gblocked', blocked: false });
+        expect(result.userRow.block.lock).toBe(true);
+      });
+
+      test('an unlocked account is pre-checked when it defaults to blocked', () => {
+        const result = setRowData('Sock', {
+          globalUser: { name: 'Sock', locked: false, existsLocally: true },
+          crosswiki: true,
+          defaultBlock: true,
+        });
+
+        expect(result.userRow.block.lock).toBe(true);
+      });
+
+      test('an unlocked account is not pre-checked when it does not default to blocked', () => {
+        const result = setRowData('Sock', {
+          globalUser: { name: 'Sock', locked: false, existsLocally: true },
+          crosswiki: true,
+        });
+
+        expect(result.userRow.block.lock).toBe(false);
+      });
+
+      test('an already-locked account stays checked when it does not default to blocked', () => {
+        const result = setRowData('Sock', {
+          globalUser: { name: 'Sock', locked: true, existsLocally: true },
+          crosswiki: true,
+        });
+
+        expect(result.userRow.block.lock).toBe(true);
+      });
+
+      test('an unblocked temporary account is not pre-checked when it does not default to blocked', () => {
+        const result = setRowData('~2026-00000-01', { crosswiki: true });
+
+        expect(result.userRow.block.lock).toBe(false);
+      });
     });
   });
 
