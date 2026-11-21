@@ -3560,11 +3560,11 @@ ${body}` : body;
   function isArchive(title) {
     return /\/Archive(\/|$)/.test(title);
   }
-  async function caseHasArchive() {
-    if (context.isArchive) {
+  async function caseHasArchive(spiCase) {
+    if (spiCase.isArchive) {
       return true;
     }
-    return await spiHelperGetPageRev(context.casePageName + "/Archive") !== 0;
+    return await spiHelperGetPageRev(spiCase.casePageName + "/Archive") !== 0;
   }
   function countCases(mentions) {
     return new Set(mentions.map((mention) => mention.caseName)).size;
@@ -3577,7 +3577,7 @@ ${body}` : body;
     return ` -insource:/archive notice\\|(1=)?${name}[|}]/`;
   }
   function buildMentionQueries(usernames, master) {
-    const filter = pointerFilter(master) + PREFIX_FILTER;
+    const filter = (master === undefined ? "" : pointerFilter(master)) + PREFIX_FILTER;
     const queries = [];
     let phrases = [];
     for (const username of usernames) {
@@ -3623,7 +3623,7 @@ ${body}` : body;
     }
     return segments;
   }
-  async function findUserMentions(usernames) {
+  async function findUserMentions(usernames, spiCase) {
     const patterns = new Map;
     for (const username of usernames) {
       const pattern = usernamePattern(username);
@@ -3631,19 +3631,20 @@ ${body}` : body;
         patterns.set(username, pattern);
       }
     }
-    const queries = buildMentionQueries(patterns.keys(), context.userName);
+    const queries = buildMentionQueries(patterns.keys(), spiCase?.userName);
     const [resultSets, isReturningCase] = await Promise.all([
       Promise.all(queries.map((query) => spiHelperSearch(query, RESULTS_PER_QUERY))),
-      patterns.has(context.userName) && caseHasArchive()
+      spiCase !== undefined && patterns.has(spiCase.userName) && caseHasArchive(spiCase)
     ]);
     const mentions = new Map;
     for (const { title, snippet } of resultSets.flat()) {
-      if (title === context.casePageName || title.startsWith(context.casePageName + "/") || title.startsWith(SPI_PREFIX + "SPI/")) {
+      const isCurrentCase = spiCase !== undefined && (title === spiCase.casePageName || title.startsWith(spiCase.casePageName + "/"));
+      if (isCurrentCase || title.startsWith(SPI_PREFIX + "SPI/")) {
         continue;
       }
       const text = snippetText(snippet);
       for (const [username, pattern] of patterns) {
-        if (isReturningCase && username === context.userName && isArchive(title)) {
+        if (isReturningCase && username === spiCase?.userName && isArchive(title)) {
           continue;
         }
         const segments = splitOnMatches(text, pattern);
@@ -3684,10 +3685,10 @@ ${body}` : body;
     }).join("");
     return `<details><summary>${mw.html.escape(username)} is mentioned in ${where}</summary>` + `<ul>${items}</ul></details>`;
   }
-  async function showUserMentions(usernames) {
+  async function showUserMentions(usernames, spiCase) {
     let mentions;
     try {
-      mentions = await findUserMentions(usernames);
+      mentions = await findUserMentions(usernames, spiCase);
     } catch (error) {
       console.error("Searching for user mentions failed:", error);
       new VueMessage({
@@ -3750,7 +3751,7 @@ ${body}` : body;
     }
     return [likelySocks, possibleSocks];
   }
-  async function ensureUsersFetched(usernames, fetchedUsers) {
+  async function ensureUsersFetched(usernames, fetchedUsers, spiCase) {
     const newUsernames = new Set([...usernames].filter((name) => !fetchedUsers.has(name)));
     const registeredUsernames = new Set;
     const unregisteredUsernames = new Set;
@@ -3759,7 +3760,7 @@ ${body}` : body;
     }
     const validUserPages = [...registeredUsernames].map((name) => `User:${name}`);
     if (newUsernames.size > 0) {
-      showUserMentions(newUsernames);
+      showUserMentions(newUsernames, spiCase);
     }
     const lookups = await Promise.all([
       spiHelperGetBulkUserBlockSettings(newUsernames),
@@ -3827,10 +3828,10 @@ ${body}` : body;
     }
   }
   async function prefetchSockRows(opts) {
-    const { likelySocks, possibleSocks, blockData, state } = opts;
+    const { likelySocks, possibleSocks, blockData, state, spiCase } = opts;
     const allRows = [...likelySocks, ...possibleSocks];
     const likelyIds = new Set(likelySocks.map((sock) => sock.id));
-    await ensureUsersFetched(new Set(allRows.map((row) => row.username)), blockData.fetchedUsers);
+    await ensureUsersFetched(new Set(allRows.map((row) => row.username)), blockData.fetchedUsers, spiCase);
     return allRows.map((userRow) => applyFetchedUser({
       userRow,
       defaultBlock: likelyIds.has(userRow.id),
@@ -6670,7 +6671,7 @@ ${heading}`);
           crosswiki: this.state.archiveNotice?.crosswiki ?? false
         });
         const added = new Set(this.massAddUserRows([row]).map((r) => r.username));
-        await ensureUsersFetched(added, this.caseActions.block.data.fetchedUsers);
+        await ensureUsersFetched(added, this.caseActions.block.data.fetchedUsers, context);
         applyFetchedUsers({
           accounts: this.accounts,
           usernames: added,
@@ -6857,7 +6858,8 @@ ${heading}`);
           likelySocks,
           possibleSocks,
           blockData: this.caseActions.block.data,
-          state: this.state
+          state: this.state,
+          spiCase: context
         });
         if (isAborted(signal)) {
           return;
@@ -6920,7 +6922,7 @@ ${heading}`);
           crosswiki: this.state.archiveNotice?.crosswiki ?? false
         }));
         const added = new Set(this.massAddUserRows(newRows).map((row) => row.username));
-        await ensureUsersFetched(added, this.caseActions.block.data.fetchedUsers);
+        await ensureUsersFetched(added, this.caseActions.block.data.fetchedUsers, context);
         applyFetchedUsers({
           accounts: this.accounts,
           usernames: added,
@@ -9369,6 +9371,9 @@ ${heading}`);
     },
     methods: {
       dismissMessage,
+      loadedCase() {
+        return this.caseLoaded ? context : undefined;
+      },
       setOpen(open) {
         this.open = open;
         if (open) {
@@ -9416,7 +9421,7 @@ ${heading}`);
           crosswiki: this.state.archiveNotice?.crosswiki ?? false
         });
         const added = new Set(this.massAddUserRows([row]).map((r) => r.username));
-        await ensureUsersFetched(added, this.blockData.fetchedUsers);
+        await ensureUsersFetched(added, this.blockData.fetchedUsers, this.loadedCase());
         applyFetchedUsers({
           accounts: this.accounts,
           usernames: added,
@@ -9473,7 +9478,7 @@ ${heading}`);
           crosswiki: this.state.archiveNotice?.crosswiki ?? false
         }));
         const added = new Set(this.massAddUserRows(newRows).map((row) => row.username));
-        await ensureUsersFetched(added, this.blockData.fetchedUsers);
+        await ensureUsersFetched(added, this.blockData.fetchedUsers, this.loadedCase());
         applyFetchedUsers({
           accounts: this.accounts,
           usernames: added,
@@ -9496,7 +9501,7 @@ ${heading}`);
           if (this.targetCase) {
             const [archiveNoticeResult] = await Promise.all([
               spiHelperParseArchiveNotice({ page: this.pageName, state: this.state }),
-              ensureUsersFetched(addRow ? new Set([this.targetCase]) : new Set, this.blockData.fetchedUsers)
+              ensureUsersFetched(addRow ? new Set([this.targetCase]) : new Set, this.blockData.fetchedUsers, context)
             ]);
             context.valid = archiveNoticeResult !== null;
             if (archiveNoticeResult === null) {
@@ -9509,7 +9514,8 @@ ${heading}`);
                 likelySocks: [generateUserRow(this.targetCase, this.state)],
                 possibleSocks: [],
                 blockData: this.blockData,
-                state: this.state
+                state: this.state,
+                spiCase: context
               });
               if (userRow) {
                 const oldIndex = this.accounts.findIndex((user) => user.username === userRow.username);
@@ -9586,7 +9592,8 @@ ${heading}`);
             likelySocks,
             possibleSocks,
             blockData: this.blockData,
-            state: this.state
+            state: this.state,
+            spiCase: this.loadedCase()
           });
           this.massAddUserRows(allRows);
         } finally {
@@ -9647,7 +9654,8 @@ ${heading}`);
             likelySocks,
             possibleSocks,
             blockData: this.blockData,
-            state: this.state
+            state: this.state,
+            spiCase: this.loadedCase()
           });
         } finally {
           this.accountsLoading = false;
@@ -9673,7 +9681,8 @@ ${heading}`);
             likelySocks: allSocks,
             possibleSocks: [],
             blockData: this.blockData,
-            state: this.state
+            state: this.state,
+            spiCase: this.loadedCase()
           });
           this.massAddUserRows(allRows);
         } finally {
