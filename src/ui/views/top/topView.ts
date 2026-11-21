@@ -372,7 +372,7 @@ export const TopViewComponent = defineComponent({
         crosswiki: this.state.archiveNotice?.crosswiki ?? false,
       });
       const added = new Set(this.massAddUserRows([row]).map(r => r.username));
-      await ensureUsersFetched(added, this.caseActions.block.data.fetchedUsers);
+      await ensureUsersFetched(added, this.caseActions.block.data.fetchedUsers, context);
       applyFetchedUsers({
         accounts: this.accounts,
         usernames: added,
@@ -585,6 +585,7 @@ export const TopViewComponent = defineComponent({
         possibleSocks,
         blockData: this.caseActions.block.data,
         state: this.state,
+        spiCase: context,
       });
       // A superseded load must not add its rows
       if (isAborted(signal)) {
@@ -663,7 +664,7 @@ export const TopViewComponent = defineComponent({
       // The rows go up with their defaults rather than waiting on the lookups behind them
       const added = new Set(this.massAddUserRows(newRows).map(row => row.username));
 
-      await ensureUsersFetched(added, this.caseActions.block.data.fetchedUsers);
+      await ensureUsersFetched(added, this.caseActions.block.data.fetchedUsers, context);
       applyFetchedUsers({
         accounts: this.accounts,
         usernames: added,

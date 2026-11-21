@@ -23,7 +23,7 @@ import {
   updateUserBlockDataSettings,
 } from '../utils.ts';
 import { spiHelperFileAndAct } from '../../caseActions.ts';
-import { context, setContext } from '../../context.ts';
+import { type SpiPageContext, context, setContext } from '../../context.ts';
 import { setupBlockActionData, spiHelperNormalizeUsername } from '../../utils.ts';
 import { spiHelperParseArchiveNotice } from '../../archivenotice.ts';
 import { spiHelperGetCategoryMembers, spiHelperGetPageText } from '../../api.ts';
@@ -174,6 +174,9 @@ export const AlternateViewComponent = defineComponent({
   },
   methods: {
     dismissMessage,
+    loadedCase(): SpiPageContext | undefined {
+      return this.caseLoaded ? context : undefined;
+    },
     setOpen(open: boolean) {
       this.open = open;
       if (open) {
@@ -223,7 +226,7 @@ export const AlternateViewComponent = defineComponent({
         crosswiki: this.state.archiveNotice?.crosswiki ?? false,
       });
       const added = new Set(this.massAddUserRows([row]).map(r => r.username));
-      await ensureUsersFetched(added, this.blockData.fetchedUsers);
+      await ensureUsersFetched(added, this.blockData.fetchedUsers, this.loadedCase());
       applyFetchedUsers({
         accounts: this.accounts,
         usernames: added,
@@ -283,7 +286,7 @@ export const AlternateViewComponent = defineComponent({
       }));
       const added = new Set(this.massAddUserRows(newRows).map(row => row.username));
 
-      await ensureUsersFetched(added, this.blockData.fetchedUsers);
+      await ensureUsersFetched(added, this.blockData.fetchedUsers, this.loadedCase());
       applyFetchedUsers({
         accounts: this.accounts,
         usernames: added,
@@ -313,6 +316,7 @@ export const AlternateViewComponent = defineComponent({
             ensureUsersFetched(
               addRow ? new Set([this.targetCase]) : new Set<string>(),
               this.blockData.fetchedUsers,
+              context,
             ),
           ]);
           context.valid = archiveNoticeResult !== null;
@@ -330,6 +334,7 @@ export const AlternateViewComponent = defineComponent({
               possibleSocks: [],
               blockData: this.blockData,
               state: this.state,
+              spiCase: context,
             });
             if (userRow) {
               // Add or replace, since the case target belongs at the top
@@ -422,6 +427,7 @@ export const AlternateViewComponent = defineComponent({
           possibleSocks,
           blockData: this.blockData,
           state: this.state,
+          spiCase: this.loadedCase(),
         });
         this.massAddUserRows(allRows);
       }
@@ -487,6 +493,7 @@ export const AlternateViewComponent = defineComponent({
           possibleSocks,
           blockData: this.blockData,
           state: this.state,
+          spiCase: this.loadedCase(),
         });
       }
       finally {
@@ -514,6 +521,7 @@ export const AlternateViewComponent = defineComponent({
           possibleSocks: [],
           blockData: this.blockData,
           state: this.state,
+          spiCase: this.loadedCase(),
         });
         this.massAddUserRows(allRows);
       }

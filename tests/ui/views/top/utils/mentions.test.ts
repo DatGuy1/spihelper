@@ -136,6 +136,7 @@ describe('findUserMentions', () => {
 
     const mentions = await findUserMentions(
       new Set(['John Doe', 'Jane Roe', 'Bobby', 'Carol Smith']),
+      contextModule.context,
     );
 
     const titles = (username: string) => mentions.get(username)?.map(mention => mention.title);
@@ -148,7 +149,7 @@ describe('findUserMentions', () => {
     contextModule.setContext(SPI + 'Bobby');
     mockSearch.mockResolvedValue(SEARCH_RESULTS);
 
-    const mentions = await findUserMentions(new Set(['Bobby', 'Carol Smith']));
+    const mentions = await findUserMentions(new Set(['Bobby', 'Carol Smith']), contextModule.context);
 
     expect(mentions.get('Bobby')?.map(mention => mention.title)).toEqual([SPI + 'Alice']);
     expect(mentions.get('Carol Smith')?.map(mention => mention.title)).toEqual([SPI + 'Alice']);
@@ -157,7 +158,7 @@ describe('findUserMentions', () => {
   test('includes other cases\' archives after the open cases, under their case', async () => {
     mockSearch.mockResolvedValue(SEARCH_RESULTS);
 
-    const mentions = await findUserMentions(new Set(['Bobby']));
+    const mentions = await findUserMentions(new Set(['Bobby']), contextModule.context);
 
     expect(mentions.get('Bobby')?.map(({ title, caseName }) => [title, caseName])).toEqual([
       [SPI + 'Bobby', 'Bobby'],
@@ -166,7 +167,7 @@ describe('findUserMentions', () => {
   });
 
   test('asks for one capped page of results per query', async () => {
-    await findUserMentions(new Set(['John Doe']));
+    await findUserMentions(new Set(['John Doe']), contextModule.context);
 
     expect(mockSearch).toHaveBeenCalledTimes(1);
     expect(mockSearch.mock.calls[0]?.[1]).toBe(50);
@@ -176,7 +177,7 @@ describe('findUserMentions', () => {
     contextModule.setContext(SPI + 'Bob');
     mockSearch.mockResolvedValue(SEARCH_RESULTS);
 
-    const mentions = await findUserMentions(new Set(['Bobby']));
+    const mentions = await findUserMentions(new Set(['Bobby']), contextModule.context);
 
     expect(mentions.get('Bobby')?.map(mention => mention.title)).toContain(SPI + 'Bobby');
   });
@@ -187,7 +188,7 @@ describe('findUserMentions', () => {
       snippet: `Pretty sure ${match('john')}_${match('doe')} is back &amp; editing`,
     }]);
 
-    const mentions = await findUserMentions(new Set(['John Doe']));
+    const mentions = await findUserMentions(new Set(['John Doe']), contextModule.context);
 
     expect(mentions.get('John Doe')?.[0]?.snippets).toEqual([
       { text: 'Pretty sure ', isMatch: false },
@@ -202,7 +203,7 @@ describe('findUserMentions', () => {
       snippet: `Edits from Janesville by ${match('John')} ${match('Doe')}`,
     }]);
 
-    const mentions = await findUserMentions(new Set(['Jane', 'John Doe']));
+    const mentions = await findUserMentions(new Set(['Jane', 'John Doe']), contextModule.context);
 
     expect(mentions.has('Jane')).toBe(false);
     expect(mentions.has('John Doe')).toBe(true);
@@ -212,7 +213,7 @@ describe('findUserMentions', () => {
     const usernames = new Set(Array.from({ length: 40 }, (_, i) => `Sockpuppet account ${i}`));
     mockSearch.mockResolvedValue([{ title: SPI + 'Other', snippet: match('Sockpuppet account 0') }]);
 
-    const mentions = await findUserMentions(usernames);
+    const mentions = await findUserMentions(usernames, contextModule.context);
 
     expect(mockSearch.mock.calls.length).toBeGreaterThan(1);
     expect(mentions.get('Sockpuppet account 0')?.map(mention => mention.title)).toEqual([SPI + 'Other']);
@@ -221,7 +222,7 @@ describe('findUserMentions', () => {
   test('splits a long list over several searches', async () => {
     const usernames = new Set(Array.from({ length: 40 }, (_, i) => `Sockpuppet account ${i}`));
 
-    await findUserMentions(usernames);
+    await findUserMentions(usernames, contextModule.context);
 
     expect(mockSearch.mock.calls.length).toBeGreaterThan(1);
   });
@@ -229,10 +230,25 @@ describe('findUserMentions', () => {
   test('fails rather than reporting no mentions when a search fails', async () => {
     mockSearch.mockRejectedValue(new Error('search down'));
 
-    const error = await findUserMentions(new Set(['John Doe'])).catch((e: unknown) => e);
+    const error = await findUserMentions(new Set(['John Doe']), contextModule.context).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toBe('search down');
+  });
+
+  // How the CheckUser and SI views start out, until Load case
+  describe('with no case loaded', () => {
+    test('searches without leaving out any case', async () => {
+      mockSearch.mockResolvedValue(SEARCH_RESULTS);
+
+      const mentions = await findUserMentions(new Set(['Bobby', 'Carol Smith']), undefined);
+
+      expect(mockSearch.mock.calls[0]?.[0]).not.toContain('insource:');
+      expect(mentions.get('Bobby')?.map(mention => mention.title))
+        .toEqual([SPI + 'Bobby', SPI + 'Alice', SPI + 'Bobby/Archive']);
+      expect(mentions.get('Carol Smith')?.map(mention => mention.title)).toEqual([SPI + 'Alice']);
+      expect(mockGetPageRev).not.toHaveBeenCalled();
+    });
   });
 
   describe('the master', () => {
@@ -254,7 +270,7 @@ describe('findUserMentions', () => {
       mockGetPageRev.mockResolvedValue(12345);
       mockSearch.mockResolvedValue(MASTER_RESULTS);
 
-      const mentions = await findUserMentions(new Set(['Alice', 'Carol Smith']));
+      const mentions = await findUserMentions(new Set(['Alice', 'Carol Smith']), contextModule.context);
 
       expect(mockGetPageRev).toHaveBeenCalledWith(SPI + 'Alice/Archive');
       expect(titles(mentions, 'Alice')).toEqual([SPI + 'Dave']);
@@ -265,7 +281,7 @@ describe('findUserMentions', () => {
       mockGetPageRev.mockResolvedValue(12345);
       mockSearch.mockResolvedValue(MASTER_RESULTS.slice(1));
 
-      const mentions = await findUserMentions(new Set(['Alice']));
+      const mentions = await findUserMentions(new Set(['Alice']), contextModule.context);
 
       expect(mentions.has('Alice')).toBe(false);
     });
@@ -273,7 +289,7 @@ describe('findUserMentions', () => {
     test('of a new case keeps other cases\' archives', async () => {
       mockSearch.mockResolvedValue(MASTER_RESULTS);
 
-      const mentions = await findUserMentions(new Set(['Alice']));
+      const mentions = await findUserMentions(new Set(['Alice']), contextModule.context);
 
       expect(titles(mentions, 'Alice')).toEqual([SPI + 'Dave', SPI + 'Bobby/Archive']);
     });
@@ -282,14 +298,14 @@ describe('findUserMentions', () => {
       contextModule.setContext(SPI + 'Alice/Archive');
       mockSearch.mockResolvedValue(MASTER_RESULTS);
 
-      const mentions = await findUserMentions(new Set(['Alice']));
+      const mentions = await findUserMentions(new Set(['Alice']), contextModule.context);
 
       expect(mockGetPageRev).not.toHaveBeenCalled();
       expect(titles(mentions, 'Alice')).toEqual([SPI + 'Dave']);
     });
 
     test('is not looked up when it is not among the users searched', async () => {
-      await findUserMentions(new Set(['Carol Smith']));
+      await findUserMentions(new Set(['Carol Smith']), contextModule.context);
 
       expect(mockGetPageRev).not.toHaveBeenCalled();
     });
@@ -373,7 +389,7 @@ describe('showUserMentions', () => {
   test('posts one notice per mentioned user', async () => {
     mockSearch.mockResolvedValue(SEARCH_RESULTS);
 
-    await showUserMentions(new Set(['John Doe', 'Bobby', 'Nobody']));
+    await showUserMentions(new Set(['John Doe', 'Bobby', 'Nobody']), contextModule.context);
 
     expect(messages.map(message => message.type)).toEqual(['notice', 'notice']);
     expect(messages.every(message => message.isHtml)).toBe(true);
@@ -386,7 +402,7 @@ describe('showUserMentions', () => {
     console.error = consoleError;
 
     try {
-      await showUserMentions(new Set(['John Doe']));
+      await showUserMentions(new Set(['John Doe']), contextModule.context);
     }
     finally {
       console.error = originalError;

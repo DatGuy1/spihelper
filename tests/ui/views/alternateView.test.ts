@@ -153,6 +153,7 @@ describe('openSpamSection', () => {
     state: CaseState;
     setOpen: ReturnType<typeof mock>;
     loadCase: ReturnType<typeof mock>;
+    loadedCase: () => undefined;
   }
   const sectionMethods = AlternateViewComponent.methods as unknown as {
     openSpamSection(this: SectionCtx, sectionId: number): Promise<void>;
@@ -187,6 +188,7 @@ describe('openSpamSection', () => {
       state: new CaseState(),
       setOpen: mock(),
       loadCase: mock(() => Promise.resolve()),
+      loadedCase: () => undefined,
     };
   }
 

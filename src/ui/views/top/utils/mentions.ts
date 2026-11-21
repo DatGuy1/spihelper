@@ -1,5 +1,5 @@
 import { spiHelperGetPageRev, spiHelperSearch } from '../../../../api.ts';
-import { context } from '../../../../context.ts';
+import type { SpiPageContext } from '../../../../context.ts';
 import { buildTitleLinkHtml, countOf } from '../../../../utils.ts';
 import { VueMessage } from '../../../messages.ts';
 
@@ -36,12 +36,12 @@ function isArchive(title: string): boolean {
 }
 
 /** Whether this case has been archived before, false if the lookup fails */
-async function caseHasArchive(): Promise<boolean> {
-  if (context.isArchive) {
+async function caseHasArchive(spiCase: SpiPageContext): Promise<boolean> {
+  if (spiCase.isArchive) {
     return true;
   }
   // 0 is a missing page, but also a failed lookup
-  return await spiHelperGetPageRev(context.casePageName + '/Archive') !== 0;
+  return await spiHelperGetPageRev(spiCase.casePageName + '/Archive') !== 0;
 }
 
 function countCases(mentions: UserMention[]): number {
@@ -66,10 +66,14 @@ function pointerFilter(master: string): string {
  * Split the usernames into OR searches, as few as fit under the length limit
  *
  * @param usernames Usernames to search for
- * @param master The current case's master, whose redirects every search leaves out
+ * @param master The current case's master, whose redirects every search leaves out.
+ * Undefined when no case is loaded, so there are none to leave out
  */
-export function buildMentionQueries(usernames: Iterable<string>, master: string): string[] {
-  const filter = pointerFilter(master) + PREFIX_FILTER;
+export function buildMentionQueries(
+  usernames: Iterable<string>,
+  master: string | undefined,
+): string[] {
+  const filter = (master === undefined ? '' : pointerFilter(master)) + PREFIX_FILTER;
   const queries: string[] = [];
   let phrases: string[] = [];
   for (const username of usernames) {
@@ -139,12 +143,15 @@ function splitOnMatches(text: string, pattern: RegExp): SnippetSegment[] | null 
  * pointing at this case are left out entirely.
  *
  * @param usernames Usernames to search for
+ * @param spiCase The case to leave out, along with its master's redirects. Undefined when
+ * no case is loaded, so every case is searched
  * @returns Each mentioned user's pages, open cases before archives, with the snippet split
  * around the mention. Users mentioned nowhere are left out
  * @throws Error If any search fails
  */
 export async function findUserMentions(
   usernames: Set<string>,
+  spiCase: SpiPageContext | undefined,
 ): Promise<Map<string, UserMention[]>> {
   const patterns = new Map<string, RegExp>();
   for (const username of usernames) {
@@ -155,23 +162,23 @@ export async function findUserMentions(
   }
 
   // A name with no pattern could never be matched to a result, so isn't worth searching for
-  const queries = buildMentionQueries(patterns.keys(), context.userName);
+  const queries = buildMentionQueries(patterns.keys(), spiCase?.userName);
   const [resultSets, isReturningCase] = await Promise.all([
     Promise.all(queries.map(query => spiHelperSearch(query, RESULTS_PER_QUERY))),
     // Only the master's mentions depend on it, so don't look it up for a list without them
-    patterns.has(context.userName) && caseHasArchive(),
+    spiCase !== undefined && patterns.has(spiCase.userName) && caseHasArchive(spiCase),
   ]);
 
   const mentions = new Map<string, UserMention[]>();
   for (const { title, snippet } of resultSets.flat()) {
-    if (title === context.casePageName
-      || title.startsWith(context.casePageName + '/')
-      || title.startsWith(SPI_PREFIX + 'SPI/')) {
+    const isCurrentCase = spiCase !== undefined
+      && (title === spiCase.casePageName || title.startsWith(spiCase.casePageName + '/'));
+    if (isCurrentCase || title.startsWith(SPI_PREFIX + 'SPI/')) {
       continue;
     }
     const text = snippetText(snippet);
     for (const [username, pattern] of patterns) {
-      if (isReturningCase && username === context.userName && isArchive(title)) {
+      if (isReturningCase && username === spiCase?.userName && isArchive(title)) {
         continue;
       }
       const segments = splitOnMatches(text, pattern);
@@ -223,10 +230,13 @@ export function formatMentionHtml(username: string, mentions: UserMention[]): st
 }
 
 /** Post a message for each user another case mentions. Never rejects */
-export async function showUserMentions(usernames: Set<string>): Promise<void> {
+export async function showUserMentions(
+  usernames: Set<string>,
+  spiCase: SpiPageContext | undefined,
+): Promise<void> {
   let mentions: Map<string, UserMention[]>;
   try {
-    mentions = await findUserMentions(usernames);
+    mentions = await findUserMentions(usernames, spiCase);
   }
   catch (error) {
     console.error('Searching for user mentions failed:', error);

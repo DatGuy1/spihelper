@@ -104,6 +104,7 @@ describe('prefetchSockRows', () => {
       possibleSocks: [],
       blockData: { ...setupBlockActionData(), fetchedUsers },
       state: new CaseState(),
+      spiCase: contextModule.context,
     });
   }
 
@@ -291,7 +292,7 @@ describe('applyFetchedUsers', () => {
     const accounts = makeAccounts(['SockA']);
     const blockData = setupBlockActionData();
 
-    await ensureUsersFetched(new Set(['SockA']), blockData.fetchedUsers);
+    await ensureUsersFetched(new Set(['SockA']), blockData.fetchedUsers, contextModule.context);
     applyFetchedUsers({
       accounts,
       usernames: new Set(['SockA']),
@@ -316,7 +317,7 @@ describe('applyFetchedUsers', () => {
     }
     const blockData = setupBlockActionData();
 
-    await ensureUsersFetched(new Set(['SockA', 'SockB']), blockData.fetchedUsers);
+    await ensureUsersFetched(new Set(['SockA', 'SockB']), blockData.fetchedUsers, contextModule.context);
     applyFetchedUsers({
       accounts,
       usernames: new Set(['SockA', 'SockB']),

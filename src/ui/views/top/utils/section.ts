@@ -1,7 +1,7 @@
 import type { CaseState } from '../../../../state.ts';
 import { generateUserRow, setUserRowData } from '../../../utils.ts';
 import { markRaw } from '../../../runtime.ts';
-import { context } from '../../../../context.ts';
+import { type SpiPageContext, context } from '../../../../context.ts';
 import { fetchTemplateArguments, parseTemplates } from '../../../../template.ts';
 import {
   spiHelperGetBulkGlobalBlocks,
@@ -72,10 +72,18 @@ export function getSockEntries(opts: {
   return [likelySocks, possibleSocks];
 }
 
-/** Fills the fetchedUsers cache with everyone in usernames we haven't loaded */
+/**
+ * Fills the fetchedUsers cache with everyone in usernames we haven't loaded
+ *
+ * @param usernames Users the caller needs looked up, cached or not
+ * @param fetchedUsers The cache to fill, shared across lookups so each user goes out once
+ * @param spiCase The case the users are being looked at for. Undefined when no case is
+ * loaded yet, as in the CheckUser and Suggested Investigations views before Load case
+ */
 export async function ensureUsersFetched(
   usernames: Set<string>,
   fetchedUsers: Map<string, PrefetchedUser>,
+  spiCase: SpiPageContext | undefined,
 ): Promise<void> {
   // Changing sections re-runs this over users we have usually already looked up,
   // so only the ones we have never seen go out to the API
@@ -89,7 +97,7 @@ export async function ensureUsersFetched(
 
   // The mentions only feed messages, so nothing here waits on the search
   if (newUsernames.size > 0) {
-    void showUserMentions(newUsernames);
+    void showUserMentions(newUsernames, spiCase);
   }
 
   // Could maybe bundle the 4 API calls into a single spiHelperGetUserSnapshot
@@ -182,13 +190,18 @@ export async function prefetchSockRows(opts: {
   possibleSocks: UserRow[];
   blockData: BlockActionData;
   state: CaseState;
+  spiCase: SpiPageContext | undefined;
 }): Promise<UserRow[]> {
-  const { likelySocks, possibleSocks, blockData, state } = opts;
+  const { likelySocks, possibleSocks, blockData, state, spiCase } = opts;
   const allRows = [...likelySocks, ...possibleSocks];
   // For the minute time complexity gains
   const likelyIds = new Set(likelySocks.map(sock => sock.id));
 
-  await ensureUsersFetched(new Set(allRows.map(row => row.username)), blockData.fetchedUsers);
+  await ensureUsersFetched(
+    new Set(allRows.map(row => row.username)),
+    blockData.fetchedUsers,
+    spiCase,
+  );
 
   return allRows.map(userRow => applyFetchedUser({
     userRow,
