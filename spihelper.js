@@ -1309,10 +1309,11 @@ ${body}` : body;
       reason: summary + spiHelperAdvert(false),
       noredirect: suppressRedirect,
       movesubpages: moveSubpages,
-      ignoreWarnings
+      ignorewarnings: ignoreWarnings
     };
+    let response;
     try {
-      await api.postWithToken("csrf", request);
+      response = await api.postWithToken("csrf", request);
       message.update({
         type: "success",
         content: `Moved ${sourceLinkHtml} to ${destLinkHtml}`
@@ -1324,6 +1325,28 @@ ${body}` : body;
         content: `Failed to move ${sourceLinkHtml} to ${destLinkHtml}: ${mw.html.escape(JSON.stringify(error))}`
       });
       finishOp(activeOpKey, "failed" /* Failed */);
+      return false;
+    }
+    if (moveSubpages) {
+      reportSubpageMoveFailures(sourcePage, response.move.subpages);
+    }
+    return true;
+  }
+  function reportSubpageMoveFailures(sourcePage, result) {
+    if (!result) {
+      return;
+    }
+    const failures = "errors" in result ? [`all subpages: ${formatMoveErrors(result.errors)}`] : result.flatMap((subpage) => ("errors" in subpage) ? [`${subpage.from}: ${formatMoveErrors(subpage.errors)}`] : []);
+    if (failures.length === 0) {
+      return;
+    }
+    new VueMessage({
+      type: "error",
+      content: `Some subpages of ${buildTitleLinkHtml(sourcePage)} failed to move: ` + mw.html.escape(failures.join(", ")),
+      isHtml: true
+    }).show();
+    function formatMoveErrors(errors) {
+      return errors.map((error) => error.info ?? error.text ?? error.code).join("; ");
     }
   }
   async function spiHelperEditPage(opts) {
@@ -1908,6 +1931,9 @@ ${body}` : body;
   }
   function spiHelperCanSuppressRedirect() {
     return spiHelperIsAdmin() || (mw.config.get("wgUserGroups")?.includes("extendedmover") ?? false);
+  }
+  async function spiHelperCanMoveSubpages() {
+    return (await mw.user.getRights()).includes("move-subpages");
   }
 
   // node_modules/vue/dist/vue.runtime.esm-bundler.js
@@ -5105,13 +5131,24 @@ ${heading}`);
         }
       }
     } else {
-      await spiHelperMovePage({
+      const canMoveSubpages = await spiHelperCanMoveSubpages();
+      const suppressRedirect = suppress && spiHelperCanSuppressRedirect();
+      const moved = await spiHelperMovePage({
         sourcePage: oldContext.pageName,
         destPage: newContext.pageName,
         summary: `Moving case to [[${newContext.pageName}]]`,
-        suppressRedirect: suppress && spiHelperCanSuppressRedirect(),
-        ignoreWarnings: false
+        suppressRedirect,
+        ignoreWarnings: false,
+        moveSubpages: canMoveSubpages
       });
+      if (moved && !canMoveSubpages) {
+        await moveSubpagesIndividually({
+          sourcePage: oldContext.pageName,
+          destPage: newContext.pageName,
+          summary: `Moving case to [[${newContext.pageName}]]`,
+          suppressRedirect
+        });
+      }
     }
     await spiHelperPostRenameCleanup({
       oldContext,
@@ -5120,6 +5157,37 @@ ${heading}`);
       deleteOld: suppress,
       preMergeText: targetPageText
     });
+  }
+  async function moveSubpagesIndividually(opts) {
+    const { sourcePage, destPage, summary, suppressRedirect } = opts;
+    const title = new mw.Title(sourcePage);
+    const subpages = await spiHelperGetPages({
+      from: `${title.getMainText()}/`,
+      namespace: title.getNamespaceId(),
+      limit: "max"
+    });
+    if (subpages === null) {
+      new VueMessage({
+        type: "error",
+        content: `Could not list the subpages of ${buildTitleLinkHtml(sourcePage)}, please move them manually`,
+        isHtml: true
+      }).show();
+      return;
+    }
+    const sourcePrefix = `${title.getPrefixedText()}/`;
+    for (const { title: subpageTitle } of subpages) {
+      if (!subpageTitle.startsWith(sourcePrefix)) {
+        continue;
+      }
+      await spiHelperMovePage({
+        sourcePage: subpageTitle,
+        destPage: `${destPage}/${subpageTitle.slice(sourcePrefix.length)}`,
+        summary,
+        ignoreWarnings: false,
+        suppressRedirect,
+        moveSubpages: false
+      });
+    }
   }
   async function spiHelperMoveCaseSection(mergeTarget, section) {
     const newContext = new SpiPageContext(context.pageName.replace(context.caseName, () => mergeTarget));
