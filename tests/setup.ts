@@ -25,6 +25,14 @@ import { messages, setMessagesReactive } from '../src/ui/messages.ts';
       return this.title.split(':').pop() ?? this.title;
     }
 
+    getNamespaceId() {
+      return this.title.startsWith('Wikipedia:') ? 4 : 0;
+    }
+
+    getPrefixedText() {
+      return this.title.replace(/_/g, ' ');
+    }
+
     toString() {
       return this.title;
     }

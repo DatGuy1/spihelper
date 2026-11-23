@@ -46,3 +46,12 @@ export function spiHelperIsAdmin(): boolean {
 export function spiHelperCanSuppressRedirect(): boolean {
   return spiHelperIsAdmin() || (mw.config.get('wgUserGroups')?.includes('extendedmover') ?? false);
 }
+
+/**
+ * Whether the current user can have the API move a page's subpages along with it.
+ * Checked against the rights list rather than groups, since which groups hold
+ * move-subpages differs from wiki to wiki
+ */
+export async function spiHelperCanMoveSubpages(): Promise<boolean> {
+  return (await mw.user.getRights()).includes('move-subpages');
+}

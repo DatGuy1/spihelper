@@ -39,6 +39,9 @@ import type {
   GlobalBlocksResponse,
   GlobalUser,
   GlobalUsersResponse,
+  MoveError,
+  MoveResponse,
+  MoveSubpagesResult,
   NewPendingChanges,
   NormalizedTitle,
   PageRestrictions,
@@ -829,7 +832,10 @@ export async function spiHelperPurgePage(title: string): Promise<void> {
  * @param opts.ignoreWarnings Whether to ignore warnings on move
  * (used to force-move one page over another)
  * @param opts.suppressRedirect Don't create a redirect
- * @param opts.moveSubpages Whether to move the subpages of the source page as well
+ * @param opts.moveSubpages Whether to move the subpages of the source page as well.
+ * Needs the move-subpages right: without it the API moves only the page itself
+ * @return Whether the page itself was moved. Subpage failures don't count against it,
+ * they're reported separately
  */
 export async function spiHelperMovePage(opts: {
   sourcePage: string;
@@ -838,7 +844,7 @@ export async function spiHelperMovePage(opts: {
   ignoreWarnings: boolean;
   suppressRedirect?: boolean;
   moveSubpages?: boolean;
-}) {
+}): Promise<boolean> {
   const {
     sourcePage, destPage, summary, ignoreWarnings,
     suppressRedirect = false, moveSubpages = true,
@@ -865,10 +871,11 @@ export async function spiHelperMovePage(opts: {
     reason: summary + spiHelperAdvert(false),
     noredirect: suppressRedirect,
     movesubpages: moveSubpages,
-    ignoreWarnings: ignoreWarnings,
+    ignorewarnings: ignoreWarnings,
   };
+  let response: MoveResponse;
   try {
-    await api.postWithToken('csrf', request);
+    response = await api.postWithToken('csrf', request) as MoveResponse;
     message.update({
       type: 'success',
       content: `Moved ${sourceLinkHtml} to ${destLinkHtml}`,
@@ -881,6 +888,40 @@ export async function spiHelperMovePage(opts: {
       content: `Failed to move ${sourceLinkHtml} to ${destLinkHtml}: ${mw.html.escape(JSON.stringify(error))}`,
     });
     finishOp(activeOpKey, OpState.Failed);
+    return false;
+  }
+
+  if (moveSubpages) {
+    reportSubpageMoveFailures(sourcePage, response.move.subpages);
+  }
+  return true;
+}
+
+/**
+ * The move itself succeeding says nothing about its subpages, which fail separately
+ * and only show up in the response body
+ */
+function reportSubpageMoveFailures(sourcePage: string, result?: MoveSubpagesResult) {
+  if (!result) {
+    return;
+  }
+  const failures = 'errors' in result
+    ? [`all subpages: ${formatMoveErrors(result.errors)}`]
+    : result.flatMap(subpage => (
+        'errors' in subpage ? [`${subpage.from}: ${formatMoveErrors(subpage.errors)}`] : []
+      ));
+  if (failures.length === 0) {
+    return;
+  }
+  new VueMessage({
+    type: 'error',
+    content: `Some subpages of ${buildTitleLinkHtml(sourcePage)} failed to move: `
+      + mw.html.escape(failures.join(', ')),
+    isHtml: true,
+  }).show();
+
+  function formatMoveErrors(errors: MoveError[]): string {
+    return errors.map(error => error.info ?? error.text ?? error.code).join('; ');
   }
 }
 

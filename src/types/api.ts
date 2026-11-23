@@ -266,6 +266,24 @@ export interface EditResponse {
   };
 }
 
+export interface MoveError {
+  code: string;
+  info?: string;
+  text?: string;
+}
+
+export type MoveSubpagesResult
+  = | { errors: MoveError[] }
+    | ({ from: string } & ({ to: string } | { errors: MoveError[] }))[];
+
+export interface MoveResponse {
+  move: {
+    from: string;
+    to: string;
+    subpages?: MoveSubpagesResult;
+  };
+}
+
 export interface Restrictions {
   types: string[];
   levels: string[];

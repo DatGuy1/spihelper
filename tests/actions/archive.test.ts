@@ -7,7 +7,7 @@ import { type EditPageOpts, stubApi } from '../fixtures/api.ts';
 // Mock api.ts before importing archive.ts so the module under test picks up the stubs.
 const mockGetPostExpandSize = mock((_title: string) => Promise.resolve(0));
 const mockGetPageText = mock((_title: string, _show: boolean, _sectionId?: number | null) => Promise.resolve(''));
-const mockMovePage = mock(() => Promise.resolve());
+const mockMovePage = mock(() => Promise.resolve(true));
 const mockGetPostExpandSizeFromText = mock((_text: string) => Promise.resolve(0));
 const mockEditPage = mock((_opts: EditPageOpts) => Promise.resolve<number | null>(null));
 const mockGetInvestigationSections = mock(

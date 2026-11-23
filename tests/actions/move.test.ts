@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { SectionEntry } from '../../src/types';
+import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
+import { type AllPage, SectionEntry } from '../../src/types';
 import { buildArchiveText } from '../fixtures/archive.ts';
 import { type EditPageOpts, stubApi } from '../fixtures/api.ts';
 
@@ -10,7 +10,11 @@ const mockGetInvestigationSections = mock(
   (_opts: { pageName?: string; content?: string }): Promise<SectionEntry[]> => Promise.resolve([]),
 );
 const mockEditPage = mock((_opts: EditPageOpts) => Promise.resolve(null));
-const mockMovePage = mock((_opts: { sourcePage: string; destPage: string }) => Promise.resolve());
+interface MoveOpts { sourcePage: string; destPage: string; moveSubpages?: boolean }
+const mockMovePage = mock((_opts: MoveOpts) => Promise.resolve(true));
+const mockGetPages = mock(
+  (_opts: { from: string; namespace: number }): Promise<AllPage[] | null> => Promise.resolve([]),
+);
 const mockGetPostExpandSizeFromText = mock((_text: string) => Promise.resolve(0));
 
 await stubApi({
@@ -23,7 +27,7 @@ await stubApi({
   spiHelperGetPostExpandSizeFromText: mockGetPostExpandSizeFromText,
   spiHelperGetBulkPageRestrictions: mock(() => Promise.resolve(new Map())),
   spiHelperGetBulkPageText: mock(() => Promise.resolve(new Map())),
-  spiHelperGetPages: mock(() => Promise.resolve([])),
+  spiHelperGetPages: mockGetPages,
   spiHelperGetSPIBacklinks: mock(() => Promise.resolve([])),
   spiHelperGetSiteRestrictionInformation: mock(() => Promise.resolve({
     types: [], levels: [], cascadinglevels: [], semiprotectedlevels: [],
@@ -37,17 +41,20 @@ const {
   addNoteToCaseSections,
   mergeArchives,
   mergePreambles,
+  moveSubpagesIndividually,
   removeNewMasterFromCases,
   spiHelperMoveCase,
 } = await import('../../src/actions/move.ts');
 const { SpiPageContext, setContext } = await import('../../src/context.ts');
 const { ParsedArchiveNotice } = await import('../../src/types/spi.ts');
+const { messages } = await import('../../src/ui/messages.ts');
 
 beforeEach(() => {
   mockGetPageText.mockReset().mockResolvedValue('');
   mockGetInvestigationSections.mockReset().mockResolvedValue([]);
   mockEditPage.mockReset().mockResolvedValue(null);
-  mockMovePage.mockReset().mockResolvedValue(undefined);
+  mockMovePage.mockReset().mockResolvedValue(true);
+  mockGetPages.mockReset().mockResolvedValue([]);
   mockGetPostExpandSizeFromText.mockReset().mockResolvedValue(0);
 });
 
@@ -488,6 +495,104 @@ describe('spiHelperMoveCase', () => {
       expect(newCaseText().split('{{SPI archive notice')).toHaveLength(2);
       expect(newCaseText().split('{{SPIpriorcases}}')).toHaveLength(2);
     });
+  });
+});
+
+/** An allpages entry for a Wikipedia-namespace page */
+function subpage(title: string): AllPage {
+  return { pageid: 1, ns: 4, title };
+}
+
+describe('moving a case without move-subpages', () => {
+  const oldPage = 'Wikipedia:Sockpuppet investigations/Foo';
+  const newPage = 'Wikipedia:Sockpuppet investigations/Bar';
+
+  let getRights: ReturnType<typeof spyOn<typeof mw.user, 'getRights'>>;
+
+  const moveCase = () => spiHelperMoveCase({
+    target: 'Bar',
+    suppress: false,
+    addNote: false,
+    archiveNotice: new ParsedArchiveNotice({ username: 'Foo' }),
+  });
+
+  function sentMoves() {
+    return mockMovePage.mock.calls.map(([{ sourcePage, destPage, moveSubpages }]) => (
+      { sourcePage, destPage, moveSubpages }
+    ));
+  }
+
+  beforeEach(() => {
+    setContext(oldPage);
+    getRights = spyOn(mw.user, 'getRights');
+    getRights.mockResolvedValue(['move']);
+    mockGetPages.mockResolvedValue([subpage(`${oldPage}/Archive`), subpage(`${oldPage}/Archive/1`)]);
+  });
+
+  afterEach(() => {
+    getRights.mockRestore();
+  });
+
+  test('moves each subpage to the same place under the new case', async () => {
+    await moveCase();
+
+    expect(sentMoves()).toEqual([
+      { sourcePage: oldPage, destPage: newPage, moveSubpages: false },
+      { sourcePage: `${oldPage}/Archive`, destPage: `${newPage}/Archive`, moveSubpages: false },
+      { sourcePage: `${oldPage}/Archive/1`, destPage: `${newPage}/Archive/1`, moveSubpages: false },
+    ]);
+  });
+
+  test('leaves the subpages to the API when the user has move-subpages', async () => {
+    getRights.mockResolvedValue(['move', 'move-subpages']);
+
+    await moveCase();
+
+    expect(sentMoves()).toEqual([{ sourcePage: oldPage, destPage: newPage, moveSubpages: true }]);
+    expect(mockGetPages).not.toHaveBeenCalled();
+  });
+
+  test('does not touch the subpages when the case move itself failed', async () => {
+    mockMovePage.mockResolvedValue(false);
+
+    await moveCase();
+
+    expect(mockGetPages).not.toHaveBeenCalled();
+    expect(sentMoves()).toHaveLength(1);
+  });
+});
+
+describe('moveSubpagesIndividually', () => {
+  const opts = {
+    sourcePage: 'Wikipedia:Sockpuppet investigations/Foo',
+    destPage: 'Wikipedia:Sockpuppet investigations/Bar',
+    summary: 'Moving case',
+    suppressRedirect: false,
+  };
+
+  test('lists the subpages by prefix within the source page namespace', async () => {
+    await moveSubpagesIndividually(opts);
+
+    expect(mockGetPages.mock.calls[0]?.[0]).toMatchObject({
+      from: 'Sockpuppet investigations/Foo/', namespace: 4,
+    });
+  });
+
+  test('skips a listed page that is not under the moved title', async () => {
+    mockGetPages.mockResolvedValue([subpage('Wikipedia:Sockpuppet investigations/Foobar/Archive')]);
+
+    await moveSubpagesIndividually(opts);
+
+    expect(mockMovePage).not.toHaveBeenCalled();
+  });
+
+  test('says so when the subpages could not be listed', async () => {
+    mockGetPages.mockResolvedValue(null);
+
+    await moveSubpagesIndividually(opts);
+
+    expect(messages.some(m => m.type === 'error' && m.content.includes('Could not list the subpages'))).toBe(true);
+    expect(mockMovePage).not.toHaveBeenCalled();
   });
 });
 

@@ -10,7 +10,9 @@ import {
   spiHelperGetBulkPageText,
   spiHelperGetPages,
   spiHelperGetUsers,
+  spiHelperMovePage,
 } from '../src/api.ts';
+import { messages } from '../src/ui/messages.ts';
 import type {
   GlobalBlocksResponse,
   GlobalUsersResponse,
@@ -674,6 +676,106 @@ describe('page edits', () => {
       expect(request?.section).toBe('3');
       expect(request?.baserevid).toBe(7);
       expect(request).not.toHaveProperty('appendtext');
+    });
+  });
+});
+
+describe('spiHelperMovePage', () => {
+  const casePage = 'Wikipedia:Sockpuppet investigations/Foo';
+  const newCasePage = 'Wikipedia:Sockpuppet investigations/Bar';
+
+  let post: ReturnType<typeof spyOn<typeof mw.Api.prototype, 'post'>>;
+
+  const moveCase = (moveSubpages?: boolean) => spiHelperMovePage({
+    sourcePage: casePage,
+    destPage: newCasePage,
+    summary: 'Moving case',
+    ignoreWarnings: false,
+    moveSubpages,
+  });
+
+  function sentMoveSubpages() {
+    return (post.mock.calls[0]?.[0] as Record<string, unknown> | undefined)?.movesubpages;
+  }
+
+  function errorMessages() {
+    return messages.filter(message => message.type === 'error').map(message => message.content);
+  }
+
+  beforeEach(() => {
+    post = spyOn(mw.Api.prototype, 'post');
+    post.mockResolvedValue({ move: { from: casePage, to: newCasePage } });
+  });
+
+  afterEach(() => {
+    mock.restore();
+  });
+
+  test('asks the API to take the subpages along by default', async () => {
+    await moveCase();
+
+    expect(sentMoveSubpages()).toBe(true);
+  });
+
+  test('leaves subpages alone when asked to', async () => {
+    await moveCase(false);
+
+    expect(sentMoveSubpages()).toBe(false);
+  });
+
+  test('reports whether the page itself moved', async () => {
+    expect(await moveCase()).toBe(true);
+
+    post.mockRejectedValue('articleexists');
+    expect(await moveCase()).toBe(false);
+  });
+
+  describe('subpage failures', () => {
+    test('reports a subpage the API could not move', async () => {
+      post.mockResolvedValue({
+        move: {
+          from: casePage,
+          to: newCasePage,
+          subpages: [
+            { from: `${casePage}/Archive`, errors: [{ code: 'articleexists', info: 'The destination already exists' }] },
+            { from: `${casePage}/Archive/1`, to: `${newCasePage}/Archive/1` },
+          ],
+        },
+      });
+
+      await moveCase();
+
+      const [error] = errorMessages();
+      expect(error).toContain(`${casePage}/Archive: The destination already exists`);
+      expect(error).not.toContain('Archive/1');
+    });
+
+    test('reports the API refusing to move any subpages', async () => {
+      // What a user without move-subpages gets back: the page moved, its subpages didn't
+      post.mockResolvedValue({
+        move: {
+          from: casePage,
+          to: newCasePage,
+          subpages: { errors: [{ code: 'cant-move-subpages', info: 'You are not allowed to move subpages' }] },
+        },
+      });
+
+      expect(await moveCase()).toBe(true);
+      expect(errorMessages()[0]).toContain('all subpages: You are not allowed to move subpages');
+    });
+
+    test('shows no error when every subpage moved', async () => {
+      post.mockResolvedValue({
+        move: {
+          from: casePage,
+          to: newCasePage,
+          subpages: [{ from: `${casePage}/Archive`, to: `${newCasePage}/Archive` }],
+        },
+      });
+
+      await moveCase();
+
+      expect(errorMessages()).toEqual([]);
     });
   });
 });

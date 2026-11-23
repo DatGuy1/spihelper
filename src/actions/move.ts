@@ -7,6 +7,7 @@ import {
   spiHelperGetBulkPageText,
   spiHelperGetInvestigationSections,
   spiHelperGetPageText,
+  spiHelperGetPages,
   spiHelperGetPostExpandSizeFromText,
   spiHelperGetSPIBacklinks,
   spiHelperGetSiteRestrictionInformation,
@@ -20,7 +21,7 @@ import {
   spiHelperSockSectionWithNewlineRegex,
 } from '../constants';
 import { SpiPageContext, context } from '../context.ts';
-import { spiHelperCanSuppressRedirect, spiHelperIsAdmin } from '../role.ts';
+import { spiHelperCanMoveSubpages, spiHelperCanSuppressRedirect, spiHelperIsAdmin } from '../role.ts';
 import {
   type NewPendingChanges,
   ParsedArchiveNotice,
@@ -34,6 +35,7 @@ import { loadSectionText } from '../state.ts';
 import { VueMessage } from '../ui/messages.ts';
 import {
   addAdminSectionNote,
+  buildTitleLinkHtml,
   getContentStartIndex,
   isAbsoluteExpiry,
   parseArchiveSections,
@@ -344,13 +346,26 @@ export async function spiHelperMoveCase(opts: {
     }
   }
   else {
-    await spiHelperMovePage({
+    // Without move-subpages the API would move the case and leave the archives behind,
+    // so those users move each subpage themselves once the case has gone
+    const canMoveSubpages = await spiHelperCanMoveSubpages();
+    const suppressRedirect = suppress && spiHelperCanSuppressRedirect();
+    const moved = await spiHelperMovePage({
       sourcePage: oldContext.pageName,
       destPage: newContext.pageName,
       summary: `Moving case to [[${newContext.pageName}]]`,
-      suppressRedirect: suppress && spiHelperCanSuppressRedirect(),
+      suppressRedirect,
       ignoreWarnings: false,
+      moveSubpages: canMoveSubpages,
     });
+    if (moved && !canMoveSubpages) {
+      await moveSubpagesIndividually({
+        sourcePage: oldContext.pageName,
+        destPage: newContext.pageName,
+        summary: `Moving case to [[${newContext.pageName}]]`,
+        suppressRedirect,
+      });
+    }
   }
   await spiHelperPostRenameCleanup({
     oldContext,
@@ -359,6 +374,47 @@ export async function spiHelperMoveCase(opts: {
     deleteOld: suppress,
     preMergeText: targetPageText,
   });
+}
+
+/**
+ * Moves every subpage of sourcePage to the same place under destPage
+ */
+export async function moveSubpagesIndividually(opts: {
+  sourcePage: string;
+  destPage: string;
+  summary: string;
+  suppressRedirect: boolean;
+}) {
+  const { sourcePage, destPage, summary, suppressRedirect } = opts;
+  const title = new mw.Title(sourcePage);
+  const subpages = await spiHelperGetPages({
+    from: `${title.getMainText()}/`,
+    namespace: title.getNamespaceId(),
+    limit: 'max',
+  });
+  if (subpages === null) {
+    new VueMessage({
+      type: 'error',
+      content: `Could not list the subpages of ${buildTitleLinkHtml(sourcePage)}, please move them manually`,
+      isHtml: true,
+    }).show();
+    return;
+  }
+  // allpages returns normalised titles, so compare against the normalised form
+  const sourcePrefix = `${title.getPrefixedText()}/`;
+  for (const { title: subpageTitle } of subpages) {
+    if (!subpageTitle.startsWith(sourcePrefix)) {
+      continue;
+    }
+    await spiHelperMovePage({
+      sourcePage: subpageTitle,
+      destPage: `${destPage}/${subpageTitle.slice(sourcePrefix.length)}`,
+      summary,
+      ignoreWarnings: false,
+      suppressRedirect,
+      moveSubpages: false,
+    });
+  }
 }
 
 /**
